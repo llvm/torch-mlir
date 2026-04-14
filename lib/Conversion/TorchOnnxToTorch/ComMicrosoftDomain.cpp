@@ -338,7 +338,7 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
 
         Location loc = binder.getLoc();
         MLIRContext *context = binder.op->getContext();
-        Value query, key, value, pastKey, pastValue, seqlensK;
+        Value query, key, value, pastKey, pastValue, seqlensK, totalSeqLen;
         Value cosCache, sinCache;
 
         if (isPackedQKV) {
@@ -347,6 +347,7 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
           pastKey = operands[1];
           pastValue = operands[2];
           seqlensK = operands[3];
+          totalSeqLen = operands[4];
           if (doRotary) {
             cosCache = operands[5];
             sinCache = operands[6];
@@ -448,6 +449,7 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
           pastKey = operands[3];
           pastValue = operands[4];
           seqlensK = operands[5];
+          totalSeqLen = operands[6];
           if (doRotary) {
             cosCache = operands[7];
             sinCache = operands[8];
@@ -516,6 +518,10 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
               seqlensK, cstInt64Dtype, /*non_blocking=*/cstFalse,
               /*copy=*/cstFalse, /*memory_format=*/cstNone);
         }
+
+        // total_seq_len is a scalar per the ORT schema, but some importer
+        // paths materialize it as a 1-element tensor. aten.item handles both
+        // forms while preserving the original integer width.
 
         // Reshape Q/K/V from [batch, seq, hidden] to [batch, heads, seq,
         // head_size]. This requires:
@@ -679,16 +685,34 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         // current token at past_seq_len which doesn't match ORT's output.
         // Padding with zeros then scattering avoids this.
         //
-        // constant_pad_nd pads innermost dims first: [0, 0, 0, seq_len]
+        // Compute the required present cache length from total_seq_len:
+        // present_seq_len = item(total_seq_len)
+        // pad_seq_len = max(0, present_seq_len - past_seq_len)
+        //
+        // This works for both:
+        //  - growing caches (`present_seq_len > past_seq_len`), and
+        //  - fixed-capacity caches (`present_seq_len == past_seq_len`), where
+        //    padding becomes a no-op.
+        //
+        // constant_pad_nd pads innermost dims first: [0, 0, 0, pad_seq_len]
         //   dim 3 (head_size): [0, 0]  -- no padding
-        //   dim 2 (seq):       [0, seq_len] -- extend by seq_len on the right
+        //   dim 2 (seq):       [0, pad_seq_len] -- extend on the right
+        Value pastSeqLen = Torch::AtenSizeIntOp::create(
+            rewriter, loc, rewriter.getType<Torch::IntType>(), pastKey,
+            cstDim2);
+        Value presentSeqLen = Torch::AtenItemOp::create(
+            rewriter, loc, rewriter.getType<Torch::IntType>(), totalSeqLen);
+        Value padSeqLenDelta = Torch::AtenSubIntOp::create(
+            rewriter, loc, rewriter.getType<Torch::IntType>(), presentSeqLen,
+            pastSeqLen);
+        Value padSeqLen = Torch::PrimMaxIntOp::create(
+            rewriter, loc, padSeqLenDelta, cstIntZero);
         Value cstFloatZero = Torch::ConstantFloatOp::create(
             rewriter, loc, rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr(0.0));
         Value padList = Torch::PrimListConstructOp::create(
             rewriter, loc, intListType,
-            SmallVector<Value>{cstIntZero, cstIntZero, cstIntZero,
-                               cstSequenceLength});
+            SmallVector<Value>{cstIntZero, cstIntZero, cstIntZero, padSeqLen});
         Value presentKey = Torch::AtenConstantPadNdOp::create(
             rewriter, loc, resultTypes[1], pastKey, padList, cstFloatZero);
         Value presentValue = Torch::AtenConstantPadNdOp::create(

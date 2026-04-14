@@ -2528,6 +2528,24 @@ func.func @test_group_query_attention(%arg0: !torch.vtensor<[1,1,16],f32>, %arg1
 
 // -----
 
+// Test GQA when present KV cache has fixed capacity and does not grow.
+// CHECK-LABEL: func.func @test_group_query_attention_fixed_capacity_cache
+// CHECK-SAME: %[[PAST_KEY:[a-zA-Z0-9_]+]]: !torch.vtensor<[1,2,4,8],f32>
+// CHECK-SAME: %[[PAST_VALUE:[a-zA-Z0-9_]+]]: !torch.vtensor<[1,2,4,8],f32>
+func.func @test_group_query_attention_fixed_capacity_cache(%query: !torch.vtensor<[1,2,16],f32>, %key: !torch.vtensor<[1,2,16],f32>, %value: !torch.vtensor<[1,2,16],f32>, %past_key: !torch.vtensor<[1,2,4,8],f32>, %past_value: !torch.vtensor<[1,2,4,8],f32>, %seqlens_k: !torch.vtensor<[1],si32>, %total_seq_length: !torch.vtensor<[1],si32>) -> (!torch.vtensor<[1,2,16],f32>, !torch.vtensor<[1,2,4,8],f32>, !torch.vtensor<[1,2,4,8],f32>) attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 22 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[PAST_SEQ:.+]] = torch.aten.size.int %[[PAST_KEY]], {{.*}} : !torch.vtensor<[1,2,4,8],f32>, !torch.int -> !torch.int
+  // CHECK: %[[PRESENT_SEQ:.+]] = torch.aten.item %{{.*}} : !torch.vtensor<[1],si32> -> !torch.int
+  // CHECK: %[[PAD_DELTA:.+]] = torch.aten.sub.int %[[PRESENT_SEQ]], %[[PAST_SEQ]] : !torch.int, !torch.int -> !torch.int
+  // CHECK: %[[PAD_SEQ:.+]] = torch.prim.max.int %[[PAD_DELTA]], {{.*}} : !torch.int, !torch.int -> !torch.int
+  // CHECK: %[[PAD_LIST:.+]] = torch.prim.ListConstruct {{.*}}, {{.*}}, {{.*}}, %[[PAD_SEQ]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[K_PAD:.+]] = torch.aten.constant_pad_nd %[[PAST_KEY]], %[[PAD_LIST]], {{.*}} : !torch.vtensor<[1,2,4,8],f32>, !torch.list<int>, !torch.float -> !torch.vtensor<[1,2,4,8],f32>
+  // CHECK: %[[V_PAD:.+]] = torch.aten.constant_pad_nd %[[PAST_VALUE]], {{.*}} : !torch.vtensor<[1,2,4,8],f32>, !torch.list<int>, !torch.float -> !torch.vtensor<[1,2,4,8],f32>
+  %0:3 = torch.operator "onnx.GroupQueryAttention"(%query, %key, %value, %past_key, %past_value, %seqlens_k, %total_seq_length) {torch.onnx.kv_num_heads = 2 : si64, torch.onnx.num_heads = 2 : si64} : (!torch.vtensor<[1,2,16],f32>, !torch.vtensor<[1,2,16],f32>, !torch.vtensor<[1,2,16],f32>, !torch.vtensor<[1,2,4,8],f32>, !torch.vtensor<[1,2,4,8],f32>, !torch.vtensor<[1],si32>, !torch.vtensor<[1],si32>) -> (!torch.vtensor<[1,2,16],f32>, !torch.vtensor<[1,2,4,8],f32>, !torch.vtensor<[1,2,4,8],f32>)
+  return %0#0, %0#1, %0#2 : !torch.vtensor<[1,2,16],f32>, !torch.vtensor<[1,2,4,8],f32>, !torch.vtensor<[1,2,4,8],f32>
+}
+
+// -----
+
 // Test GQA with dynamic sequence length
 // CHECK-LABEL: func.func @test_group_query_attention_dynamic_seq
 func.func @test_group_query_attention_dynamic_seq(%arg0: !torch.vtensor<[1,?,16],f32>, %arg1: !torch.vtensor<[1,?,16],f32>, %arg2: !torch.vtensor<[1,?,16],f32>) -> (!torch.vtensor<[1,?,16],f32>, !torch.vtensor<[1,2,?,8],f32>, !torch.vtensor<[1,2,?,8],f32>) attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 22 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {
@@ -2569,6 +2587,10 @@ func.func @test_group_query_attention_dynamic_batch_seq(%arg0: !torch.vtensor<[?
   // CHECK: %[[K_TRANSPOSE:.+]] = torch.aten.transpose.int %[[K_RESHAPE]], {{.*}} -> !torch.vtensor<[?,2,?,8],f32>
   // CHECK: %[[V_RESHAPE:.+]] = torch.aten.unflatten.int %arg2, {{.*}} -> !torch.vtensor<[?,?,2,8],f32>
   // CHECK: %[[V_TRANSPOSE:.+]] = torch.aten.transpose.int %[[V_RESHAPE]], {{.*}} -> !torch.vtensor<[?,2,?,8],f32>
+  // CHECK: %[[PAST_SEQ:.+]] = torch.aten.size.int %arg3, {{.*}} : !torch.vtensor<[?,2,0,8],f32>, !torch.int -> !torch.int
+  // CHECK: %[[PRESENT_SEQ:.+]] = torch.aten.item %{{.*}} : !torch.vtensor<[?],si32> -> !torch.int
+  // CHECK: %[[PAD_DELTA:.+]] = torch.aten.sub.int %[[PRESENT_SEQ]], %[[PAST_SEQ]] : !torch.int, !torch.int -> !torch.int
+  // CHECK: %[[PAD_SEQ:.+]] = torch.prim.max.int %[[PAD_DELTA]], {{.*}} : !torch.int, !torch.int -> !torch.int
   // CHECK: %[[PAD_KEY:.+]] = torch.aten.constant_pad_nd %arg3, {{.*}} -> !torch.vtensor<[?,2,?,8],f32>
   // CHECK: %[[PAD_VALUE:.+]] = torch.aten.constant_pad_nd %arg4, {{.*}} -> !torch.vtensor<[?,2,?,8],f32>
   // CHECK: %[[PRESENT_KEY:.+]] = torch.aten.scatter.src %[[PAD_KEY]], {{.*}}, %[[K_TRANSPOSE]] : {{.*}} -> !torch.vtensor<[?,2,?,8],f32>
@@ -2654,6 +2676,9 @@ func.func @test_group_query_attention_packed_qkv_dynamic(%packed_qkv: !torch.vte
   // CHECK: %[[V_TRANSPOSE:.+]] = torch.aten.transpose.int %[[V_RESHAPE]], {{.*}} -> !torch.vtensor<[?,8,?,128],f32>
   // CHECK: %[[Q_ROTARY:.+]] = torch.onnx.rotary_embedding %[[Q_TRANSPOSE]], {{.*}} -> !torch.vtensor<[?,32,?,128],f32>
   // CHECK: %[[K_ROTARY:.+]] = torch.onnx.rotary_embedding %[[K_TRANSPOSE]], {{.*}} -> !torch.vtensor<[?,8,?,128],f32>
+  // CHECK: %[[PAST_SEQ:.+]] = torch.aten.size.int %arg1, {{.*}} : !torch.vtensor<[?,8,?,128],f32>, !torch.int -> !torch.int
+  // CHECK: %[[PRESENT_SEQ:.+]] = torch.aten.item %{{.*}} : !torch.vtensor<[],si32> -> !torch.int
+  // CHECK: %[[PAD_DELTA:.+]] = torch.aten.sub.int %[[PRESENT_SEQ]], %[[PAST_SEQ]] : !torch.int, !torch.int -> !torch.int
   // CHECK: %[[K_PAD:.+]] = torch.aten.constant_pad_nd %arg1, {{.*}} -> !torch.vtensor<[?,8,?,128],f32>
   // CHECK: %[[V_PAD:.+]] = torch.aten.constant_pad_nd %arg2, {{.*}} -> !torch.vtensor<[?,8,?,128],f32>
   // CHECK: %[[K_SCATTER:.+]] = torch.aten.scatter.src %[[K_PAD]], {{.*}}, %[[K_ROTARY]] : {{.*}} -> !torch.vtensor<[?,8,?,128],f32>
