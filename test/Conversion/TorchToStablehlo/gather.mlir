@@ -63,3 +63,51 @@ func.func @torch.aten.embedding$rank_two_indices(%weight: !torch.vtensor<[?,?],f
   %ret = torch.aten.embedding %weight, %indices, %int-1, %false, %false : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,1], si64>, !torch.int, !torch.bool, !torch.bool -> !torch.vtensor<[?,1,?],f32>
   return %ret: !torch.vtensor<[?,1,?],f32>
 }
+
+
+// -----
+
+// CHECK-LABEL:  func.func @torch.aten.index_select$empty_indices(
+// CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[4,8],f32>, %[[ARG1:.*]]: !torch.vtensor<[0],si64>) -> !torch.vtensor<[0,8],f32> {
+// CHECK:         %[[INT0:.*]] = torch.constant.int 0
+// CHECK:         %[[CST:.*]] = stablehlo.constant dense<0.000000e+00> : tensor<0x8xf32>
+// CHECK:         %[[CONVERT:.*]] = stablehlo.convert %[[CST]] : tensor<0x8xf32>
+// CHECK:         %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[CONVERT]] : tensor<0x8xf32> -> !torch.vtensor<[0,8],f32>
+// CHECK:         return %[[RESULT]] : !torch.vtensor<[0,8],f32>
+func.func @torch.aten.index_select$empty_indices(%arg0: !torch.vtensor<[4,8],f32>, %arg1: !torch.vtensor<[0],si64>) -> !torch.vtensor<[0,8],f32> {
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.index_select %arg0, %int0, %arg1 : !torch.vtensor<[4,8],f32>, !torch.int, !torch.vtensor<[0],si64> -> !torch.vtensor<[0,8],f32>
+  return %0 : !torch.vtensor<[0,8],f32>
+}
+
+// -----
+
+// CHECK-LABEL:  func.func @torch.aten.embedding$empty_indices(
+// CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[10,8],f32>, %[[ARG1:.*]]: !torch.vtensor<[0],si64>) -> !torch.vtensor<[0,8],f32> {
+// CHECK:         %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:         %[[INT_NEG1:.*]] = torch.constant.int -1
+// CHECK:         %[[CST:.*]] = stablehlo.constant dense<0.000000e+00> : tensor<0x8xf32>
+// CHECK:         %[[CONVERT:.*]] = stablehlo.convert %[[CST]] : tensor<0x8xf32>
+// CHECK:         %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[CONVERT]] : tensor<0x8xf32> -> !torch.vtensor<[0,8],f32>
+// CHECK:         return %[[RESULT]] : !torch.vtensor<[0,8],f32>
+func.func @torch.aten.embedding$empty_indices(%weight: !torch.vtensor<[10,8],f32>, %indices: !torch.vtensor<[0], si64>) -> !torch.vtensor<[0,8],f32> {
+  %false = torch.constant.bool false
+  %int-1 = torch.constant.int -1
+  %ret = torch.aten.embedding %weight, %indices, %int-1, %false, %false : !torch.vtensor<[10,8],f32>, !torch.vtensor<[0], si64>, !torch.int, !torch.bool, !torch.bool -> !torch.vtensor<[0,8],f32>
+  return %ret: !torch.vtensor<[0,8],f32>
+}
+
+// -----
+
+// CHECK-LABEL:  func.func @torch.aten.index_select$empty_indices_dim1(
+// CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[4,8],f32>, %[[ARG1:.*]]: !torch.vtensor<[0],si64>) -> !torch.vtensor<[4,0],f32> {
+// CHECK:         %[[INT1:.*]] = torch.constant.int 1
+// CHECK:         %[[CST:.*]] = stablehlo.constant dense<0.000000e+00> : tensor<4x0xf32>
+// CHECK:         %[[CONVERT:.*]] = stablehlo.convert %[[CST]] : tensor<4x0xf32>
+// CHECK:         %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[CONVERT]] : tensor<4x0xf32> -> !torch.vtensor<[4,0],f32>
+// CHECK:         return %[[RESULT]] : !torch.vtensor<[4,0],f32>
+func.func @torch.aten.index_select$empty_indices_dim1(%arg0: !torch.vtensor<[4,8],f32>, %arg1: !torch.vtensor<[0],si64>) -> !torch.vtensor<[4,0],f32> {
+  %int1 = torch.constant.int 1
+  %0 = torch.aten.index_select %arg0, %int1, %arg1 : !torch.vtensor<[4,8],f32>, !torch.int, !torch.vtensor<[0],si64> -> !torch.vtensor<[4,0],f32>
+  return %0 : !torch.vtensor<[4,0],f32>
+}

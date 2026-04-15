@@ -534,7 +534,9 @@ public:
         typeConverter, context);
     patterns.add<ConvertAtenBinaryOp<AtenMulFloatIntOp, arith::MulFOp>>(
         typeConverter, context);
-    target.addIllegalOp<AtenSubFloatOp, AtenMulFloatOp>();
+    target.addIllegalOp<AtenAddFloatOp, AtenSubFloatOp, AtenMulFloatOp>();
+    patterns.add<ConvertAtenBinaryOp<AtenAddFloatOp, arith::AddFOp>>(
+        typeConverter, context);
     patterns.add<ConvertAtenBinaryOp<AtenSubFloatOp, arith::SubFOp>>(
         typeConverter, context);
     patterns.add<ConvertAtenBinaryOp<AtenMulFloatOp, arith::MulFOp>>(

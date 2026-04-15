@@ -30,7 +30,11 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
+<<<<<<< add-atan-lowering
 #include <array>
+=======
+#include "llvm/Support/MathExtras.h"
+>>>>>>> main
 #include <cmath>
 #include <numeric>
 #include <optional>
@@ -752,6 +756,23 @@ public:
       lhs = tosa::tosaCastTensorToType(rewriter, lhs, resultTy).value();
       rhsTensor =
           tosa::tosaCastTensorToType(rewriter, rhsTensor, resultTy).value();
+      // TOSA bitwise ops do not support i1. Use logical ops for bool tensors.
+      if (tosa::isI1Type(resultTy)) {
+        if constexpr (std::is_same<AtenOpT, AtenBitwiseAndTensorOp>() ||
+                      std::is_same<AtenOpT, AtenBitwiseAndScalarOp>()) {
+          rewriter.replaceOpWithNewOp<tosa::LogicalAndOp>(op, resultTy, lhs,
+                                                          rhsTensor);
+          return success();
+        } else if constexpr (std::is_same<AtenOpT, AtenBitwiseOrTensorOp>()) {
+          rewriter.replaceOpWithNewOp<tosa::LogicalOrOp>(op, resultTy, lhs,
+                                                         rhsTensor);
+          return success();
+        } else if constexpr (std::is_same<AtenOpT, AtenBitwiseXorTensorOp>()) {
+          rewriter.replaceOpWithNewOp<tosa::LogicalXorOp>(op, resultTy, lhs,
+                                                          rhsTensor);
+          return success();
+        }
+      }
     }
 
     // Support different types comparisons
@@ -1505,6 +1526,7 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewriteImpl(
   // Create a single instance of tosa.argmax.
   // Multiple dims require chained construct.
   auto buildArgmax = [&](int64_t reduceDim, Value input) -> Value {
+    input = tosa::legalizeArgMaxInputType(rewriter, op.getOperation(), input);
     auto inputTy = cast<RankedTensorType>(input.getType());
     auto inputShape = makeShapeTorchCompatible(inputTy.getShape());
     SmallVector<int64_t> outputShapeArr = {};
@@ -1524,7 +1546,7 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewriteImpl(
         makeShapeLLVMCompatible(ArrayRef<int64_t>(outputShapeArr)),
         rewriter.getI32Type());
     auto reduceDimAttr =
-        rewriter.getIntegerAttr(rewriter.getI64Type(), reduceDim);
+        rewriter.getIntegerAttr(rewriter.getI32Type(), reduceDim);
 
     // Use default NaN Propagation mode "PROPAGATE" for tosa.argmax
     return tosa::ArgMaxOp::create(
@@ -4249,12 +4271,12 @@ LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewriteImpl(
                                     selfShape, selfElemTy)
             .value();
 
-    // From <cmath> header: M_2_PI = 2 / pi
     Value twoOverPi =
         tosa::getConstTensor<float>(
             rewriter, op,
-            SmallVector<float>(numElem, static_cast<float>(M_2_PI)), selfShape,
-            selfElemTy)
+            SmallVector<float>(numElem,
+                               static_cast<float>(2.0 / llvm::numbers::pi)),
+            selfShape, selfElemTy)
             .value();
 
     // 0.5 * x
@@ -4700,22 +4722,26 @@ public:
     if constexpr (std::is_same<AtenOpT, AtenMinDimOp>()) {
       Value negateOp =
           tosa::NegateOp::create(rewriter, op->getLoc(), selfType, self);
+      Value argInput =
+          tosa::legalizeArgMaxInputType(rewriter, op.getOperation(), negateOp);
 
       // Use default NaN Propagation mode "PROPAGATE" for tosa.argmax
       argMaxOp = tosa::ArgMaxOp::create(
           rewriter, op->getLoc(),
           RankedTensorType::get(makeShapeLLVMCompatible(prunedShape),
                                 indicesElemType),
-          negateOp, dimAttr, /*nan_mode=*/
+          argInput, dimAttr, /*nan_mode=*/
           tosa::NanPropagationModeAttr::get(
               rewriter.getContext(), tosa::NanPropagationMode::PROPAGATE));
     } else {
+      Value argInput =
+          tosa::legalizeArgMaxInputType(rewriter, op.getOperation(), self);
       // Use default NaN Propagation mode "PROPAGATE" for tosa.argmax
       argMaxOp = tosa::ArgMaxOp::create(
           rewriter, op->getLoc(),
           RankedTensorType::get(makeShapeLLVMCompatible(prunedShape),
                                 indicesElemType),
-          self, dimAttr, /*nan_mode=*/
+          argInput, dimAttr, /*nan_mode=*/
           tosa::NanPropagationModeAttr::get(
               rewriter.getContext(), tosa::NanPropagationMode::PROPAGATE));
     }

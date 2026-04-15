@@ -382,6 +382,20 @@ std::optional<Value> tosaCastTensorToType(PatternRewriter &rewriter, Value src,
   return tosa::CastOp::create(rewriter, op->getLoc(), castedSrcType, src);
 }
 
+Value legalizeArgMaxInputType(PatternRewriter &rewriter, Operation *op,
+                              Value input) {
+  auto inputTy = cast<RankedTensorType>(input.getType());
+  auto elemTy = inputTy.getElementType();
+  // Keep i8 as-is (supported by TOSA pro_int argmax). Cast other integer
+  // types to f32, including i1 (handled via i1->i8->f32).
+  if (!elemTy.isInteger() || elemTy.isInteger(8))
+    return input;
+  auto castTy =
+      RankedTensorType::get(inputTy.getShape(), rewriter.getF32Type());
+  auto casted = tosa::tosaCastTensorToType(rewriter, input, castTy);
+  return casted ? *casted : input;
+}
+
 // Create a tosa.gather op. Casts i1 inputs to i8 internally if needed.
 std::optional<Value> createGatherOp(PatternRewriter &rewriter, Location loc,
                                     RankedTensorType resultType, Value input,
@@ -638,10 +652,13 @@ void computeResizeParams(int inputSize, int outputSize, bool alignCorners,
   scaleN = 2 * scaleN / gcd;
   scaleD = 2 * scaleD / gcd;
 
-  // If nearest neighbors we need to guarantee we round up.
   offset = 0;
-  if (mode == tosa::ResizeMode::NEAREST_NEIGHBOR && alignCorners) {
-    offset += scaleN / 2;
+  if (mode == tosa::ResizeMode::BILINEAR && !applyAligned) {
+    // Set offset to match PyTorch half-pixel centers
+    offset = (scaleD - scaleN) / 2;
+  } else if (mode == tosa::ResizeMode::NEAREST_NEIGHBOR && alignCorners) {
+    // If nearest neighbors we need to guarantee we round up.
+    offset = scaleN / 2;
   }
 
   // We can compute this directly based on previous values.

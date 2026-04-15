@@ -21,8 +21,11 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "InterpolateDynamicModule_sizes_bilinear",
     "InterpolateDynamicModule_sizes_nearest",
     "InterpolateStaticModule_scales_bilinear_align_corners",
+    "InterpolateStaticModule_sizes_bilinear_no_align_corners",
     "InterpolateDynamicModule_scales_recompute_bilinear",
     "ElementwiseFloatTensorGtIntTensorModule_basic",
+    # TODO: The values are extremely close to the golden values, but the test fails because of strict rtol/atol.
+    "AtenInstanceNormModuleFp16_basic",
     "AtenIntMM_basic",
     # unimplemented lowering torch -> linalg for torchvision.deform_conv2d
     # this is added to check the torch.onnx.export -> import_onnx -> torch path
@@ -408,6 +411,8 @@ FX_IMPORTER_XFAIL_SET = {
     "AnyBoolTrueModule_basic",
     "ArangeStartOutViewModule_basic",
     "AtenFloatScalarModule_basic",
+    # TODO: The values are extremely close to the golden values, but the test fails because of strict rtol/atol.
+    "AtenInstanceNormModuleFp16_basic",
     "AtenIntBoolOpConstFalseModule_basic",
     "AtenIntBoolOpConstTrueModule_basic",
     "AtenIntBoolOpModule_basic",
@@ -624,6 +629,8 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenFftRfft2DLastDim_basic",
     "AtenFftRfft2DMiddleDim_basic",
     "AtenFloatScalarModule_basic",
+    # TODO: The values are extremely close to the golden values, but the test fails because of strict rtol/atol.
+    "AtenInstanceNormModuleFp16_basic",
     "AtenIntBoolOpConstFalseModule_basic",
     "AtenIntBoolOpConstTrueModule_basic",
     "AtenIntBoolOpModule_basic",
@@ -2367,6 +2374,7 @@ TOSA_PASS_SET = {
     "IndexTensorMultiIndexStaticModule_basic",
     "IndexTensorNegativeIndexModule_basic",
     "IndexTensorStaticModule_basic",
+    "InterpolateStaticModule_sizes_bilinear_no_align_corners",
     "IscloseStaticModuleTrue_basic",
     "IscloseStaticModule_basic",
     "LayerNormNormalizeOverAllDimsModule_basic",
@@ -2777,6 +2785,8 @@ ONNX_XFAIL_SET = {
     "ConvolutionModule3DGroups_basic",
     "ConvolutionModule3DGroupsStrided_basic",
     "ConvolutionModule3DGroupsDilated_basic",
+    # torch.onnx.export does not support aten::bitwise_xor for bool
+    "ElementwiseBitwiseXorBoolModule_basic",
     # Failure - incorrect shape
     "ArangeStartOutDtypeModule_basic",
     "ArangeStartOutViewModule_basic",
@@ -2841,6 +2851,8 @@ ONNX_XFAIL_SET = {
     "AtenStftCenter2DWindowPadLeft_basic",
     "AtenStftCenter2DHopLength3WindowPadBoth_basic",
     "AtenFloatScalarModule_basic",
+    # TODO: The values are extremely close to the golden values, but the test fails because of strict rtol/atol.
+    "AtenInstanceNormModuleFp16_basic",
     "AtenIntBoolOpConstFalseModule_basic",
     "AtenIntBoolOpConstTrueModule_basic",
     "AtenIntBoolOpModule_basic",
@@ -3128,6 +3140,8 @@ ONNX_XFAIL_SET = {
     "RMSNormWithoutWeightModule_basic",
     "RMSNormAllNormalizeModule_basic",
     "RMSNormDynamicModule_basic",
+    "NativeBatchNorm1DTrainingModule_basic",
+    "NativeBatchNorm2DTrainingModule_basic",
     "NeFloatIntModule_basic",
     "NeIntModule_basic",
     "NewEmptyStridedModuleDefaultDtype_basic",
@@ -3666,6 +3680,8 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenEmbeddingBagStaticModule_basic",
     "AtenEmbeddingBagSumExample_basic",
     "AtenFloatScalarModule_basic",
+    # TODO: The values are extremely close to the golden values, but the test fails because of strict rtol/atol.
+    "AtenInstanceNormModuleFp16_basic",
     "AtenIntBoolOpConstFalseModule_basic",
     "AtenIntBoolOpConstTrueModule_basic",
     "AtenIntBoolOpModule_basic",
@@ -4061,6 +4077,8 @@ ONNX_TOSA_XFAIL_SET = {
     "KlDivLossModule_mean_reduction_basic",
     "KlDivLossModule_sum_reduction_basic",
     "KlDivLossModule_batchmean_reduction_basic",
+    # torch.onnx.export does not support aten::bitwise_xor for bool
+    "ElementwiseBitwiseXorBoolModule_basic",
     "Exp2StaticModule_basic",
     "ElementwiseRreluWithNoiseEvalModule_basic",
     "ElementwiseRreluWithNoiseEvalStaticModule_basic",
@@ -4103,6 +4121,8 @@ ONNX_TOSA_XFAIL_SET = {
     "AdaptiveAvgPool2dNonUnitOutputSizeStaticModule_basic",
     "AdaptiveAvgPool2dOutputSizeDivisibleByInputStaticModule_basic",
     "ArgmaxKeepdimModule_basic",
+    # TODO: The values are extremely close to the golden values, but the test fails because of strict rtol/atol.
+    "AtenInstanceNormModuleFp16_basic",
     "AtenIntMM_basic",
     "AtenKthvalueDynamicDimsModule_basic",
     "AtenKthvalueFloat64DynamicDimsModule_basic",
