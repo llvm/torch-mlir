@@ -30,11 +30,8 @@
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
-<<<<<<< add-atan-lowering
-#include <array>
-=======
 #include "llvm/Support/MathExtras.h"
->>>>>>> main
+#include <array>
 #include <cmath>
 #include <numeric>
 #include <optional>
