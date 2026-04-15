@@ -564,6 +564,7 @@ private:
     ArrayRef<int64_t> resultSizes = resultTensorType.getSizes();
     int64_t resultRank = static_cast<int64_t>(resultSizes.size());
 
+    int64_t numReduced = static_cast<int64_t>(opInfo.dimSet.size());
     if (resultRank == inputRank) {
       opInfo.keepDim = true;
       for (int64_t i = 0; i < inputRank; ++i) {
@@ -572,6 +573,20 @@ private:
           return rewriter.notifyMatchFailure(
               op, "result shape does not match expected reduced shape");
       }
+    } else if (resultRank == inputRank - numReduced) {
+      int64_t j = 0;
+      for (int64_t i = 0; i < inputRank; ++i) {
+        if (opInfo.dimSet.contains(i))
+          continue;
+        if (resultSizes[j] != inputSizes[i])
+          return rewriter.notifyMatchFailure(
+              op, "result shape does not match expected reduced shape");
+        ++j;
+      }
+    } else {
+      return rewriter.notifyMatchFailure(
+          op, "result rank does not match input rank (keepdim) nor "
+              "input rank minus the number of reduced dims");
     }
 
     return opInfo;
