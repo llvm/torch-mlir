@@ -346,11 +346,12 @@ Value Torch::getConstantWithGivenDtypeAndValue(PatternRewriter &rewriter,
                                  rewriter.getI64IntegerAttr((int64_t)value));
   if (dtype.isF64() || dtype.isF32() || dtype.isF16() || dtype.isBF16() ||
       isa<Float8E5M2Type, Float8E4M3FNType, Float8E5M2FNUZType,
-          Float8E4M3FNUZType, Float8E8M0FNUType>(dtype))
+          Float8E4M3FNUZType>(dtype) ||
+      (isa<Float8E8M0FNUType>(dtype) && value != 0.0f))
     return ConstantFloatOp::create(rewriter, loc,
                                    rewriter.getF64FloatAttr(value));
   llvm::report_fatal_error(
-      "unhandled type for getConstantWithGivenDtypeAndValue");
+      "unhandled type or value for getConstantWithGivenDtypeAndValue");
 }
 
 // Return the number of elements of a tensor if the shape is static; otherwise,
