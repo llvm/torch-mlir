@@ -3318,38 +3318,14 @@ func.func @torch.aten.upsample_bilinear2d.vec$scale_factors(%arg0: !torch.vtenso
 // CHECK-LABEL:   func.func @torch.aten.upsample_nearest2d$basic(
 // CHECK-SAME:                                                   %[[VAL_0:.*]]: !torch.vtensor<[1,1,2,3],f64>) -> !torch.vtensor<[1,1,8,9],f64> {
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,1,2,3],f64> -> tensor<1x1x2x3xf64>
-// CHECK:           %[[VAL_2:.*]] = torch.constant.float 4.000000e+00
-// CHECK:           %[[VAL_3:.*]] = torch.constant.float 3.000000e+00
-// CHECK:           %[[VAL_4:.*]] = torch.constant.int 8
-// CHECK:           %[[VAL_5:.*]] = torch.constant.int 9
-// CHECK:           %[[VAL_6:.*]] = torch.prim.ListConstruct %[[VAL_4]], %[[VAL_5]] : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[VAL_7:.*]] = tosa.const_shape  {values = dense<[1, 1, 6]> : tensor<3xindex>} : () -> !tosa.shape<3>
-// CHECK:           %[[VAL_8:.*]] = tosa.reshape %[[VAL_1]], %[[VAL_7]] : (tensor<1x1x2x3xf64>, !tosa.shape<3>) -> tensor<1x1x6xf64>
-// CHECK:           %[[VAL_9:.*]] = "tosa.const"() <{values = dense<{{\[\[}}[0, 0, 0, 1, 1, 1, 2, 2, 2, 0, 0, 0, 1, 1, 1, 2, 2, 2, 0, 0, 0, 1, 1, 1, 2, 2, 2, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 5, 3, 3, 3, 4, 4, 4, 5, 5, 5, 3, 3, 3, 4, 4, 4, 5, 5, 5, 3, 3, 3, 4, 4, 4, 5, 5, 5]]]> : tensor<1x1x72xi32>}> : () -> tensor<1x1x72xi32>
-// CHECK:           %[[VAL_10:.*]] = tosa.const_shape  {values = dense<[1, 1, 72, 1]> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK:           %[[VAL_11:.*]] = tosa.reshape %[[VAL_9]], %[[VAL_10]] : (tensor<1x1x72xi32>, !tosa.shape<4>) -> tensor<1x1x72x1xi32>
-// CHECK:           %[[VAL_12:.*]] = "tosa.const"() <{values = dense<0> : tensor<1x1x72x1xi32>}> : () -> tensor<1x1x72x1xi32>
-// CHECK:           %[[VAL_13:.*]] = "tosa.const"() <{values = dense<0> : tensor<1x1x72x1xi32>}> : () -> tensor<1x1x72x1xi32>
-// CHECK:           %[[VAL_14:.*]] = tosa.concat %[[VAL_12]], %[[VAL_13]], %[[VAL_11]] {axis = 3 : i32} : (tensor<1x1x72x1xi32>, tensor<1x1x72x1xi32>, tensor<1x1x72x1xi32>) -> tensor<1x1x72x3xi32>
-// CHECK:           %[[VAL_15:.*]] = tosa.const_shape  {values = dense<[1, 6, 1]> : tensor<3xindex>} : () -> !tosa.shape<3>
-// CHECK:           %[[VAL_16:.*]] = tosa.reshape %[[VAL_8]], %[[VAL_15]] : (tensor<1x1x6xf64>, !tosa.shape<3>) -> tensor<1x6x1xf64>
-// CHECK:           %[[VAL_17:.*]] = tosa.const_shape  {values = dense<[72, 3]> : tensor<2xindex>} : () -> !tosa.shape<2>
-// CHECK:           %[[VAL_18:.*]] = tosa.reshape %[[VAL_14]], %[[VAL_17]] : (tensor<1x1x72x3xi32>, !tosa.shape<2>) -> tensor<72x3xi32>
-// CHECK:           %[[VAL_19:.*]] = "tosa.const"() <{values = dense<[6, 6, 1]> : tensor<3xi32>}> : () -> tensor<3xi32>
-// CHECK:           %[[VAL_20:.*]] = tosa.const_shape  {values = dense<[1, 3]> : tensor<2xindex>} : () -> !tosa.shape<2>
-// CHECK:           %[[VAL_21:.*]] = tosa.reshape %[[VAL_19]], %[[VAL_20]] : (tensor<3xi32>, !tosa.shape<2>) -> tensor<1x3xi32>
-// CHECK:           %[[VAL_22:.*]] = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
-// CHECK:           %[[VAL_23:.*]] = tosa.mul %[[VAL_18]], %[[VAL_21]], %[[VAL_22]] : (tensor<72x3xi32>, tensor<1x3xi32>, tensor<1xi8>) -> tensor<72x3xi32>
-// CHECK:           %[[VAL_24:.*]] = tosa.reduce_sum %[[VAL_23]] {axis = 1 : i32} : (tensor<72x3xi32>) -> tensor<72x1xi32>
-// CHECK:           %[[VAL_25:.*]] = tosa.const_shape  {values = dense<[1, 72]> : tensor<2xindex>} : () -> !tosa.shape<2>
-// CHECK:           %[[VAL_26:.*]] = tosa.reshape %[[VAL_24]], %[[VAL_25]] : (tensor<72x1xi32>, !tosa.shape<2>) -> tensor<1x72xi32>
-// CHECK:           %[[VAL_27:.*]] = tosa.gather %[[VAL_16]], %[[VAL_26]] : (tensor<1x6x1xf64>, tensor<1x72xi32>) -> tensor<1x72x1xf64>
-// CHECK:           %[[VAL_28:.*]] = tosa.const_shape  {values = dense<[1, 1, 72]> : tensor<3xindex>} : () -> !tosa.shape<3>
-// CHECK:           %[[VAL_29:.*]] = tosa.reshape %[[VAL_27]], %[[VAL_28]] : (tensor<1x72x1xf64>, !tosa.shape<3>) -> tensor<1x1x72xf64>
-// CHECK:           %[[VAL_30:.*]] = tosa.const_shape  {values = dense<[1, 1, 8, 9]> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK:           %[[VAL_31:.*]] = tosa.reshape %[[VAL_29]], %[[VAL_30]] : (tensor<1x1x72xf64>, !tosa.shape<4>) -> tensor<1x1x8x9xf64>
-// CHECK:           %[[VAL_32:.*]] = torch_c.from_builtin_tensor %[[VAL_31]] : tensor<1x1x8x9xf64> -> !torch.vtensor<[1,1,8,9],f64>
-// CHECK:           return %[[VAL_32]] : !torch.vtensor<[1,1,8,9],f64>
+// CHECK:           %[[VAL_2:.*]] = tosa.transpose %[[VAL_1]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<1x1x2x3xf64>) -> tensor<1x2x3x1xf64>
+// CHECK-DAG:       %[[VAL_3:.*]] = tosa.const_shape  {values = dense<[8, 2, 6, 2]> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK-DAG:       %[[VAL_4:.*]] = tosa.const_shape  {values = dense<0> : tensor<2xindex>} : () -> !tosa.shape<2>
+// CHECK-DAG:       %[[VAL_5:.*]] = tosa.const_shape  {values = dense<[6, 4]> : tensor<2xindex>} : () -> !tosa.shape<2>
+// CHECK:           %[[VAL_6:.*]] = tosa.resize %[[VAL_2]], %[[VAL_3]], %[[VAL_4]], %[[VAL_5]] {mode = NEAREST_NEIGHBOR} : (tensor<1x2x3x1xf64>, !tosa.shape<4>, !tosa.shape<2>, !tosa.shape<2>) -> tensor<1x8x9x1xf64>
+// CHECK:           %[[VAL_7:.*]] = tosa.transpose %[[VAL_6]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<1x8x9x1xf64>) -> tensor<1x1x8x9xf64>
+// CHECK:           %[[VAL_8:.*]] = torch_c.from_builtin_tensor %[[VAL_7]] : tensor<1x1x8x9xf64> -> !torch.vtensor<[1,1,8,9],f64>
+// CHECK:           return %[[VAL_8]] : !torch.vtensor<[1,1,8,9],f64>
 // CHECK:         }
 func.func @torch.aten.upsample_nearest2d$basic(%arg0: !torch.vtensor<[1,1,2,3],f64>) -> !torch.vtensor<[1,1,8,9],f64> {
   %float4.000000e00 = torch.constant.float 4.000000e+00
@@ -3366,37 +3342,14 @@ func.func @torch.aten.upsample_nearest2d$basic(%arg0: !torch.vtensor<[1,1,2,3],f
 // CHECK-LABEL:   func.func @torch.aten.upsample_nearest2d.vec$basic(
 // CHECK-SAME:                                                       %[[VAL_0:.*]]: !torch.vtensor<[1,1,4,5],f32>) -> !torch.vtensor<[1,1,2,7],f32> {
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,1,4,5],f32> -> tensor<1x1x4x5xf32>
-// CHECK:           %[[VAL_2:.*]] = torch.constant.none
-// CHECK:           %[[VAL_3:.*]] = torch.constant.int 2
-// CHECK:           %[[VAL_4:.*]] = torch.constant.int 7
-// CHECK:           %[[VAL_5:.*]] = torch.prim.ListConstruct %[[VAL_3]], %[[VAL_4]] : (!torch.int, !torch.int) -> !torch.list<int>
-// CHECK:           %[[VAL_6:.*]] = tosa.const_shape  {values = dense<[1, 1, 20]> : tensor<3xindex>} : () -> !tosa.shape<3>
-// CHECK:           %[[VAL_7:.*]] = tosa.reshape %[[VAL_1]], %[[VAL_6]] : (tensor<1x1x4x5xf32>, !tosa.shape<3>) -> tensor<1x1x20xf32>
-// CHECK:           %[[VAL_8:.*]] = "tosa.const"() <{values = dense<{{\[\[}}[0, 0, 1, 2, 2, 3, 4, 10, 10, 11, 12, 12, 13, 14]]]> : tensor<1x1x14xi32>}> : () -> tensor<1x1x14xi32>
-// CHECK:           %[[VAL_9:.*]] = tosa.const_shape  {values = dense<[1, 1, 14, 1]> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK:           %[[VAL_10:.*]] = tosa.reshape %[[VAL_8]], %[[VAL_9]] : (tensor<1x1x14xi32>, !tosa.shape<4>) -> tensor<1x1x14x1xi32>
-// CHECK:           %[[VAL_11:.*]] = "tosa.const"() <{values = dense<0> : tensor<1x1x14x1xi32>}> : () -> tensor<1x1x14x1xi32>
-// CHECK:           %[[VAL_12:.*]] = "tosa.const"() <{values = dense<0> : tensor<1x1x14x1xi32>}> : () -> tensor<1x1x14x1xi32>
-// CHECK:           %[[VAL_13:.*]] = tosa.concat %[[VAL_11]], %[[VAL_12]], %[[VAL_10]] {axis = 3 : i32} : (tensor<1x1x14x1xi32>, tensor<1x1x14x1xi32>, tensor<1x1x14x1xi32>) -> tensor<1x1x14x3xi32>
-// CHECK:           %[[VAL_14:.*]] = tosa.const_shape  {values = dense<[1, 20, 1]> : tensor<3xindex>} : () -> !tosa.shape<3>
-// CHECK:           %[[VAL_15:.*]] = tosa.reshape %[[VAL_7]], %[[VAL_14]] : (tensor<1x1x20xf32>, !tosa.shape<3>) -> tensor<1x20x1xf32>
-// CHECK:           %[[VAL_16:.*]] = tosa.const_shape  {values = dense<[14, 3]> : tensor<2xindex>} : () -> !tosa.shape<2>
-// CHECK:           %[[VAL_17:.*]] = tosa.reshape %[[VAL_13]], %[[VAL_16]] : (tensor<1x1x14x3xi32>, !tosa.shape<2>) -> tensor<14x3xi32>
-// CHECK:           %[[VAL_18:.*]] = "tosa.const"() <{values = dense<[20, 20, 1]> : tensor<3xi32>}> : () -> tensor<3xi32>
-// CHECK:           %[[VAL_19:.*]] = tosa.const_shape  {values = dense<[1, 3]> : tensor<2xindex>} : () -> !tosa.shape<2>
-// CHECK:           %[[VAL_20:.*]] = tosa.reshape %[[VAL_18]], %[[VAL_19]] : (tensor<3xi32>, !tosa.shape<2>) -> tensor<1x3xi32>
-// CHECK:           %[[VAL_21:.*]] = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
-// CHECK:           %[[VAL_22:.*]] = tosa.mul %[[VAL_17]], %[[VAL_20]], %[[VAL_21]] : (tensor<14x3xi32>, tensor<1x3xi32>, tensor<1xi8>) -> tensor<14x3xi32>
-// CHECK:           %[[VAL_23:.*]] = tosa.reduce_sum %[[VAL_22]] {axis = 1 : i32} : (tensor<14x3xi32>) -> tensor<14x1xi32>
-// CHECK:           %[[VAL_24:.*]] = tosa.const_shape  {values = dense<[1, 14]> : tensor<2xindex>} : () -> !tosa.shape<2>
-// CHECK:           %[[VAL_25:.*]] = tosa.reshape %[[VAL_23]], %[[VAL_24]] : (tensor<14x1xi32>, !tosa.shape<2>) -> tensor<1x14xi32>
-// CHECK:           %[[VAL_26:.*]] = tosa.gather %[[VAL_15]], %[[VAL_25]] : (tensor<1x20x1xf32>, tensor<1x14xi32>) -> tensor<1x14x1xf32>
-// CHECK:           %[[VAL_27:.*]] = tosa.const_shape  {values = dense<[1, 1, 14]> : tensor<3xindex>} : () -> !tosa.shape<3>
-// CHECK:           %[[VAL_28:.*]] = tosa.reshape %[[VAL_26]], %[[VAL_27]] : (tensor<1x14x1xf32>, !tosa.shape<3>) -> tensor<1x1x14xf32>
-// CHECK:           %[[VAL_29:.*]] = tosa.const_shape  {values = dense<[1, 1, 2, 7]> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK:           %[[VAL_30:.*]] = tosa.reshape %[[VAL_28]], %[[VAL_29]] : (tensor<1x1x14xf32>, !tosa.shape<4>) -> tensor<1x1x2x7xf32>
-// CHECK:           %[[VAL_31:.*]] = torch_c.from_builtin_tensor %[[VAL_30]] : tensor<1x1x2x7xf32> -> !torch.vtensor<[1,1,2,7],f32>
-// CHECK:           return %[[VAL_31]] : !torch.vtensor<[1,1,2,7],f32>
+// CHECK:           %[[VAL_2:.*]] = tosa.transpose %[[VAL_1]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<1x1x4x5xf32>) -> tensor<1x4x5x1xf32>
+// CHECK-DAG:       %[[VAL_3:.*]] = tosa.const_shape  {values = dense<[2, 4, 14, 10]> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK-DAG:       %[[VAL_4:.*]] = tosa.const_shape  {values = dense<0> : tensor<2xindex>} : () -> !tosa.shape<2>
+// CHECK-DAG:       %[[VAL_5:.*]] = tosa.const_shape  {values = dense<[-2, 4]> : tensor<2xindex>} : () -> !tosa.shape<2>
+// CHECK:           %[[VAL_6:.*]] = tosa.resize %[[VAL_2]], %[[VAL_3]], %[[VAL_4]], %[[VAL_5]] {mode = NEAREST_NEIGHBOR} : (tensor<1x4x5x1xf32>, !tosa.shape<4>, !tosa.shape<2>, !tosa.shape<2>) -> tensor<1x2x7x1xf32>
+// CHECK:           %[[VAL_7:.*]] = tosa.transpose %[[VAL_6]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<1x2x7x1xf32>) -> tensor<1x1x2x7xf32>
+// CHECK:           %[[VAL_8:.*]] = torch_c.from_builtin_tensor %[[VAL_7]] : tensor<1x1x2x7xf32> -> !torch.vtensor<[1,1,2,7],f32>
+// CHECK:           return %[[VAL_8]] : !torch.vtensor<[1,1,2,7],f32>
 // CHECK:         }
 func.func @torch.aten.upsample_nearest2d.vec$basic(%arg0: !torch.vtensor<[1,1,4,5],f32>) -> !torch.vtensor<[1,1,2,7],f32> {
   %none = torch.constant.none
