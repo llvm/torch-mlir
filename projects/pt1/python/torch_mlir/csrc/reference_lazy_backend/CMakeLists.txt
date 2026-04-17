@@ -18,7 +18,11 @@ if(TORCH_MLIR_ENABLE_LTC)
           )
   link_directories("${TORCH_INSTALL_PREFIX}/lib")
   link_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib)
-  add_link_options(-Wl,-rpath,$ORIGIN/lib)
+  if(APPLE)
+    add_link_options(-Wl,-rpath,@loader_path/lib)
+  else()
+    add_link_options(-Wl,-rpath,$ORIGIN/lib)
+  endif()
 
   Python3_add_library(reference_lazy_backend MODULE WITH_SOABI
           backend_impl.cpp

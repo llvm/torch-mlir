@@ -1,3 +1,4 @@
 -f https://download.pytorch.org/whl/nightly/cpu/torch/
 --pre
-torch==2.12.0.dev20260218+cpu
+torch==2.12.0.dev20260218+cpu; sys_platform == "linux" or sys_platform == "win32"
+torch==2.12.0.dev20260218; sys_platform == 'darwin'
