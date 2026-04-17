@@ -10,6 +10,7 @@
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "llvm/Support/MathExtras.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -741,7 +742,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Value oneFltConst =
             Torch::ConstantFloatOp::create(b, rewriter.getF64FloatAttr(1));
         Value LnToLog10Const = Torch::ConstantFloatOp::create(
-            b, rewriter.getF64FloatAttr(M_LOG10E));
+            b, rewriter.getF64FloatAttr(llvm::numbers::log10e));
 
         Value lfDiv7Hfloat =
             Torch::AtenDivFloatOp::create(b, lowerEdgeHzItem, sevenHConst);

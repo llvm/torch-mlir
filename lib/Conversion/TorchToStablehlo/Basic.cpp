@@ -24,7 +24,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
-#include <cmath>
+#include "llvm/Support/MathExtras.h"
 #include <numeric>
 #include <type_traits>
 
@@ -1074,7 +1074,8 @@ LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewrite(
   Value three = hlo::getConstantLike(rewriter, loc, 3.0, input);
   Value half = hlo::getConstantLike(rewriter, loc, 0.5, input);
   // 2/pi
-  Value twoDivPi = hlo::getConstantLike(rewriter, loc, M_2_PI, input);
+  Value twoDivPi = hlo::getConstantLike(rewriter, loc,
+                                        2.0 * llvm::numbers::inv_pi, input);
   Value t = hlo::getConstantLike(rewriter, loc, 0.044715, input);
 
   // x * 0.5
