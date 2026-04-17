@@ -724,11 +724,13 @@ public:
         // type.
         lhs = torch_to_linalg::convertTensorToElementType(rewriter, loc, lhs,
                                                           resultElementType);
+        lhsElementType = resultElementType;
       } else {
         // True if the rhs element type is not equal to the result' element
         // type.
         rhs = torch_to_linalg::convertTensorToElementType(rewriter, loc, rhs,
                                                           resultElementType);
+        rhsElementType = resultElementType;
       }
     }
 
