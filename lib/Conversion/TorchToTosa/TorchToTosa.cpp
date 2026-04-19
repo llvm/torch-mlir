@@ -9771,16 +9771,17 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
   // The split points were grid-searched, each interval was fit with an odd
   // degree-9 polynomial x * Q(x^2), and the final float32-rounded tables were
   // selected to minimize the max absolute error. The resulting max absolute
-  // error over [0, 1] is about 7.42e-8.
-  static constexpr float kAtanPieceSplit0 = 0.546f;
-  static constexpr float kAtanPieceSplit1 = 0.792f;
-  static constexpr float kHalfPi = 1.57079632679f;
+  // error over [0, 1] is about 1.68e-7 for the f32-rounded approximation;
+  // lower-precision result types have not been separately characterized yet.
+  static constexpr float kAtanPieceSplit0 = 0.545f;
+  static constexpr float kAtanPieceSplit1 = 0.790f;
+  static constexpr float kHalfPi = static_cast<float>(M_PI_2);
   static constexpr std::array<float, 5> kAtanLowCoefficients = {
-      0.99999887f, -0.33325633f, 0.19846700f, -0.13003899f, 0.06094434f};
+      0.99999911f, -0.33326823f, 0.19863147f, -0.13088399f, 0.06237525f};
   static constexpr std::array<float, 5> kAtanMidCoefficients = {
-      0.99966830f, -0.32924002f, 0.17935193f, -0.08747230f, 0.02348170f};
+      0.99967003f, -0.32927018f, 0.17950013f, -0.08775605f, 0.02366923f};
   static constexpr std::array<float, 5> kAtanHighCoefficients = {
-      0.99757016f, -0.31611255f, 0.14805676f, -0.05377132f, 0.00965516f};
+      0.99759096f, -0.31623319f, 0.14831167f, -0.05400498f, 0.00973381f};
 
   auto self = adaptor.getSelf();
   auto selfType = dyn_cast<RankedTensorType>(self.getType());
@@ -9802,24 +9803,6 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
     self = *castedSelf;
   }
 
-  // Materialize a scalar float constant that matches `like` and can be used in
-  // broadcastable elementwise TOSA ops with it.
-  auto createConst = [&](Value like, float value) -> FailureOr<Value> {
-    auto likeTy = dyn_cast<RankedTensorType>(like.getType());
-    if (!likeTy || !isa<FloatType>(likeTy.getElementType()))
-      return failure();
-
-    auto constantOr = tosa::getConstTensor<float>(rewriter, op, value, {},
-                                                  likeTy.getElementType());
-    if (!constantOr)
-      return failure();
-    Value constant = *constantOr;
-    if (failed(
-            mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), like, constant)))
-      return failure();
-    return constant;
-  };
-
   // Evaluate P(x) = x * Q(x^2) by running Horner's method on Q using
   // the precomputed `xSquared`, then multiplying by x.
   auto emitPolynomialFromSquared =
@@ -9831,7 +9814,9 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
         xTy != xSquaredTy || coefficients.empty())
       return failure();
 
-    FailureOr<Value> accOr = createConst(x, coefficients.back());
+    FailureOr<Value> accOr =
+        tosa::getBroadcastableConstTensorSingleF32(rewriter, op, x,
+                                                   coefficients.back());
     if (failed(accOr))
       return failure();
     Value acc = *accOr;
@@ -9840,7 +9825,9 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
          --i) {
       acc = tosa::createMulOpAndCast(rewriter, op, xTy, acc, xSquared,
                                      /*shift=*/0);
-      FailureOr<Value> coeffOr = createConst(x, coefficients[i]);
+      FailureOr<Value> coeffOr =
+          tosa::getBroadcastableConstTensorSingleF32(rewriter, op, x,
+                                                     coefficients[i]);
       if (failed(coeffOr))
         return failure();
       acc = tosa::AddOp::create(rewriter, op->getLoc(), xTy, acc, *coeffOr);
@@ -9851,11 +9838,16 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
         .getResult();
   };
 
-  FailureOr<Value> zeroOr = createConst(self, 0.0f);
-  FailureOr<Value> oneOr = createConst(self, 1.0f);
-  FailureOr<Value> split0Or = createConst(self, kAtanPieceSplit0);
-  FailureOr<Value> split1Or = createConst(self, kAtanPieceSplit1);
-  FailureOr<Value> piOverTwoOr = createConst(self, kHalfPi);
+  FailureOr<Value> zeroOr =
+      tosa::getBroadcastableConstTensorSingleF32(rewriter, op, self, 0.0f);
+  FailureOr<Value> oneOr =
+      tosa::getBroadcastableConstTensorSingleF32(rewriter, op, self, 1.0f);
+  FailureOr<Value> split0Or = tosa::getBroadcastableConstTensorSingleF32(
+      rewriter, op, self, kAtanPieceSplit0);
+  FailureOr<Value> split1Or = tosa::getBroadcastableConstTensorSingleF32(
+      rewriter, op, self, kAtanPieceSplit1);
+  FailureOr<Value> piOverTwoOr = tosa::getBroadcastableConstTensorSingleF32(
+      rewriter, op, self, kHalfPi);
   if (failed(zeroOr) || failed(oneOr) || failed(split0Or) || failed(split1Or) ||
       failed(piOverTwoOr))
     return rewriter.notifyMatchFailure(
@@ -9922,8 +9914,14 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
   Value negMagnitude =
       tosa::SubOp::create(rewriter, op->getLoc(), resultType, zero, magnitude);
 
-  rewriter.replaceOpWithNewOp<tosa::SelectOp>(op, resultType, isNonNegative,
-                                              magnitude, negMagnitude);
+  Value signedMagnitude = tosa::SelectOp::create(rewriter, op->getLoc(),
+                                                 resultType, isNonNegative,
+                                                 magnitude, negMagnitude);
+  Value isZero =
+      tosa::EqualOp::create(rewriter, op->getLoc(), boolType, self, zero);
+
+  rewriter.replaceOpWithNewOp<tosa::SelectOp>(op, resultType, isZero, self,
+                                              signedMagnitude);
   return success();
 }
 
