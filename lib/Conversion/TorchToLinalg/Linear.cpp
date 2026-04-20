@@ -2519,6 +2519,101 @@ struct ConvertAtenFftRfftOp final : OpConversionPattern<AtenFftRfftOp> {
 
 } // namespace
 
+namespace {
+class ConvertAtenOuterOp : public OpConversionPattern<AtenOuterOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenOuterOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    Location loc = op->getLoc();
+    MLIRContext *context = op->getContext();
+    Value lhs = adaptor.getSelf();
+    Value rhs = adaptor.getVec2();
+
+    RankedTensorType lhsType = cast<RankedTensorType>(lhs.getType());
+    RankedTensorType rhsType = cast<RankedTensorType>(rhs.getType());
+    Type newResultType = getTypeConverter()->convertType(op.getType());
+
+    Type lhsElementType = cast<RankedTensorType>(lhsType).getElementType();
+    Type rhsElementType = cast<RankedTensorType>(rhsType).getElementType();
+    Type resultElementType =
+        cast<RankedTensorType>(newResultType).getElementType();
+
+    Value lhsDim = getDimOp(rewriter, loc, lhs, 0);
+    Value rhsDim = getDimOp(rewriter, loc, rhs, 0);
+
+    if (!lhsType.hasRank() || !rhsType.hasRank())
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: only ranked tensors are supported");
+
+    if (lhsType.getRank() != 1 || rhsType.getRank() != 1)
+      return rewriter.notifyMatchFailure(
+          op, "expected both operands to aten.outer to be rank 1");
+
+    if (lhsElementType != resultElementType)
+      lhs = torch_to_linalg::convertTensorToElementType(rewriter, loc, lhs,
+                                                        resultElementType);
+
+    if (rhsElementType != resultElementType)
+      rhs = torch_to_linalg::convertTensorToElementType(rewriter, loc, rhs,
+                                                        resultElementType);
+
+    Value initTensor = tensor::EmptyOp::create(
+        rewriter, loc, getAsOpFoldResult(ValueRange{lhsDim, rhsDim}),
+        resultElementType);
+    Value c0;
+
+    if (isa<mlir::FloatType>(resultElementType))
+      c0 = arith::ConstantOp::create(rewriter, loc,
+                                     FloatAttr::get(resultElementType, 0.0));
+    else if (isa<mlir::IntegerType>(resultElementType))
+      c0 = arith::ConstantOp::create(rewriter, loc,
+                                     IntegerAttr::get(resultElementType, 0));
+
+    Value outputTensor =
+        linalg::FillOp::create(rewriter, loc, c0, initTensor).getResult(0);
+
+    AffineExpr d0, d1; // row, col
+    bindDims(context, d0, d1);
+
+    SmallVector<AffineMap> indexingMaps = {
+        AffineMap::get(2, 0, {d0}, rewriter.getContext()),
+        AffineMap::get(2, 0, {d1}, rewriter.getContext()),
+        AffineMap::get(2, 0, {d0, d1}, rewriter.getContext())};
+
+    SmallVector<utils::IteratorType> iteratorTypes = {
+        utils::IteratorType::parallel,
+        utils::IteratorType::parallel,
+    };
+
+    Value outerProduct =
+        linalg::GenericOp::create(
+            rewriter, loc, outputTensor.getType(), ValueRange{lhs, rhs},
+            outputTensor, indexingMaps, iteratorTypes,
+            [&](OpBuilder &b, Location loc, ValueRange args) {
+              Value left = args[0];
+              Value right = args[1];
+
+              Value result;
+              if (isa<mlir::FloatType>(resultElementType))
+                result = arith::MulFOp::create(b, loc, left, right);
+              else if (isa<mlir::IntegerType>(resultElementType))
+                result = arith::MulIOp::create(b, loc, left, right);
+
+              linalg::YieldOp::create(b, loc, result);
+            })
+            .getResult(0);
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType,
+                                                outerProduct);
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::populateLinearPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -2537,4 +2632,6 @@ void mlir::torch::torch_to_linalg::populateLinearPatternsAndLegality(
   patterns.add<ConvertAtenConvolutionBackwardOp>(typeConverter, context);
   target.addIllegalOp<AtenFftRfftOp>();
   patterns.add<ConvertAtenFftRfftOp>(typeConverter, context);
+  target.addIllegalOp<AtenOuterOp>();
+  patterns.add<ConvertAtenOuterOp>(typeConverter, context);
 }
