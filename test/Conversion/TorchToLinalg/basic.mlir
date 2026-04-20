@@ -170,6 +170,15 @@ func.func @torch.aten.bmm$i8(%arg0: !torch.vtensor<[2,8,16],si8>, %arg1: !torch.
 
 // -----
 
+// CHECK-LABEL: func.func @torch.aten.bmm$mixed_si4_f16
+// CHECK:      linalg.batch_matmul ins(%{{.*}}, %{{.*}} : tensor<1x4x8xf16>, tensor<1x8x4xf16>) outs(%{{.*}} : tensor<1x4x4xf32>) -> tensor<1x4x4xf32>
+func.func @torch.aten.bmm$mixed_si4_f16(%arg0: !torch.vtensor<[1,4,8],si4>, %arg1: !torch.vtensor<[1,8,4],f16>) -> !torch.vtensor<[1,4,4],f16> {
+  %0 = torch.aten.bmm %arg0, %arg1 : !torch.vtensor<[1,4,8],si4>, !torch.vtensor<[1,8,4],f16> -> !torch.vtensor<[1,4,4],f16>
+  return %0 : !torch.vtensor<[1,4,4],f16>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @torch.aten.mm$basic_strict(
 // CHECK-NOT: assert
 func.func @torch.aten.mm$basic_strict(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,2],f32>

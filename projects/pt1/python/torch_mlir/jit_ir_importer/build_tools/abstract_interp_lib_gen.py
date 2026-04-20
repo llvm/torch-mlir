@@ -824,6 +824,9 @@ def aten〇sum〇dim_IntList〡shape(self: List[int], dim: Optional[List[int]], 
 def prims〇sum〡shape(inp: List[int], dims: Optional[List[int]], output_dtype: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(inp, dims, False, output_dtype)
 
+def prims〇prod〡shape(inp: List[int], dims: Optional[List[int]], output_dtype: Optional[int] = None) -> List[int]:
+    return upstream_shape_functions.sum_mean_dim(inp, dims, False, output_dtype)
+
 def aten〇prod〇dim_int〡shape(self: List[int], dim: int, keepdim: bool = False, dtype: Optional[int] = None) -> List[int]:
     return upstream_shape_functions.sum_mean_dim(self, [dim], keepdim, dtype)
 
@@ -3080,6 +3083,14 @@ def prims〇sum〡dtype(inp_rank_dtype: Tuple[int, int], dims: Optional[List[int
     inp_rank, inp_dtype = inp_rank_dtype
     return inp_dtype
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dims=[0]))
+def prims〇prod〡dtype(inp_rank_dtype: Tuple[int, int], dims: Optional[List[int]], output_dtype: Optional[int] = None) -> int:
+    # When invoking prims.prod() with the output_dtype argument, pytorch
+    # complains that the argument is not known.
+    assert output_dtype is None
+    inp_rank, inp_dtype = inp_rank_dtype
+    return inp_dtype
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇abs〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
@@ -3538,10 +3549,11 @@ def aten〇index〇Tensor〡dtype(self_rank_dtype: Tuple[int, int], indices_rank
     return self_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(
-    num_of_tensors=1, error_types={*all_integer_dtypes()}, normalized_shape=[1]))
+    num_of_tensors=1, error_types={*all_integer_dtypes(), *all_complex_dtypes()}, normalized_shape=[1]))
 def aten〇layer_norm〡dtype(input_rank_dtype: Tuple[int, int], normalized_shape: List[int], weight_rank_dtype: Optional[Tuple[int, int]] = None, bias_rank_dtype: Optional[Tuple[int, int]] = None, eps: float = 1.0000000000000001e-05, cudnn_enable: bool = True) -> int:
     input_rank, input_dtype = input_rank_dtype
     assert not is_integer_dtype(input_dtype)
+    assert not is_complex_dtype(input_dtype)
     return input_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(
@@ -5252,23 +5264,19 @@ def aten〇poisson_nll_loss〡dtype(input_rank_dtype: Tuple[int, int], target_ra
                 TensorOfShape(3, dtype=torch.float32), eps=0.0),
      Invocation(TensorOfShape(2, 3, dtype=torch.float32), [3], TensorOfShape(3, dtype=torch.float32),
                 TensorOfShape(3, dtype=torch.float64), eps=0.0),
-     # Input must be float or complex
+     # Input must be float
      ErrorInvocation(TensorOfShape(2, 3, dtype=torch.int32), [3], TensorOfShape(3, dtype=torch.int32),
                      TensorOfShape(3, dtype=torch.int32), eps=0.0),
-     Invocation(TensorOfShape(2, 3, dtype=torch.complex64), [3], TensorOfShape(3, dtype=torch.complex64),
-                TensorOfShape(3, dtype=torch.complex64), eps=0.0),
-     Invocation(TensorOfShape(2, 3, dtype=torch.complex128), [3], TensorOfShape(3, dtype=torch.complex64),
-                TensorOfShape(3, dtype=torch.complex64), eps=0.0),
+     ErrorInvocation(TensorOfShape(2, 3, dtype=torch.complex64), [3], TensorOfShape(3, dtype=torch.complex64),
+                     TensorOfShape(3, dtype=torch.complex64), eps=0.0),
+     ErrorInvocation(TensorOfShape(2, 3, dtype=torch.complex128), [3], TensorOfShape(3, dtype=torch.complex64),
+                     TensorOfShape(3, dtype=torch.complex64), eps=0.0),
      ])
 def aten〇native_layer_norm〡dtype(input_rank_dtype: Tuple[int, int], normalized_shape: List[int], weight_rank_dtype: Optional[Tuple[int, int]], bias_rank_dtype: Optional[Tuple[int, int]], eps: float) -> Tuple[int, int, int]:
     input_rank, input_dtype = input_rank_dtype
     assert not is_integer_dtype(input_dtype)
-    result_dtype = input_dtype
-    if input_dtype == torch.complex64:
-        result_dtype = torch.float32
-    if input_dtype == torch.complex128:
-        result_dtype = torch.float64
-    return input_dtype, input_dtype, result_dtype
+    assert not is_complex_dtype(input_dtype)
+    return input_dtype, input_dtype, input_dtype
 
 # note: one_hot doesn't support "meta" device, use "cpu" instead.
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, num_classes=2, tensor_device="cpu", error_types={torch.complex128, torch.complex64, torch.float64, torch.float32, torch.float16, torch.bfloat16, torch.int32, torch.int16, torch.int8, torch.uint8, torch.bool}))
