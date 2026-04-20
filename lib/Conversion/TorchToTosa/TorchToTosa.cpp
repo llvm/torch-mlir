@@ -9775,7 +9775,7 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
   // lower-precision result types have not been separately characterized yet.
   static constexpr float kAtanPieceSplit0 = 0.545f;
   static constexpr float kAtanPieceSplit1 = 0.790f;
-  static constexpr float kHalfPi = static_cast<float>(M_PI_2);
+  static constexpr float kHalfPi = static_cast<float>(llvm::numbers::pi / 2.0);
   static constexpr std::array<float, 5> kAtanLowCoefficients = {
       0.99999911f, -0.33326823f, 0.19863147f, -0.13088399f, 0.06237525f};
   static constexpr std::array<float, 5> kAtanMidCoefficients = {
