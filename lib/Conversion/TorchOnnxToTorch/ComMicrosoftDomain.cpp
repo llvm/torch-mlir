@@ -718,92 +718,166 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         Value presentValue = Torch::AtenConstantPadNdOp::create(
             rewriter, loc, resultTypes[2], pastValue, padList, cstFloatZero);
 
-        // Scatter current K/V into the padded buffer at position pastLen[b]+q.
-        // pastLen = seqlens_k + 1 - seq_len
-        Value totalSeqForScatter = Torch::AtenAddScalarOp::create(
+        // Write current K/V into the padded buffer via a 2D view and a 1D
+        // index. On a scatter backend this lowers to a single contiguous
+        // [head_dim] slab per index, avoiding the 4D per-element scatter
+        // the aten.scatter.src lowering would produce.
+        // target[b, h, q] = b*(kv_heads*present_seq) + h*present_seq +
+        // pastLen[b] + q
+        Value totalSeqForWrite = Torch::AtenAddScalarOp::create(
             rewriter, loc, seqlensK.getType(), seqlensK, cstIntOne, cstIntOne);
         Value pastLen = Torch::AtenSubScalarOp::create(
-            rewriter, loc, totalSeqForScatter.getType(), totalSeqForScatter,
+            rewriter, loc, totalSeqForWrite.getType(), totalSeqForWrite,
             cstSequenceLength, cstIntOne);
 
-        // qRange: [0, 1, ..., seqLen-1] — shared by scatter and mask.
-        Torch::ValueTensorType qRangeType = Torch::ValueTensorType::get(
-            context, {sequenceLength},
-            rewriter.getIntegerType(64, /*isSigned=*/true));
+        auto intSiType = rewriter.getIntegerType(64, /*isSigned=*/true);
+        Value cstDim3 = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(3));
+
+        Torch::ValueTensorType qRangeType =
+            Torch::ValueTensorType::get(context, {sequenceLength}, intSiType);
         Value qRange = Torch::AtenArangeOp::create(
             rewriter, loc, qRangeType, cstSequenceLength, cstInt64Dtype,
             /*layout=*/cstNone, /*device=*/cstNone, /*pin_memory=*/cstNone);
 
-        // pastLen -> [B, 1, 1, 1] via unsqueeze chain for 4D scatter index
-        // broadcasting
-        auto intSiType = rewriter.getIntegerType(64, /*isSigned=*/true);
-        Value cstDim3 = Torch::ConstantIntOp::create(
-            rewriter, loc, rewriter.getI64IntegerAttr(3));
-        // [batch] -> [batch, 1]
-        Torch::ValueTensorType pastLenUnsq1Type = Torch::ValueTensorType::get(
-            context, SmallVector<int64_t>{batchSize, 1}, intSiType);
-        Value pastLenUnsq1 = Torch::AtenUnsqueezeOp::create(
-            rewriter, loc, pastLenUnsq1Type, pastLen, cstDim1);
-        // [batch, 1] -> [batch, 1, 1]
-        Torch::ValueTensorType pastLenUnsq2Type = Torch::ValueTensorType::get(
+        auto presentKeyType = cast<Torch::ValueTensorType>(resultTypes[1]);
+        auto presentValueType = cast<Torch::ValueTensorType>(resultTypes[2]);
+        Type elemType = presentKeyType.getOptionalDtype();
+        int64_t presentSeqStatic = presentKeyType.getSizes()[2];
+
+        Value cstPresentSeq = Torch::AtenSizeIntOp::create(
+            rewriter, loc, rewriter.getType<Torch::IntType>(), presentKey,
+            cstDim2);
+        Value cstKvPresentStride = Torch::AtenMulIntOp::create(
+            rewriter, loc, rewriter.getType<Torch::IntType>(), cstKVNumHeads,
+            cstPresentSeq);
+        Value cstFlatPresentRows = Torch::AtenMulIntOp::create(
+            rewriter, loc, rewriter.getType<Torch::IntType>(), cstBatchSize,
+            cstKvPresentStride);
+        Value cstBatchKvHeads = Torch::AtenMulIntOp::create(
+            rewriter, loc, rewriter.getType<Torch::IntType>(), cstBatchSize,
+            cstKVNumHeads);
+        Value cstFlatSrcRows = Torch::AtenMulIntOp::create(
+            rewriter, loc, rewriter.getType<Torch::IntType>(), cstBatchKvHeads,
+            cstSequenceLength);
+
+        auto mulOrUnk = [](int64_t a, int64_t b) -> int64_t {
+          if (a == Torch::kUnknownSize || b == Torch::kUnknownSize)
+            return Torch::kUnknownSize;
+          return a * b;
+        };
+        int64_t flatPresentRowsStatic =
+            mulOrUnk(batchSize, mulOrUnk(kvNumHeads, presentSeqStatic));
+        int64_t flatSrcRowsStatic =
+            mulOrUnk(batchSize, mulOrUnk(kvNumHeads, sequenceLength));
+
+        Torch::ValueTensorType bRangeType =
+            Torch::ValueTensorType::get(context, {batchSize}, intSiType);
+        Value bRange = Torch::AtenArangeOp::create(
+            rewriter, loc, bRangeType, cstBatchSize, cstInt64Dtype,
+            /*layout=*/cstNone, /*device=*/cstNone, /*pin_memory=*/cstNone);
+        Torch::ValueTensorType bhqPrefixType = Torch::ValueTensorType::get(
             context, SmallVector<int64_t>{batchSize, 1, 1}, intSiType);
-        Value pastLenUnsq2 = Torch::AtenUnsqueezeOp::create(
-            rewriter, loc, pastLenUnsq2Type, pastLenUnsq1, cstDim2);
-        // [batch, 1, 1] -> [batch, 1, 1, 1]
-        Torch::ValueTensorType pastLenView4dType = Torch::ValueTensorType::get(
-            context, SmallVector<int64_t>{batchSize, 1, 1, 1}, intSiType);
-        Value pastLenView4d = Torch::AtenUnsqueezeOp::create(
-            rewriter, loc, pastLenView4dType, pastLenUnsq2, cstDim3);
-
-        // qRange -> [1, 1, seq, 1] via unsqueeze chain for scatter
-        // [seq] -> [1, seq]
-        Torch::ValueTensorType qUnsq0Type = Torch::ValueTensorType::get(
-            context, SmallVector<int64_t>{1, sequenceLength}, intSiType);
-        Value qUnsq0 = Torch::AtenUnsqueezeOp::create(rewriter, loc, qUnsq0Type,
-                                                      qRange, cstIntZero);
-        // [1, seq] -> [1, 1, seq]
-        Torch::ValueTensorType qUnsq1Type = Torch::ValueTensorType::get(
-            context, SmallVector<int64_t>{1, 1, sequenceLength}, intSiType);
-        Value qUnsq1 = Torch::AtenUnsqueezeOp::create(rewriter, loc, qUnsq1Type,
-                                                      qUnsq0, cstIntZero);
-        // [1, 1, seq] -> [1, 1, seq, 1]
-        Torch::ValueTensorType scatterQViewType = Torch::ValueTensorType::get(
-            context, SmallVector<int64_t>{1, 1, sequenceLength, 1}, intSiType);
-        Value scatterQRangeView = Torch::AtenUnsqueezeOp::create(
-            rewriter, loc, scatterQViewType, qUnsq1, cstDim3);
-
-        // scatterIdxBase = pastLen[B,1,1,1] + qRange[1,1,seq,1]
-        //               -> [B, 1, seq, 1]
-        SmallVector<int64_t> scatterIdxBaseSizes{batchSize, 1, sequenceLength,
-                                                 1};
-        Torch::ValueTensorType scatterIdxBaseType = Torch::ValueTensorType::get(
-            context, scatterIdxBaseSizes,
-            rewriter.getIntegerType(64, /*isSigned=*/true));
-        Value scatterIdxBase = Torch::AtenAddTensorOp::create(
-            rewriter, loc, scatterIdxBaseType, pastLenView4d, scatterQRangeView,
-            cstIntOne);
-
-        // Expand to [B, kv_heads, seq, head_size] to match current K/V shape
-        SmallVector<int64_t> scatterExpandSizes{batchSize, kvNumHeads,
-                                                sequenceLength, headSize};
-        Torch::ValueTensorType scatterIdxType = Torch::ValueTensorType::get(
-            context, scatterExpandSizes,
-            rewriter.getIntegerType(64, /*isSigned=*/true));
-        Value scatterExpandSizeList = Torch::PrimListConstructOp::create(
+        Value bhqPrefixList = Torch::PrimListConstructOp::create(
             rewriter, loc, intListType,
-            SmallVector<Value>{cstBatchSize, cstKVNumHeads, cstSequenceLength,
-                               cstHeadSize});
-        Value scatterIdx = Torch::AtenExpandOp::create(
-            rewriter, loc, scatterIdxType, scatterIdxBase,
-            scatterExpandSizeList, /*implicit=*/cstFalse);
+            SmallVector<Value>{cstBatchSize, cstIntOne, cstIntOne});
+        Value bRangeView = Torch::AtenViewOp::create(
+            rewriter, loc, bhqPrefixType, bRange, bhqPrefixList);
 
-        // Scatter current K/V into buffer at position pastLen[b] + q
-        presentKey = Torch::AtenScatterSrcOp::create(
-            rewriter, loc, resultTypes[1], presentKey, cstDim2, scatterIdx,
-            kRotary);
-        presentValue = Torch::AtenScatterSrcOp::create(
-            rewriter, loc, resultTypes[2], presentValue, cstDim2, scatterIdx,
-            vInput);
+        Torch::ValueTensorType hRangeType =
+            Torch::ValueTensorType::get(context, {kvNumHeads}, intSiType);
+        Value hRange = Torch::AtenArangeOp::create(
+            rewriter, loc, hRangeType, cstKVNumHeads, cstInt64Dtype,
+            /*layout=*/cstNone, /*device=*/cstNone, /*pin_memory=*/cstNone);
+        Torch::ValueTensorType hViewType = Torch::ValueTensorType::get(
+            context, SmallVector<int64_t>{1, kvNumHeads, 1}, intSiType);
+        Value hViewList = Torch::PrimListConstructOp::create(
+            rewriter, loc, intListType,
+            SmallVector<Value>{cstIntOne, cstKVNumHeads, cstIntOne});
+        Value hRangeView = Torch::AtenViewOp::create(rewriter, loc, hViewType,
+                                                     hRange, hViewList);
+
+        Torch::ValueTensorType qViewType = Torch::ValueTensorType::get(
+            context, SmallVector<int64_t>{1, 1, sequenceLength}, intSiType);
+        Value qViewList = Torch::PrimListConstructOp::create(
+            rewriter, loc, intListType,
+            SmallVector<Value>{cstIntOne, cstIntOne, cstSequenceLength});
+        Value qRangeView = Torch::AtenViewOp::create(rewriter, loc, qViewType,
+                                                     qRange, qViewList);
+
+        Value pastLenView = Torch::AtenViewOp::create(
+            rewriter, loc, bhqPrefixType, pastLen, bhqPrefixList);
+
+        Value bContrib = Torch::AtenMulScalarOp::create(
+            rewriter, loc, bhqPrefixType, bRangeView, cstKvPresentStride);
+        Value hContrib = Torch::AtenMulScalarOp::create(
+            rewriter, loc, hViewType, hRangeView, cstPresentSeq);
+
+        Torch::ValueTensorType bhOneType = Torch::ValueTensorType::get(
+            context, SmallVector<int64_t>{batchSize, kvNumHeads, 1}, intSiType);
+        Value targetBh1 = Torch::AtenAddTensorOp::create(
+            rewriter, loc, bhOneType, bContrib, hContrib, cstIntOne);
+        targetBh1 = Torch::AtenAddTensorOp::create(
+            rewriter, loc, bhOneType, targetBh1, pastLenView, cstIntOne);
+
+        Torch::ValueTensorType target3dType = Torch::ValueTensorType::get(
+            context,
+            SmallVector<int64_t>{batchSize, kvNumHeads, sequenceLength},
+            intSiType);
+        Value target3d = Torch::AtenAddTensorOp::create(
+            rewriter, loc, target3dType, targetBh1, qRangeView, cstIntOne);
+
+        Torch::ValueTensorType target1dType = Torch::ValueTensorType::get(
+            context, {flatSrcRowsStatic}, intSiType);
+        Value target1dShapeList = Torch::PrimListConstructOp::create(
+            rewriter, loc, intListType, SmallVector<Value>{cstFlatSrcRows});
+        Value target1d = Torch::AtenViewOp::create(rewriter, loc, target1dType,
+                                                   target3d, target1dShapeList);
+
+        Torch::ValueTensorType present2dType = Torch::ValueTensorType::get(
+            context, SmallVector<int64_t>{flatPresentRowsStatic, headSize},
+            elemType);
+        Torch::ValueTensorType src2dType = Torch::ValueTensorType::get(
+            context, SmallVector<int64_t>{flatSrcRowsStatic, headSize},
+            elemType);
+
+        Value present2dShapeList = Torch::PrimListConstructOp::create(
+            rewriter, loc, intListType,
+            SmallVector<Value>{cstFlatPresentRows, cstHeadSize});
+        Value src2dShapeList = Torch::PrimListConstructOp::create(
+            rewriter, loc, intListType,
+            SmallVector<Value>{cstFlatSrcRows, cstHeadSize});
+
+        Value presentKey2d = Torch::AtenReshapeOp::create(
+            rewriter, loc, present2dType, presentKey, present2dShapeList);
+        Value presentValue2d = Torch::AtenReshapeOp::create(
+            rewriter, loc, present2dType, presentValue, present2dShapeList);
+        Value kRotary2d = Torch::AtenReshapeOp::create(rewriter, loc, src2dType,
+                                                       kRotary, src2dShapeList);
+        Value vInput2d = Torch::AtenReshapeOp::create(rewriter, loc, src2dType,
+                                                      vInput, src2dShapeList);
+
+        Type idxListType = Torch::ListType::get(
+            Torch::ValueTensorType::getWithLeastStaticInformation(context));
+        Value idxList = Torch::PrimListConstructOp::create(
+            rewriter, loc, idxListType, SmallVector<Value>{target1d});
+
+        Value newPresentKey2d = Torch::AtenIndexPutHackedTwinOp::create(
+            rewriter, loc, present2dType, presentKey2d, idxList, kRotary2d,
+            cstFalse);
+        Value newPresentValue2d = Torch::AtenIndexPutHackedTwinOp::create(
+            rewriter, loc, present2dType, presentValue2d, idxList, vInput2d,
+            cstFalse);
+
+        Value back4dShapeList = Torch::PrimListConstructOp::create(
+            rewriter, loc, intListType,
+            SmallVector<Value>{cstBatchSize, cstKVNumHeads, cstPresentSeq,
+                               cstHeadSize});
+        presentKey = Torch::AtenReshapeOp::create(
+            rewriter, loc, presentKeyType, newPresentKey2d, back4dShapeList);
+        presentValue =
+            Torch::AtenReshapeOp::create(rewriter, loc, presentValueType,
+                                         newPresentValue2d, back4dShapeList);
 
         // Generate causal attention mask.
         // With scatter, KV layout matches ORT: current at pastLen[b].
@@ -812,11 +886,11 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         Value attnMask = cstNone;
 
         // Get the KV sequence length from presentKey shape
-        Torch::ValueTensorType presentKeyType =
+        Torch::ValueTensorType presentKeyMaskType =
             cast<Torch::ValueTensorType>(presentKey.getType());
-        if (presentKeyType.hasSizes() &&
-            presentKeyType.getSizes().size() == 4) {
-          int64_t kvSeqLen = presentKeyType.getSizes()[2];
+        if (presentKeyMaskType.hasSizes() &&
+            presentKeyMaskType.getSizes().size() == 4) {
+          int64_t kvSeqLen = presentKeyMaskType.getSizes()[2];
 
           // Only generate mask if KV sequence length is dynamic or > 0
           // For dynamic shapes or non-trivial sequences, we need to mask
