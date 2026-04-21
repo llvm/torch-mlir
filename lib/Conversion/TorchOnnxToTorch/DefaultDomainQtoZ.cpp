@@ -2415,37 +2415,13 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               axis, trueVal, noneVal);
         }
 
-        // Derived the final shape of the tensor after prod loop of each axis.
-        SmallVector<int64_t> dataReduceProdSize;
-        auto dataSize = dataTy.getSizes();
-        auto resultTypeSizes = resultType.getSizes();
-        if (!keepDims) {
-          // Handle the keepDimsBool == False case:
-          // 2 point algorithm to derive the static shape after prod loop.
-          int j = 0;
-          for (int i = 0; i < rank; i++) {
-            if (resultTypeSizes.size() && dataSize[i] == resultTypeSizes[j]) {
-              dataReduceProdSize.push_back(resultTypeSizes[i]);
-              j++;
-              continue;
-            }
-            dataReduceProdSize.push_back(1);
-          }
-        }
-
-        // Handle the keepDimsBool == False case:
-        // Reshape the prod loop result to the final result shape.
-        SmallVector<Value> dataReduceProdShape;
-        for (auto dim : dataReduceProdSize)
-          dataReduceProdShape.push_back(Torch::ConstantIntOp::create(
-              rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(dim)));
-        Value dataReduceProdShapeList = Torch::PrimListConstructOp::create(
-            rewriter, binder.getLoc(),
-            rewriter.getType<Torch::ListType>(
-                rewriter.getType<Torch::IntType>()),
-            dataReduceProdShape);
+        // keepDims == true returned early from the loop above; here keepDims
+        // is false and the reduced dims have been dropped from resultType, so
+        // reshape the intermediate directly to the result shape.
+        Value shapeList =
+            createConstantIntList(binder, rewriter, resultType.getSizes());
         rewriter.replaceOpWithNewOp<Torch::AtenReshapeOp>(
-            binder.op, resultType, dataReduceProd, dataReduceProdShapeList);
+            binder.op, resultType, dataReduceProd, shapeList);
         return success();
       });
   patterns.onOp(
