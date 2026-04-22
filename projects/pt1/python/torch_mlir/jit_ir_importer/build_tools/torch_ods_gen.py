@@ -560,6 +560,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
 
     emit_with_mutating_variants("aten::triu : (Tensor, int) -> (Tensor)")
     emit_with_mutating_variants("aten::tril : (Tensor, int) -> (Tensor)")
+    emit_with_mutating_variants("aten::index_add : (Tensor, int, Tensor, Tensor, Scalar) -> (Tensor)")
+    
     emit_with_mutating_variants(
         "aten::index_put : (Tensor, Tensor?[], Tensor, bool) -> (Tensor)"
     )
