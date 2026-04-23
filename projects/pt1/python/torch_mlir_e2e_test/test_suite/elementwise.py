@@ -2541,28 +2541,30 @@ class ElementwiseAtanTensorFloatSpecialValuesModule(torch.nn.Module):
 def ElementwiseAtanTensorFloatSpecialValuesModule_basic(module, tu: TestUtils):
     module.forward(
         torch.tensor(
-            [[
-                -2.0,
-                -1.0,
-                -0.791,
-                -0.790,
-                -0.789,
-                -0.546,
-                -0.545,
-                -0.544,
-                -0.1,
-                -0.0,
-                0.0,
-                0.1,
-                0.544,
-                0.545,
-                0.546,
-                0.789,
-                0.790,
-                0.791,
-                1.0,
-                2.0,
-            ]],
+            [
+                [
+                    -2.0,
+                    -1.0,
+                    -0.791,
+                    -0.790,
+                    -0.789,
+                    -0.546,
+                    -0.545,
+                    -0.544,
+                    -0.1,
+                    -0.0,
+                    0.0,
+                    0.1,
+                    0.544,
+                    0.545,
+                    0.546,
+                    0.789,
+                    0.790,
+                    0.791,
+                    1.0,
+                    2.0,
+                ]
+            ],
             dtype=torch.float32,
         )
     )

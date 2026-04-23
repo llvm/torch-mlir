@@ -46,8 +46,8 @@ Value getTosaConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,
 // as needed so it can participate in broadcastable elementwise ops with
 // `like`.
 FailureOr<Value> getBroadcastableConstTensorSingleF32(PatternRewriter &rewriter,
-                                                      Operation *op,
-                                                      Value like, float val);
+                                                      Operation *op, Value like,
+                                                      float val);
 
 // Create an int8_t const tosa.mul shift tensor from an int
 Value getTosaMulShiftConstTensor(PatternRewriter &rewriter, Operation *op,

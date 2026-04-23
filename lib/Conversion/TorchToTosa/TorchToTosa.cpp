@@ -9756,7 +9756,9 @@ template <>
 LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
     AtenAtanOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  // Approximate atan using only TOSA-supported elementwise ops:
+  // Approximate atan using only TOSA-supported elementwise ops.
+  // This lowering is currently restricted to f32 results because the
+  // approximation tables below were only characterized in that precision:
   //   1. Use odd symmetry to work on |x| and restore the sign at the end:
   //      atan(x) = sign(x) * atan(|x|)
   //   2. Reduce the approximation domain to [0, 1]:
@@ -9771,8 +9773,7 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
   // The split points were grid-searched, each interval was fit with an odd
   // degree-9 polynomial x * Q(x^2), and the final float32-rounded tables were
   // selected to minimize the max absolute error. The resulting max absolute
-  // error over [0, 1] is about 1.68e-7 for the f32-rounded approximation;
-  // lower-precision result types have not been separately characterized yet.
+  // error over [0, 1] is about 1.68e-7 for the f32-rounded approximation.
   static constexpr float kAtanPieceSplit0 = 0.545f;
   static constexpr float kAtanPieceSplit1 = 0.790f;
   static constexpr float kHalfPi = static_cast<float>(llvm::numbers::pi / 2.0);
@@ -9791,9 +9792,9 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
     return rewriter.notifyMatchFailure(
         op, "Only ranked tensor types are supported");
 
-  if (!isa<mlir::FloatType>(resultType.getElementType()))
+  if (!resultType.getElementType().isF32())
     return rewriter.notifyMatchFailure(
-        op, "Only floating-point datatype result types are supported");
+        op, "Only f32 result types are currently supported");
 
   if (!isa<mlir::FloatType>(selfType.getElementType())) {
     auto castedSelf = tosa::tosaCastTensorToType(rewriter, self, resultType);
@@ -9814,9 +9815,8 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
         xTy != xSquaredTy || coefficients.empty())
       return failure();
 
-    FailureOr<Value> accOr =
-        tosa::getBroadcastableConstTensorSingleF32(rewriter, op, x,
-                                                   coefficients.back());
+    FailureOr<Value> accOr = tosa::getBroadcastableConstTensorSingleF32(
+        rewriter, op, x, coefficients.back());
     if (failed(accOr))
       return failure();
     Value acc = *accOr;
@@ -9825,9 +9825,8 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
          --i) {
       acc = tosa::createMulOpAndCast(rewriter, op, xTy, acc, xSquared,
                                      /*shift=*/0);
-      FailureOr<Value> coeffOr =
-          tosa::getBroadcastableConstTensorSingleF32(rewriter, op, x,
-                                                     coefficients[i]);
+      FailureOr<Value> coeffOr = tosa::getBroadcastableConstTensorSingleF32(
+          rewriter, op, x, coefficients[i]);
       if (failed(coeffOr))
         return failure();
       acc = tosa::AddOp::create(rewriter, op->getLoc(), xTy, acc, *coeffOr);
@@ -9846,8 +9845,8 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
       rewriter, op, self, kAtanPieceSplit0);
   FailureOr<Value> split1Or = tosa::getBroadcastableConstTensorSingleF32(
       rewriter, op, self, kAtanPieceSplit1);
-  FailureOr<Value> piOverTwoOr = tosa::getBroadcastableConstTensorSingleF32(
-      rewriter, op, self, kHalfPi);
+  FailureOr<Value> piOverTwoOr =
+      tosa::getBroadcastableConstTensorSingleF32(rewriter, op, self, kHalfPi);
   if (failed(zeroOr) || failed(oneOr) || failed(split0Or) || failed(split1Or) ||
       failed(piOverTwoOr))
     return rewriter.notifyMatchFailure(
@@ -9914,9 +9913,9 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
   Value negMagnitude =
       tosa::SubOp::create(rewriter, op->getLoc(), resultType, zero, magnitude);
 
-  Value signedMagnitude = tosa::SelectOp::create(rewriter, op->getLoc(),
-                                                 resultType, isNonNegative,
-                                                 magnitude, negMagnitude);
+  Value signedMagnitude =
+      tosa::SelectOp::create(rewriter, op->getLoc(), resultType, isNonNegative,
+                             magnitude, negMagnitude);
   Value isZero =
       tosa::EqualOp::create(rewriter, op->getLoc(), boolType, self, zero);
 
