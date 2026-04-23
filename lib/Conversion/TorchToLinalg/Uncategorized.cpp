@@ -764,34 +764,84 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       geluBackward.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
-    // TODO: Take approximation into account.
     std::string approximate;
     if (!matchPattern(geluBackward.getApproximate(),
-                      m_TorchConstantStr(approximate)) ||
-        approximate != "none")
+                      m_TorchConstantStr(approximate))) {
+      geluBackward.emitError(
+          "unimplemented: expected approximate to be a constant str");
       return nullptr;
+    }
     Type elementType = payloadArgs[1].getType();
-    Value cstAlpha0 = arith::ConstantOp::create(
-        b, loc, FloatAttr::get(elementType, 1.12837916709551257390));
-    Value cstAlpha1 = arith::ConstantOp::create(
-        b, loc, FloatAttr::get(elementType, 0.70710678118654752440));
-    Value oneHalf =
-        arith::ConstantOp::create(b, loc, FloatAttr::get(elementType, 0.5));
-    Value kAlpha = arith::MulFOp::create(b, loc, cstAlpha0, cstAlpha1);
-    Value kAlphaHalf = arith::MulFOp::create(b, loc, kAlpha, oneHalf);
-    Value negOneHalf =
-        arith::ConstantOp::create(b, loc, FloatAttr::get(elementType, -0.5));
-    Value inputSquared =
-        arith::MulFOp::create(b, loc, payloadArgs[1], payloadArgs[1]);
-    Value negHalfInputSquared =
-        arith::MulFOp::create(b, loc, inputSquared, negOneHalf);
-    Value dinput = math::ExpOp::create(b, loc, negHalfInputSquared);
-    Value cdf = buildUnitNormalCdf(b, loc, payloadArgs[1]);
-    Value dinputInput = arith::MulFOp::create(b, loc, dinput, payloadArgs[1]);
-    Value dinputInputAlpha =
-        arith::MulFOp::create(b, loc, dinputInput, kAlphaHalf);
-    Value cdfExt = arith::AddFOp::create(b, loc, dinputInputAlpha, cdf);
-    return arith::MulFOp::create(b, loc, payloadArgs[0], cdfExt);
+    if (approximate == "none") {
+      Value cstAlpha0 = arith::ConstantOp::create(
+          b, loc, FloatAttr::get(elementType, 1.12837916709551257390));
+      Value cstAlpha1 = arith::ConstantOp::create(
+          b, loc, FloatAttr::get(elementType, 0.70710678118654752440));
+      Value oneHalf =
+          arith::ConstantOp::create(b, loc, FloatAttr::get(elementType, 0.5));
+      Value kAlpha = arith::MulFOp::create(b, loc, cstAlpha0, cstAlpha1);
+      Value kAlphaHalf = arith::MulFOp::create(b, loc, kAlpha, oneHalf);
+      Value negOneHalf =
+          arith::ConstantOp::create(b, loc, FloatAttr::get(elementType, -0.5));
+      Value inputSquared =
+          arith::MulFOp::create(b, loc, payloadArgs[1], payloadArgs[1]);
+      Value negHalfInputSquared =
+          arith::MulFOp::create(b, loc, inputSquared, negOneHalf);
+      Value dinput = math::ExpOp::create(b, loc, negHalfInputSquared);
+      Value cdf = buildUnitNormalCdf(b, loc, payloadArgs[1]);
+      Value dinputInput = arith::MulFOp::create(b, loc, dinput, payloadArgs[1]);
+      Value dinputInputAlpha =
+          arith::MulFOp::create(b, loc, dinputInput, kAlphaHalf);
+      Value cdfExt = arith::AddFOp::create(b, loc, dinputInputAlpha, cdf);
+      return arith::MulFOp::create(b, loc, payloadArgs[0], cdfExt);
+    }
+    if (approximate == "tanh") {
+      // GELU(x) = 0.5 * x * (1 + tanh(kBeta * (x + kKappa * x^3)))
+      // Let u = kBeta * (x + kKappa * x^3); then
+      // dGELU/dx = 0.5 * (1 + tanh(u))
+      //          + 0.5 * x * (1 - tanh(u)^2) * kBeta * (1 + 3 * kKappa * x^2)
+      Value self = payloadArgs[1];
+      Value cstBeta = arith::ConstantOp::create(
+          b, loc, FloatAttr::get(elementType, 0.7977240352174656));
+      Value cstKappa = arith::ConstantOp::create(
+          b, loc, FloatAttr::get(elementType, 0.044715));
+      Value cstOne =
+          arith::ConstantOp::create(b, loc, FloatAttr::get(elementType, 1.0));
+      Value cstThree =
+          arith::ConstantOp::create(b, loc, FloatAttr::get(elementType, 3.0));
+      Value cstHalf =
+          arith::ConstantOp::create(b, loc, FloatAttr::get(elementType, 0.5));
+      Value xSquared = arith::MulFOp::create(b, loc, self, self);
+      Value xCubed = arith::MulFOp::create(b, loc, xSquared, self);
+      Value kappaXCubed = arith::MulFOp::create(b, loc, cstKappa, xCubed);
+      Value xPlusKappaXCubed = arith::AddFOp::create(b, loc, self, kappaXCubed);
+      Value inner = arith::MulFOp::create(b, loc, cstBeta, xPlusKappaXCubed);
+      Value tanhInner = math::TanhOp::create(b, loc, inner);
+      Value onePlusTanh = arith::AddFOp::create(b, loc, cstOne, tanhInner);
+      Value leftDerivative =
+          arith::MulFOp::create(b, loc, cstHalf, onePlusTanh);
+      Value tanhSquared = arith::MulFOp::create(b, loc, tanhInner, tanhInner);
+      Value oneMinusTanhSquared =
+          arith::SubFOp::create(b, loc, cstOne, tanhSquared);
+      Value threeKappa = arith::MulFOp::create(b, loc, cstThree, cstKappa);
+      Value threeKappaXSquared =
+          arith::MulFOp::create(b, loc, threeKappa, xSquared);
+      Value innerDerivativeFactor =
+          arith::AddFOp::create(b, loc, cstOne, threeKappaXSquared);
+      Value innerDerivative =
+          arith::MulFOp::create(b, loc, cstBeta, innerDerivativeFactor);
+      Value halfX = arith::MulFOp::create(b, loc, cstHalf, self);
+      Value halfXOneMinusTanhSquared =
+          arith::MulFOp::create(b, loc, halfX, oneMinusTanhSquared);
+      Value rightDerivative = arith::MulFOp::create(
+          b, loc, halfXOneMinusTanhSquared, innerDerivative);
+      Value derivative =
+          arith::AddFOp::create(b, loc, leftDerivative, rightDerivative);
+      return arith::MulFOp::create(b, loc, payloadArgs[0], derivative);
+    }
+    geluBackward.emitError(
+        "unimplemented: approximate value should be none or tanh");
+    return nullptr;
   }
   if (auto hardtanhBackward = dyn_cast<AtenHardtanhBackwardOp>(op)) {
     AtenHardtanhBackwardOp::Adaptor adaptor(operands);
