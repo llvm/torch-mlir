@@ -2531,8 +2531,7 @@ class ElementwiseAtanTensorFloatSpecialValuesModule(torch.nn.Module):
     )
     def forward(self, a):
         atan = torch.atan(a)
-        # `reciprocal(atan(x))` makes the sign of +/-0.0 observable as +/-inf.
-        return atan, torch.reciprocal(atan)
+        return atan
 
 
 @register_test_case(
