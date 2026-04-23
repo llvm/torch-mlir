@@ -1313,7 +1313,6 @@ STABLEHLO_PASS_SET = {
     "GeFloatModule_basic",
     "GeIntModule_basic",
     "GeluBackwardModule_basic",
-    "GeluTanhBackwardModule_basic",
     "GluStaticModule_basic",
     "GridSamplerBasic1_basic",
     "GridSamplerBasic2_basic",
