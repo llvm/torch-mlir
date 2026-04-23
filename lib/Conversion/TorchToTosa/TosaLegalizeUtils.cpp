@@ -120,8 +120,7 @@ FailureOr<Value> getBroadcastableConstTensorSingleF32(PatternRewriter &rewriter,
   Value constant = getTosaConstTensorSingleF32(rewriter, op, val);
   if (!likeTy.getElementType().isF32()) {
     auto castedConstant = tosa::tosaCastTensorToType(
-        rewriter, constant,
-        RankedTensorType::get({}, likeTy.getElementType()));
+        rewriter, constant, RankedTensorType::get({}, likeTy.getElementType()));
     if (!castedConstant)
       return failure();
     constant = *castedConstant;
