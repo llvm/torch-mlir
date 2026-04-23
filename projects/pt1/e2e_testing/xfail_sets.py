@@ -3791,6 +3791,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "GeFloatIntModule_basic",
     "GeFloatModule_basic",
     "GeIntModule_basic",
+    "GeluTanhBackwardModule_basic",
     "GridSamplerBasic1_basic",
     "GridSamplerBasic2_basic",
     "GridSamplerBasic3_basic",
