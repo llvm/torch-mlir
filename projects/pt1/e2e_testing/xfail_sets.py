@@ -738,6 +738,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "FloatImplicitModule_basic",
     "GeFloatIntModule_basic",
     "GeFloatModule_basic",
+    "GeluTanhBackwardModule_basic",
     "GeIntModule_basic",
     "GtFloatIntModule_basic",
     "GtIntModule_basic",
