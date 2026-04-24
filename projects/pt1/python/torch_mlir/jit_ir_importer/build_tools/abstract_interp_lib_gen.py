@@ -908,6 +908,9 @@ def aten〇mv〡shape(self: List[int], vec: List[int]) -> List[int]:
 def aten〇mm〡shape(self: List[int], mat2: List[int]) -> List[int]:
     return upstream_shape_functions.mm(self, mat2)
 
+def aten〇_scaled_mm〡shape(self: List[int], mat2: List[int], scale_a: List[int], scale_b: List[int], bias: Optional[List[int]] = None, scale_result: Optional[List[int]] = None, out_dtype: Optional[int] = None, use_fast_accum: bool = False) -> List[int]:
+    return upstream_shape_functions.mm(self, mat2)
+
 def aten〇_int_mm〡shape(self: List[int], mat2: List[int]) -> List[int]:
     return upstream_shape_functions.mm(self, mat2)
 
@@ -4682,6 +4685,13 @@ def aten〇mm〡dtype(self_rank_dtype: Tuple[int, int], mat2_rank_dtype: Tuple[i
     dtypes = [self_dtype, mat2_dtype]
     return promote_dtypes(ranks, dtypes)
 
+def aten〇_scaled_mm〡dtype(self_rank_dtype: Tuple[int, int], mat2_rank_dtype: Tuple[int, int], scale_a_rank_dtype: Tuple[int, int], scale_b_rank_dtype: Tuple[int, int], bias_rank_dtype: Optional[Tuple[int, int]] = None, scale_result_rank_dtype: Optional[Tuple[int, int]] = None, out_dtype: Optional[int] = None, use_fast_accum: bool = False) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    mat2_rank, mat2_dtype = mat2_rank_dtype
+    if out_dtype is not None:
+        return out_dtype
+    return self_dtype
+
 def aten〇_int_mm〡dtype(self_rank_dtype: Tuple[int, int], mat2_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     mat2_rank, mat2_dtype = mat2_rank_dtype
@@ -6369,4 +6379,3 @@ def _create_argparse() -> argparse.ArgumentParser:
 
 if __name__ == "__main__":
     main(_create_argparse().parse_args())
-
