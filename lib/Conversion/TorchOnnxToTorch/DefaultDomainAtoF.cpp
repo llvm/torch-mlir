@@ -2350,12 +2350,173 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         Value zeropoint = operands[2];
 
         auto operandTy = cast<Torch::ValueTensorType>(operand.getType());
+        auto typedOperand = cast<TypedValue<Torch::ValueTensorType>>(operand);
         auto scaleTy = dyn_cast<Torch::ValueTensorType>(scale.getType());
         if (!scaleTy || !scaleTy.hasSizes())
           return rewriter.notifyMatchFailure(binder.op, "requires known rank");
         if (!resultType.hasDtype())
           return rewriter.notifyMatchFailure(binder.op,
                                              "requires known result dtype");
+
+        // Check for block quantization (block_size > 0).
+        // Note: block quantization with 2 operands (no zero_point) is not
+        // yet supported because the handler requires exactly 3 operands
+        // (tensorOperands(operands, 3) above). When needed, add a
+        // 2-operand path that uses a zero constant for zero_point.
+        int64_t blockSize = 0;
+        (void)binder.s64IntegerAttr(blockSize, "block_size", 0);
+        if (blockSize > 0) {
+          if (!operandTy.hasSizes())
+            return rewriter.notifyMatchFailure(
+                binder.op, "block quantization requires known operand rank");
+
+          int64_t axis = 1;
+          (void)binder.s64IntegerAttr(axis, "axis", 1);
+
+          auto operandSizes = operandTy.getSizes();
+          int64_t rank = operandSizes.size();
+          if (axis < 0)
+            axis += rank;
+          if (axis < 0 || axis >= rank)
+            return rewriter.notifyMatchFailure(
+                binder.op, "axis out of range for operand rank");
+
+          int64_t K = operandSizes[axis];
+          if (K == Torch::kUnknownSize)
+            return rewriter.notifyMatchFailure(
+                binder.op,
+                "block quantization requires static size on quantized axis");
+          if (K % blockSize != 0)
+            return rewriter.notifyMatchFailure(
+                binder.op, "axis size not divisible by block_size");
+          int64_t G = K / blockSize;
+
+          auto zpTy = cast<Torch::ValueTensorType>(zeropoint.getType());
+          if (!zpTy.hasSizes())
+            return rewriter.notifyMatchFailure(
+                binder.op, "block quantization requires known zero_point rank");
+
+          // Build reshaped sizes: [..., G, blockSize, ...]
+          SmallVector<int64_t> reshapedSizes(operandSizes);
+          reshapedSizes[axis] = G;
+          reshapedSizes.insert(reshapedSizes.begin() + axis + 1, blockSize);
+
+          // Helper to build a dim value: use aten.size.int for dynamic dims,
+          // constant for static dims. Reads sizes from the tensor type itself.
+          auto getDimValue = [&](TypedValue<Torch::ValueTensorType> tensor,
+                                 int64_t dimIdx) -> Value {
+            auto sizes = tensor.getType().getSizes();
+            if (sizes[dimIdx] != Torch::kUnknownSize)
+              return Torch::ConstantIntOp::create(
+                  rewriter, loc, rewriter.getI64IntegerAttr(sizes[dimIdx]));
+            Value dimConst = Torch::ConstantIntOp::create(
+                rewriter, loc, rewriter.getI64IntegerAttr(dimIdx));
+            return Torch::AtenSizeIntOp::create(
+                rewriter, loc, rewriter.getType<Torch::IntType>(), tensor,
+                dimConst);
+          };
+
+          // Build reshape dim list, using size.int for dynamic dims.
+          SmallVector<Value> reshapeDimValues;
+          for (int64_t i = 0; i < (int64_t)reshapedSizes.size(); ++i) {
+            if (i < axis) {
+              reshapeDimValues.push_back(getDimValue(typedOperand, i));
+            } else if (i == axis) {
+              reshapeDimValues.push_back(Torch::ConstantIntOp::create(
+                  rewriter, loc, rewriter.getI64IntegerAttr(G)));
+            } else if (i == axis + 1) {
+              reshapeDimValues.push_back(Torch::ConstantIntOp::create(
+                  rewriter, loc, rewriter.getI64IntegerAttr(blockSize)));
+            } else {
+              // Dims after the inserted blockSize dim: original index is i-1.
+              reshapeDimValues.push_back(getDimValue(typedOperand, i - 1));
+            }
+          }
+          Value reshapeDimsList = Torch::PrimListConstructOp::create(
+              rewriter, loc,
+              Torch::ListType::get(
+                  Torch::IntType::get(binder.op->getContext())),
+              reshapeDimValues);
+
+          // Block dequantization: y = (x - zero_point) * scale
+          // where each block of `blockSize` elements along `axis` shares
+          // one scale and zero_point value.
+          //
+          // Running example: x:[4,8] ui8, scale:[4,2] f32, zp:[4,2] ui8,
+          //                  axis=1, block_size=4, G=2
+
+          // Step 1: Reshape x: [4,8] -> [4,2,4] (split axis into G groups
+          // of blockSize).
+          auto reshapedTy = operandTy.getWithSizesAndDtype(
+              reshapedSizes, operandTy.getOptionalDtype());
+          Value reshaped = Torch::AtenReshapeOp::create(
+              rewriter, loc, reshapedTy, operand, reshapeDimsList);
+
+          // Step 2: Cast x to output dtype: [4,2,4] ui8 -> [4,2,4] f32.
+          Value none = Torch::ConstantNoneOp::create(rewriter, loc);
+          Value cstFalse = Torch::ConstantBoolOp::create(rewriter, loc, false);
+          auto outScalarTy = Torch::getScalarTypeForType(resultType.getDtype());
+          Value outDtypeConst = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                      static_cast<int64_t>(outScalarTy)));
+          auto reshapedCastTy = operandTy.getWithSizesAndDtype(
+              reshapedSizes, resultType.getDtype());
+          Value castedX = Torch::AtenToDtypeOp::create(
+              rewriter, loc, reshapedCastTy, reshaped, outDtypeConst,
+              /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+              /*memory_format=*/none);
+
+          // Step 3: Unsqueeze zero_point and cast: [4,2] ui8 -> [4,2,1] f32.
+          // The inserted dim=1 broadcasts against blockSize in step 4.
+          Value cstAxisP1 = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(axis + 1));
+          SmallVector<int64_t> zpUnsqSizes(zpTy.getSizes());
+          zpUnsqSizes.insert(zpUnsqSizes.begin() + axis + 1, 1);
+          auto zpUnsqTy =
+              zpTy.getWithSizesAndDtype(zpUnsqSizes, zpTy.getOptionalDtype());
+          Value zpUnsq = Torch::AtenUnsqueezeOp::create(rewriter, loc, zpUnsqTy,
+                                                        zeropoint, cstAxisP1);
+          auto zpCastTy =
+              zpTy.getWithSizesAndDtype(zpUnsqSizes, resultType.getDtype());
+          Value zpCasted = Torch::AtenToDtypeOp::create(
+              rewriter, loc, zpCastTy, zpUnsq, outDtypeConst,
+              /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+              /*memory_format=*/none);
+
+          // Step 4: Sub x - zero_point: [4,2,4] - [4,2,1] -> [4,2,4]
+          // (broadcasts zp along block dim).
+          Value one = Torch::ConstantFloatOp::create(
+              rewriter, loc, rewriter.getF64FloatAttr(1.0));
+          Value diff = Torch::AtenSubTensorOp::create(
+              rewriter, loc, reshapedCastTy, castedX, zpCasted, one);
+
+          // Step 5: Unsqueeze scale: [4,2] f32 -> [4,2,1] f32.
+          SmallVector<int64_t> scaleUnsqSizes(scaleTy.getSizes());
+          scaleUnsqSizes.insert(scaleUnsqSizes.begin() + axis + 1, 1);
+          auto scaleUnsqTy = scaleTy.getWithSizesAndDtype(
+              scaleUnsqSizes, scaleTy.getOptionalDtype());
+          Value scaleUnsq = Torch::AtenUnsqueezeOp::create(
+              rewriter, loc, scaleUnsqTy, scale, cstAxisP1);
+
+          // Step 6: Mul diff * scale: [4,2,4] * [4,2,1] -> [4,2,4]
+          // (broadcasts scale along block dim).
+          Value scaled = Torch::AtenMulTensorOp::create(
+              rewriter, loc, reshapedCastTy, diff, scaleUnsq);
+
+          // Step 7: Reshape back: [4,2,4] -> [4,8].
+          SmallVector<Value> origDimValues;
+          for (int64_t i = 0; i < rank; ++i)
+            origDimValues.push_back(getDimValue(typedOperand, i));
+          Value origDimsList = Torch::PrimListConstructOp::create(
+              rewriter, loc,
+              Torch::ListType::get(
+                  Torch::IntType::get(binder.op->getContext())),
+              origDimValues);
+          rewriter.replaceOpWithNewOp<Torch::AtenReshapeOp>(
+              binder.op, resultType, scaled, origDimsList);
+          return success();
+        }
 
         int64_t scaleRank = scaleTy.getSizes().size();
         if (scaleRank > 1)
