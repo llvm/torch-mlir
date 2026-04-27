@@ -304,6 +304,9 @@ def aten〇tanh_backward〡shape(grad_output: List[int], output: List[int]) -> L
 def aten〇gelu_backward〡shape(grad_output: List[int], self: List[int], approximate: str = "none") -> List[int]:
     return upstream_shape_functions.unary(grad_output)
 
+def aten〇elu_backward〡shape(grad_output: List[int], alpha: float, scale: float, input_scale: float, is_result: bool, self_or_result: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(grad_output)
+
 def aten〇leaky_relu_backward〡shape(grad_output: List[int], self: List[int], negative_slope: float, self_is_result: bool) -> List[int]:
     return upstream_shape_functions.unary(grad_output)
 
@@ -3472,6 +3475,14 @@ def aten〇gelu_backward〡dtype(grad_output_rank_dtype: Tuple[int, int], self_r
     self_rank, self_dtype = self_rank_dtype
     ranks: List[Optional[int]] = [grad_output_rank, self_rank]
     dtypes = [grad_output_dtype, self_dtype]
+    promoted_dtype = promote_dtypes(ranks, dtypes)
+    return promoted_dtype
+
+def aten〇elu_backward〡dtype(grad_output_rank_dtype: Tuple[int, int], alpha: Union[int, float, complex], scale: Union[int, float, complex], input_scale: Union[int, float, complex], is_result: bool, self_or_result_rank_dtype: Tuple[int, int]) -> int:
+    grad_output_rank, grad_output_dtype = grad_output_rank_dtype
+    self_or_result_rank, self_or_result_dtype = self_or_result_rank_dtype
+    ranks: List[Optional[int]] = [grad_output_rank, self_or_result_rank]
+    dtypes = [grad_output_dtype, self_or_result_dtype]
     promoted_dtype = promote_dtypes(ranks, dtypes)
     return promoted_dtype
 
