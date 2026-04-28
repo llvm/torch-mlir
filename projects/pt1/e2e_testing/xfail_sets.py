@@ -589,6 +589,8 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "SliceScatterStaticModule_basic",
     "SliceScatterStepVariationModule_basic",
     "SliceScatterZeroDimModule_basic",
+    "SoftplusBackwardModule_basic",
+    "SoftplusBackwardNonDefaultModule_basic",
     "TimeOutModule_basic",
     "WeightNormInterfaceModule_basic",
     "AdaptiveAvgPool3dDynamicNoBatch_basic",
