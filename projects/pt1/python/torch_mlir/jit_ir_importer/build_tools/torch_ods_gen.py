@@ -513,7 +513,6 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::threshold_backward : (Tensor, Tensor, Scalar) -> (Tensor)")
     emit("aten::floor_divide : (Tensor, Tensor) -> (Tensor)")
     emit("aten::softplus : (Tensor, Scalar, Scalar) -> (Tensor)")
-    emit("aten::softplus_backward : (Tensor, Tensor, Scalar, Scalar) -> (Tensor)")
     emit("aten::prelu : (Tensor, Tensor) -> (Tensor)")
     emit("aten::rad2deg : (Tensor) -> (Tensor)")
     emit("aten::complex : (Tensor, Tensor) -> (Tensor)")
