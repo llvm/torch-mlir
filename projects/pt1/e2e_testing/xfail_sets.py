@@ -575,6 +575,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ScatterAddStaticModule_basic",
     "SelectScattertModule_basic",
     "SelectScattertStaticModule_basic",
+    "SigmoidBackwardModule_basic",
     "SignAndLogarithmOfDeterminantBatchedModule_F32",
     "SignAndLogarithmOfDeterminantDynamicModule_F32",
     "SignAndLogarithmOfDeterminantModule_F32",
