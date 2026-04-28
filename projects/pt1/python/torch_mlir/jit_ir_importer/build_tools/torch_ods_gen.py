@@ -1283,6 +1283,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::sym_constrain_range : (Scalar, int?, int?) -> ()")
     emit("aten::sym_constrain_range_for_size : (Scalar, int?, int?) -> ()")
     emit("aten::_assert_scalar : (Scalar, str) -> ()")
+    emit("aten::_foreach_lerp.List : (Tensor[], Tensor[], Tensor[]) -> (Tensor[])")
 
     # ==========================================================================
     # `prim::` namespace.

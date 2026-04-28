@@ -11923,6 +11923,43 @@ public:
 } // namespace
 
 namespace {
+// Decompose aten._foreach_lerp.List into element-wise aten.lerp.Tensor
+class DecomposeAten_ForeachLerpListOp
+    : public OpRewritePattern<Aten_ForeachLerpListOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten_ForeachLerpListOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    SmallVector<Value> selfElems, tensors1Elems, weightsElems;
+    if (!getListConstructElements(op.getSelf(), selfElems))
+      return rewriter.notifyMatchFailure(
+          op, "self must come from a PrimListConstructOp");
+    if (!getListConstructElements(op.getTensors1(), tensors1Elems))
+      return rewriter.notifyMatchFailure(
+          op, "tensors1 must come from a PrimListConstructOp");
+    if (!getListConstructElements(op.getWeights(), weightsElems))
+      return rewriter.notifyMatchFailure(
+          op, "weights must come from a PrimListConstructOp");
+
+    if (selfElems.size() != tensors1Elems.size() ||
+        selfElems.size() != weightsElems.size())
+      return rewriter.notifyMatchFailure(op, "list sizes must match");
+
+    SmallVector<Value> results;
+    for (size_t i = 0; i < selfElems.size(); i++) {
+      Value lerped = AtenLerpTensorOp::create(
+          rewriter, loc, selfElems[i].getType(), selfElems[i], tensors1Elems[i],
+          weightsElems[i]);
+      results.push_back(lerped);
+    }
+
+    rewriter.replaceOpWithNewOp<PrimListConstructOp>(op, op.getType(), results);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.sgn` op into comparisons and aten.where.
 class DecomposeAtenSgnOp : public OpRewritePattern<AtenSgnOp> {
 public:
@@ -13645,6 +13682,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenScatterValueOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSgnOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposePrimsSumOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAten_ForeachLerpListOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTypeAsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTileOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenReshapeAsOp>(patterns);
