@@ -890,7 +890,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
           arith::MulFOp::create(b, loc, scaleAlphaInputScale, expXInputScale);
       negGrad = arith::MulFOp::create(b, loc, gradOutput, derivative);
     }
-    Value pred = arith::CmpFOp::create(b, loc, arith::CmpFPredicate::UGT,
+    // Use ordered predicate so NaN selfOrResult flows through the negative
+    // branch and propagates NaN, matching PyTorch's `self_or_result > 0`.
+    Value pred = arith::CmpFOp::create(b, loc, arith::CmpFPredicate::OGT,
                                        selfOrResult, zero);
     return arith::SelectOp::create(b, loc, pred, posGrad, negGrad);
   }
