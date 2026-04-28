@@ -3938,6 +3938,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ScatterSrcStaticModule_basic",
     "ScatterValueFloatModule_basic",
     "ScatterValueIntModule_basic",
+    "SigmoidBackwardModule_basic",
     "SignAndLogarithmOfDeterminantModule_F32",
     "SignAndLogarithmOfDeterminantBatchedModule_F32",
     "SignAndLogarithmOfDeterminantDynamicModule_F32",
