@@ -316,6 +316,9 @@ def aten〇rrelu_with_noise_backward〡shape(grad_output: List[int], self: List[
 def aten〇hardtanh_backward〡shape(grad_output: List[int], self: List[int], min_val: float, max_val: float) -> List[int]:
     return upstream_shape_functions.unary(grad_output)
 
+def aten〇softplus_backward〡shape(grad_output: List[int], self: List[int], beta: float, threshold: float) -> List[int]:
+    return upstream_shape_functions.unary(grad_output)
+
 def aten〇ceil〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -3507,6 +3510,15 @@ def aten〇hardtanh_backward〡dtype(grad_output_rank_dtype: Tuple[int, int], se
     if is_integer_dtype(grad_output_dtype):
         return torch.float32
     return grad_output_dtype
+
+@check_dtype_function(_check_two_tensor_op(beta=1.0, threshold=20.0))
+def aten〇softplus_backward〡dtype(grad_output_rank_dtype: Tuple[int, int], self_rank_dtype: Tuple[int, int], beta: Union[int, float, complex], threshold: Union[int, float, complex]) -> int:
+    grad_output_rank, grad_output_dtype = grad_output_rank_dtype
+    self_rank, self_dtype = self_rank_dtype
+    ranks: List[Optional[int]] = [grad_output_rank, self_rank]
+    dtypes = [grad_output_dtype, self_dtype]
+    promoted_dtype = promote_dtypes(ranks, dtypes)
+    return promoted_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.uint8, torch.bool}))
 def aten〇hardtanh〡dtype(self_rank_dtype: Tuple[int, int], min_val: Union[int, float, complex] = -1, max_val: Union[int, float, complex] = 1) -> int:

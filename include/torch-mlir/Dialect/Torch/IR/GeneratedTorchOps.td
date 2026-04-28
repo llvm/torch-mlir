@@ -5479,6 +5479,32 @@ def Torch_AtenSoftplusOp : Torch_Op<"aten.softplus", [
   }];
 }
 
+def Torch_AtenSoftplusBackwardOp : Torch_Op<"aten.softplus_backward", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::softplus_backward : (Tensor, Tensor, Scalar, Scalar) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$grad_output,
+    AnyTorchTensorType:$self,
+    AnyTorchScalarType:$beta,
+    AnyTorchScalarType:$threshold
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenSoftplusBackwardOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 4, 1);
+    }
+    void AtenSoftplusBackwardOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 4, 1);
+    }
+  }];
+}
+
 def Torch_AtenPreluOp : Torch_Op<"aten.prelu", [
     AllowsTypeRefinement,
     HasValueSemantics,

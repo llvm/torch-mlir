@@ -86,6 +86,56 @@ def HardtanhBackward_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class SoftplusBackwardModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, grad_output, self_):
+        return torch.ops.aten.softplus_backward(
+            grad_output, self_, beta=1.0, threshold=20.0
+        )
+
+
+@register_test_case(module_factory=lambda: SoftplusBackwardModule())
+def SoftplusBackwardModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 3, low=-1, high=1), tu.rand(5, 3, low=-1, high=1))
+
+
+class SoftplusBackwardNonDefaultModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, grad_output, self_):
+        return torch.ops.aten.softplus_backward(
+            grad_output, self_, beta=2.0, threshold=5.0
+        )
+
+
+@register_test_case(module_factory=lambda: SoftplusBackwardNonDefaultModule())
+def SoftplusBackwardNonDefaultModule_basic(module, tu: TestUtils):
+    # Mix of values below, near, and above the threshold (beta*self vs threshold).
+    module.forward(tu.rand(5, 3, low=-1, high=1), tu.rand(5, 3, low=-1, high=4))
+
+
+# ==============================================================================
+
+
 class ConvolutionBackwardModule2D(torch.nn.Module):
     def __init__(self):
         super().__init__()
