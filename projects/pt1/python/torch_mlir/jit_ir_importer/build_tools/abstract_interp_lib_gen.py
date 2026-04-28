@@ -301,6 +301,9 @@ def aten〇reciprocal〡shape(self: List[int]) -> List[int]:
 def aten〇tanh_backward〡shape(grad_output: List[int], output: List[int]) -> List[int]:
     return upstream_shape_functions.unary(grad_output)
 
+def aten〇sigmoid_backward〡shape(grad_output: List[int], output: List[int]) -> List[int]:
+    return upstream_shape_functions.unary(grad_output)
+
 def aten〇gelu_backward〡shape(grad_output: List[int], self: List[int], approximate: str = "none") -> List[int]:
     return upstream_shape_functions.unary(grad_output)
 
@@ -3958,6 +3961,15 @@ def aten〇squeeze〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 
 @check_dtype_function(_check_two_tensor_op())
 def aten〇tanh_backward〡dtype(grad_output_rank_dtype: Tuple[int, int], output_rank_dtype: Tuple[int, int]) -> int:
+    grad_output_rank, grad_output_dtype = grad_output_rank_dtype
+    output_rank, output_dtype = output_rank_dtype
+    ranks: List[Optional[int]] = [grad_output_rank, output_rank]
+    dtypes = [grad_output_dtype, output_dtype]
+    promoted_dtype = promote_dtypes(ranks, dtypes)
+    return promoted_dtype
+
+@check_dtype_function(_check_two_tensor_op())
+def aten〇sigmoid_backward〡dtype(grad_output_rank_dtype: Tuple[int, int], output_rank_dtype: Tuple[int, int]) -> int:
     grad_output_rank, grad_output_dtype = grad_output_rank_dtype
     output_rank, output_dtype = output_rank_dtype
     ranks: List[Optional[int]] = [grad_output_rank, output_rank]

@@ -60,6 +60,34 @@ def TanhBackward_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class SigmoidBackwardModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, grad_out, output):
+        return torch.ops.aten.sigmoid_backward(grad_out, output)
+
+
+@register_test_case(module_factory=lambda: SigmoidBackwardModule())
+def SigmoidBackwardModule_basic(module, tu: TestUtils):
+    # `output` must be a valid sigmoid result (in (0, 1)) so the derivative
+    # output * (1 - output) matches what the upstream op produces.
+    grad = tu.rand(3, 3)
+    output = torch.sigmoid(tu.rand(3, 3, low=-2, high=2))
+    module.forward(grad, output)
+
+
+# ==============================================================================
+
+
 class HardtanhBackwardModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
