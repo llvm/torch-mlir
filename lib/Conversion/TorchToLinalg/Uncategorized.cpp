@@ -843,6 +843,59 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
         "unimplemented: approximate value should be none or tanh");
     return nullptr;
   }
+  if (auto eluBackward = dyn_cast<AtenEluBackwardOp>(op)) {
+    AtenEluBackwardOp::Adaptor adaptor(operands);
+    if (!isa<mlir::FloatType>(
+            cast<ValueTensorType>(eluBackward.getType()).getDtype())) {
+      eluBackward.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+    bool isResult;
+    if (!matchPattern(eluBackward.getIsResult(),
+                      m_TorchConstantBool(&isResult))) {
+      eluBackward.emitError(
+          "unimplemented: expected is_result to be a constant bool");
+      return nullptr;
+    }
+    Value gradOutput = payloadArgs[0];
+    Value selfOrResult = payloadArgs[1];
+    Type elementType = gradOutput.getType();
+    Value alpha = convertScalarToDtype(b, loc, adaptor.getAlpha(), elementType);
+    Value scale = convertScalarToDtype(b, loc, adaptor.getScale(), elementType);
+    Value inputScale =
+        convertScalarToDtype(b, loc, adaptor.getInputScale(), elementType);
+    Value zero =
+        arith::ConstantOp::create(b, loc, FloatAttr::get(elementType, 0.0));
+    // dELU/dx = scale, when self_or_result > 0
+    // dELU/dx = input_scale * (y + alpha * scale), when y <= 0 and is_result
+    // dELU/dx = scale * alpha * input_scale * exp(input_scale * x),
+    //   when x <= 0 and !is_result
+    Value posGrad = arith::MulFOp::create(b, loc, gradOutput, scale);
+    Value negGrad;
+    if (isResult) {
+      Value alphaScale = arith::MulFOp::create(b, loc, alpha, scale);
+      Value yPlusAlphaScale =
+          arith::AddFOp::create(b, loc, selfOrResult, alphaScale);
+      Value scaledY =
+          arith::MulFOp::create(b, loc, inputScale, yPlusAlphaScale);
+      negGrad = arith::MulFOp::create(b, loc, gradOutput, scaledY);
+    } else {
+      Value xInputScale =
+          arith::MulFOp::create(b, loc, selfOrResult, inputScale);
+      Value expXInputScale = math::ExpOp::create(b, loc, xInputScale);
+      Value scaleAlpha = arith::MulFOp::create(b, loc, scale, alpha);
+      Value scaleAlphaInputScale =
+          arith::MulFOp::create(b, loc, scaleAlpha, inputScale);
+      Value derivative =
+          arith::MulFOp::create(b, loc, scaleAlphaInputScale, expXInputScale);
+      negGrad = arith::MulFOp::create(b, loc, gradOutput, derivative);
+    }
+    // Use ordered predicate so NaN selfOrResult flows through the negative
+    // branch and propagates NaN, matching PyTorch's `self_or_result > 0`.
+    Value pred = arith::CmpFOp::create(b, loc, arith::CmpFPredicate::OGT,
+                                       selfOrResult, zero);
+    return arith::SelectOp::create(b, loc, pred, posGrad, negGrad);
+  }
   if (auto softplusBackward = dyn_cast<AtenSoftplusBackwardOp>(op)) {
     AtenSoftplusBackwardOp::Adaptor adaptor(operands);
     if (!isa<mlir::FloatType>(
@@ -1694,7 +1747,7 @@ public:
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
     if (!isa<AtenTanOp, AtenTanhOp, AtenSinhOp, AtenCoshOp, AtenReluOp,
-             AtenPreluOp, AtenGeluOp, AtenGeluBackwardOp,
+             AtenPreluOp, AtenGeluOp, AtenGeluBackwardOp, AtenEluBackwardOp,
              AtenSoftplusBackwardOp, AtenAddTensorOp, AtenMulTensorOp,
              AtenDivTensorOp, AtenDivTensorModeOp, AtenDivScalarModeOp,
              AtenSubTensorOp, AtenAtan2Op, AtenLerpTensorOp, AtenSigmoidOp,
@@ -4030,28 +4083,28 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   target.addIllegalOp<
       AtenTanOp, AtenTanhOp, AtenSinhOp, AtenCoshOp, AtenAtanhOp, AtenAcoshOp,
       AtenAsinOp, AtenAsinhOp, AtenReluOp, AtenGeluOp, AtenGeluBackwardOp,
-      AtenSoftplusBackwardOp, AtenAddTensorOp, AtenMulTensorOp, AtenDivTensorOp,
-      AtenDivTensorModeOp, AtenDivScalarModeOp, AtenSubTensorOp,
-      AtenLerpTensorOp, AtenSigmoidOp, AtenMinimumOp, AtenAtan2Op,
-      AtenMaximumOp, AtenToDtypeOp, AtenClampOp, AtenClampTensorOp,
-      AtenRsubScalarOp, AtenLogOp, AtenErfOp, AtenSqrtOp, AtenFloorOp,
-      AtenCeilOp, AtenPreluOp, AtenPowScalarOp, AtenPowTensorScalarOp,
-      AtenPowTensorTensorOp, AtenLog2Op, AtenLog10Op, AtenLog1pOp, AtenRsqrtOp,
-      AtenAbsOp, AtenComplexOp, AtenReciprocalOp, AtenBitwiseAndTensorOp,
-      AtenBitwiseAndScalarOp, AtenBitwiseOrTensorOp, AtenBitwiseXorTensorOp,
-      AtenBitwiseLeftShiftTensorOp, AtenBitwiseRightShiftTensorOp,
-      Aten__Lshift__ScalarOp, Aten__Rshift__ScalarOp, AtenGtScalarOp,
-      AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp,
-      AtenWhereSelfOp, AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp,
-      AtenNeTensorOp, AtenLtTensorOp, AtenLeTensorOp, AtenThresholdOp,
-      AtenThresholdBackwardOp, AtenHardtanhBackwardOp, AtenCloneOp, AtenSinOp,
-      AtenCosOp, AtenNeScalarOp, AtenMaskedFillTensorOp, AtenLogicalOrOp,
-      AtenLogicalAndOp, AtenAtanOp, AtenAcosOp, AtenLogicalXorOp,
-      AtenLogicalNotOp, AtenIsinfOp, AtenTriuOp, AtenTrilOp,
-      AtenRemainderScalarOp, AtenRemainderTensorOp, AtenBitwiseNotOp,
-      AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp, AtenRealOp, AtenImagOp,
-      AtenDequantizeSelfOp, AtenDequantizeTensorOp, AtenQuantizePerTensorOp,
-      AtenIscloseOp>();
+      AtenEluBackwardOp, AtenSoftplusBackwardOp, AtenAddTensorOp,
+      AtenMulTensorOp, AtenDivTensorOp, AtenDivTensorModeOp,
+      AtenDivScalarModeOp, AtenSubTensorOp, AtenLerpTensorOp, AtenSigmoidOp,
+      AtenMinimumOp, AtenAtan2Op, AtenMaximumOp, AtenToDtypeOp, AtenClampOp,
+      AtenClampTensorOp, AtenRsubScalarOp, AtenLogOp, AtenErfOp, AtenSqrtOp,
+      AtenFloorOp, AtenCeilOp, AtenPreluOp, AtenPowScalarOp,
+      AtenPowTensorScalarOp, AtenPowTensorTensorOp, AtenLog2Op, AtenLog10Op,
+      AtenLog1pOp, AtenRsqrtOp, AtenAbsOp, AtenComplexOp, AtenReciprocalOp,
+      AtenBitwiseAndTensorOp, AtenBitwiseAndScalarOp, AtenBitwiseOrTensorOp,
+      AtenBitwiseXorTensorOp, AtenBitwiseLeftShiftTensorOp,
+      AtenBitwiseRightShiftTensorOp, Aten__Lshift__ScalarOp,
+      Aten__Rshift__ScalarOp, AtenGtScalarOp, AtenGeScalarOp, AtenEqScalarOp,
+      AtenLtScalarOp, AtenLeScalarOp, AtenWhereSelfOp, AtenGtTensorOp,
+      AtenGeTensorOp, AtenEqTensorOp, AtenNeTensorOp, AtenLtTensorOp,
+      AtenLeTensorOp, AtenThresholdOp, AtenThresholdBackwardOp,
+      AtenHardtanhBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp,
+      AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp, AtenAtanOp,
+      AtenAcosOp, AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp, AtenTriuOp,
+      AtenTrilOp, AtenRemainderScalarOp, AtenRemainderTensorOp,
+      AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp,
+      AtenRealOp, AtenImagOp, AtenDequantizeSelfOp, AtenDequantizeTensorOp,
+      AtenQuantizePerTensorOp, AtenIscloseOp>();
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);
