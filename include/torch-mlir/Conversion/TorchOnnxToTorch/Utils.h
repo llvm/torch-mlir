@@ -83,8 +83,10 @@ struct onnx_list_of_constant_ints_op_binder {
 
       auto ty = cast<ShapedType>(attr.getType());
       ElementsAttr denseAttr;
-      auto ptr = attr.getRawHandle().getBlob()->getData();
-      denseAttr = DenseElementsAttr::getFromRawBuffer(ty, ptr);
+      auto blobPtr = attr.getRawHandle().getBlob();
+      if (!blobPtr)
+        return false;
+      denseAttr = DenseElementsAttr::getFromRawBuffer(ty, blobPtr->getData());
       for (auto axis : denseAttr.getValues<llvm::APInt>()) {
         bind_values.push_back(axis.getSExtValue());
       }

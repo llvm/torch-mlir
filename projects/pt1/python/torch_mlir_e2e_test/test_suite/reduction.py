@@ -219,6 +219,29 @@ def ReduceProdElementTypeBoolModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class PrimsProdFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.prims.prod(a, (0, 1))
+
+
+@register_test_case(module_factory=lambda: PrimsProdFloatModule())
+def PrimsProdFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+
+# ==============================================================================
+
+
 class ReduceAllFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1637,6 +1660,29 @@ class ArgmaxModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ArgmaxModule())
 def ArgmaxModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class ArgmaxInt32Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.argmax(a)
+
+
+@register_test_case(module_factory=lambda: ArgmaxInt32Module())
+def ArgmaxInt32Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-100, high=100, dtype=torch.int32))
 
 
 # ==============================================================================

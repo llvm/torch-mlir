@@ -133,6 +133,12 @@ def ConvertTorchToTosa : Pass<"convert-torch-to-tosa", "func::FuncOp"> {
             "bool", /*default=*/"true",
             "Require TorchToTosa full conversion by adding Torch Dialect to "
             "TorchToTosa list of illegal dialects">,
+    ListOption<"disabledPatterns", "disabled-patterns",
+               "std::string",
+               "Patterns to disable by name during Torch to TOSA conversion">,
+    ListOption<"enabledPatterns", "enabled-patterns",
+               "std::string",
+               "If non-empty, only these patterns are enabled during Torch to TOSA conversion">,
   ];
 }
 #endif

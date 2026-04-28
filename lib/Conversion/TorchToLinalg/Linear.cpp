@@ -20,6 +20,7 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "llvm/Support/MathExtras.h"
 #include <algorithm>
 
 using namespace mlir;
@@ -280,7 +281,10 @@ public:
 
     Type newResultType = getTypeConverter()->convertType(op.getType());
     auto resultType = cast<RankedTensorType>(newResultType);
-    Type elementType = resultType.getElementType();
+    Type resultElementType = resultType.getElementType();
+    auto accumulatorDType =
+        getDefaultAccType(rewriter, lhsType.getElementType());
+    Type elementType = accumulatorDType;
 
     if (lhsZeroPoint) {
       // get each zero point ready to pass to a quantized_matmul
@@ -372,6 +376,10 @@ public:
       Value dotProd = linalg::DotOp::create(rewriter, loc, zeroTensor.getType(),
                                             ValueRange{lhs, rhs}, zeroTensor)
                           .getResult(0);
+      if (accumulatorDType != resultElementType) {
+        dotProd = torch_to_linalg::convertTensorToElementType(
+            rewriter, loc, dotProd, resultElementType);
+      }
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, dotProd);
       return success();
     }
@@ -389,6 +397,10 @@ public:
           linalg::VecmatOp::create(rewriter, loc, zeroTensor.getType(),
                                    ValueRange{lhs, rhs}, zeroTensor)
               .getResult(0);
+      if (accumulatorDType != resultElementType) {
+        matmul = torch_to_linalg::convertTensorToElementType(
+            rewriter, loc, matmul, resultElementType);
+      }
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, matmul);
       return success();
     }
@@ -406,6 +418,10 @@ public:
           linalg::MatvecOp::create(rewriter, loc, zeroTensor.getType(),
                                    ValueRange{lhs, rhs}, zeroTensor)
               .getResult(0);
+      if (accumulatorDType != resultElementType) {
+        matmul = torch_to_linalg::convertTensorToElementType(
+            rewriter, loc, matmul, resultElementType);
+      }
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, matmul);
       return success();
     }
@@ -431,6 +447,10 @@ public:
         matmul = linalg::MatmulOp::create(rewriter, loc, zeroTensor.getType(),
                                           ValueRange{lhs, rhs}, zeroTensor)
                      .getResult(0);
+      }
+      if (accumulatorDType != resultElementType) {
+        matmul = torch_to_linalg::convertTensorToElementType(
+            rewriter, loc, matmul, resultElementType);
       }
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, matmul);
       return success();
@@ -536,6 +556,10 @@ public:
                      rewriter, loc, zeroTensor.getType(),
                      ValueRange{broadcastedLhs, broadcastedRhs}, zeroTensor)
                      .getResult(0);
+        if (accumulatorDType != resultElementType) {
+          matmul = torch_to_linalg::convertTensorToElementType(
+              rewriter, loc, matmul, resultElementType);
+        }
         rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, matmul);
         return success();
       }
@@ -599,6 +623,10 @@ public:
                             ValueRange{collapsedLhs, collapsedRhs}, zeroTensor)
                             .getResult(0);
         }
+        if (accumulatorDType != resultElementType) {
+          batchMatMul = torch_to_linalg::convertTensorToElementType(
+              rewriter, loc, batchMatMul, resultElementType);
+        }
         Value expandResult = tensor::ExpandShapeOp::create(
             rewriter, loc, resultType, batchMatMul, reassociation);
         rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType,
@@ -642,12 +670,20 @@ public:
               /*iteratorTypes=*/iteratorTypes,
               [&](OpBuilder &b, Location loc, ValueRange args) {
                 Value l = args[0], r = args[1], res = args[2];
+                if (accumulatorDType != lhsType.getElementType()) {
+                  l = arith::ExtFOp::create(b, loc, accumulatorDType, l);
+                  r = arith::ExtFOp::create(b, loc, accumulatorDType, r);
+                }
                 Value mul = arith::MulFOp::create(b, loc, l, r);
                 Value add = arith::AddFOp::create(b, loc, mul, res);
                 linalg::YieldOp::create(b, loc, add);
               })
               .getResult(0);
 
+      if (accumulatorDType != resultElementType) {
+        finalRes = torch_to_linalg::convertTensorToElementType(
+            rewriter, loc, finalRes, resultElementType);
+      }
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, finalRes);
       return success();
     }
@@ -688,11 +724,13 @@ public:
         // type.
         lhs = torch_to_linalg::convertTensorToElementType(rewriter, loc, lhs,
                                                           resultElementType);
+        lhsElementType = resultElementType;
       } else {
         // True if the rhs element type is not equal to the result' element
         // type.
         rhs = torch_to_linalg::convertTensorToElementType(rewriter, loc, rhs,
                                                           resultElementType);
+        rhsElementType = resultElementType;
       }
     }
 
@@ -709,7 +747,7 @@ public:
     // Check the matrixs shapes are valid for mulplication.
     checkDimEqualHelper(rewriter, loc, lhsDim2, rhsDim1);
 
-    Type accumulatorDType = getDefaultAccType(rewriter, resultElementType);
+    Type accumulatorDType = getDefaultAccType(rewriter, lhsElementType);
     Value initTensor0 = createZeroInitTensor(
         rewriter, loc, ValueRange{lhsDim0, lhsDim1, rhsDim2}, accumulatorDType);
 
@@ -2306,7 +2344,7 @@ Value getDFTMatmulCoeff(OpBuilder b, Location loc,
       llvm::cast<mlir::FloatType>(complexTy.getElementType());
 
   // scale = 2 * pi / N
-  double scale = 2 * M_PI / matrixType.getDimSize(0);
+  double scale = 2 * llvm::numbers::pi / matrixType.getDimSize(0);
 
   SmallVector<std::complex<APFloat>> values;
   for (auto i : llvm::seq<unsigned>(0, matrixType.getDimSize(0))) {

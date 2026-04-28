@@ -12,6 +12,7 @@
 
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
@@ -763,34 +764,84 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       geluBackward.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
-    // TODO: Take approximation into account.
     std::string approximate;
     if (!matchPattern(geluBackward.getApproximate(),
-                      m_TorchConstantStr(approximate)) ||
-        approximate != "none")
+                      m_TorchConstantStr(approximate))) {
+      geluBackward.emitError(
+          "unimplemented: expected approximate to be a constant str");
       return nullptr;
+    }
     Type elementType = payloadArgs[1].getType();
-    Value cstAlpha0 = arith::ConstantOp::create(
-        b, loc, FloatAttr::get(elementType, 1.12837916709551257390));
-    Value cstAlpha1 = arith::ConstantOp::create(
-        b, loc, FloatAttr::get(elementType, 0.70710678118654752440));
-    Value oneHalf =
-        arith::ConstantOp::create(b, loc, FloatAttr::get(elementType, 0.5));
-    Value kAlpha = arith::MulFOp::create(b, loc, cstAlpha0, cstAlpha1);
-    Value kAlphaHalf = arith::MulFOp::create(b, loc, kAlpha, oneHalf);
-    Value negOneHalf =
-        arith::ConstantOp::create(b, loc, FloatAttr::get(elementType, -0.5));
-    Value inputSquared =
-        arith::MulFOp::create(b, loc, payloadArgs[1], payloadArgs[1]);
-    Value negHalfInputSquared =
-        arith::MulFOp::create(b, loc, inputSquared, negOneHalf);
-    Value dinput = math::ExpOp::create(b, loc, negHalfInputSquared);
-    Value cdf = buildUnitNormalCdf(b, loc, payloadArgs[1]);
-    Value dinputInput = arith::MulFOp::create(b, loc, dinput, payloadArgs[1]);
-    Value dinputInputAlpha =
-        arith::MulFOp::create(b, loc, dinputInput, kAlphaHalf);
-    Value cdfExt = arith::AddFOp::create(b, loc, dinputInputAlpha, cdf);
-    return arith::MulFOp::create(b, loc, payloadArgs[0], cdfExt);
+    if (approximate == "none") {
+      Value cstAlpha0 = arith::ConstantOp::create(
+          b, loc, FloatAttr::get(elementType, 1.12837916709551257390));
+      Value cstAlpha1 = arith::ConstantOp::create(
+          b, loc, FloatAttr::get(elementType, 0.70710678118654752440));
+      Value oneHalf =
+          arith::ConstantOp::create(b, loc, FloatAttr::get(elementType, 0.5));
+      Value kAlpha = arith::MulFOp::create(b, loc, cstAlpha0, cstAlpha1);
+      Value kAlphaHalf = arith::MulFOp::create(b, loc, kAlpha, oneHalf);
+      Value negOneHalf =
+          arith::ConstantOp::create(b, loc, FloatAttr::get(elementType, -0.5));
+      Value inputSquared =
+          arith::MulFOp::create(b, loc, payloadArgs[1], payloadArgs[1]);
+      Value negHalfInputSquared =
+          arith::MulFOp::create(b, loc, inputSquared, negOneHalf);
+      Value dinput = math::ExpOp::create(b, loc, negHalfInputSquared);
+      Value cdf = buildUnitNormalCdf(b, loc, payloadArgs[1]);
+      Value dinputInput = arith::MulFOp::create(b, loc, dinput, payloadArgs[1]);
+      Value dinputInputAlpha =
+          arith::MulFOp::create(b, loc, dinputInput, kAlphaHalf);
+      Value cdfExt = arith::AddFOp::create(b, loc, dinputInputAlpha, cdf);
+      return arith::MulFOp::create(b, loc, payloadArgs[0], cdfExt);
+    }
+    if (approximate == "tanh") {
+      // GELU(x) = 0.5 * x * (1 + tanh(kBeta * (x + kKappa * x^3)))
+      // Let u = kBeta * (x + kKappa * x^3); then
+      // dGELU/dx = 0.5 * (1 + tanh(u))
+      //          + 0.5 * x * (1 - tanh(u)^2) * kBeta * (1 + 3 * kKappa * x^2)
+      Value self = payloadArgs[1];
+      Value cstBeta = arith::ConstantOp::create(
+          b, loc, FloatAttr::get(elementType, 0.7977240352174656));
+      Value cstKappa = arith::ConstantOp::create(
+          b, loc, FloatAttr::get(elementType, 0.044715));
+      Value cstOne =
+          arith::ConstantOp::create(b, loc, FloatAttr::get(elementType, 1.0));
+      Value cstThree =
+          arith::ConstantOp::create(b, loc, FloatAttr::get(elementType, 3.0));
+      Value cstHalf =
+          arith::ConstantOp::create(b, loc, FloatAttr::get(elementType, 0.5));
+      Value xSquared = arith::MulFOp::create(b, loc, self, self);
+      Value xCubed = arith::MulFOp::create(b, loc, xSquared, self);
+      Value kappaXCubed = arith::MulFOp::create(b, loc, cstKappa, xCubed);
+      Value xPlusKappaXCubed = arith::AddFOp::create(b, loc, self, kappaXCubed);
+      Value inner = arith::MulFOp::create(b, loc, cstBeta, xPlusKappaXCubed);
+      Value tanhInner = math::TanhOp::create(b, loc, inner);
+      Value onePlusTanh = arith::AddFOp::create(b, loc, cstOne, tanhInner);
+      Value leftDerivative =
+          arith::MulFOp::create(b, loc, cstHalf, onePlusTanh);
+      Value tanhSquared = arith::MulFOp::create(b, loc, tanhInner, tanhInner);
+      Value oneMinusTanhSquared =
+          arith::SubFOp::create(b, loc, cstOne, tanhSquared);
+      Value threeKappa = arith::MulFOp::create(b, loc, cstThree, cstKappa);
+      Value threeKappaXSquared =
+          arith::MulFOp::create(b, loc, threeKappa, xSquared);
+      Value innerDerivativeFactor =
+          arith::AddFOp::create(b, loc, cstOne, threeKappaXSquared);
+      Value innerDerivative =
+          arith::MulFOp::create(b, loc, cstBeta, innerDerivativeFactor);
+      Value halfX = arith::MulFOp::create(b, loc, cstHalf, self);
+      Value halfXOneMinusTanhSquared =
+          arith::MulFOp::create(b, loc, halfX, oneMinusTanhSquared);
+      Value rightDerivative = arith::MulFOp::create(
+          b, loc, halfXOneMinusTanhSquared, innerDerivative);
+      Value derivative =
+          arith::AddFOp::create(b, loc, leftDerivative, rightDerivative);
+      return arith::MulFOp::create(b, loc, payloadArgs[0], derivative);
+    }
+    geluBackward.emitError(
+        "unimplemented: approximate value should be none or tanh");
+    return nullptr;
   }
   if (auto hardtanhBackward = dyn_cast<AtenHardtanhBackwardOp>(op)) {
     AtenHardtanhBackwardOp::Adaptor adaptor(operands);
@@ -1850,143 +1901,6 @@ public:
         convertScalarToDtype(rewriter, loc, totalWeightVal, elementType));
 
     rewriter.replaceOp(op, {finalRes, totalWeight});
-    return success();
-  }
-};
-} // namespace
-
-/// Inverted STD: rSTD = 1 / sqrt(var + eps).
-static Value calculateRSTD(OpBuilder &b, Location loc, Type elemTy, Value eps,
-                           Value var) {
-  // The eps is always f64.
-  Value truncatedEps = arith::TruncFOp::create(b, loc, elemTy, eps);
-  Value varPlusEps = arith::AddFOp::create(b, loc, var, truncatedEps);
-  Value rSTD = math::RsqrtOp::create(b, loc, varPlusEps);
-  return rSTD;
-}
-
-// Normalization formula:
-//   ((input - mean) * rSTD * weight + bias
-static Value createLinalgPayloadCalculationForNormOpsWithRSTD(
-    OpBuilder &b, Location loc, Type elemTy, Value input, Value mean,
-    Value rSTD, Value eps, Value weight, Value bias) {
-  Value inputSubMean = arith::SubFOp::create(b, loc, input, mean);
-  Value temp = arith::MulFOp::create(b, loc, inputSubMean, rSTD);
-  Value timesWeight = arith::MulFOp::create(b, loc, temp, weight);
-  Value plusBias = arith::AddFOp::create(b, loc, timesWeight, bias);
-  return plusBias;
-}
-
-static Value createLinalgPayloadCalculationForNormOpsWithVar(
-    OpBuilder &b, Location loc, Type elemTy, Value input, Value mean, Value var,
-    Value eps, Value weight, Value bias) {
-  Value rSTD = calculateRSTD(b, loc, elemTy, eps, var);
-  Value result = createLinalgPayloadCalculationForNormOpsWithRSTD(
-      b, loc, elemTy, input, mean, rSTD, eps, weight, bias);
-  return result;
-}
-
-namespace {
-class ConvertAtenBatchNormOp : public OpConversionPattern<AtenBatchNormOp> {
-public:
-  using OpConversionPattern::OpConversionPattern;
-  LogicalResult
-  matchAndRewrite(AtenBatchNormOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    MLIRContext *context = op->getContext();
-    Location loc = op->getLoc();
-    Value input = adaptor.getInput();
-    Value weight = adaptor.getWeight();
-    Value bias = adaptor.getBias();
-    Value runningMean = adaptor.getRunningMean();
-    Value runningVar = adaptor.getRunningVar();
-    Value training = adaptor.getTraining();
-    Value eps = adaptor.getEps();
-
-    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
-      return failure();
-
-    // TODO: Handle the None cases for the optional parameters:
-    // weight, bias.
-    if (failed(checkNotNone(rewriter, op, weight)) ||
-        failed(checkNotNone(rewriter, op, bias)) ||
-        failed(checkNotNone(rewriter, op, runningMean)) ||
-        failed(checkNotNone(rewriter, op, runningVar)))
-      return failure();
-
-    auto inputType = cast<RankedTensorType>(input.getType());
-    auto weightType = cast<RankedTensorType>(weight.getType());
-    auto biasType = cast<RankedTensorType>(bias.getType());
-    auto runningMeanType = cast<RankedTensorType>(runningMean.getType());
-    auto runningVarType = cast<RankedTensorType>(runningVar.getType());
-
-    auto inputRank = inputType.getRank();
-    if (inputRank < 2)
-      return rewriter.notifyMatchFailure(
-          op, "input should have rank larger than 1");
-
-    if (weightType.getRank() != 1 || biasType.getRank() != 1 ||
-        runningMeanType.getRank() != 1 || runningVarType.getRank() != 1) {
-      return rewriter.notifyMatchFailure(
-          op, "expect weight, bias, running_mean and running_var to be rank 1");
-    }
-
-    // TODO: Add support for training.
-    auto constFalse = arith::ConstantOp::create(
-        rewriter, loc, IntegerAttr::get(IntegerType::get(context, 1), 0));
-    auto trainingFalse = arith::CmpIOp::create(
-        rewriter, loc, arith::CmpIPredicate::eq, training, constFalse);
-    cf::AssertOp::create(
-        rewriter, loc, trainingFalse,
-        rewriter.getStringAttr("training is not supported for now"));
-
-    // num_features – C from an expected input of size (N,C,D,H,W ...)
-    Value numFeatures = tensor::DimOp::create(rewriter, loc, input, 1);
-    auto contractingDim0EqualsNumFeatures = [&](Value v) {
-      auto dim0 = tensor::DimOp::create(rewriter, loc, v, 0);
-      auto dim0Equal = arith::CmpIOp::create(
-          rewriter, loc, arith::CmpIPredicate::eq, numFeatures, dim0);
-      cf::AssertOp::create(
-          rewriter, loc, dim0Equal,
-          rewriter.getStringAttr(
-              "expect the size of dim 0 equal to the number of features"));
-    };
-    if (!isAssumingStrictSymbolicShapes(rewriter)) {
-      contractingDim0EqualsNumFeatures(weight);
-      contractingDim0EqualsNumFeatures(bias);
-      contractingDim0EqualsNumFeatures(runningMean);
-      contractingDim0EqualsNumFeatures(runningVar);
-    }
-
-    auto indexingMap = AffineMap::get(
-        /*dimCount=*/inputRank,
-        /*symbolCount=*/0, rewriter.getAffineDimExpr(1), context);
-    SmallVector<AffineMap> indexingMaps = {
-        rewriter.getMultiDimIdentityMap(inputRank), // input
-        indexingMap,                                // weight
-        indexingMap,                                // bias
-        indexingMap,                                // runningMean
-        indexingMap,                                // runningVar
-        rewriter.getMultiDimIdentityMap(inputRank), // output
-    };
-    SmallVector<utils::IteratorType> iteratorTypes(
-        inputRank, utils::IteratorType::parallel);
-    Value batchNorm =
-        linalg::GenericOp::create(
-            rewriter, loc, input.getType(),
-            ValueRange{input, weight, bias, runningMean, runningVar}, input,
-            /*indexingMaps=*/indexingMaps,
-            /*iteratorTypes=*/iteratorTypes,
-            [&](OpBuilder &b, Location loc, ValueRange args) {
-              Value input = args[0], weight = args[1], bias = args[2],
-                    mean = args[3], var = args[4];
-              Value result = createLinalgPayloadCalculationForNormOpsWithVar(
-                  b, loc, var.getType(), input, mean, var, eps, weight, bias);
-              linalg::YieldOp::create(b, loc, result);
-            })
-            .getResult(0);
-    Type newResultType = getTypeConverter()->convertType(op.getType());
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, batchNorm);
     return success();
   }
 };
@@ -3649,13 +3563,14 @@ public:
 
 private:
   struct RotaryParameters {
-    int64_t batchSize;
-    int64_t sequenceLength;
+    int64_t batchSize;      // May be kDynamic
+    int64_t sequenceLength; // May be kDynamic
     int64_t hiddenSize;
     int64_t headSize;
     int64_t rotaryEmbeddingDim;
     int64_t numHeads;
     int64_t maxSequenceLength;
+    int64_t inputRank; // 3 or 4
   };
 
   static LogicalResult checkInputs(OnnxVariantRotaryEmbeddingOp op, Value input,
@@ -3671,28 +3586,31 @@ private:
     //    sin_cache    : (max_sequence_length, head_size / 2) or
     //                   (max_sequence_length, rotary_embedding_dim / 2)
 
-    // For the `RotaryEmbedding` lowering to work, shapes of all the inputs are
-    // required to be statically known.
+    // Check input - support both rank 3 and rank 4
+    // Rank 3: (batch_size, sequence_length, hidden_size)
+    // Rank 4: (batch_size, num_heads, sequence_length, head_size)
+    // Dynamic batch/seq dimensions are allowed.
 
-    // Check input
     RankedTensorType inputType = cast<RankedTensorType>(input.getType());
-    if (!inputType.hasStaticShape())
-      return rewriter.notifyMatchFailure(
-          op, "Unimplemented: expected input to have static shape");
-
-    // TODO: Add support for 3d input of shape: (batch_size, sequence_length,
-    // hidden_size)
     SmallVector<int64_t> inputShape{inputType.getShape()};
-    if (inputShape.size() != 4)
-      return rewriter.notifyMatchFailure(op,
-                                         "input is expected to have rank 4");
+    int64_t inputRank = inputShape.size();
 
-    // Check position_ids
+    if (inputRank != 3 && inputRank != 4)
+      return rewriter.notifyMatchFailure(
+          op, "input is expected to have rank 3 or 4");
+
+    // For rank 3: hidden_size (dim 2) must be static for reshape computation
+    // For rank 4: head_size (dim 3) must be static
+    if (inputRank == 3 && inputShape[2] == ShapedType::kDynamic)
+      return rewriter.notifyMatchFailure(
+          op, "hidden_size (dim 2) must be static for rank 3 input");
+    if (inputRank == 4 && inputShape[3] == ShapedType::kDynamic)
+      return rewriter.notifyMatchFailure(
+          op, "head_size (dim 3) must be static for rank 4 input");
+
+    // Check position_ids - allow dynamic dims, just check rank
     RankedTensorType positionIdsType =
         cast<RankedTensorType>(positionIds.getType());
-    if (!positionIdsType.hasStaticShape())
-      return rewriter.notifyMatchFailure(
-          op, "Unimplemented: expected position_ids to have static shape");
 
     SmallVector<int64_t> positionIdsShape{positionIdsType.getShape()};
     if (positionIdsShape.size() != 2)
@@ -3745,27 +3663,46 @@ private:
           op,
           "num_heads must be non-zero if rotary_embedding_dim is specified");
 
-    // Get attributes from inputs
-    int64_t batchSize = inputShape[0];
-    int64_t sequenceLength = inputShape[2];
-    int64_t hiddenSize = inputShape[1] * inputShape[3];
-    int maxSequenceLength = cosCacheShape[0];
-    int headSize = rotaryEmbeddingDim == 0 ? cosCacheShape[1] * 2
-                                           : (int64_t)(hiddenSize / numHeads);
+    // Compute parameters - headSize always comes from cos_cache (static)
+    int64_t maxSequenceLength = cosCacheShape[0];
+    int64_t headSize = cosCacheShape[1] * 2;
+
+    // hiddenSize computation based on rank
+    int64_t hiddenSize;
+    if (inputRank == 3) {
+      hiddenSize = inputShape[2]; // Must be static (checked above)
+    } else {
+      // For rank 4, hidden = num_heads * head_size
+      if (inputShape[1] != ShapedType::kDynamic &&
+          inputShape[3] != ShapedType::kDynamic) {
+        hiddenSize = inputShape[1] * inputShape[3];
+      } else if (numHeads > 0) {
+        hiddenSize = numHeads * headSize;
+      } else {
+        return rewriter.notifyMatchFailure(
+            op, "num_heads attribute required when input dims are dynamic");
+      }
+    }
+
+    // Override headSize if rotaryEmbeddingDim is specified
+    if (rotaryEmbeddingDim > 0 && numHeads > 0) {
+      headSize = hiddenSize / numHeads;
+    }
 
     if (rotaryEmbeddingDim > 0 && rotaryEmbeddingDim > headSize)
       return rewriter.notifyMatchFailure(
           op, "rotary_embedding_dim must be less than or equal to head_size");
 
-    // Check position_ids input shapes
-    if (positionIdsShape[0] != batchSize)
+    // numHeads computation
+    int64_t computedNumHeads;
+    if (numHeads > 0) {
+      computedNumHeads = numHeads;
+    } else if (hiddenSize != ShapedType::kDynamic) {
+      computedNumHeads = hiddenSize / headSize;
+    } else {
       return rewriter.notifyMatchFailure(
-          op, "position_ids shape dimension 0 should be of size batch_size");
-
-    if (positionIdsShape[1] != sequenceLength)
-      return rewriter.notifyMatchFailure(
-          op,
-          "position_ids shape dimension 1 should be of size sequence_length");
+          op, "num_heads attribute required when hidden_size is dynamic");
+    }
 
     // Check cos_cache input shapes
     if (cosCacheShape[1] != (headSize / 2) &&
@@ -3775,16 +3712,19 @@ private:
           op, "cos_cache shape dimension 1 should be equal to head_size / 2 "
               "or rotary_embedding_dim / 2");
 
-    numHeads = numHeads > 0 ? numHeads : (int64_t)(hiddenSize / headSize);
+    // batch/seq may be dynamic - store the static values or kDynamic
+    int64_t batchSize = inputShape[0];
+    int64_t sequenceLength = inputRank == 3 ? inputShape[1] : inputShape[2];
 
     parameters.batchSize = batchSize;
     parameters.sequenceLength = sequenceLength;
     parameters.hiddenSize = hiddenSize;
     parameters.headSize = headSize;
-    parameters.numHeads = numHeads;
+    parameters.numHeads = computedNumHeads;
     parameters.maxSequenceLength = maxSequenceLength;
     parameters.rotaryEmbeddingDim =
         rotaryEmbeddingDim > 0 ? rotaryEmbeddingDim : headSize;
+    parameters.inputRank = inputRank;
 
     return success();
   }
@@ -3846,15 +3786,60 @@ private:
     int64_t halfRotaryEmbDim = rotaryEmbeddingDim / 2;
 
     auto elementType = inputType.getElementType();
-    unsigned inputRank = inputType.getRank();
+    SmallVector<int64_t> inputShape{inputType.getShape()};
+    bool needsReshape = (parameters.inputRank == 3);
 
-    SmallVector<Value> resultShape;
-    for (int64_t i = 0; i < inputRank; i++) {
-      auto currentDimSize = tensor::DimOp::create(rewriter, loc, input, i);
-      resultShape.push_back(currentDimSize);
+    // Capture original input dims for reshaping back later (only needed for
+    // rank-3 inputs that require reshape)
+    Value origBatchDim, origSeqDim, origHiddenDim;
+
+    // processedInput will always be rank 4 for the linalg.generic
+    Value processedInput = input;
+    RankedTensorType processedInputType = inputType;
+    if (needsReshape) {
+      origBatchDim = getDimOp(rewriter, loc, input, 0);
+      origSeqDim = getDimOp(rewriter, loc, input, 1);
+      origHiddenDim = getDimOp(rewriter, loc, input, 2);
+
+      // Result type: preserve dynamic markers for batch/seq
+      auto reshapedType =
+          RankedTensorType::get({inputShape[0], parameters.numHeads,
+                                 inputShape[1], parameters.headSize},
+                                elementType);
+
+      // Build i64 shape tensor for tensor.reshape
+      auto i64Type = rewriter.getI64Type();
+      Value numHeadsVal = arith::ConstantOp::create(
+          rewriter, loc, rewriter.getIndexAttr(parameters.numHeads));
+      Value headSizeVal = arith::ConstantOp::create(
+          rewriter, loc, rewriter.getIndexAttr(parameters.headSize));
+      SmallVector<Value> reshapedDimVals = {
+          arith::IndexCastOp::create(rewriter, loc, i64Type, origBatchDim),
+          arith::IndexCastOp::create(rewriter, loc, i64Type, numHeadsVal),
+          arith::IndexCastOp::create(rewriter, loc, i64Type, origSeqDim),
+          arith::IndexCastOp::create(rewriter, loc, i64Type, headSizeVal)};
+      auto shapeType =
+          RankedTensorType::get({static_cast<int64_t>(reshapedDimVals.size())},
+                                rewriter.getI64Type());
+      Value shapeValue = tensor::FromElementsOp::create(
+          rewriter, loc, shapeType, reshapedDimVals);
+      processedInput = tensor::ReshapeOp::create(rewriter, loc, reshapedType,
+                                                 input, shapeValue);
+      processedInputType = reshapedType;
     }
+
+    // Build result shape for the rank-4 linalg.generic output
+    // processedInput is always rank 4 at this point
+    SmallVector<OpFoldResult> resultDimsOFR =
+        tensor::getMixedSizes(rewriter, loc, processedInput);
+
+    // Create output tensor with mixed static/dynamic dims
     Value outTensor =
-        createZeroInitTensor(rewriter, loc, resultShape, elementType);
+        tensor::EmptyOp::create(rewriter, loc, resultDimsOFR, elementType);
+    Value zero = arith::ConstantOp::create(rewriter, loc,
+                                           rewriter.getZeroAttr(elementType));
+    outTensor =
+        linalg::FillOp::create(rewriter, loc, zero, outTensor).getResult(0);
 
     Value cstFloatOne = arith::ConstantOp::create(
         rewriter, loc, rewriter.getFloatAttr(elementType, 1.0));
@@ -3869,19 +3854,23 @@ private:
     Value cstHalfRotaryEmbDim = arith::ConstantOp::create(
         rewriter, loc, rewriter.getIndexAttr(halfRotaryEmbDim));
 
+    // Always rank 4 after reshape
+    unsigned processedRank = 4;
     AffineMap identityMap =
-        AffineMap::getMultiDimIdentityMap(inputRank, context);
-    AffineMap positionIdsMap = identityMap.getSubMap({0, inputRank - 2});
+        AffineMap::getMultiDimIdentityMap(processedRank, context);
+    // position_ids maps to (batch, seq) which is dims (0, 2) for rank 4
+    AffineMap positionIdsMap = identityMap.getSubMap({0, 2});
 
     SmallVector<AffineMap> indexingMaps{identityMap, positionIdsMap,
                                         /*outputMap=*/identityMap};
     SmallVector<utils::IteratorType> iteratorTypes(
-        inputRank, utils::IteratorType::parallel);
+        processedRank, utils::IteratorType::parallel);
 
     auto rotaryEmbedding =
         linalg::GenericOp::create(
-            rewriter, loc, outTensor.getType(), ValueRange{input, positionIds},
-            outTensor, indexingMaps, iteratorTypes,
+            rewriter, loc, outTensor.getType(),
+            ValueRange{processedInput, positionIds}, outTensor, indexingMaps,
+            iteratorTypes,
             [&](OpBuilder &builder, Location loc, ValueRange args) {
               // This linalg.generic will be iterating over the 4 dimensions
               // of the input "b, n, s, h", respectively.
@@ -3942,7 +3931,7 @@ private:
 
               Value origInput = args[0];
               Value rotatedInput = tensor::ExtractOp::create(
-                  builder, loc, input,
+                  builder, loc, processedInput,
                   ValueRange{b, n, s, rotatedInputLastIdx});
 
               Value signMultiplier = arith::SelectOp::create(
@@ -3959,8 +3948,49 @@ private:
             })
             .getResult(0);
 
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType,
-                                                rotaryEmbedding);
+    Value result = rotaryEmbedding;
+
+    // Apply scale if not 1.0
+    if (scale != 1.0) {
+      Value scaleVal = arith::ConstantOp::create(
+          rewriter, loc, rewriter.getFloatAttr(elementType, scale));
+      // Create output tensor with same shape as input
+      Value scaledOutTensor =
+          tensor::EmptyOp::create(rewriter, loc, resultDimsOFR, elementType);
+      result = linalg::GenericOp::create(
+                   rewriter, loc, processedInputType, ValueRange{result},
+                   scaledOutTensor,
+                   SmallVector<AffineMap>{
+                       AffineMap::getMultiDimIdentityMap(4, context),
+                       AffineMap::getMultiDimIdentityMap(4, context)},
+                   SmallVector<utils::IteratorType>(
+                       4, utils::IteratorType::parallel),
+                   [&](OpBuilder &builder, Location loc, ValueRange args) {
+                     Value scaled =
+                         arith::MulFOp::create(builder, loc, args[0], scaleVal);
+                     linalg::YieldOp::create(builder, loc, scaled);
+                   })
+                   .getResult(0);
+    }
+
+    if (needsReshape) {
+      // Reshape (batch, num_heads, seq, head_size) -> (batch, seq, hidden)
+      // Use original input dims to preserve dynamic info
+      // Build i64 shape tensor using original input dims
+      auto i64Type = rewriter.getI64Type();
+      SmallVector<Value> finalDimVals = {
+          arith::IndexCastOp::create(rewriter, loc, i64Type, origBatchDim),
+          arith::IndexCastOp::create(rewriter, loc, i64Type, origSeqDim),
+          arith::IndexCastOp::create(rewriter, loc, i64Type, origHiddenDim)};
+      auto shapeType = RankedTensorType::get(
+          {static_cast<int64_t>(finalDimVals.size())}, rewriter.getI64Type());
+      Value shapeValue = tensor::FromElementsOp::create(
+          rewriter, loc, shapeType, finalDimVals);
+      result = tensor::ReshapeOp::create(rewriter, loc, resultType, result,
+                                         shapeValue);
+    }
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, result);
     return success();
   }
 };
@@ -3999,8 +4029,6 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);
   target.addIllegalOp<AtenDetachOp>();
   patterns.add<ConvertAtenNllLossForwardOp>(typeConverter, context);
-  target.addIllegalOp<AtenBatchNormOp>();
-  patterns.add<ConvertAtenBatchNormOp>(typeConverter, context);
   target.addIllegalOp<AtenLogitOp>();
   patterns.add<ConvertLogitOp>(typeConverter, context);
   target.addIllegalOp<PrimsCollapseOp>();

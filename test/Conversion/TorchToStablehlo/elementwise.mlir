@@ -486,6 +486,20 @@ func.func @torch.aten.relu(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[
 
 // -----
 
+// CHECK-LABEL:  func.func @torch.aten.relu$int(
+// CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[?,?],si64>) -> !torch.vtensor<[?,?],si64> {
+// CHECK:         %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[?,?],si64> -> tensor<?x?xi64>
+// CHECK:         %[[T1:.*]] = "chlo.constant_like"(%[[T0]]) <{value = 0 : i64}> : (tensor<?x?xi64>) -> tensor<?x?xi64>
+// CHECK:         %[[T2:.*]] = stablehlo.maximum %[[T0]], %[[T1]] : tensor<?x?xi64>
+// CHECK:         %[[T3:.*]] = torch_c.from_builtin_tensor %[[T2]] : tensor<?x?xi64> -> !torch.vtensor<[?,?],si64>
+// CHECK:         return %[[T3]] : !torch.vtensor<[?,?],si64>
+func.func @torch.aten.relu$int(%arg0: !torch.vtensor<[?,?],si64>) -> !torch.vtensor<[?,?],si64> {
+  %0 = torch.aten.relu %arg0 : !torch.vtensor<[?,?],si64> -> !torch.vtensor<[?,?],si64>
+  return %0 : !torch.vtensor<[?,?],si64>
+}
+
+// -----
+
 // CHECK-LABEL:  func.func @torch.aten.addscalar$variable(
 // CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[?,?],f32>, %[[ARG1:.*]]: !torch.float) -> !torch.vtensor<[?,?],f32> {
 // CHECK-DAG:     %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>

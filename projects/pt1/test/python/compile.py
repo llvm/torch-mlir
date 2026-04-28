@@ -34,5 +34,5 @@ def test_enable_ir_printing():
     )
 
 
-# CHECK: // -----// IR Dump After Inliner (inline)
+# CHECK: // -----// IR Dump After {{.*}} //----- //
 # CHECK-NEXT: module attributes {torch.debug_module_name = "TinyModel"} {

@@ -804,6 +804,70 @@ func.func @test_selu(%arg0: !torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[3,4,
 
 // -----
 
+func.func @test_simplified_layer_normalization(%arg0: !torch.vtensor<[2,8,256],f32>, %arg1: !torch.vtensor<[256],f32>) -> !torch.vtensor<[2,8,256],f32> attributes {torch.onnx_meta.opset_version = 1 : si64} {
+  %0 = torch.operator "onnx.SimplifiedLayerNormalization"(%arg0, %arg1) {torch.onnx.axis = -1 : si64, torch.onnx.epsilon = 9.99999974E-6 : f32} : (!torch.vtensor<[2,8,256],f32>, !torch.vtensor<[256],f32>) -> !torch.vtensor<[2,8,256],f32>
+  return %0 : !torch.vtensor<[2,8,256],f32>
+}
+// CHECK-LABEL: func.func @test_simplified_layer_normalization
+// CHECK-SAME:    %[[INPUT:[a-zA-Z0-9]+]]: !torch.vtensor<[2,8,256],f32>
+// CHECK-SAME:    %[[SCALE:[a-zA-Z0-9]+]]: !torch.vtensor<[256],f32>
+// CHECK:         %[[DIM:.+]] = torch.constant.int 256
+// CHECK:         %[[SHAPE:.+]] = torch.prim.ListConstruct %[[DIM]]
+// CHECK:         %[[EPS:.+]] = torch.constant.float 9.9999997473787516E-6
+// CHECK:         torch.aten.rms_norm %[[INPUT]], %[[SHAPE]], %[[SCALE]], %[[EPS]]
+
+// -----
+
+// Test SimplifiedLayerNormalization with dynamic shapes and stash_type upcasting
+func.func @test_simplified_layer_normalization_dynamic(%arg0: !torch.vtensor<[?,?,4096],f16>, %arg1: !torch.vtensor<[4096],f16>) -> !torch.vtensor<[?,?,4096],f16> attributes {torch.onnx_meta.opset_version = 1 : si64} {
+  %0 = torch.operator "onnx.SimplifiedLayerNormalization"(%arg0, %arg1) {torch.onnx.axis = -1 : si64, torch.onnx.epsilon = 1.000000e-05 : f32, torch.onnx.stash_type = 1 : si64} : (!torch.vtensor<[?,?,4096],f16>, !torch.vtensor<[4096],f16>) -> !torch.vtensor<[?,?,4096],f16>
+  return %0 : !torch.vtensor<[?,?,4096],f16>
+}
+// CHECK-LABEL: func.func @test_simplified_layer_normalization_dynamic
+// CHECK-SAME:    %[[INPUT:[a-zA-Z0-9]+]]: !torch.vtensor<[?,?,4096],f16>
+// CHECK-SAME:    %[[SCALE:[a-zA-Z0-9]+]]: !torch.vtensor<[4096],f16>
+// CHECK:         %[[UPCAST:.*]] = torch.aten.to.dtype %[[INPUT]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[?,?,4096],f16>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[?,?,4096],f32>
+// CHECK:         %[[DIM:.+]] = torch.constant.int 4096
+// CHECK:         %[[SHAPE:.+]] = torch.prim.ListConstruct %[[DIM]]
+// CHECK:         %[[EPS:.+]] = torch.constant.float 9.9999997473787516E-6
+// CHECK:         %[[RMS:.*]] = torch.aten.rms_norm %[[UPCAST]], %[[SHAPE]], %[[SCALE]], %[[EPS]] : !torch.vtensor<[?,?,4096],f32>, !torch.list<int>, !torch.vtensor<[4096],f16>, !torch.float -> !torch.vtensor<[?,?,4096],f32>
+// CHECK:         torch.aten.to.dtype %[[RMS]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[?,?,4096],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[?,?,4096],f16>
+
+// -----
+
+func.func @test_skip_simplified_layer_normalization(%arg0: !torch.vtensor<[2,8,256],f32>, %arg1: !torch.vtensor<[2,8,256],f32>, %arg2: !torch.vtensor<[256],f32>) -> (!torch.vtensor<[2,8,256],f32>, !torch.vtensor<[2,8,256],f32>) attributes {torch.onnx_meta.opset_version = 1 : si64} {
+  %0:2 = torch.operator "onnx.SkipSimplifiedLayerNormalization"(%arg0, %arg1, %arg2) {torch.onnx.epsilon = 9.99999974E-6 : f32} : (!torch.vtensor<[2,8,256],f32>, !torch.vtensor<[2,8,256],f32>, !torch.vtensor<[256],f32>) -> (!torch.vtensor<[2,8,256],f32>, !torch.vtensor<[2,8,256],f32>)
+  return %0#0, %0#1 : !torch.vtensor<[2,8,256],f32>, !torch.vtensor<[2,8,256],f32>
+}
+// CHECK-LABEL: func.func @test_skip_simplified_layer_normalization
+// CHECK-SAME:    %[[INPUT:[a-zA-Z0-9]+]]: !torch.vtensor<[2,8,256],f32>
+// CHECK-SAME:    %[[SKIP:[a-zA-Z0-9]+]]: !torch.vtensor<[2,8,256],f32>
+// CHECK-SAME:    %[[GAMMA:[a-zA-Z0-9]+]]: !torch.vtensor<[256],f32>
+// CHECK-DAG:     %[[ONE:.+]] = torch.constant.float 1.000000e+00
+// CHECK-DAG:     %[[EPS:.+]] = torch.constant.float 9.9999997473787516E-6
+// CHECK:         %[[SUM:.+]] = torch.aten.add.Tensor %[[INPUT]], %[[SKIP]], %[[ONE]]
+// CHECK:         %[[DIM:.+]] = torch.constant.int 256
+// CHECK:         %[[SHAPE:.+]] = torch.prim.ListConstruct %[[DIM]]
+// CHECK:         %[[OUT:.+]] = torch.aten.rms_norm %[[SUM]], %[[SHAPE]], %[[GAMMA]], %[[EPS]]
+// CHECK:         return %[[OUT]], %[[SUM]]
+
+// -----
+
+func.func @test_skip_simplified_layer_norm_2_outputs(%input: !torch.vtensor<[2,4,8],f32>, %skip: !torch.vtensor<[2,4,8],f32>, %gamma: !torch.vtensor<[8],f32>) -> (!torch.vtensor<[2,4,8],f32>, !torch.vtensor<[2,4,8],f32>) attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 17 : si64} {
+  %0:2 = torch.operator "onnx.SkipSimplifiedLayerNormalization"(%input, %skip, %gamma) {torch.onnx.epsilon = 1.0e-5 : f32} : (!torch.vtensor<[2,4,8],f32>, !torch.vtensor<[2,4,8],f32>, !torch.vtensor<[8],f32>) -> (!torch.vtensor<[2,4,8],f32>, !torch.vtensor<[2,4,8],f32>)
+  return %0#0, %0#1 : !torch.vtensor<[2,4,8],f32>, !torch.vtensor<[2,4,8],f32>
+}
+// CHECK-LABEL: func.func @test_skip_simplified_layer_norm_2_outputs
+// CHECK-SAME:    %[[INPUT:[a-zA-Z0-9]+]]: !torch.vtensor<[2,4,8],f32>
+// CHECK-SAME:    %[[SKIP:[a-zA-Z0-9]+]]: !torch.vtensor<[2,4,8],f32>
+// CHECK-SAME:    %[[GAMMA:[a-zA-Z0-9]+]]: !torch.vtensor<[8],f32>
+// CHECK:         %[[SUM:.+]] = torch.aten.add.Tensor
+// CHECK:         %[[SHAPE:.+]] = torch.prim.ListConstruct
+// CHECK:         %[[OUT:.+]] = torch.aten.rms_norm
+// CHECK:         return %[[OUT]], %[[SUM]]
+
+// -----
+
 // CHECK-LABEL: func.func @test_reduce_max_empty_set_fp
 func.func @test_reduce_max_empty_set_fp(%arg0: !torch.vtensor<[2,0,4],f32>, %arg1: !torch.vtensor<[1],si64>) -> !torch.vtensor<[2,1,4],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   // CHECK-DAG: %[[INF:.+]] = torch.constant.float 0xFFF0000000000000
@@ -1254,12 +1318,8 @@ func.func @test_reduce_sum_empty_set_non_reduced_axis_zero(%arg0: !torch.vtensor
 
 // CHECK-LABEL: func.func @test_reduce_sum_keepdims_example
 func.func @test_reduce_sum_keepdims_example(%arg0: !torch.vtensor<[3,2,2],f32>) -> !torch.vtensor<[3,1,2],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 13 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
-  // CHECK: %[[VAL_1:.*]] = torch.vtensor.literal(dense<2> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
-  // CHECK: %[[INT0:.+]] = torch.constant.int 0
-  // CHECK: %[[INT0_0:.+]] = torch.constant.int 0
-  // CHECK: %[[SELECT:.+]] = torch.aten.select.int %[[VAL_1]], %[[INT0]], %[[INT0_0]] : !torch.vtensor<[1],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
-  // CHECK: %[[DIM:.+]] = torch.aten.item %[[SELECT]] : !torch.vtensor<[1],si64> -> !torch.int
-  // CHECK: %[[DIMS:.+]] = torch.prim.ListConstruct %[[DIM]] : (!torch.int) -> !torch.list<int>
+  // CHECK: %[[AX:.+]] = torch.constant.int 2
+  // CHECK: %[[DIMS:.+]] = torch.prim.ListConstruct %[[AX]] : (!torch.int) -> !torch.list<int>
   // CHECK: %[[TRUE:.+]] = torch.constant.bool true
   // CHECK: %[[NONE:.+]] = torch.constant.none
   // CHECK: torch.aten.sum.dim_IntList %arg0, %[[DIMS]], %[[TRUE]], %[[NONE]] : !torch.vtensor<[3,2,2],f32>, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[3,1,2],f32>
@@ -1375,16 +1435,12 @@ func.func @test_reduce_sum_square_keepdims_int_example(%arg0: !torch.vtensor<[3,
 
 // CHECK-LABEL: @test_reduce_mean_negative_axes_keepdims_example
 func.func @test_reduce_mean_negative_axes_keepdims_example(%arg0: !torch.vtensor<[3,2,2],f32>) -> !torch.vtensor<[3,1,2],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 13 : si64} {
-  // CHECK:  %[[TENSOR:.+]] = torch.vtensor.literal(dense<-2> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
-  // CHECK:  %[[DIM:.+]] = torch.constant.int 0
-  // CHECK:  %[[A0:.+]] = torch.constant.int 0
-  // CHECK:  %[[SEL0:.+]] = torch.aten.select.int %[[TENSOR]], %[[DIM]], %[[A0]]
-  // CHECK:  %[[ITEM0:.+]] = torch.aten.item %[[SEL0]]
-  // CHECK:  %[[LIST:.+]] = torch.prim.ListConstruct %[[ITEM0]]
+  // CHECK:  %[[AX:.+]] = torch.constant.int -2
+  // CHECK:  %[[LIST:.+]] = torch.prim.ListConstruct %[[AX]]
   // CHECK:  %[[TRUE:.+]] = torch.constant.bool true
   // CHECK:  %[[NONE:.+]] = torch.constant.none
-  // CHECK:  %[[SUM:.+]] = torch.aten.mean.dim %arg0, %[[LIST]], %[[TRUE]], %[[NONE]]
-  // CHECK:  return %[[SUM]]
+  // CHECK:  %[[MEAN:.+]] = torch.aten.mean.dim %arg0, %[[LIST]], %[[TRUE]], %[[NONE]]
+  // CHECK:  return %[[MEAN]]
   %cst = torch.vtensor.literal(dense<-2> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
   %0 = torch.operator "onnx.ReduceMean"(%arg0, %cst) {torch.onnx.keepdims = 1 : si64} : (!torch.vtensor<[3,2,2],f32>, !torch.vtensor<[1],si64>) -> !torch.vtensor<[3,1,2],f32>
   return %0 : !torch.vtensor<[3,1,2],f32>
@@ -1394,19 +1450,32 @@ func.func @test_reduce_mean_negative_axes_keepdims_example(%arg0: !torch.vtensor
 
 // CHECK-LABEL: @test_reduce_mean_one_axes_dropdims_example
 func.func @test_reduce_mean_one_axes_dropdims_example(%arg0: !torch.vtensor<[3,2,2],f32>) -> !torch.vtensor<[3,2],f32> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 18 : si64} {
-  // CHECK:  %[[TENSOR:.+]] = torch.vtensor.literal(dense<1> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
-  // CHECK:  %[[DIM:.+]] = torch.constant.int 0
-  // CHECK:  %[[A0:.+]] = torch.constant.int 0
-  // CHECK:  %[[SEL0:.+]] = torch.aten.select.int %[[TENSOR]], %[[DIM]], %[[A0]]
-  // CHECK:  %[[ITEM0:.+]] = torch.aten.item %[[SEL0]]
-  // CHECK:  %[[LIST:.+]] = torch.prim.ListConstruct %[[ITEM0]]
+  // CHECK:  %[[AX:.+]] = torch.constant.int 1
+  // CHECK:  %[[LIST:.+]] = torch.prim.ListConstruct %[[AX]]
   // CHECK:  %[[FALSE:.+]] = torch.constant.bool false
   // CHECK:  %[[NONE:.+]] = torch.constant.none
-  // CHECK:  %[[SUM:.+]] = torch.aten.mean.dim %arg0, %[[LIST]], %[[FALSE]], %[[NONE]]
-  // CHECK:  return %[[SUM]]
+  // CHECK:  %[[MEAN:.+]] = torch.aten.mean.dim %arg0, %[[LIST]], %[[FALSE]], %[[NONE]]
+  // CHECK:  return %[[MEAN]]
   %cst = torch.vtensor.literal(dense<1> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
   %0 = torch.operator "onnx.ReduceMean"(%arg0, %cst) {torch.onnx.keepdims = 0 : si64} : (!torch.vtensor<[3,2,2],f32>, !torch.vtensor<[1],si64>) -> !torch.vtensor<[3,2],f32>
   return %0 : !torch.vtensor<[3,2],f32>
+}
+
+// -----
+
+// Dynamic input shape: shape-based axis inference is impossible,
+// so this always exercises the vtensor.literal constant extraction.
+// CHECK-LABEL: @test_reduce_mean_constant_axes_dynamic_input
+func.func @test_reduce_mean_constant_axes_dynamic_input(%arg0: !torch.vtensor<[1,?,2048],f32>) -> !torch.vtensor<[1,?,1],f32> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 18 : si64} {
+  // CHECK:  %[[AX:.+]] = torch.constant.int -1
+  // CHECK:  %[[LIST:.+]] = torch.prim.ListConstruct %[[AX]]
+  // CHECK:  %[[TRUE:.+]] = torch.constant.bool true
+  // CHECK:  %[[NONE:.+]] = torch.constant.none
+  // CHECK:  %[[MEAN:.+]] = torch.aten.mean.dim %arg0, %[[LIST]], %[[TRUE]], %[[NONE]]
+  // CHECK:  return %[[MEAN]]
+  %cst = torch.vtensor.literal(dense<-1> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
+  %0 = torch.operator "onnx.ReduceMean"(%arg0, %cst) {torch.onnx.keepdims = 1 : si64, torch.onnx.noop_with_empty_axes = 0 : si64} : (!torch.vtensor<[1,?,2048],f32>, !torch.vtensor<[1],si64>) -> !torch.vtensor<[1,?,1],f32>
+  return %0 : !torch.vtensor<[1,?,1],f32>
 }
 // -----
 
@@ -1599,6 +1668,19 @@ func.func @test_reduce_prod_keepdims_random(%arg0: !torch.vtensor<[3,2,2],f32>, 
 // CHECK: return %[[PROD]] : !torch.vtensor<[3,1,2],f32>
   %0 = torch.operator "onnx.ReduceProd"(%arg0, %arg1) {torch.onnx.keepdims = 1 : si64} : (!torch.vtensor<[3,2,2],f32>, !torch.vtensor<[1],si64>) -> !torch.vtensor<[3,1,2],f32>
   return %0 : !torch.vtensor<[3,1,2],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @test_reduce_prod_axes_attr_no_keepdims
+func.func @test_reduce_prod_axes_attr_no_keepdims(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 13 : si64} {
+  // CHECK: %[[PROD:.*]] = torch.aten.prod.dim_int %arg0, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[3,4],f32>, !torch.int, !torch.bool, !torch.none -> !torch.vtensor<[?,?],f32>
+  // CHECK: %[[C3:.*]] = torch.constant.int 3
+  // CHECK: %[[SHAPE:.*]] = torch.prim.ListConstruct %[[C3]] : (!torch.int) -> !torch.list<int>
+  // CHECK: %[[RESHAPE:.*]] = torch.aten.reshape %[[PROD]], %[[SHAPE]] : !torch.vtensor<[?,?],f32>, !torch.list<int> -> !torch.vtensor<[3],f32>
+  // CHECK: return %[[RESHAPE]] : !torch.vtensor<[3],f32>
+  %0 = torch.operator "onnx.ReduceProd"(%arg0) {torch.onnx.axes = [1 : si64], torch.onnx.keepdims = 0 : si64} : (!torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3],f32>
+  return %0 : !torch.vtensor<[3],f32>
 }
 
 // -----

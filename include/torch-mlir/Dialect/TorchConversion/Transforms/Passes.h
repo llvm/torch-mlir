@@ -47,6 +47,16 @@ struct TosaBackendPipelineOptions
       llvm::cl::desc("Require full TorchToTosa conversion by adding Torch "
                      "Dialect to TorchToTosa list of illegal dialects"),
       llvm::cl::init(true)};
+  ListOption<std::string> disabledPatterns{
+      *this, "disabled-patterns",
+      ::llvm::cl::desc(
+          "Patterns to disable by name during Torch to TOSA conversion"),
+      llvm::cl::ZeroOrMore};
+  ListOption<std::string> enabledPatterns{
+      *this, "enabled-patterns",
+      ::llvm::cl::desc("If non-empty, only these patterns are enabled during "
+                       "Torch to TOSA conversion"),
+      llvm::cl::ZeroOrMore};
 };
 
 /// Creates a pipeline that lowers from the torch backend contract to the

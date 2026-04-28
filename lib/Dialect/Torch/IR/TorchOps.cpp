@@ -16,6 +16,7 @@
 #include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/DialectResourceBlobManager.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Support/LLVM.h"
@@ -180,14 +181,22 @@ static Value getScalarIntValue(Value input, Location loc,
     return nullptr;
 
   if (auto valueTensorLiteralOp = input.getDefiningOp<ValueTensorLiteralOp>()) {
-    if (inputDtype.isInteger(64)) {
-      auto val = cast<DenseIntElementsAttr>(valueTensorLiteralOp.getValue())
-                     .getSplatValue<int64_t>();
-      return Torch::ConstantIntOp::create(rewriter, loc,
-                                          rewriter.getI64IntegerAttr(val));
-    } else {
-      auto val = cast<DenseIntElementsAttr>(valueTensorLiteralOp.getValue())
-                     .getSplatValue<bool>();
+    DenseElementsAttr attr;
+    auto valAttr = valueTensorLiteralOp.getValueAttr();
+    if (auto elemAttr = dyn_cast<DenseElementsAttr>(valAttr))
+      attr = elemAttr;
+    if (auto resourceAttr = dyn_cast<DenseResourceElementsAttr>(valAttr)) {
+      auto *blob = resourceAttr.getRawHandle().getBlob();
+      if (!blob)
+        return nullptr;
+      attr = DenseElementsAttr::getFromRawBuffer(
+          cast<ShapedType>(resourceAttr.getType()), blob->getData());
+    }
+    if (attr && attr.isSplat()) {
+      auto splatAttr = attr.getSplatValue<IntegerAttr>();
+      auto val = splatAttr.getType().isSignedInteger()
+                     ? splatAttr.getValue().getSExtValue()
+                     : splatAttr.getValue().getZExtValue();
       return Torch::ConstantIntOp::create(rewriter, loc,
                                           rewriter.getI64IntegerAttr(val));
     }
@@ -967,6 +976,7 @@ OpFoldResult AtenSqueezeDimOp::fold(FoldAdaptor adaptor) {
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenToDtypeOp::fold(FoldAdaptor adaptor) {
+  constexpr int64_t kMaxFold = 16;
   bool nonBlocking, copyArg;
   // The non_blocking arg must be `False`.
   if (!matchPattern(getNonBlocking(), m_TorchConstantBool(&nonBlocking)) ||
@@ -989,9 +999,9 @@ OpFoldResult AtenToDtypeOp::fold(FoldAdaptor adaptor) {
   if (inputType == resType && inputType.hasDtype())
     return getOperand(0);
 
-  // Fold conversion of splat values.
+  // Fold conversion of splat values or tensors with size smaller than kMaxFold.
   auto elems = dyn_cast_or_null<DenseElementsAttr>(adaptor.getSelf());
-  if (!elems || !elems.isSplat())
+  if (!elems || (!elems.isSplat() && elems.size() > kMaxFold))
     return {};
 
   auto outVTy = dyn_cast<ValueTensorType>(getType());
@@ -1005,64 +1015,101 @@ OpFoldResult AtenToDtypeOp::fold(FoldAdaptor adaptor) {
   Type srcEltTy = inputType.getDtype();
   Type dstEltTy = outVTy.getDtype();
 
-  // Handle integer destination.
-  if (auto dstI = dyn_cast<IntegerType>(dstEltTy)) {
-    // any -> bool(i1).
-    if (dstI.isSignlessInteger(1)) {
-      bool truthy = false;
-      if (isa<mlir::FloatType>(srcEltTy)) {
-        const APFloat &floatVal = elems.getSplatValue<APFloat>();
-        truthy = !floatVal.isZero();
-      } else {
-        const APInt &intVal = elems.getSplatValue<APInt>();
-        truthy = !intVal.isZero();
+  auto convertElement = [&](Attribute srcAttr) -> std::optional<Attribute> {
+    // Handle integer destination.
+    if (auto dstI = dyn_cast<IntegerType>(dstEltTy)) {
+      // any -> bool(i1).
+      if (dstI.isSignlessInteger(1)) {
+        bool truthy = false;
+        if (isa<mlir::FloatType>(srcEltTy)) {
+          const APFloat &floatVal = cast<FloatAttr>(srcAttr).getValue();
+          truthy = !floatVal.isZero();
+        } else {
+          const APInt &intVal = cast<IntegerAttr>(srcAttr).getValue();
+          truthy = !intVal.isZero();
+        }
+        return IntegerAttr::get(dstEltTy, APInt(/*numBits=*/1, truthy));
       }
-      return DenseElementsAttr::get(outShaped, APInt(/*numBits=*/1, truthy));
+      // float -> intN
+      if (auto srcF = dyn_cast<mlir::FloatType>(srcEltTy)) {
+        APSInt result(dstI.getWidth(), /*isUnsigned=*/dstI.isUnsignedInteger());
+        bool isExact = false;
+        APFloat f = cast<FloatAttr>(srcAttr).getValue();
+        APFloat::opStatus st =
+            f.convertToInteger(result, APFloat::rmTowardZero, &isExact);
+        if (st == APFloat::opOK || st == APFloat::opInexact)
+          return IntegerAttr::get(dstEltTy, APInt(result));
+        return {}; // NaN/Inf/out-of-range: preserve runtime semantics.
+      }
+      // intM -> intN
+      const APInt v = cast<IntegerAttr>(srcAttr).getValue();
+      auto isUnsigned = cast<IntegerType>(srcEltTy).isUnsignedInteger();
+      auto isSignless = cast<IntegerType>(srcEltTy).isSignlessInteger();
+      APInt casted = isUnsigned || isSignless ? v.zextOrTrunc(dstI.getWidth())
+                                              : v.sextOrTrunc(dstI.getWidth());
+      return IntegerAttr::get(dstEltTy, casted);
     }
-    // float -> intN
-    if (auto srcF = dyn_cast<mlir::FloatType>(srcEltTy)) {
-      APSInt result(dstI.getWidth(), /*isUnsigned=*/dstI.isUnsignedInteger());
-      bool isExact = false;
-      APFloat f = elems.getSplatValue<APFloat>();
+
+    // Handle float destination.
+    if (auto dstF = dyn_cast<mlir::FloatType>(dstEltTy)) {
+      const llvm::fltSemantics &dstSem = dstF.getFloatSemantics();
+
+      // int -> float
+      if (auto srcI = dyn_cast<IntegerType>(srcEltTy)) {
+        APFloat f(dstSem);
+        APFloat::opStatus st = f.convertFromAPInt(
+            cast<IntegerAttr>(srcAttr).getValue(),
+            /*isSigned=*/!srcI.isUnsignedInteger() && !srcI.isSignlessInteger(),
+            APFloat::rmNearestTiesToEven);
+        if (st == APFloat::opOK || st == APFloat::opInexact)
+          return FloatAttr::get(dstF, f);
+        return {};
+      }
+
+      // floatX -> floatY
+      APFloat f = cast<FloatAttr>(srcAttr).getValue();
+      bool losesInfo = false;
       APFloat::opStatus st =
-          f.convertToInteger(result, APFloat::rmTowardZero, &isExact);
+          f.convert(dstSem, APFloat::rmNearestTiesToEven, &losesInfo);
       if (st == APFloat::opOK || st == APFloat::opInexact)
-        return DenseElementsAttr::get(outShaped, APInt(result));
-      return {}; // NaN/Inf/out-of-range: preserve runtime semantics.
-    }
-    // intM -> intN
-    const APInt &v = elems.getSplatValue<APInt>();
-    auto isUnsigned = cast<IntegerType>(srcEltTy).isUnsignedInteger();
-    auto isSignless = cast<IntegerType>(srcEltTy).isSignlessInteger();
-    APInt casted = isUnsigned || isSignless ? v.zextOrTrunc(dstI.getWidth())
-                                            : v.sextOrTrunc(dstI.getWidth());
-    return DenseElementsAttr::get(outShaped, casted);
-  }
-
-  // Handle float destination.
-  if (auto dstF = dyn_cast<mlir::FloatType>(dstEltTy)) {
-    const llvm::fltSemantics &dstSem = dstF.getFloatSemantics();
-
-    // int -> float
-    if (auto srcI = dyn_cast<IntegerType>(srcEltTy)) {
-      APFloat f(dstSem);
-      APFloat::opStatus st = f.convertFromAPInt(
-          elems.getSplatValue<APInt>(),
-          /*isSigned=*/!srcI.isUnsignedInteger() && !srcI.isSignlessInteger(),
-          APFloat::rmNearestTiesToEven);
-      if (st == APFloat::opOK || st == APFloat::opInexact)
-        return DenseElementsAttr::get(outShaped, f);
+        return FloatAttr::get(dstF, f);
       return {};
     }
 
-    // floatX -> floatY
-    APFloat f = elems.getSplatValue<APFloat>();
-    bool losesInfo = false;
-    APFloat::opStatus st =
-        f.convert(dstSem, APFloat::rmNearestTiesToEven, &losesInfo);
-    if (st == APFloat::opOK || st == APFloat::opInexact)
-      return DenseElementsAttr::get(outShaped, f);
     return {};
+  };
+
+  if (elems.isSplat()) {
+    Attribute singleElem = elems.getSplatValue<Attribute>();
+    if (auto converted = convertElement(singleElem)) {
+      return DenseElementsAttr::get(outShaped, *converted);
+    }
+    return {};
+  }
+
+  SmallVector<Attribute> converted;
+  converted.reserve(elems.getNumElements());
+
+  if (isa<mlir::FloatType>(srcEltTy)) {
+    for (const APFloat &v : elems.getValues<APFloat>()) {
+      if (auto convertedNum = convertElement(FloatAttr::get(srcEltTy, v))) {
+        converted.push_back(*convertedNum);
+      } else {
+        return {};
+      }
+    }
+    return DenseElementsAttr::get(outShaped, converted);
+  }
+
+  if (isa<IntegerType>(srcEltTy)) {
+    for (const APInt &v : elems.getValues<APInt>()) {
+      if (auto convertedNum = convertElement(IntegerAttr::get(srcEltTy, v))) {
+        converted.push_back(*convertedNum);
+      } else {
+        return {};
+      }
+    }
+    return DenseElementsAttr::get(outShaped, converted);
   }
 
   return {};
@@ -2683,7 +2730,8 @@ OpFoldResult AtenSelectIntOp::fold(FoldAdaptor adaptor) {
     return nullptr;
 
   if (self.isSplat())
-    return DenseElementsAttr::get(bty, self.getSplatValue<Attribute>());
+    return DenseElementsAttr::get(bty.clone(self.getElementType()),
+                                  self.getSplatValue<Attribute>());
 
   auto dimAttr = dyn_cast_or_null<IntegerAttr>(adaptor.getDim());
   auto indexAttr = dyn_cast_or_null<IntegerAttr>(adaptor.getIndex());
@@ -2699,7 +2747,7 @@ OpFoldResult AtenSelectIntOp::fold(FoldAdaptor adaptor) {
   }
 
   auto splattr = self.getValues<Attribute>()[index];
-  return DenseElementsAttr::get(bty, splattr);
+  return DenseElementsAttr::get(bty.clone(self.getElementType()), splattr);
 }
 
 //===----------------------------------------------------------------------===//
@@ -3198,7 +3246,7 @@ LogicalResult AtenSortOp::fold(FoldAdaptor adaptor,
 
 LogicalResult NonValueTensorLiteralOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
+    DictionaryAttr attributes, PropertyRef properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   auto attr =
       dyn_cast_or_null<ElementsAttr>(properties.as<Properties *>()->getValue());
@@ -3239,16 +3287,25 @@ bool NonValueTensorLiteralOp::isCompatibleReturnTypes(TypeRange inferred,
 
 LogicalResult ValueTensorLiteralOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
+    DictionaryAttr attributes, PropertyRef properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   auto attr =
       dyn_cast_or_null<ElementsAttr>(properties.as<Properties *>()->getValue());
   if (!attr)
     return failure();
   RankedTensorType tensorType = cast<RankedTensorType>(attr.getType());
-  ValueTensorType returnType =
-      ValueTensorType::get(tensorType.getContext(), tensorType.getShape(),
-                           tensorType.getElementType());
+
+  // Convert signless integers (except i1) to signed for torch compatibility
+  Type elementType = tensorType.getElementType();
+  if (auto intType = dyn_cast<IntegerType>(elementType)) {
+    if (intType.isSignless() && intType.getWidth() > 1) {
+      elementType =
+          IntegerType::get(context, intType.getWidth(), IntegerType::Signed);
+    }
+  }
+
+  ValueTensorType returnType = ValueTensorType::get(
+      tensorType.getContext(), tensorType.getShape(), elementType);
   inferredReturnTypes.push_back(returnType);
   return success();
 }
@@ -3314,7 +3371,7 @@ LogicalResult CopyToNonValueTensorOp::verify() {
 
 LogicalResult CopyToNonValueTensorOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
+    DictionaryAttr attributes, PropertyRef properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   auto resultType = cast<ValueTensorType>(operands[0].getType());
   inferredReturnTypes.push_back(resultType.getWithoutValueSemantics());
@@ -3342,7 +3399,7 @@ LogicalResult CopyToValueTensorOp::verify() {
 
 LogicalResult CopyToValueTensorOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
+    DictionaryAttr attributes, PropertyRef properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   auto resultType = cast<NonValueTensorType>(operands[0].getType());
   inferredReturnTypes.push_back(resultType.getWithValueSemantics());
@@ -4229,7 +4286,16 @@ void AtenCatOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
       auto operandTy = dyn_cast<BaseTensorType>(operand.getType());
       if (!operandTy || !operandTy.hasSizes())
         return failure();
-      int64_t adim = dim < 0 ? dim + operandTy.getSizes().size() : dim;
+
+      // Per PyTorch docs, torch.cat operands must either have the same
+      // shape (except in the concatenating dimension) "or be a 1-D empty
+      // tensor with size (0,)". Such tensors contribute zero elements
+      // and can be safely removed.
+      auto sizes = operandTy.getSizes();
+      if (sizes.size() == 1 && sizes[0] == 0)
+        continue;
+
+      int64_t adim = dim < 0 ? dim + sizes.size() : dim;
       if (operandTy.getSizes()[adim] != 0)
         filtered.push_back(operand);
     }
@@ -4469,6 +4535,15 @@ OpFoldResult AtenMulFloatOp::fold(FoldAdaptor adaptor) {
 OpFoldResult AtenSubFloatOp::fold(FoldAdaptor adaptor) {
   return atenBinaryFloatOperatorFoldHelper(
       adaptor.getOperands(), [](double a, double b) { return a - b; });
+}
+
+//===----------------------------------------------------------------------===//
+// AtenAddFloatOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenAddFloatOp::fold(FoldAdaptor adaptor) {
+  return atenBinaryFloatOperatorFoldHelper(
+      adaptor.getOperands(), [](double a, double b) { return a + b; });
 }
 
 //===----------------------------------------------------------------------===//

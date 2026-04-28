@@ -1730,8 +1730,8 @@ public:
     int64_t rank = queryTy.getRank();
 
     int64_t qNumHeads = queryTy.getDimSize(rank - 3);
-    int64_t kNumHeads = valueTy.getDimSize(rank - 3);
-    int64_t vNumHeads = keyTy.getDimSize(rank - 3);
+    int64_t vNumHeads = valueTy.getDimSize(rank - 3);
+    int64_t kNumHeads = keyTy.getDimSize(rank - 3);
 
     if (llvm::any_of(llvm::ArrayRef<int64_t>{qNumHeads, kNumHeads, vNumHeads},
                      [](int64_t d) { return d == Torch::kUnknownSize; })) {
@@ -1749,17 +1749,32 @@ public:
     int64_t repeatValueShape = qNumHeads / vNumHeads;
 
     Location loc = op.getLoc();
+
+    // Build result types from key/value types with the head dim changed to
+    // qNumHeads. Using the query type as resType is incorrect because the
+    // query and key/value may differ in non-head dimensions (e.g. sequence
+    // length).
+    auto keyBaseTy = cast<BaseTensorType>(op.getKey().getType());
+    SmallVector<int64_t> keyResShape(keyBaseTy.getSizes());
+    keyResShape[rank - 3] = qNumHeads;
+    Type keyResType = rewriter.getType<ValueTensorType>(
+        keyResShape, keyBaseTy.getOptionalDtype());
+
+    auto valueBaseTy = cast<BaseTensorType>(op.getValue().getType());
+    SmallVector<int64_t> valueResShape(valueBaseTy.getSizes());
+    valueResShape[rank - 3] = qNumHeads;
+    Type valueResType = rewriter.getType<ValueTensorType>(
+        valueResShape, valueBaseTy.getOptionalDtype());
+
     FailureOr<Value> keyRepeated = repeatTensorElementsForDim(
-        op.getOperation(), rewriter, /*resType=*/op.getQuery().getType(),
-        op.getKey(),
+        op.getOperation(), rewriter, /*resType=*/keyResType, op.getKey(),
         /*repeats=*/repeatKeyShape, /*dim=*/rank - 3);
     if (failed(keyRepeated))
       return rewriter.notifyMatchFailure(
           loc, "Failed to repeat the tensor elements for key.");
 
     FailureOr<Value> valueRepeated = repeatTensorElementsForDim(
-        op.getOperation(), rewriter, /*resType=*/op.getQuery().getType(),
-        op.getValue(),
+        op.getOperation(), rewriter, /*resType=*/valueResType, op.getValue(),
         /*repeats=*/repeatValueShape, /*dim=*/rank - 3);
     if (failed(valueRepeated))
       return rewriter.notifyMatchFailure(

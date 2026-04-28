@@ -9,7 +9,9 @@
 
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "llvm/ADT/StringMap.h"
@@ -53,6 +55,10 @@ LogicalResult ToBuiltinTensorOp::verify() {
   return success();
 }
 
+OpFoldResult ToBuiltinTensorOp::fold(FoldAdaptor adaptor) {
+  return dyn_cast_or_null<ElementsAttr>(adaptor.getOperand());
+}
+
 //===----------------------------------------------------------------------===//
 // FromBuiltinTensorOp
 //===----------------------------------------------------------------------===//
@@ -66,6 +72,10 @@ LogicalResult FromBuiltinTensorOp::verify() {
            << "operand and result must have the same size and dtype";
   }
   return success();
+}
+
+OpFoldResult FromBuiltinTensorOp::fold(FoldAdaptor adaptor) {
+  return dyn_cast_or_null<ElementsAttr>(adaptor.getOperand());
 }
 
 //===----------------------------------------------------------------------===//

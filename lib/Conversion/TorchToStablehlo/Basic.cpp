@@ -24,6 +24,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
+#include "llvm/Support/MathExtras.h"
 #include <cmath>
 #include <numeric>
 #include <type_traits>
@@ -1037,8 +1038,9 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
   auto lhsTy = cast<RankedTensorType>(lhs.getType());
   auto lhsElemTy = lhsTy.getElementType();
 
-  if (!isa<mlir::FloatType>(lhsElemTy)) {
-    return op->emitError("only float tensor in relu op is supported");
+  if (!isa<mlir::FloatType>(lhsElemTy) && !isa<mlir::IntegerType>(lhsElemTy)) {
+    return op->emitError(
+        "only float or integer tensor in relu op is supported");
   }
 
   Value zeroTensor =
@@ -1074,7 +1076,8 @@ LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewrite(
   Value three = hlo::getConstantLike(rewriter, loc, 3.0, input);
   Value half = hlo::getConstantLike(rewriter, loc, 0.5, input);
   // 2/pi
-  Value twoDivPi = hlo::getConstantLike(rewriter, loc, M_2_PI, input);
+  Value twoDivPi =
+      hlo::getConstantLike(rewriter, loc, 2.0 / llvm::numbers::pi, input);
   Value t = hlo::getConstantLike(rewriter, loc, 0.044715, input);
 
   // x * 0.5

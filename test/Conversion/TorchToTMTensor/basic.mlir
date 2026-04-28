@@ -44,6 +44,45 @@ func.func @sdpa_scale_rsqrt_head_dim_128(%query: !torch.vtensor<[1,4,8,128],f32>
 
 // -----
 
+// Test GQA with different sequence lengths between query and key/value.
+// Query has 32 heads with seq_len=10, key/value have 8 heads with seq_len=20.
+// The repeated key/value should keep seq_len=20, not inherit seq_len=10 from query.
+// CHECK-LABEL: @sdpa_gqa_different_seq_len
+// CHECK: tm_tensor.attention
+// CHECK-SAME: tensor<32x10x64xf32>, tensor<32x20x64xf32>, tensor<32x20x64xf32>
+// CHECK-SAME: outs({{.*}} : tensor<32x10x64xf32>)
+func.func @sdpa_gqa_different_seq_len(%query: !torch.vtensor<[1,32,10,64],f32>, %key: !torch.vtensor<[1,8,20,64],f32>, %value: !torch.vtensor<[1,8,20,64],f32>) -> !torch.vtensor<[1,32,10,64],f32> {
+  %float0 = torch.constant.float 0.000000e+00
+  %false = torch.constant.bool false
+  %true = torch.constant.bool true
+  %none = torch.constant.none
+  %0 = torch.aten.scaled_dot_product_attention %query, %key, %value, %none, %float0, %false, %none, %true : !torch.vtensor<[1,32,10,64],f32>, !torch.vtensor<[1,8,20,64],f32>, !torch.vtensor<[1,8,20,64],f32>, !torch.none, !torch.float, !torch.bool, !torch.none, !torch.bool -> !torch.vtensor<[1,32,10,64],f32>
+  return %0 : !torch.vtensor<[1,32,10,64],f32>
+}
+
+// -----
+
+// Test GQA with independent key/value head counts (H_k != H_v).
+// Q=8 heads, K=4 heads, V=2 heads. Key should be repeated 2x, value 4x.
+// Verifies the repeat factors are applied to the correct operands.
+// CHECK-LABEL: @sdpa_gqa_independent_kv_heads
+// key: 4 heads repeated 2x -> broadcast to [1,4,2,20,64]
+// CHECK: torch.aten.broadcast_to {{.*}} : !torch.vtensor<[1,4,1,20,64],f32>, !torch.list<int> -> !torch.vtensor<[1,4,2,20,64],f32>
+// value: 2 heads repeated 4x -> broadcast to [1,2,4,20,64]
+// CHECK: torch.aten.broadcast_to {{.*}} : !torch.vtensor<[1,2,1,20,64],f32>, !torch.list<int> -> !torch.vtensor<[1,2,4,20,64],f32>
+// CHECK: tm_tensor.attention
+// CHECK-SAME: tensor<8x10x64xf32>, tensor<8x20x64xf32>, tensor<8x20x64xf32>
+func.func @sdpa_gqa_independent_kv_heads(%query: !torch.vtensor<[1,8,10,64],f32>, %key: !torch.vtensor<[1,4,20,64],f32>, %value: !torch.vtensor<[1,2,20,64],f32>) -> !torch.vtensor<[1,8,10,64],f32> {
+  %float0 = torch.constant.float 0.000000e+00
+  %false = torch.constant.bool false
+  %true = torch.constant.bool true
+  %none = torch.constant.none
+  %0 = torch.aten.scaled_dot_product_attention %query, %key, %value, %none, %float0, %false, %none, %true : !torch.vtensor<[1,8,10,64],f32>, !torch.vtensor<[1,4,20,64],f32>, !torch.vtensor<[1,2,20,64],f32>, !torch.none, !torch.float, !torch.bool, !torch.none, !torch.bool -> !torch.vtensor<[1,8,10,64],f32>
+  return %0 : !torch.vtensor<[1,8,10,64],f32>
+}
+
+// -----
+
 // Test that an invalid scale (not 1/sqrt(headDim)) is rejected
 func.func @sdpa_scale_invalid(%query: !torch.vtensor<[1,4,8,64],f32>, %key: !torch.vtensor<[1,4,8,64],f32>, %value: !torch.vtensor<[1,4,8,64],f32>) -> !torch.vtensor<[1,4,8,64],f32> {
   %float0 = torch.constant.float 0.000000e+00
@@ -110,4 +149,17 @@ func.func @scatter_src_i32_index(%arg0: !torch.vtensor<[10,8,6],f32>, %arg1: !to
   %int0 = torch.constant.int 0
   %0 = torch.aten.scatter.src %arg0, %int0, %arg1, %arg2 : !torch.vtensor<[10,8,6],f32>, !torch.int, !torch.vtensor<[2,4,3],si32>, !torch.vtensor<[5,8,6],f32> -> !torch.vtensor<[10,8,6],f32>
   return %0 : !torch.vtensor<[10,8,6],f32>
+}
+
+// -----
+
+// CHECK-LABEL: @scatter_src_dim2
+// CHECK: tm_tensor.scatter {dimension_map = array<i64: 0, 1, 2, 3>} unique_indices(false) ins(%{{.*}}, %{{.*}} : tensor<?xf32>, tensor<?x4xi64>) outs(%{{.*}} : tensor<2x2x5x8xf32>) {
+// CHECK:      ^bb0(%arg3: f32, %arg4: f32):
+// CHECK:        tm_tensor.yield %arg3 : f32
+// CHECK:      } -> tensor<2x2x5x8xf32>
+func.func @scatter_src_dim2(%arg0: !torch.vtensor<[2,2,5,8],f32>, %arg1: !torch.vtensor<[2,2,1,8],si64>, %arg2: !torch.vtensor<[2,2,1,8],f32>) -> !torch.vtensor<[2,2,5,8],f32> {
+  %int2 = torch.constant.int 2
+  %0 = torch.aten.scatter.src %arg0, %int2, %arg1, %arg2 : !torch.vtensor<[2,2,5,8],f32>, !torch.int, !torch.vtensor<[2,2,1,8],si64>, !torch.vtensor<[2,2,1,8],f32> -> !torch.vtensor<[2,2,5,8],f32>
+  return %0 : !torch.vtensor<[2,2,5,8],f32>
 }
