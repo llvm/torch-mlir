@@ -9769,11 +9769,12 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
   //   4. For |x| > 1, map atan(1/|x|) back to atan(|x|) using pi/2 - y.
   //   5. Restore the sign to recover atan(x).
 
-  // Offline-generated piecewise minimax fit for the reduced domain [0, 1].
-  // The split points were grid-searched, each interval was fit with an odd
-  // degree-9 polynomial x * Q(x^2), and the final float32-rounded tables were
-  // selected to minimize the max absolute error. The resulting max absolute
-  // error over [0, 1] is about 1.68e-7 for the f32-rounded approximation.
+  // Offline-generated piecewise least-squares polynomial fit for the reduced
+  // domain [0, 1]. The split points were grid-searched, each interval was fit
+  // with an odd degree-9 polynomial x * Q(x^2), and the final float32-rounded
+  // tables were selected to minimize the max absolute error over the evaluated
+  // grid. The resulting max absolute error over [0, 1] is about 1.68e-7 for the
+  // f32-rounded approximation.
   static constexpr float kAtanPieceSplit0 = 0.545f;
   static constexpr float kAtanPieceSplit1 = 0.790f;
   static constexpr float kHalfPi = static_cast<float>(llvm::numbers::pi / 2.0);

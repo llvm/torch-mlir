@@ -2526,7 +2526,7 @@ class ElementwiseAtanTensorFloatSpecialValuesModule(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([1, 20], torch.float32, True),
+            ([1, 23], torch.float32, True),
         ]
     )
     def forward(self, a):
@@ -2542,6 +2542,7 @@ def ElementwiseAtanTensorFloatSpecialValuesModule_basic(module, tu: TestUtils):
         torch.tensor(
             [
                 [
+                    float("-inf"),
                     -2.0,
                     -1.0,
                     -0.791,
@@ -2562,6 +2563,8 @@ def ElementwiseAtanTensorFloatSpecialValuesModule_basic(module, tu: TestUtils):
                     0.791,
                     1.0,
                     2.0,
+                    float("inf"),
+                    float("nan"),
                 ]
             ],
             dtype=torch.float32,
