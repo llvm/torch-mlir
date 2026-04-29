@@ -2137,43 +2137,53 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             inputSizes[1] == Torch::kUnknownSize
                 ? Torch::kUnknownSize
                 : inputSizes[1] / (blockSize * blockSize);
-        SmallVector<int64_t, 6> reshapeSizesInt{
-            inputSizes[0],          blockSize,     blockSize,
-            cDivBlockSizeSquareInt, inputSizes[2], inputSizes[3]};
+        SmallVector<int64_t, 6> reshapeSizesInt;
+        if (mode == "DCR") {
+          reshapeSizesInt = {inputSizes[0], cDivBlockSizeSquareInt,
+                             blockSize,     blockSize,
+                             inputSizes[2], inputSizes[3]};
+        } else {
+          // CRD
+          reshapeSizesInt = {inputSizes[0], blockSize,
+                             blockSize,     cDivBlockSizeSquareInt,
+                             inputSizes[2], inputSizes[3]};
+        }
+
         Value reshapedInput = Torch::AtenReshapeOp::create(
             rewriter, binder.getLoc(),
             inputTy.getWithSizesAndDtype(reshapeSizesInt,
                                          inputTy.getOptionalDtype()),
             input, reshapeSizesList);
 
-        Value transposedInput;
+        Value transposedInput = reshapedInput;
         if (mode == "DCR") {
-          if (failed(createTorchTransposeOp(
-                  rewriter, binder.getLoc(), reshapedInput,
-                  /*dimA=*/1, /*dimB=*/3, transposedInput)))
+          // Permutation for DCR: [0, 1, 4, 2, 5, 3]
+          if (failed(createTorchTransposeOp(rewriter, binder.getLoc(),
+                                            transposedInput, 2, 4,
+                                            transposedInput)))
             return rewriter.notifyMatchFailure(
                 binder.op, "Failed to create TorchTranspose op");
-          if (failed(createTorchTransposeOp(
-                  rewriter, binder.getLoc(), transposedInput,
-                  /*dimA=*/2, /*dimB=*/4, transposedInput)))
+          if (failed(createTorchTransposeOp(rewriter, binder.getLoc(),
+                                            transposedInput, 3, 4,
+                                            transposedInput)))
             return rewriter.notifyMatchFailure(
                 binder.op, "Failed to create TorchTranspose op");
         } else {
-          // mode == "CRD"
-          if (failed(createTorchTransposeOp(
-                  rewriter, binder.getLoc(), reshapedInput,
-                  /*dimA=*/2, /*dimB=*/4, transposedInput)))
+          // Permutation for CRD: [0, 3, 4, 1, 5, 2]
+          if (failed(createTorchTransposeOp(rewriter, binder.getLoc(),
+                                            transposedInput, 1, 3,
+                                            transposedInput)))
             return rewriter.notifyMatchFailure(
                 binder.op, "Failed to create TorchTranspose op");
-          if (failed(createTorchTransposeOp(
-                  rewriter, binder.getLoc(), transposedInput,
-                  /*dimA=*/3, /*dimB=*/4, transposedInput)))
+          if (failed(createTorchTransposeOp(rewriter, binder.getLoc(),
+                                            transposedInput, 2, 4,
+                                            transposedInput)))
             return rewriter.notifyMatchFailure(
                 binder.op, "Failed to create TorchTranspose op");
         }
-        if (failed(createTorchTransposeOp(
-                rewriter, binder.getLoc(), transposedInput,
-                /*dimA=*/4, /*dimB=*/5, transposedInput)))
+        if (failed(createTorchTransposeOp(rewriter, binder.getLoc(),
+                                          transposedInput, 4, 5,
+                                          transposedInput)))
           return rewriter.notifyMatchFailure(
               binder.op, "Failed to create TorchTranspose op");
 
