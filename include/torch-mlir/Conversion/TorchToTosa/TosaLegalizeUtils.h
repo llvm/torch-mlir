@@ -42,6 +42,13 @@ bool isScale32(mlir::quant::UniformQuantizedType output_element_type);
 Value getTosaConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,
                                   float val);
 
+// Create a scalar float constant cast to `like`'s element type and reshape it
+// as needed so it can participate in broadcastable elementwise ops with
+// `like`.
+FailureOr<Value> getBroadcastableConstTensorSingleF32(PatternRewriter &rewriter,
+                                                      Operation *op, Value like,
+                                                      float val);
+
 // Create an int8_t const tosa.mul shift tensor from an int
 Value getTosaMulShiftConstTensor(PatternRewriter &rewriter, Operation *op,
                                  int32_t shift);

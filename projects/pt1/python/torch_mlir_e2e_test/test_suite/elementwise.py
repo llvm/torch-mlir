@@ -2518,6 +2518,63 @@ def ElementwiseAtanTensorFloatModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseAtanTensorFloatSpecialValuesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 23], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        atan = torch.atan(a)
+        return atan
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseAtanTensorFloatSpecialValuesModule()
+)
+def ElementwiseAtanTensorFloatSpecialValuesModule_basic(module, tu: TestUtils):
+    module.forward(
+        torch.tensor(
+            [
+                [
+                    float("-inf"),
+                    -2.0,
+                    -1.0,
+                    -0.791,
+                    -0.790,
+                    -0.789,
+                    -0.546,
+                    -0.545,
+                    -0.544,
+                    -0.1,
+                    -0.0,
+                    0.0,
+                    0.1,
+                    0.544,
+                    0.545,
+                    0.546,
+                    0.789,
+                    0.790,
+                    0.791,
+                    1.0,
+                    2.0,
+                    float("inf"),
+                    float("nan"),
+                ]
+            ],
+            dtype=torch.float32,
+        )
+    )
+
+
+# ==============================================================================
+
+
 class ElementwiseAtanTensorIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
