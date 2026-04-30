@@ -858,8 +858,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       return nullptr;
     }
     Value gradOutput = payloadArgs[0];
-    Value selfOrResult = payloadArgs[1];
     Type elementType = gradOutput.getType();
+    Value selfOrResult =
+        convertScalarToDtype(b, loc, payloadArgs[1], elementType);
     Value alpha = convertScalarToDtype(b, loc, adaptor.getAlpha(), elementType);
     Value scale = convertScalarToDtype(b, loc, adaptor.getScale(), elementType);
     Value inputScale =
@@ -890,9 +891,10 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
           arith::MulFOp::create(b, loc, scaleAlphaInputScale, expXInputScale);
       negGrad = arith::MulFOp::create(b, loc, gradOutput, derivative);
     }
-    // Use ordered predicate so NaN selfOrResult flows through the negative
-    // branch and propagates NaN, matching PyTorch's `self_or_result > 0`.
-    Value pred = arith::CmpFOp::create(b, loc, arith::CmpFPredicate::OGT,
+    // PyTorch branches on `self_or_result <= 0`, which is false for NaN, so
+    // NaN takes the positive branch. UGT (unordered-or-greater) is the dual:
+    // true for NaN or > 0, picking posGrad — matching PyTorch.
+    Value pred = arith::CmpFOp::create(b, loc, arith::CmpFPredicate::UGT,
                                        selfOrResult, zero);
     return arith::SelectOp::create(b, loc, pred, posGrad, negGrad);
   }
@@ -1765,14 +1767,14 @@ public:
     if (!isa<AtenTanOp, AtenTanhOp, AtenSinhOp, AtenCoshOp, AtenReluOp,
              AtenPreluOp, AtenGeluOp, AtenGeluBackwardOp, AtenEluBackwardOp,
              AtenSigmoidBackwardOp, AtenSoftplusBackwardOp, AtenAddTensorOp,
-             AtenMulTensorOp,
-             AtenDivTensorOp, AtenDivTensorModeOp, AtenDivScalarModeOp,
-             AtenSubTensorOp, AtenAtan2Op, AtenLerpTensorOp, AtenSigmoidOp,
-             AtenExpOp, AtenExpm1Op, AtenMinimumOp, AtenMaximumOp,
-             AtenToDtypeOp, AtenClampOp, AtenClampTensorOp, AtenRsubScalarOp,
-             AtenMulScalarOp, AtenLogOp, AtenErfOp, AtenSqrtOp, AtenFloorOp,
-             AtenPowScalarOp, AtenPowTensorScalarOp, AtenPowTensorTensorOp,
-             AtenLog2Op, AtenLog10Op, AtenLog1pOp, AtenRsqrtOp, AtenDivScalarOp,
+             AtenMulTensorOp, AtenDivTensorOp, AtenDivTensorModeOp,
+             AtenDivScalarModeOp, AtenSubTensorOp, AtenAtan2Op,
+             AtenLerpTensorOp, AtenSigmoidOp, AtenExpOp, AtenExpm1Op,
+             AtenMinimumOp, AtenMaximumOp, AtenToDtypeOp, AtenClampOp,
+             AtenClampTensorOp, AtenRsubScalarOp, AtenMulScalarOp, AtenLogOp,
+             AtenErfOp, AtenSqrtOp, AtenFloorOp, AtenPowScalarOp,
+             AtenPowTensorScalarOp, AtenPowTensorTensorOp, AtenLog2Op,
+             AtenLog10Op, AtenLog1pOp, AtenRsqrtOp, AtenDivScalarOp,
              AtenRemainderScalarOp, AtenRemainderTensorOp, AtenAbsOp,
              AtenComplexOp, AtenReciprocalOp, AtenBitwiseAndTensorOp,
              AtenBitwiseAndScalarOp, AtenBitwiseOrTensorOp,
