@@ -110,6 +110,26 @@ Value getTosaConstTensorSingleF32(PatternRewriter &rewriter, Operation *op,
   return const_op.getResult();
 }
 
+FailureOr<Value> getBroadcastableConstTensorSingleF32(PatternRewriter &rewriter,
+                                                      Operation *op, Value like,
+                                                      float val) {
+  auto likeTy = dyn_cast<RankedTensorType>(like.getType());
+  if (!likeTy || !isa<FloatType>(likeTy.getElementType()))
+    return failure();
+
+  Value constant = getTosaConstTensorSingleF32(rewriter, op, val);
+  if (!likeTy.getElementType().isF32()) {
+    auto castedConstant = tosa::tosaCastTensorToType(
+        rewriter, constant, RankedTensorType::get({}, likeTy.getElementType()));
+    if (!castedConstant)
+      return failure();
+    constant = *castedConstant;
+  }
+  if (failed(mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), like, constant)))
+    return failure();
+  return constant;
+}
+
 // Create an int8_t const tosa.mul shift tensor from an int
 Value getTosaMulShiftConstTensor(PatternRewriter &rewriter, Operation *op,
                                  int32_t shift) {

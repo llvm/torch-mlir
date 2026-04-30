@@ -3254,8 +3254,8 @@ public:
 
     Value constantOne =
         ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
-    Value expSelf = AtenExpOp::create(rewriter, loc, outTy, self);
-    Value expOther = AtenExpOp::create(rewriter, loc, outTy, other);
+    Value expSelf = AtenExpOp::create(rewriter, loc, self.getType(), self);
+    Value expOther = AtenExpOp::create(rewriter, loc, other.getType(), other);
     Value addValue = AtenAddTensorOp::create(rewriter, loc, outTy, expSelf,
                                              expOther, constantOne);
     rewriter.replaceOpWithNewOp<AtenLogOp>(op, outTy, addValue);
@@ -3277,8 +3277,8 @@ public:
 
     Value constantOne =
         ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
-    Value expSelf = AtenExp2Op::create(rewriter, loc, outTy, self);
-    Value expOther = AtenExp2Op::create(rewriter, loc, outTy, other);
+    Value expSelf = AtenExp2Op::create(rewriter, loc, self.getType(), self);
+    Value expOther = AtenExp2Op::create(rewriter, loc, other.getType(), other);
     Value addValue = AtenAddTensorOp::create(rewriter, loc, outTy, expSelf,
                                              expOther, constantOne);
     rewriter.replaceOpWithNewOp<AtenLog2Op>(op, outTy, addValue);

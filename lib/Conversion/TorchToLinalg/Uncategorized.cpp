@@ -896,6 +896,22 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                                        selfOrResult, zero);
     return arith::SelectOp::create(b, loc, pred, posGrad, negGrad);
   }
+  if (isa<AtenSigmoidBackwardOp>(op)) {
+    if (!isa<mlir::FloatType>(
+            cast<ValueTensorType>(op->getResult(0).getType()).getDtype())) {
+      op->emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+    Value gradOutput = payloadArgs[0];
+    Type elementType = gradOutput.getType();
+    Value output = convertScalarToDtype(b, loc, payloadArgs[1], elementType);
+    Value one =
+        arith::ConstantOp::create(b, loc, FloatAttr::get(elementType, 1.0));
+    // dSigmoid/dx evaluated from output y = sigmoid(x): y * (1 - y)
+    Value oneMinusOutput = arith::SubFOp::create(b, loc, one, output);
+    Value derivative = arith::MulFOp::create(b, loc, output, oneMinusOutput);
+    return arith::MulFOp::create(b, loc, gradOutput, derivative);
+  }
   if (auto softplusBackward = dyn_cast<AtenSoftplusBackwardOp>(op)) {
     AtenSoftplusBackwardOp::Adaptor adaptor(operands);
     if (!isa<mlir::FloatType>(
@@ -1748,7 +1764,8 @@ public:
                   ConversionPatternRewriter &rewriter) const override {
     if (!isa<AtenTanOp, AtenTanhOp, AtenSinhOp, AtenCoshOp, AtenReluOp,
              AtenPreluOp, AtenGeluOp, AtenGeluBackwardOp, AtenEluBackwardOp,
-             AtenSoftplusBackwardOp, AtenAddTensorOp, AtenMulTensorOp,
+             AtenSigmoidBackwardOp, AtenSoftplusBackwardOp, AtenAddTensorOp,
+             AtenMulTensorOp,
              AtenDivTensorOp, AtenDivTensorModeOp, AtenDivScalarModeOp,
              AtenSubTensorOp, AtenAtan2Op, AtenLerpTensorOp, AtenSigmoidOp,
              AtenExpOp, AtenExpm1Op, AtenMinimumOp, AtenMaximumOp,
@@ -4083,8 +4100,8 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   target.addIllegalOp<
       AtenTanOp, AtenTanhOp, AtenSinhOp, AtenCoshOp, AtenAtanhOp, AtenAcoshOp,
       AtenAsinOp, AtenAsinhOp, AtenReluOp, AtenGeluOp, AtenGeluBackwardOp,
-      AtenEluBackwardOp, AtenSoftplusBackwardOp, AtenAddTensorOp,
-      AtenMulTensorOp, AtenDivTensorOp, AtenDivTensorModeOp,
+      AtenEluBackwardOp, AtenSigmoidBackwardOp, AtenSoftplusBackwardOp,
+      AtenAddTensorOp, AtenMulTensorOp, AtenDivTensorOp, AtenDivTensorModeOp,
       AtenDivScalarModeOp, AtenSubTensorOp, AtenLerpTensorOp, AtenSigmoidOp,
       AtenMinimumOp, AtenAtan2Op, AtenMaximumOp, AtenToDtypeOp, AtenClampOp,
       AtenClampTensorOp, AtenRsubScalarOp, AtenLogOp, AtenErfOp, AtenSqrtOp,
