@@ -454,6 +454,16 @@ def is_builtin_function_or_method(obj: Any) -> bool:
     return isinstance(obj, (BuiltinMethodType, BuiltinFunctionType))
 
 
+def is_scalar_arg(arg: NodeArgument) -> bool:
+    """Check whether an arg is, or carries a meta val of, a literal or symbolic scalar."""
+    if isinstance(arg, (float, int)) or is_symbolic(arg):
+        return True
+    if isinstance(arg, torch_fx.Node):
+        val = arg.meta.get("val")
+        return isinstance(val, (float, int)) or is_symbolic(val)
+    return False
+
+
 # TODO: switch back to `slots=True` when py3.9 support is dropped
 @dataclass(frozen=True)
 class InputInfo:
@@ -2068,9 +2078,7 @@ class GraphNodeImporter:
         mlir_op_name = _get_mlir_op_name_for_schema(schema)
 
         # Intervening to use Scalar ops due to incorrect ops from AOT-autograd with scalar arguments.
-        if mlir_op_name in TENSOR_SCALAR_OP_CONVERTER and (
-            isinstance(node.args[1], float) or isinstance(node.args[1], int)
-        ):
+        if mlir_op_name in TENSOR_SCALAR_OP_CONVERTER and is_scalar_arg(node.args[1]):
             mlir_op_name = TENSOR_SCALAR_OP_CONVERTER[mlir_op_name]
             # we are dynamically changing which op is emitted here due to an issue in
             # torch dynamo where it emits the Tensor variant of ops even when processing
