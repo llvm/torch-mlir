@@ -77,6 +77,10 @@ from ..dialects import (
     func as func_dialect,
 )
 
+# Cache key for the shared torch.constant.none used for omitted ONNX optional inputs.
+# Must not collide with ONNX tensor names (including the empty string).
+_OPTIONAL_NONE_CACHE_KEY = "__torch_mlir_onnx_importer_optional_none__"
+
 
 @dataclass
 class Config:
@@ -239,6 +243,7 @@ class NodeImporter:
         "_p",
         "_b",
         "_nv_map",
+        "_anon_output_counter",
     ]
 
     def __init__(
@@ -259,6 +264,7 @@ class NodeImporter:
         self._p = parent_op
         self._b = block
         self._nv_map: Dict[str, Value] = {}
+        self._anon_output_counter = 0
 
     @classmethod
     def define_function(
@@ -366,8 +372,8 @@ class NodeImporter:
                 Operation.create(name="torch.operator_terminator", operands=outputs)
 
     def get_none(self):
-        if "" in self._nv_map:
-            return self._nv_map[""]
+        if _OPTIONAL_NONE_CACHE_KEY in self._nv_map:
+            return self._nv_map[_OPTIONAL_NONE_CACHE_KEY]
 
         with InsertionPoint(self._b), Location.name("onnx_importer.none"):
             nne = Operation.create(
@@ -376,7 +382,7 @@ class NodeImporter:
                 operands=[],
                 attributes={},
             ).results[0]
-            self._nv_map[""] = nne
+            self._nv_map[_OPTIONAL_NONE_CACHE_KEY] = nne
             return nne
 
     def import_node(self, node: onnx.NodeProto):
@@ -396,6 +402,12 @@ class NodeImporter:
             input_values = []
             input_type_protos = []
             for input_name in node.input:
+                # ONNX uses the empty string for omitted optional inputs; it must not
+                # be confused with _nv_map[""], which may hold a real tensor named "".
+                if input_name == "":
+                    input_values.append(self.get_none())
+                    input_type_protos.append(onnx.TypeProto())
+                    continue
                 try:
                     input_values.append(self._nv_map[input_name])
                     # Missing optional arguments will have empty types
@@ -447,7 +459,14 @@ class NodeImporter:
                 self.import_regions(node.attribute, custom_op)
 
             for output_name, output_value in zip(output_names, custom_op.results):
-                self._nv_map[output_name] = output_value
+                if output_name == "":
+                    key = (
+                        f"__torch_mlir_onnx_importer_anon_{self._anon_output_counter}"
+                    )
+                    self._anon_output_counter += 1
+                    self._nv_map[key] = output_value
+                else:
+                    self._nv_map[output_name] = output_value
 
     def import_attributes(self, onnx_attrs: List[onnx.AttributeProto]):
         attrs = {}
