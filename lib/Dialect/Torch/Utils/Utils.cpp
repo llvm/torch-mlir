@@ -103,6 +103,8 @@ torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
     return torch_upstream::ScalarType::Float8_e5m2fnuz;
   if (isa<Float8E4M3FNUZType>(type))
     return torch_upstream::ScalarType::Float8_e4m3fnuz;
+  if (isa<Float8E8M0FNUType>(type))
+    return torch_upstream::ScalarType::Float8_e8m0fnu;
   std::string errorMsg = "Unhandled type in getScalarTypeForType: ";
   llvm::raw_string_ostream os(errorMsg);
   type.print(os);
@@ -182,6 +184,8 @@ Torch::getTypeForScalarType(MLIRContext *context,
     return Float8E5M2FNUZType::get(context);
   case torch_upstream::ScalarType::Float8_e4m3fnuz:
     return Float8E4M3FNUZType::get(context);
+  case torch_upstream::ScalarType::Float8_e8m0fnu:
+    return Float8E8M0FNUType::get(context);
   case torch_upstream::ScalarType::Undefined:
     return failure();
   default:
@@ -342,11 +346,12 @@ Value Torch::getConstantWithGivenDtypeAndValue(PatternRewriter &rewriter,
                                  rewriter.getI64IntegerAttr((int64_t)value));
   if (dtype.isF64() || dtype.isF32() || dtype.isF16() || dtype.isBF16() ||
       isa<Float8E5M2Type, Float8E4M3FNType, Float8E5M2FNUZType,
-          Float8E4M3FNUZType>(dtype))
+          Float8E4M3FNUZType>(dtype) ||
+      (isa<Float8E8M0FNUType>(dtype) && value != 0.0f))
     return ConstantFloatOp::create(rewriter, loc,
                                    rewriter.getF64FloatAttr(value));
   llvm::report_fatal_error(
-      "unhandled type for getConstantWithGivenDtypeAndValue");
+      "unhandled type or value for getConstantWithGivenDtypeAndValue");
 }
 
 // Return the number of elements of a tensor if the shape is static; otherwise,
@@ -732,6 +737,8 @@ Type Torch::getDefaultAccType(PatternRewriter &rewriter, Type inputType) {
   if (isa<Float8E5M2FNUZType>(inputType))
     return rewriter.getF32Type();
   if (isa<Float8E4M3FNUZType>(inputType))
+    return rewriter.getF32Type();
+  if (isa<Float8E8M0FNUType>(inputType))
     return rewriter.getF32Type();
   if (inputType.isInteger(8))
     // this is an intentional deviation from CUDA (which accumulates i8 to i64)
