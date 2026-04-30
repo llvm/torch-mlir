@@ -2737,6 +2737,17 @@ static Value nearestInterpolate(OpBuilder &b, Location loc,
     } else {
       llvm_unreachable("Unsupported nearest mode");
     }
+    // Clamp to valid input indices. ONNX half_pixel (and asymmetric) coords can
+    // lie slightly outside [0, length-1] before rounding; without clamping,
+    // tensor.extract uses out-of-range indices (garbage on some backends).
+    Value cstOneClamp =
+        arith::ConstantOp::create(b, loc, b.getF32FloatAttr(1.0));
+    Value zeroClamp = arith::ConstantOp::create(b, loc, b.getF32FloatAttr(0.0));
+    Value inputSizeMOneClamp =
+        arith::SubFOp::create(b, loc, inputSizeFP, cstOneClamp);
+    nearestFP = arith::MaximumFOp::create(b, loc, nearestFP, zeroClamp);
+    nearestFP = arith::MinimumFOp::create(b, loc, nearestFP, inputSizeMOneClamp);
+
     Value nearestInt =
         arith::FPToSIOp::create(b, loc, b.getI64Type(), nearestFP);
     Value nearest =
