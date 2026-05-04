@@ -379,6 +379,95 @@ def test_import_scaled_mm_block_scaled_fp8_e5m2():
 
 
 @run
+# CHECK-LABEL: test_lower_scaled_mm_per_tensor_to_tosa
+# CHECK: func.func @test_lower_scaled_mm_per_tensor_to_tosa(%arg0: tensor<128x128xf8E4M3FN>, %arg1: tensor<128x128xf8E4M3FN>, %arg2: tensor<f32>, %arg3: tensor<f32>) -> tensor<128x128xbf16>
+# CHECK: %[[A_RESHAPE:.+]] = tosa.reshape %arg0
+# CHECK: %[[B_RESHAPE:.+]] = tosa.reshape %arg1
+# CHECK: %[[MATMUL:.+]] = tosa.matmul %[[A_RESHAPE]], %[[B_RESHAPE]], %{{.*}}, %{{.*}} : (tensor<1x128x128xf8E4M3FN>, tensor<1x128x128xf8E4M3FN>, tensor<1xf8E4M3FN>, tensor<1xf8E4M3FN>) -> tensor<1x128x128xf32>
+# CHECK: %[[COMBINED_SCALE:.+]] = tosa.mul
+# CHECK: tosa.mul %[[MATMUL]], %[[COMBINED_SCALE]]
+# CHECK: %[[OUT:.+]] = tosa.cast
+# CHECK: return %[[OUT]]
+# CHECK-NOT: torch.aten._scaled_mm
+# CHECK-NOT: torch.constant.bool
+def test_lower_scaled_mm_per_tensor_to_tosa():
+    class Basic(nn.Module):
+        def forward(self, a, b, a_scale, b_scale):
+            return torch._scaled_mm(a, b, a_scale, b_scale, out_dtype=torch.bfloat16)
+
+    a = torch.ones((128, 128), dtype=torch.float32).to(torch.float8_e4m3fn)
+    b = torch.ones((128, 128), dtype=torch.float32).to(torch.float8_e4m3fn)
+    a_scale = torch.tensor(1.0, dtype=torch.float32)
+    b_scale = torch.tensor(1.0, dtype=torch.float32)
+
+    m = fx.export_and_import(
+        Basic(),
+        a,
+        b,
+        a_scale,
+        b_scale,
+        func_name="test_lower_scaled_mm_per_tensor_to_tosa",
+    )
+    run_pipeline_with_repro_report(
+        m,
+        (
+            "builtin.module("
+            "torch-backend-to-tosa-backend-pipeline{require-full-tosa-conversion=false},"
+            "func.func(tosa-arith-const-to-tosa-const),"
+            "func.func(tosa-reduce-transposes),"
+            "func.func(tosa-narrow-i64-to-i32{aggressive-rewrite=true}),"
+            "func.func(tosa-narrow-f64-to-f32{aggressive-rewrite=true}),"
+            "canonicalize)"
+        ),
+        "torch-backend-to-tosa-backend-pipeline",
+    )
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_lower_scaled_mm_per_tensor_e5m2_to_tosa
+# CHECK: func.func @test_lower_scaled_mm_per_tensor_e5m2_to_tosa(%arg0: tensor<128x128xf8E5M2>, %arg1: tensor<128x128xf8E5M2>, %arg2: tensor<f32>, %arg3: tensor<f32>) -> tensor<128x128xbf16>
+# CHECK: %[[A_RESHAPE:.+]] = tosa.reshape %arg0
+# CHECK: %[[B_RESHAPE:.+]] = tosa.reshape %arg1
+# CHECK: %[[MATMUL:.+]] = tosa.matmul %[[A_RESHAPE]], %[[B_RESHAPE]], %{{.*}}, %{{.*}} : (tensor<1x128x128xf8E5M2>, tensor<1x128x128xf8E5M2>, tensor<1xf8E5M2>, tensor<1xf8E5M2>) -> tensor<1x128x128xf32>
+# CHECK: %[[COMBINED_SCALE:.+]] = tosa.mul
+# CHECK: tosa.mul %[[MATMUL]], %[[COMBINED_SCALE]]
+# CHECK: tosa.cast
+def test_lower_scaled_mm_per_tensor_e5m2_to_tosa():
+    class Basic(nn.Module):
+        def forward(self, a, b, a_scale, b_scale):
+            return torch._scaled_mm(a, b, a_scale, b_scale, out_dtype=torch.bfloat16)
+
+    a = torch.ones((128, 128), dtype=torch.float32).to(torch.float8_e5m2)
+    b = torch.ones((128, 128), dtype=torch.float32).to(torch.float8_e5m2)
+    a_scale = torch.tensor(1.0, dtype=torch.float32)
+    b_scale = torch.tensor(1.0, dtype=torch.float32)
+
+    m = fx.export_and_import(
+        Basic(),
+        a,
+        b,
+        a_scale,
+        b_scale,
+        func_name="test_lower_scaled_mm_per_tensor_e5m2_to_tosa",
+    )
+    run_pipeline_with_repro_report(
+        m,
+        (
+            "builtin.module("
+            "torch-backend-to-tosa-backend-pipeline{require-full-tosa-conversion=false},"
+            "func.func(tosa-arith-const-to-tosa-const),"
+            "func.func(tosa-reduce-transposes),"
+            "func.func(tosa-narrow-i64-to-i32{aggressive-rewrite=true}),"
+            "func.func(tosa-narrow-f64-to-f32{aggressive-rewrite=true}),"
+            "canonicalize)"
+        ),
+        "torch-backend-to-tosa-backend-pipeline",
+    )
+    print(m)
+
+
+@run
 # CHECK-LABEL: test_while_loop_two_returns
 # Check that helper functions are emitted first
 # CHECK: func.func private @while_loop_cond_graph_{{[0-9]+}}(%arg0: !torch.vtensor<[],si64>, %arg1: !torch.vtensor<[4,4],f32>) -> !torch.vtensor<[],i1>
