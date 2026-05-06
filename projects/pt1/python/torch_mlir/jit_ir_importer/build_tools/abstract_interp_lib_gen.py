@@ -921,6 +921,10 @@ def _scaled_mm_block_scale_numel(rows: int, cols: int) -> int:
     return _round_up_to_multiple(rows, 128) * _round_up_to_multiple(cols, 128) // 32
 
 def _check_scaled_mm_scale_shapes(self: List[int], mat2: List[int], scale_a: List[int], scale_b: List[int]):
+    assert self[1] % 16 == 0
+    assert mat2[0] % 16 == 0
+    assert mat2[1] % 16 == 0
+
     scale_a_numel = _numel(scale_a)
     scale_b_numel = _numel(scale_b)
 
@@ -931,8 +935,6 @@ def _check_scaled_mm_scale_shapes(self: List[int], mat2: List[int], scale_a: Lis
     if len(scale_a) == 2 and len(scale_b) == 2:
         return
 
-    assert mat2[0] % 16 == 0
-    assert mat2[1] % 16 == 0
     expected_scale_a_numel = _scaled_mm_block_scale_numel(self[0], self[1])
     expected_scale_b_numel = _scaled_mm_block_scale_numel(mat2[1], mat2[0])
     assert scale_a_numel == expected_scale_a_numel
@@ -965,6 +967,20 @@ def _check_scaled_mm_scale_shapes(self: List[int], mat2: List[int], scale_a: Lis
         TensorOfShape(128, 128, dtype=torch.float8_e4m3fn, stride=(1, 128)),
         TensorOfShape(500, dtype=torch.float8_e8m0fnu),
         TensorOfShape(512, dtype=torch.float8_e8m0fnu),
+        out_dtype=torch.bfloat16,
+    ),
+    ErrorInvocation(
+        TensorOfShape(128, 100, dtype=torch.float8_e4m3fn),
+        TensorOfShape(100, 128, dtype=torch.float8_e4m3fn, stride=(1, 100)),
+        ZeroDTensorWithDtype(torch.float32),
+        ZeroDTensorWithDtype(torch.float32),
+        out_dtype=torch.bfloat16,
+    ),
+    ErrorInvocation(
+        TensorOfShape(128, 128, dtype=torch.float8_e4m3fn),
+        TensorOfShape(128, 67, dtype=torch.float8_e4m3fn, stride=(1, 128)),
+        ZeroDTensorWithDtype(torch.float32),
+        ZeroDTensorWithDtype(torch.float32),
         out_dtype=torch.bfloat16,
     ),
 ])
