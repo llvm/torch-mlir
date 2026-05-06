@@ -908,6 +908,36 @@ def aten〇mv〡shape(self: List[int], vec: List[int]) -> List[int]:
 def aten〇mm〡shape(self: List[int], mat2: List[int]) -> List[int]:
     return upstream_shape_functions.mm(self, mat2)
 
+def _numel(sizes: List[int]) -> int:
+    numel = 1
+    for size in sizes:
+        numel *= size
+    return numel
+
+def _round_up_to_multiple(value: int, multiple: int) -> int:
+    return ((value + multiple - 1) // multiple) * multiple
+
+def _scaled_mm_block_scale_numel(rows: int, cols: int) -> int:
+    return _round_up_to_multiple(rows, 128) * _round_up_to_multiple(cols, 128) // 32
+
+def _check_scaled_mm_scale_shapes(self: List[int], mat2: List[int], scale_a: List[int], scale_b: List[int]):
+    scale_a_numel = _numel(scale_a)
+    scale_b_numel = _numel(scale_b)
+
+    if scale_a_numel == 1 and scale_b_numel == 1:
+        return
+
+    assert scale_a_numel != 1 and scale_b_numel != 1
+    if len(scale_a) == 2 and len(scale_b) == 2:
+        return
+
+    assert mat2[0] % 16 == 0
+    assert mat2[1] % 16 == 0
+    expected_scale_a_numel = _scaled_mm_block_scale_numel(self[0], self[1])
+    expected_scale_b_numel = _scaled_mm_block_scale_numel(mat2[1], mat2[0])
+    assert scale_a_numel == expected_scale_a_numel
+    assert scale_b_numel == expected_scale_b_numel
+
 @check_shape_function([
     Invocation(
         TensorOfShape(128, 128, dtype=torch.float8_e4m3fn),
@@ -930,9 +960,18 @@ def aten〇mm〡shape(self: List[int], mat2: List[int]) -> List[int]:
         TensorOfShape(512, dtype=torch.float8_e8m0fnu),
         out_dtype=torch.bfloat16,
     ),
+    ErrorInvocation(
+        TensorOfShape(128, 128, dtype=torch.float8_e4m3fn),
+        TensorOfShape(128, 128, dtype=torch.float8_e4m3fn, stride=(1, 128)),
+        TensorOfShape(500, dtype=torch.float8_e8m0fnu),
+        TensorOfShape(512, dtype=torch.float8_e8m0fnu),
+        out_dtype=torch.bfloat16,
+    ),
 ])
 def aten〇_scaled_mm〡shape(self: List[int], mat2: List[int], scale_a: List[int], scale_b: List[int], bias: Optional[List[int]] = None, scale_result: Optional[List[int]] = None, out_dtype: Optional[int] = None, use_fast_accum: bool = False) -> List[int]:
-    return upstream_shape_functions.mm(self, mat2)
+    result = upstream_shape_functions.mm(self, mat2)
+    _check_scaled_mm_scale_shapes(self, mat2, scale_a, scale_b)
+    return result
 
 def aten〇_int_mm〡shape(self: List[int], mat2: List[int]) -> List[int]:
     return upstream_shape_functions.mm(self, mat2)
@@ -4713,6 +4752,26 @@ def aten〇mm〡dtype(self_rank_dtype: Tuple[int, int], mat2_rank_dtype: Tuple[i
     dtypes = [self_dtype, mat2_dtype]
     return promote_dtypes(ranks, dtypes)
 
+def _is_scaled_mm_data_dtype(dtype: int) -> bool:
+    return dtype in [
+        torch.float4_e2m1fn_x2,
+        torch.float8_e4m3fn,
+        torch.float8_e4m3fnuz,
+        torch.float8_e5m2,
+        torch.float8_e5m2fnuz,
+    ]
+
+def _check_scaled_mm_dtypes(self_dtype: int, mat2_dtype: int, scale_a_dtype: int, scale_b_dtype: int):
+    assert _is_scaled_mm_data_dtype(self_dtype)
+    assert _is_scaled_mm_data_dtype(mat2_dtype)
+    assert (
+        scale_a_dtype == torch.float32
+        and scale_b_dtype == torch.float32
+    ) or (
+        scale_a_dtype == torch.float8_e8m0fnu
+        and scale_b_dtype == torch.float8_e8m0fnu
+    )
+
 @check_dtype_function([
     Invocation(
         TensorOfShape(128, 128, dtype=torch.float8_e4m3fn),
@@ -4735,10 +4794,27 @@ def aten〇mm〡dtype(self_rank_dtype: Tuple[int, int], mat2_rank_dtype: Tuple[i
         TensorOfShape(512, dtype=torch.float8_e8m0fnu),
         out_dtype=torch.bfloat16,
     ),
+    ErrorInvocation(
+        TensorOfShape(2, 3, dtype=torch.float32),
+        TensorOfShape(3, 4, dtype=torch.int32, stride=(1, 3)),
+        ZeroDTensorWithDtype(torch.float32),
+        ZeroDTensorWithDtype(torch.float32),
+        out_dtype=None,
+    ),
+    ErrorInvocation(
+        TensorOfShape(128, 128, dtype=torch.float8_e4m3fn),
+        TensorOfShape(128, 128, dtype=torch.float8_e4m3fn, stride=(1, 128)),
+        TensorOfShape(512, dtype=torch.float8_e8m0fnu),
+        TensorOfShape(512, dtype=torch.float32),
+        out_dtype=torch.bfloat16,
+    ),
 ])
 def aten〇_scaled_mm〡dtype(self_rank_dtype: Tuple[int, int], mat2_rank_dtype: Tuple[int, int], scale_a_rank_dtype: Tuple[int, int], scale_b_rank_dtype: Tuple[int, int], bias_rank_dtype: Optional[Tuple[int, int]] = None, scale_result_rank_dtype: Optional[Tuple[int, int]] = None, out_dtype: Optional[int] = None, use_fast_accum: bool = False) -> int:
     self_rank, self_dtype = self_rank_dtype
     mat2_rank, mat2_dtype = mat2_rank_dtype
+    scale_a_rank, scale_a_dtype = scale_a_rank_dtype
+    scale_b_rank, scale_b_dtype = scale_b_rank_dtype
+    _check_scaled_mm_dtypes(self_dtype, mat2_dtype, scale_a_dtype, scale_b_dtype)
     if out_dtype is not None:
         return out_dtype
     return self_dtype
