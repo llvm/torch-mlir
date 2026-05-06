@@ -329,10 +329,10 @@ def test_export_scaled_mm_block_scaled_fp8_frontend():
 # CHECK: def forward(self, a, b, a_scale_block, b_scale_block):
 # CHECK: torch.ops.aten._scaled_mm.default(a, b, a_scale_block, b_scale_block, None, None, torch.bfloat16)
 # CHECK: META a placeholder a (130, 128) torch.float8_e4m3fn
-# CHECK: META b placeholder b (128, 67) torch.float8_e4m3fn
+# CHECK: META b placeholder b (128, 80) torch.float8_e4m3fn
 # CHECK: META a_scale_block placeholder a_scale_block (1024,) torch.float8_e8m0fnu
 # CHECK: META b_scale_block placeholder b_scale_block (512,) torch.float8_e8m0fnu
-# CHECK: META _scaled_mm call_function aten._scaled_mm.default (130, 67) torch.bfloat16
+# CHECK: META _scaled_mm call_function aten._scaled_mm.default (130, 80) torch.bfloat16
 def test_export_scaled_mm_block_scaled_fp8_ragged_frontend():
     class Basic(nn.Module):
         def forward(self, a, b, a_scale_block, b_scale_block):
@@ -341,7 +341,7 @@ def test_export_scaled_mm_block_scaled_fp8_ragged_frontend():
             )
 
     a = torch.ones((130, 128), dtype=torch.float32).to(torch.float8_e4m3fn)
-    b = torch.ones((128, 67), dtype=torch.float32).to(torch.float8_e4m3fn)
+    b = torch.ones((128, 80), dtype=torch.float32).to(torch.float8_e4m3fn)
     a_scale_block = torch.zeros((1024,), dtype=torch.float8_e8m0fnu)
     b_scale_block = torch.zeros((512,), dtype=torch.float8_e8m0fnu)
 
