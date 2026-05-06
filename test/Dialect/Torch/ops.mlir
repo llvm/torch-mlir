@@ -241,3 +241,14 @@ func.func @torch.hop_flex_attention_enable_gqa(%arg0: !torch.vtensor<[2,4,8,16],
   %output, %logsumexp, %maxscore = torch.hop_flex_attention %arg0, %arg1, %arg2, %float1.0, %false_gqa, %false_gqa {enable_gqa = true} : !torch.vtensor<[2,4,8,16],f32>, !torch.vtensor<[2,2,8,16],f32>, !torch.vtensor<[2,2,8,16],f32>, !torch.float, !torch.bool, !torch.bool -> !torch.vtensor<[2,4,8,16],f32>, !torch.none, !torch.none
   return %output, %logsumexp, %maxscore : !torch.vtensor<[2,4,8,16],f32>, !torch.none, !torch.none
 }
+
+// CHECK-LABEL: func.func @torch.hop_flex_attention_disable_gqa
+func.func @torch.hop_flex_attention_disable_gqa(%arg0: !torch.vtensor<[2,4,8,16],f32>, %arg1: !torch.vtensor<[2,4,8,16],f32>, %arg2: !torch.vtensor<[2,4,8,16],f32>) -> (!torch.vtensor<[2,4,8,16],f32>, !torch.none, !torch.none) {
+  %float1.0 = torch.constant.float 1.000000e+00
+  %false_gqa = torch.constant.bool false
+  // CHECK: %[[NO_GQA_FLOAT:.*]] = torch.constant.float 1.000000e+00
+  // CHECK: %[[NO_GQA_FALSE:.*]] = torch.constant.bool false
+  // CHECK: torch.hop_flex_attention %arg0, %arg1, %arg2, %[[NO_GQA_FLOAT]], %[[NO_GQA_FALSE]], %[[NO_GQA_FALSE]] {enable_gqa = false}
+  %output, %logsumexp, %maxscore = torch.hop_flex_attention %arg0, %arg1, %arg2, %float1.0, %false_gqa, %false_gqa {enable_gqa = false} : !torch.vtensor<[2,4,8,16],f32>, !torch.vtensor<[2,4,8,16],f32>, !torch.vtensor<[2,4,8,16],f32>, !torch.float, !torch.bool, !torch.bool -> !torch.vtensor<[2,4,8,16],f32>, !torch.none, !torch.none
+  return %output, %logsumexp, %maxscore : !torch.vtensor<[2,4,8,16],f32>, !torch.none, !torch.none
+}
