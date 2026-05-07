@@ -246,14 +246,11 @@ func.func @test_resize_nearest_ceil(%arg0: !torch.vtensor<[?,?,?],f32>, %arg1: !
     // CHECK: %[[add:.*]] = arith.addf %[[x24]], %[[cst]] : f32
     // CHECK: %[[x25:.*]] = arith.divf %[[add]], %[[x21]] : f32
     // CHECK: %[[sub:.*]] = arith.subf %[[x25]], %[[cst]] : f32
-    // CHECK: %[[cst3:.*]] = arith.constant 1.000000e+00 : f32
-    // CHECK: %[[nM1:.*]] = arith.subf %[[inputsizefp:.*]], %[[cst3]]
     // CHECK: %[[ceil:.*]] = math.ceil %[[sub]] : f32
-    // CHECK: %[[minindex:.*]] = arith.minimumf %[[ceil]], %[[nM1]]
     // CHECK: %[[c1ceil:.*]] = arith.constant 1.000000e+00 : f32
     // CHECK: %[[c0ceil:.*]] = arith.constant 0.000000e+00 : f32
-    // CHECK: %[[inLm1ceil:.*]] = arith.subf %[[inputsizefp]], %[[c1ceil]] : f32
-    // CHECK: %[[minCl1:.*]] = arith.maximumf %[[minindex]], %[[c0ceil]] : f32
+    // CHECK: %[[inLm1ceil:.*]] = arith.subf %[[x15]], %[[c1ceil]] : f32
+    // CHECK: %[[minCl1:.*]] = arith.maximumf %[[ceil]], %[[c0ceil]] : f32
     // CHECK: %[[minCl2:.*]] = arith.minimumf %[[minCl1]], %[[inLm1ceil]] : f32
     // CHECK: %[[x31:.*]] = arith.fptosi %[[minCl2]] : f32 to i64
     // CHECK: %[[x32:.*]] = arith.index_cast %[[x31]] : i64 to index
