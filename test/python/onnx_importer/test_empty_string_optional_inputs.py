@@ -6,7 +6,7 @@
 
 """Regression for NodeImporter: ONNX input name '' means omitted optional.
 
-The importer must not conflate that with _nv_map[\"\"] when an earlier node binds
+The importer must not conflate that with _nv_map[""] when an earlier node binds
 a real tensor to the empty-string output name (see onnx_importer empty-string
 collision fix).
 """
@@ -20,7 +20,7 @@ from _torch_mlir_config import configure_context, ir, onnx_importer
 
 
 def _minimal_collision_model() -> onnx.ModelProto:
-    """Identity writes to output \"\"; second node lists '', '' as omitted inputs."""
+    """Identity writes to output ""; second node lists '', '' as omitted inputs."""
     inp = helper.make_tensor_value_info("x", TensorProto.FLOAT, [1, 2])
     out = helper.make_tensor_value_info("y", TensorProto.FLOAT, [1, 2])
     n1 = helper.make_node("Identity", ["x"], [""])
@@ -49,7 +49,9 @@ class EmptyStringOptionalInputsTest(unittest.TestCase):
         m = mi.create_module(context=ctx).operation
         onnx_importer.NodeImporter.define_function(mi.main_graph, m).import_all()
         asm = m.get_asm()
-        lines = [ln.strip() for ln in asm.splitlines() if "ReproEmptyStringCollision" in ln]
+        lines = [
+            ln.strip() for ln in asm.splitlines() if "ReproEmptyStringCollision" in ln
+        ]
         self.assertEqual(
             len(lines),
             1,
