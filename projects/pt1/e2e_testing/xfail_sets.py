@@ -16,6 +16,11 @@ from torch_mlir._version import torch_version_for_comparison, version
 print(f"TORCH_VERSION_FOR_COMPARISON =", torch_version_for_comparison())
 
 LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
+    # TorchScript importer fails: required keyword attribute 'unused' is undefined
+    "AtenEmbeddingBagLastBagBoundaryModule_basic",
+    "AtenEmbeddingBagStaticModule_basic",
+    "AtenEmbeddingBagSumExample_basic",
+    "Aten_EmbeddingBagExample_basic",
     # lowering to torch backend IR fails due to unsupported op: aten.upsample_[mode/dims].vec
     # these interpolate tests are added specifically to test onnx.Resize.
     "InterpolateDynamicModule_sizes_bilinear",
@@ -67,9 +72,6 @@ LINALG_CRASHING_SET = {
     "AtenDiagEmbedNonDefault4DDiag_basic",
     "AtenDiagEmbedOffsetDiag_basic",
     "AtenDiagEmbedRevDimDiag_basic",
-    "AtenEmbeddingBagStaticModule_basic",
-    "AtenEmbeddingBagSumExample_basic",
-    "Aten_EmbeddingBagExample_basic",
     # Runtime op verification: subview is out-of-bounds of the base memref
     "Conv_Transpose1dModule_basic",
     "Conv_Transpose1dStaticModule_basic",
@@ -125,6 +127,7 @@ TORCHDYNAMO_XFAIL_SET = {
     # %6:4 = torch.operator "aten._embedding_bag_forward_only"(%1, %3, %5, %false, %int0, %false, %none, %false, %int-1) : (!torch.tensor<*,f32>, !torch.tensor<*,si64>, !torch.tensor<*,si64>, !torch.bool, !torch.int, !torch.bool, !torch.none, !torch.bool, !torch.int) -> (!torch.tensor, !torch.tensor, !torch.tensor, !torch.tensor)
     # See also: https://github.com/pytorch/torchdynamo/issues/327
     "AtenEmbeddingBagSumExample_basic",
+    "AtenEmbeddingBagLastBagBoundaryModule_basic",
     "ElementwiseAtanTensorBFloat16SpecialValuesModule_basic",
     # error: unsupported by backend contract: tensor with unknown rank
     # note: see current operation: %1 = "torch.tensor_static_info_cast"(%arg0) : (!torch.vtensor<[5,4,3,2,1],f32>) -> !torch.vtensor<*,f32>
@@ -632,6 +635,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenDiagEmbedOffsetDiag_basic",
     "AtenDiagEmbedRevDimDiag_basic",
     "AtenEmbeddingBagSumExample_basic",
+    "AtenEmbeddingBagLastBagBoundaryModule_basic",
     "AtenFftRfft2DLastDim_basic",
     "AtenFftRfft2DMiddleDim_basic",
     "AtenFloatScalarModule_basic",
@@ -1606,7 +1610,6 @@ STABLEHLO_PASS_SET = {
     "ZerosModuleFloat3D_basic",
     "ZerosModuleInt2D_basic",
     "ZerosModuleInt3D_basic",
-    "AtenEmbeddingBagStaticModule_basic",
     "AtenEyeMModuleCPUDevice_basic",
     "AtenEyeMModuleDefaultDtype_basic",
     "AtenEyeMModuleFalsePinMemory_basic",
@@ -2863,6 +2866,7 @@ ONNX_XFAIL_SET = {
     "AtenDiagEmbedRevDimDiag_basic",
     "AtenEmbeddingBagStaticModule_basic",
     "AtenEmbeddingBagSumExample_basic",
+    "AtenEmbeddingBagLastBagBoundaryModule_basic",
     "AtenFftRfft2DLastDim_basic",
     "AtenFftRfft2DMiddleDim_basic",
     "AtenStftCenter1D_basic",
@@ -3714,6 +3718,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenComplexViewModule_basic",
     "AtenEmbeddingBagStaticModule_basic",
     "AtenEmbeddingBagSumExample_basic",
+    "AtenEmbeddingBagLastBagBoundaryModule_basic",
     "AtenFloatScalarModule_basic",
     # TODO: The values are extremely close to the golden values, but the test fails because of strict rtol/atol.
     "AtenInstanceNormModuleFp16_basic",
@@ -4277,6 +4282,7 @@ ONNX_TOSA_XFAIL_SET = {
     "AtenDiagEmbedRevDimDiag_basic",
     "AtenEmbeddingBagStaticModule_basic",
     "AtenEmbeddingBagSumExample_basic",
+    "AtenEmbeddingBagLastBagBoundaryModule_basic",
     "AtenFloatScalarModule_basic",
     "AtenIntBoolOpConstFalseModule_basic",
     "AtenIntBoolOpConstTrueModule_basic",
