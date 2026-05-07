@@ -13,6 +13,14 @@
 // CHECK-DAG:     %[[VAL_6:.*]] = torch.constant.bool true
 // CHECK-DAG:     %[[VAL_7:.*]] = torch.constant.int 0
 // CHECK-DAG:     %[[VAL_8:.*]] = torch.constant.bool true
+// Verify safe index clamping to prevent unconditional OOB tensor.extract for
+// the last bag. When i+1 == num_offsets, the index is clamped to 0 (always
+// in-bounds). The extracted value is discarded by the arith.select below.
+// CHECK:         %[[CHECK_LAST:.*]] = arith.cmpi eq, {{.*}}, {{.*}} : i64
+// CHECK:         %[[ZERO_IDX:.*]] = arith.constant 0 : index
+// CHECK:         %[[SAFE_IDX:.*]] = arith.select %[[CHECK_LAST]], %[[ZERO_IDX]], {{.*}} : index
+// CHECK:         %[[NEXT_OFFSET_RAW:.*]] = tensor.extract %[[VAL_3]][%[[SAFE_IDX]]] : tensor<2048xi64>
+// CHECK:         {{.*}} = arith.select %[[CHECK_LAST]], {{.*}}, %[[NEXT_OFFSET_RAW]] : i64
 func.func @torchAtenEmbeddingBagPaddingIdx(%weight: !torch.vtensor<[1000000,64],f32>,
                                            %indices: !torch.vtensor<[204790],si64>,
                                            %offsets: !torch.vtensor<[2048],si64>) -> (!torch.vtensor<[2048,64],f32>,

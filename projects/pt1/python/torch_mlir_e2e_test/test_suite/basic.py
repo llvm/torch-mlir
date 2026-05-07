@@ -5408,6 +5408,49 @@ def Aten_EmbeddingBagExample_basic(module, tu: TestUtils):
     module.forward(weight, indices, offsets)
 
 
+class AtenEmbeddingBagLastBagBoundaryModule(torch.nn.Module):
+    """Verifies correct numeric results for embedding_bag when the last bag's
+    upper bound is derived from the total number of indices rather than
+    offsets[i+1].
+    """
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1], torch.int64, True),
+            ([-1], torch.int64, True),
+        ]
+    )
+    def forward(self, weight, indices, offsets):
+        return torch.ops.aten.embedding_bag(
+            weight,
+            indices,
+            offsets,
+            scale_grad_by_freq=False,
+            mode=0,
+            sparse=False,
+            per_sample_weights=None,
+            include_last_offset=False,
+            padding_idx=None,
+        )
+
+
+@register_test_case(module_factory=lambda: AtenEmbeddingBagLastBagBoundaryModule())
+def AtenEmbeddingBagLastBagBoundaryModule_basic(module, tu: TestUtils):
+    # weight rows: [1,2], [3,4], [5,6], [7,8]
+    # bag 0: indices[0:2] = [0,1] -> weight[0]+weight[1] = [4, 6]
+    # bag 1: indices[2:4] = [2,3] -> weight[2]+weight[3] = [12,14]  (last bag, i+1==num_offsets)
+    weight = torch.tensor([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]])
+    indices = torch.LongTensor([0, 1, 2, 3])
+    offsets = torch.LongTensor([0, 2])
+    module.forward(weight, indices, offsets)
+
+
 # ==============================================================================
 
 
