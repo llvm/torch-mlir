@@ -686,6 +686,9 @@ public:
       return rewriter.notifyMatchFailure(op, "dim is not a valid dim");
 
     auto sizesOp = op.getSizes().getDefiningOp<Torch::PrimListConstructOp>();
+    if (!sizesOp)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: sizes must come from a list construct");
     int numSizes = sizesOp.getNumOperands();
 
     int64_t numDynamicReassocDims = 0;
@@ -696,10 +699,10 @@ public:
 
     SmallVector<Value> reassocSizes;
     if (!getListConstructElements(op.getSizes(), reassocSizes) &&
-        numDynamicReassocDims > 1)
+        numDynamicReassocDims > 0)
       return rewriter.notifyMatchFailure(
-          op, "Must be able to either infer expansion dims, or retrieve them "
-              "from list construct");
+          op, "Must be able to retrieve dynamic expansion dims from list "
+              "construct");
 
     // Check if the output tensor type has all static shapes while the input
     // tensor type doesn't Note: unflatten changes the shape, so we need to
@@ -746,6 +749,74 @@ public:
                                     adaptor.getSelf());
     }
 
+    SmallVector<Value> reassocSizesIndex;
+    if (!reassocSizes.empty()) {
+      reassocSizes = getTypeConvertedValues(rewriter, loc, getTypeConverter(),
+                                            reassocSizes);
+      reassocSizesIndex =
+          castIntVectorToIndexVector(rewriter, loc, reassocSizes);
+    }
+
+    SmallVector<OpFoldResult> explicitOutputShape;
+    explicitOutputShape.reserve(outputRank);
+
+    int64_t inferredDim = -1;
+    for (int64_t i = dimInt; i < dimInt + numSizes; ++i) {
+      if (outputSizes[i] == ShapedType::kDynamic) {
+        int64_t sizeInt;
+        Value size = sizesOp.getOperand(i - dimInt);
+        if (matchPattern(size, m_TorchConstantInt(&sizeInt)) && sizeInt == -1) {
+          inferredDim = i - dimInt;
+          break;
+        }
+      }
+    }
+
+    Value inferredDimSize;
+    if (inferredDim >= 0) {
+      Value flattenedDimSize =
+          tensor::DimOp::create(rewriter, loc, self, dimInt);
+      Value knownProduct = arith::ConstantIndexOp::create(rewriter, loc, 1);
+      for (int64_t i = 0; i < numSizes; ++i) {
+        if (i == inferredDim)
+          continue;
+
+        Value dimSize;
+        int64_t staticSize = outputSizes[dimInt + i];
+        if (staticSize != ShapedType::kDynamic) {
+          dimSize = arith::ConstantIndexOp::create(rewriter, loc, staticSize);
+        } else {
+          dimSize = reassocSizesIndex[i];
+        }
+        knownProduct =
+            arith::MulIOp::create(rewriter, loc, knownProduct, dimSize);
+      }
+      inferredDimSize =
+          arith::DivSIOp::create(rewriter, loc, flattenedDimSize, knownProduct);
+    }
+
+    auto getOutputDim = [&](int64_t outputDim) -> OpFoldResult {
+      int64_t staticSize = outputSizes[outputDim];
+      if (staticSize != ShapedType::kDynamic)
+        return rewriter.getIndexAttr(staticSize);
+
+      if (outputDim < dimInt)
+        return tensor::DimOp::create(rewriter, loc, self, outputDim)
+            .getResult();
+      if (outputDim < dimInt + numSizes) {
+        int64_t reassocDim = outputDim - dimInt;
+        if (reassocDim == inferredDim)
+          return inferredDimSize;
+        return reassocSizesIndex[reassocDim];
+      }
+
+      int64_t inputDim = outputDim - numSizes + 1;
+      return tensor::DimOp::create(rewriter, loc, self, inputDim).getResult();
+    };
+
+    for (int64_t i = 0; i < outputRank; ++i)
+      explicitOutputShape.push_back(getOutputDim(i));
+
     Value expand;
     // When there are less than two dynamic reassociation dims, this will lower
     // to tensor.expand_shape. Otherwise, this lowers to tensor.reshape.
@@ -762,12 +833,11 @@ public:
         for (int i = dimInt + numSizes; i < outputRank; ++i)
           reassociations[i - numSizes + 1].push_back(i);
       }
-      expand = tensor::ExpandShapeOp::create(rewriter, loc, expandTy, self,
-                                             reassociations)
-                   .getResult();
+      expand =
+          tensor::ExpandShapeOp::create(rewriter, loc, expandTy, self,
+                                        reassociations, explicitOutputShape)
+              .getResult();
     } else {
-      reassocSizes = getTypeConvertedValues(rewriter, loc, getTypeConverter(),
-                                            reassocSizes);
       SmallVector<Value> inputShape = getTensorSizes(rewriter, loc, self);
       inputShape = castIndexVectorToInt64Vector(rewriter, loc, inputShape);
       SmallVector<Value> outputShape(inputShape.begin(),
