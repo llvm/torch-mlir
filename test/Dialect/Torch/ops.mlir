@@ -29,6 +29,8 @@ func.func private @tensor.ranked() -> !torch.tensor<[?,?,?],unk>
 func.func private @tensor.some_sizes_known() -> !torch.tensor<[?,2,?,4],unk>
 // CHECK: @tensor.fully_determined() -> !torch.vtensor<[1,2,3,4],f32>
 func.func private @tensor.fully_determined() -> !torch.vtensor<[1,2,3,4],f32>
+// CHECK: @tensor.float8_e8m0fnu() -> !torch.vtensor<[512],f8E8M0FNU>
+func.func private @tensor.float8_e8m0fnu() -> !torch.vtensor<[512],f8E8M0FNU>
 
 // CHECK: @tensor.sparse() -> !torch.vtensor<[64,64],f32,#[[$ENCODING]]>
 #CSR = #sparse_tensor.encoding<{ map = (d0, d1) -> (d0 : dense, d1 : compressed) }>

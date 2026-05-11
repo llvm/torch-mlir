@@ -123,6 +123,8 @@ void TorchConversion::createTorchBackendToTosaBackendPipeline(
   // We want to fuse quantized operations together before lowering to tosa.
   pm.addNestedPass<func::FuncOp>(Torch::createFuseQuantizedOpsPass());
 
+  pm.addNestedPass<func::FuncOp>(createConvertMxfp4ScaledMmV2ToTosaPass());
+
   pm.addNestedPass<func::FuncOp>(createConvertTorchToTosaPass(
       options.requireFullTosaConversion, options.disabledPatterns,
       options.enabledPatterns));

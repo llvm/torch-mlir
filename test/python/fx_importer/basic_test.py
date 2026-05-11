@@ -9,6 +9,7 @@ from typing import List
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch.export import Dim
 from torch._dynamo.backends.common import aot_autograd
 from torch._functorch.aot_autograd import (
@@ -234,6 +235,98 @@ def test_full():
         m,
         f"builtin.module(torch-simplification-pipeline)",
         "torch-simplification-pipeline",
+    )
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_import_mxfp4_scaled_mm_v2
+# CHECK-NOT: torch.operator
+# CHECK: torch.aten._scaled_mm_v2
+# CHECK-SAME: !torch.vtensor<[128,64],ui8>
+# CHECK-SAME: !torch.vtensor<[64,128],ui8>
+def test_import_mxfp4_scaled_mm_v2():
+    class Basic(nn.Module):
+        def forward(self, a_data, b_data, a_scale, b_scale):
+            return F.scaled_mm(
+                a_data.view(torch.float4_e2m1fn_x2),
+                b_data.view(torch.float4_e2m1fn_x2),
+                scale_a=[a_scale],
+                scale_recipe_a=[F.ScalingType.BlockWise1x32],
+                swizzle_a=[F.SwizzleType.SWIZZLE_32_4_4],
+                scale_b=[b_scale],
+                scale_recipe_b=[F.ScalingType.BlockWise1x32],
+                swizzle_b=[F.SwizzleType.SWIZZLE_32_4_4],
+                bias=None,
+                output_dtype=torch.bfloat16,
+            )
+
+    a_data = torch.zeros((128, 64), dtype=torch.uint8)
+    b_data = torch.zeros((64, 128), dtype=torch.uint8)
+    a_scale = torch.zeros((512,), dtype=torch.float8_e8m0fnu)
+    b_scale = torch.zeros((512,), dtype=torch.float8_e8m0fnu)
+
+    m = fx.export_and_import(
+        Basic(),
+        a_data,
+        b_data,
+        a_scale,
+        b_scale,
+        func_name="test_import_mxfp4_scaled_mm_v2",
+    )
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_lower_mxfp4_scaled_mm_to_tosa
+# CHECK: func.func @test_lower_mxfp4_scaled_mm_to_tosa(
+# CHECK-SAME: tensor<1x128x128xf4E2M1FN>
+# CHECK-SAME: tensor<1x128x128xf4E2M1FN>
+# CHECK-SAME: tensor<1x128x4xf8E8M0FNU>
+# CHECK-SAME: tensor<1x128x4xf8E8M0FNU>
+# CHECK-SAME: ) -> tensor<128x128xbf16>
+# CHECK: tosa.matmul_t_block_scaled
+# CHECK-SAME: block_size = BLOCK_SIZE_32
+# CHECK: tosa.cast
+# CHECK: tosa.reshape
+# CHECK-NOT: torch.aten._scaled_mm_v2
+def test_lower_mxfp4_scaled_mm_to_tosa():
+    class Basic(nn.Module):
+        def forward(self, a_data, b_data, a_scale, b_scale):
+            return F.scaled_mm(
+                a_data.view(torch.float4_e2m1fn_x2),
+                b_data.view(torch.float4_e2m1fn_x2),
+                scale_a=[a_scale],
+                scale_recipe_a=[F.ScalingType.BlockWise1x32],
+                swizzle_a=[F.SwizzleType.SWIZZLE_32_4_4],
+                scale_b=[b_scale],
+                scale_recipe_b=[F.ScalingType.BlockWise1x32],
+                swizzle_b=[F.SwizzleType.SWIZZLE_32_4_4],
+                bias=None,
+                output_dtype=torch.bfloat16,
+            )
+
+    a_data = torch.zeros((128, 64), dtype=torch.uint8)
+    b_data = torch.zeros((64, 128), dtype=torch.uint8)
+    a_scale = torch.zeros((512,), dtype=torch.float8_e8m0fnu)
+    b_scale = torch.zeros((512,), dtype=torch.float8_e8m0fnu)
+
+    m = fx.export_and_import(
+        Basic(),
+        a_data,
+        b_data,
+        a_scale,
+        b_scale,
+        func_name="test_lower_mxfp4_scaled_mm_to_tosa",
+    )
+    run_pipeline_with_repro_report(
+        m,
+        (
+            "builtin.module("
+            "torch-backend-to-tosa-backend-pipeline{require-full-tosa-conversion=false},"
+            "canonicalize)"
+        ),
+        "torch-backend-to-tosa-backend-pipeline",
     )
     print(m)
 

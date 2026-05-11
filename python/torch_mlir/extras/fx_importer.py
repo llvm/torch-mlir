@@ -116,6 +116,7 @@ from ..ir import (
     Float8E5M2FNUZType,
     Float8E4M3FNUZType,
     Float8E8M0FNUType,
+    Float8E8M0FNUType,
     F16Type,
     F32Type,
     F64Type,
@@ -139,8 +140,12 @@ from ..dialects import (
 )
 
 
+MXFP4_PACKED_STORAGE_ATTR = "mxfp4_packed_storage"
+
 __all__ = [
     "FxImporter",
+    "FxImporterHooks",
+    "MXFP4_PACKED_STORAGE_ATTR",
 ]
 
 REQUIRED_DIALCTS = [
@@ -173,7 +178,7 @@ OPTIONAL_TORCH_DTYPE_TO_MLIR_TYPE_ASM = {
     "float8_e5m2fnuz": "f8E5M2FNUZ",
     "float8_e4m3fnuz": "f8E4M3FNUZ",
     "float8_e8m0fnu": "f8E8M0FNU",
-    "float4_e2m1fn_x2": "f4E2M1FN",
+    "float4_e2m1fn_x2": "ui8",
 }
 for dtype_str, dtype_asm in OPTIONAL_TORCH_DTYPE_TO_MLIR_TYPE_ASM.items():
     if hasattr(torch, dtype_str):
@@ -203,7 +208,7 @@ OPTIONAL_TORCH_DTYPE_TO_MLIR_TYPE = {
     "float8_e5m2fnuz": lambda: Float8E5M2FNUZType.get(),
     "float8_e4m3fnuz": lambda: Float8E4M3FNUZType.get(),
     "float8_e8m0fnu": lambda: Float8E8M0FNUType.get(),
-    "float4_e2m1fn_x2": lambda: Float4E2M1FNType.get(),
+    "float4_e2m1fn_x2": lambda: IntegerType.get_unsigned(8),
 }
 for dtype_str, mlir_type in OPTIONAL_TORCH_DTYPE_TO_MLIR_TYPE.items():
     if hasattr(torch, dtype_str):
@@ -258,6 +263,7 @@ OPTIONAL_TORCH_DTYPE_TO_INT = {
     "float8_e5m2fnuz": 25,
     "float8_e4m3fnuz": 26,
     "float8_e8m0fnu": 28,
+    "float4_e2m1fn_x2": 45,
 }
 for dtype_str, dtype_int in OPTIONAL_TORCH_DTYPE_TO_INT.items():
     if hasattr(torch, dtype_str):
@@ -497,6 +503,15 @@ class FxImporterHooks:
     ) -> Optional[Value]:
         """User overridable hook to resolve a literal value."""
         return None
+
+    def literal_attrs(
+        self,
+        gni: "GraphNodeImporter",
+        literal: Any,
+        source_node: Optional[Node] = None,
+    ) -> Dict[str, Attribute]:
+        """Return extra attributes to attach to a default literal op."""
+        return {}
 
     def resolve_input(
         self, gni: "GraphNodeImporter", value: Any, info: InputInfo
@@ -1397,6 +1412,7 @@ class GraphNodeImporter:
         "_symbol_to_value",
         "_multi_result_nodes",
         "_unpack_list_values",
+        "_literal_source_node",
         "fx_importer",
     ]
 
@@ -1425,6 +1441,7 @@ class GraphNodeImporter:
         # prim.ListUnpack.  Cache the result of these nodes so that it only
         # unpacks once instead of every time that getitem is used
         self._unpack_list_values: Dict[torch_fx.Node, Tuple[Value]] = {}
+        self._literal_source_node: Optional[Node] = None
 
     def bind_node_value(
         self,
@@ -2214,7 +2231,9 @@ class GraphNodeImporter:
                 ), f"Attempting to retrieve attribute '{arg.target}' from module, but no such attribute exists"
                 obj = getattr(gm, arg.target)
                 with loc:
-                    self.bind_node_value(arg, self._import_literal(obj))
+                    self.bind_node_value(
+                        arg, self._import_literal(obj, source_node=arg)
+                    )
 
             argument_value = self.resolve_node_value(arg)
         elif isinstance(arg, torch_fx.immutable_collections.immutable_list):
@@ -2274,7 +2293,12 @@ class GraphNodeImporter:
             name=op_name, results=[result_type], operands=operands
         ).result
 
-    def _import_literal(self, py_value: Any, info: Optional[InputInfo] = None) -> Value:
+    def _import_literal(
+        self,
+        py_value: Any,
+        info: Optional[InputInfo] = None,
+        source_node: Optional[Node] = None,
+    ) -> Value:
         orig_value = None
         if isinstance(py_value, torch.Tensor) and py_value.dtype == torch.bool:
             orig_value = py_value
@@ -2295,7 +2319,12 @@ class GraphNodeImporter:
             raise TypeError(
                 f"Unsupported argument -> literal conversion for {py_value.__class__}"
             )
-        result = converter(py_value, self, self._cc)
+        previous_source_node = self._literal_source_node
+        self._literal_source_node = source_node
+        try:
+            result = converter(py_value, self, self._cc)
+        finally:
+            self._literal_source_node = previous_source_node
         if orig_value is not None:
             result = self._convert_type(
                 result, torch.Tensor, orig_value.dtype, orig_value.size()
@@ -2515,7 +2544,10 @@ def create_mlir_tensor_type(tensor: torch.Tensor) -> IrType:
 
 
 def _make_vtensor_literal_op(
-    tensor: torch.Tensor, vtensor_type: IrType, py_attr_tracker: "RefTracker"
+    tensor: torch.Tensor,
+    vtensor_type: IrType,
+    py_attr_tracker: "RefTracker",
+    extra_attrs: Optional[Dict[str, Attribute]] = None,
 ) -> Operation:
     mapping = py_attr_tracker.track(tensor)
     if mapping.is_empty:
@@ -2560,10 +2592,13 @@ def _make_vtensor_literal_op(
         mapping.value = elements_attr
     else:
         elements_attr = mapping.value
+    attrs = {"value": elements_attr}
+    if extra_attrs:
+        attrs.update(extra_attrs)
     return Operation.create(
         name="torch.vtensor.literal",
         results=[vtensor_type],
-        attributes={"value": elements_attr},
+        attributes=attrs,
     )
 
 
@@ -2745,7 +2780,10 @@ LITERAL_CONVERTER_MAP.map(
 LITERAL_CONVERTER_MAP.map(
     torch.Tensor,
     lambda arg, gni, cc: _make_vtensor_literal_op(
-        arg, cc.tensor_to_vtensor_type(arg), cc._py_attr_tracker
+        arg,
+        cc.tensor_to_vtensor_type(arg),
+        cc._py_attr_tracker,
+        gni.fx_importer._hooks.literal_attrs(gni, arg, gni._literal_source_node),
     ).result,
 )
 LITERAL_CONVERTER_MAP.map(

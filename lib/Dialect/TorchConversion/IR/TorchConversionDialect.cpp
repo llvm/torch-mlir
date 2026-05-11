@@ -11,6 +11,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectImplementation.h"
+#include "mlir/IR/DialectResourceBlobManager.h"
 #include "mlir/Transforms/InliningUtils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
@@ -87,10 +88,29 @@ Operation *TorchConversionDialect::materializeConstant(OpBuilder &builder,
   if (auto stringAttr = dyn_cast<StringAttr>(value))
     return Torch::ConstantStrOp::create(builder, loc, stringAttr);
 
-  if (isa<Torch::ValueTensorType>(type)) {
-    if (auto elementsAttr = dyn_cast<ElementsAttr>(value))
+  if (auto valueTensorType = dyn_cast<Torch::ValueTensorType>(type)) {
+    if (auto elementsAttr = dyn_cast<ElementsAttr>(value)) {
+      // `torch_c.from_builtin_tensor` allows resource-backed integer tensors to
+      // use signless storage while the destination torch dtype carries explicit
+      // signedness. Preserve that requested signedness on the literal attr so
+      // `torch.vtensor.literal` infers the same type as its declared result.
+      auto literalType = cast<ShapedType>(elementsAttr.getType());
+      if (auto resourceAttr =
+              dyn_cast<DenseResourceElementsAttr>(elementsAttr)) {
+        auto literalIntType =
+            dyn_cast<IntegerType>(literalType.getElementType());
+        auto resultIntType =
+            dyn_cast_or_null<IntegerType>(valueTensorType.getDtype());
+        if (literalIntType && resultIntType && literalIntType.isSignless() &&
+            !resultIntType.isSignless() &&
+            literalIntType.getWidth() == resultIntType.getWidth()) {
+          elementsAttr = DenseResourceElementsAttr::get(
+              literalType.clone(resultIntType), resourceAttr.getRawHandle());
+        }
+      }
       return Torch::ValueTensorLiteralOp::create(builder, loc, type,
                                                  elementsAttr);
+    }
     return nullptr;
   }
 

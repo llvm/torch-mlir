@@ -32,6 +32,9 @@ std::set<StringRef>
 populateTorchToTosaConversionPatternsAndIllegalOps(TypeConverter &typeConverter,
                                                    RewritePatternSet &patterns);
 
+std::unique_ptr<OperationPass<func::FuncOp>>
+createConvertMxfp4ScaledMmV2ToTosaPass();
+
 std::unique_ptr<OperationPass<func::FuncOp>> createConvertTorchToTosaPass();
 
 // Convenience wrapper for users who want to pass options as individual

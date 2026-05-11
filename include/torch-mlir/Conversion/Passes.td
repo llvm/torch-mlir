@@ -120,6 +120,16 @@ def ConvertTorchToTensor : Pass<"convert-torch-to-tensor", "func::FuncOp"> {
 }
 
 #ifdef TORCH_MLIR_ENABLE_TOSA
+def ConvertMxfp4ScaledMmV2ToTosa : Pass<"convert-mxfp4-scaled-mm-v2-to-tosa", "func::FuncOp"> {
+  let summary = "Convert narrow MXFP4 scaled_mm_v2 patterns to TOSA";
+  let description = [{
+    Converts the narrow PyTorch MXFP4 scaled_mm_v2 pattern produced by
+    F.scaled_mm into tosa.matmul_t_block_scaled before the generic Torch to
+    TOSA conversion runs.
+  }];
+  let constructor = "mlir::torch::createConvertMxfp4ScaledMmV2ToTosaPass()";
+}
+
 def ConvertTorchToTosa : Pass<"convert-torch-to-tosa", "func::FuncOp"> {
   let summary = "Convert Torch ops to TOSA ops";
   let description = [{

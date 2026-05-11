@@ -26,9 +26,11 @@
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/MathExtras.h"
 #include <array>
@@ -46,6 +48,7 @@ using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 namespace mlir::torch {
 
+#define GEN_PASS_DEF_CONVERTMXFP4SCALEDMMV2TOTOSA
 #define GEN_PASS_DEF_CONVERTTORCHTOTOSA
 #include "torch-mlir/Conversion/Passes.h.inc"
 
@@ -256,6 +259,693 @@ getTorchConvWeightPermutation(Location loc, int64_t rank, bool isTransposed,
     permutation.push_back(0);
   }
 
+  return success();
+}
+
+static std::optional<int64_t> getConstantInt(Value value) {
+  int64_t result;
+  if (matchPattern(value, m_TorchConstantInt(&result)))
+    return result;
+  return std::nullopt;
+}
+
+namespace mxfp4_scaled_mm_v2 {
+constexpr unsigned kScaledMmV2LitTestOperandCount = 10;
+constexpr unsigned kScaledMmV2PythonExportOperandCount = 12;
+constexpr int64_t kFloat4E2M1FNX2Dtype = 45;
+constexpr int64_t kScalingTypeBlockWise1x32 = 3;
+constexpr int64_t kSwizzle32x4x4 = 1;
+constexpr int64_t kOutputDtypeFloat16 = 5;
+constexpr int64_t kOutputDtypeFloat32 = 6;
+constexpr int64_t kOutputDtypeBFloat16 = 15;
+} // namespace mxfp4_scaled_mm_v2
+
+// Python export can insert metadata-only ops between the FP4 storage value and
+// _scaled_mm_v2. These do not change tensor data, shape, dtype, or layout, so
+// this matcher can safely inspect the wrapped value.
+static Value lookThroughMetadataOps(Value value) {
+  while (true) {
+    if (auto detach = value.getDefiningOp<AtenDetachOp>()) {
+      value = detach.getSelf();
+      continue;
+    }
+    if (auto alias = value.getDefiningOp<AtenAliasOp>()) {
+      value = alias.getSelf();
+      continue;
+    }
+    return value;
+  }
+}
+
+static Value getSingleElementListValue(Value value) {
+  auto listConstruct = value.getDefiningOp<PrimListConstructOp>();
+  if (!listConstruct || listConstruct.getElements().size() != 1)
+    return nullptr;
+  return listConstruct.getElements().front();
+}
+
+static FailureOr<BlockArgument> getPackedFp4StorageArgument(Value value) {
+  value = lookThroughMetadataOps(value);
+
+  auto view = value.getDefiningOp<AtenViewDtypeOp>();
+  if (!view)
+    return failure();
+
+  std::optional<int64_t> dtype = getConstantInt(view.getDtype());
+  if (!dtype || *dtype != mxfp4_scaled_mm_v2::kFloat4E2M1FNX2Dtype)
+    return failure();
+
+  auto arg = dyn_cast<BlockArgument>(view.getSelf());
+  if (!arg)
+    return failure();
+  return arg;
+}
+
+static FailureOr<BlockArgument> getSingleTensorListArgument(Value value) {
+  Value listValue = getSingleElementListValue(value);
+  if (!listValue)
+    return failure();
+  auto arg = dyn_cast<BlockArgument>(listValue);
+  if (!arg)
+    return failure();
+  return arg;
+}
+
+static FailureOr<int64_t> getSingleIntListValue(Value value) {
+  Value listValue = getSingleElementListValue(value);
+  if (!listValue)
+    return failure();
+  std::optional<int64_t> intValue = getConstantInt(listValue);
+  if (!intValue)
+    return failure();
+  return *intValue;
+}
+
+static LogicalResult checkTorchScaleTensorType(Value value, int64_t rows,
+                                               int64_t kBlocks,
+                                               Type scaleType) {
+  auto tensorType = dyn_cast<ValueTensorType>(value.getType());
+  if (!tensorType || !tensorType.hasSizes() || !tensorType.hasDtype())
+    return failure();
+  if (tensorType.getDtype() != scaleType)
+    return failure();
+
+  ArrayRef<int64_t> sizes = tensorType.getSizes();
+  if (sizes.size() == 3 && sizes[0] == 1 && sizes[1] == rows &&
+      sizes[2] == kBlocks)
+    return success();
+  if (sizes.size() == 1 && sizes[0] == rows * kBlocks)
+    return success();
+  return failure();
+}
+
+static Type getScaledMmOutputElementType(MLIRContext *context, int64_t dtype) {
+  OpBuilder builder(context);
+  // c10::ScalarType::Half, Float, and BFloat16.
+  if (dtype == mxfp4_scaled_mm_v2::kOutputDtypeFloat16)
+    return builder.getF16Type();
+  if (dtype == mxfp4_scaled_mm_v2::kOutputDtypeFloat32)
+    return builder.getF32Type();
+  if (dtype == mxfp4_scaled_mm_v2::kOutputDtypeBFloat16)
+    return builder.getBF16Type();
+  return nullptr;
+}
+
+static void addDefiningOp(Value value,
+                          llvm::SmallPtrSetImpl<Operation *> &allowedOps) {
+  if (Operation *op = value.getDefiningOp())
+    allowedOps.insert(op);
+}
+
+static void
+addListAndElementDefiningOps(Value value,
+                             llvm::SmallPtrSetImpl<Operation *> &allowedOps) {
+  Operation *listOp = value.getDefiningOp();
+  if (!listOp)
+    return;
+  allowedOps.insert(listOp);
+  if (auto listConstruct = dyn_cast<PrimListConstructOp>(listOp)) {
+    for (Value element : listConstruct.getElements())
+      addDefiningOp(element, allowedOps);
+  }
+}
+
+static LogicalResult
+verifyOnlyAllowedOps(func::FuncOp func,
+                     llvm::SmallPtrSetImpl<Operation *> &allowedOps) {
+  Block &block = func.front();
+  for (Operation &op : block.without_terminator()) {
+    if (!allowedOps.contains(&op))
+      return failure();
+  }
+  return success();
+}
+
+static bool isScaledMmV2Operation(Operation *op) {
+  if (auto operatorOp = dyn_cast<OperatorOp>(op)) {
+    return (operatorOp.getName() == "torch.aten._scaled_mm_v2" ||
+            operatorOp.getName() == "torch.aten._scaled_mm_v2.default") &&
+           (op->getNumOperands() ==
+                mxfp4_scaled_mm_v2::kScaledMmV2LitTestOperandCount ||
+            op->getNumOperands() ==
+                mxfp4_scaled_mm_v2::kScaledMmV2PythonExportOperandCount);
+  }
+  if (isa<Aten_ScaledMmV2Op>(op))
+    return op->getNumOperands() ==
+           mxfp4_scaled_mm_v2::kScaledMmV2PythonExportOperandCount;
+  return false;
+}
+
+static bool isScaledMmV2HelperOp(Operation *op) {
+  return isa<PrimListConstructOp, ConstantIntOp, ConstantBoolOp, ConstantNoneOp,
+             ValueTensorLiteralOp, AtenReshapeOp, AtenViewOp,
+             AtenTransposeIntOp, AtenPermuteOp, AtenContiguousOp, AtenCloneOp,
+             AtenAliasOp>(op);
+}
+
+static void addDefiningOpsForCleanup(Value value,
+                                     SmallVectorImpl<Operation *> &worklist,
+                                     llvm::SmallPtrSetImpl<Operation *> &seen) {
+  Operation *op = value.getDefiningOp();
+  if (!op || !seen.insert(op).second)
+    return;
+  worklist.push_back(op);
+  if (!isScaledMmV2HelperOp(op))
+    return;
+  for (Value operand : op->getOperands())
+    addDefiningOpsForCleanup(operand, worklist, seen);
+}
+
+static void eraseDeadScaledMmV2HelperOps(SmallVectorImpl<Operation *> &ops) {
+  bool changed = true;
+  while (changed) {
+    changed = false;
+    SmallVector<Operation *> remaining;
+    for (Operation *op : ops) {
+      if (op && op->use_empty() && isScaledMmV2HelperOp(op)) {
+        op->erase();
+        changed = true;
+        continue;
+      }
+      remaining.push_back(op);
+    }
+    ops.swap(remaining);
+  }
+}
+
+static Value getViewLikeInput(Value value) {
+  if (auto reshape = value.getDefiningOp<AtenReshapeOp>())
+    return reshape.getSelf();
+  if (auto view = value.getDefiningOp<AtenViewOp>())
+    return view.getSelf();
+  return nullptr;
+}
+
+static bool hasValueTensorShapeAndDtype(Value value, ArrayRef<int64_t> shape,
+                                        Type dtype) {
+  auto tensorType = dyn_cast<ValueTensorType>(value.getType());
+  if (!tensorType || !tensorType.hasSizes() || !tensorType.hasDtype() ||
+      tensorType.getDtype() != dtype)
+    return false;
+  ArrayRef<int64_t> sizes = tensorType.getSizes();
+  if (sizes.size() != shape.size())
+    return false;
+  for (auto [actual, expected] : llvm::zip_equal(sizes, shape))
+    if (actual != expected)
+      return false;
+  return true;
+}
+
+static FailureOr<Value> getRank3PackedFp4RhsSource(Value rhs, int64_t kBytes,
+                                                   int64_t n,
+                                                   Type storageType) {
+  if (!hasValueTensorShapeAndDtype(rhs, {kBytes, n}, storageType))
+    return failure();
+
+  Value transposeResult = getViewLikeInput(rhs);
+  if (!transposeResult)
+    return failure();
+  transposeResult = lookThroughMetadataOps(transposeResult);
+  if (auto contiguous = transposeResult.getDefiningOp<AtenContiguousOp>())
+    transposeResult = contiguous.getSelf();
+  if (auto clone = transposeResult.getDefiningOp<AtenCloneOp>())
+    transposeResult = clone.getSelf();
+  transposeResult = lookThroughMetadataOps(transposeResult);
+
+  Value rank3Source;
+  if (auto transpose = transposeResult.getDefiningOp<AtenTransposeIntOp>()) {
+    std::optional<int64_t> dim0 = getConstantInt(transpose.getDim0());
+    std::optional<int64_t> dim1 = getConstantInt(transpose.getDim1());
+    if (!dim0 || !dim1 || *dim0 != 1 || *dim1 != 2)
+      return failure();
+    rank3Source = transpose.getSelf();
+  } else if (auto permute = transposeResult.getDefiningOp<AtenPermuteOp>()) {
+    SmallVector<int64_t> dims;
+    if (!matchPattern(permute.getDims(), m_TorchListOfConstantInts(dims)) ||
+        dims.size() != 3 || dims[0] != 0 || dims[1] != 2 || dims[2] != 1)
+      return failure();
+    rank3Source = permute.getSelf();
+  } else {
+    return failure();
+  }
+  if (!hasValueTensorShapeAndDtype(rank3Source, {1, n, kBytes}, storageType))
+    return failure();
+
+  Value source = getViewLikeInput(rank3Source);
+  if (!source)
+    return failure();
+  source = lookThroughMetadataOps(source);
+  if (!hasValueTensorShapeAndDtype(source, {n, kBytes}, storageType))
+    return failure();
+  return source;
+}
+
+static FailureOr<Value>
+materializePackedFp4Constant(OpBuilder &builder, Location loc, Value value,
+                             RankedTensorType logicalType) {
+  value = lookThroughMetadataOps(value);
+  auto literal = value.getDefiningOp<ValueTensorLiteralOp>();
+  if (!literal)
+    return failure();
+  auto resourceAttr =
+      dyn_cast<DenseResourceElementsAttr>(literal.getValueAttr());
+  if (!resourceAttr)
+    return failure();
+  auto attr =
+      DenseResourceElementsAttr::get(logicalType, resourceAttr.getRawHandle());
+  return tosa::ConstOp::create(builder, loc, logicalType, attr).getResult();
+}
+
+static Value createFp4ScaledMmV2TosaResult(
+    ImplicitLocOpBuilder &builder, Location loc,
+    RankedTensorType matmulResultType, RankedTensorType outputBatchType,
+    RankedTensorType outputType, Type outputElementType, Value aData,
+    Value aScale, Value bData, Value bScale, tosa::BlockSizeAttr blockSize) {
+  Value matmul = tosa::MatmulTBlockScaledOp::create(
+      builder, loc, matmulResultType, aData, aScale, bData, bScale, blockSize);
+
+  Value reshapeInput = matmul;
+  if (outputElementType != builder.getF32Type())
+    reshapeInput = tosa::CastOp::create(builder, loc, outputBatchType, matmul);
+
+  Value outputShape = tosa::getTosaConstShape(builder, outputType.getShape());
+  return tosa::ReshapeOp::create(builder, loc, outputType, reshapeInput,
+                                 outputShape);
+}
+
+static FailureOr<Value>
+materializeSwizzledFp4ScaleTensor(ImplicitLocOpBuilder &builder, Location loc,
+                                  Value value, RankedTensorType logicalType) {
+  value = lookThroughMetadataOps(value);
+  auto literal = value.getDefiningOp<ValueTensorLiteralOp>();
+  if (!literal)
+    return failure();
+  auto resourceAttr =
+      dyn_cast<DenseResourceElementsAttr>(literal.getValueAttr());
+  if (!resourceAttr)
+    return failure();
+
+  ArrayRef<int64_t> logicalShape = logicalType.getShape();
+  if (logicalShape.size() != 3 || logicalShape[0] != 1)
+    return failure();
+  int64_t rows = logicalShape[1];
+  int64_t scaleCols = logicalShape[2];
+  int64_t rowBlocks = llvm::divideCeil(rows, int64_t{128});
+  int64_t colBlocks = llvm::divideCeil(scaleCols, int64_t{4});
+  int64_t paddedNumel = rowBlocks * colBlocks * 32 * 16;
+
+  AsmResourceBlob *rawBlob = resourceAttr.getRawHandle().getBlob();
+  if (!rawBlob)
+    return failure();
+  ArrayRef<char> rawData = rawBlob->getData();
+  if (static_cast<int64_t>(rawData.size()) != paddedNumel)
+    return failure();
+
+  SmallVector<char> compactData(rows * scaleCols);
+  for (int64_t row = 0; row < rows; ++row) {
+    int64_t rowBlock = row / 128;
+    int64_t rowInBlock = row % 128;
+    for (int64_t col = 0; col < scaleCols; ++col) {
+      int64_t colBlock = col / 4;
+      int64_t colInBlock = col % 4;
+      int64_t block = rowBlock * colBlocks + colBlock;
+      int64_t srcIndex = block * 512 + (rowInBlock % 32) * 16 +
+                         (rowInBlock / 32) * 4 + colInBlock;
+      compactData[row * scaleCols + col] = rawData[srcIndex];
+    }
+  }
+
+  AsmResourceBlob blob = HeapAsmResourceBlob::allocateAndCopyInferAlign(
+      ArrayRef<char>(compactData.data(), compactData.size()));
+  auto attr = DenseResourceElementsAttr::get(logicalType, "mxfp4_scale",
+                                             std::move(blob));
+  return tosa::ConstOp::create(builder, loc, logicalType, attr).getResult();
+}
+
+static LogicalResult rewriteDynamicFp4ScaledMmV2ToTosa(Operation *scaledMm) {
+  if (!isScaledMmV2Operation(scaledMm))
+    return failure();
+
+  Value activation = scaledMm->getOperand(0);
+  Value packedWeight = scaledMm->getOperand(1);
+  Value bScaleValue = getSingleElementListValue(scaledMm->getOperand(5));
+  if (!bScaleValue)
+    return failure();
+
+  auto activationType = dyn_cast<ValueTensorType>(activation.getType());
+  auto weightType = dyn_cast<ValueTensorType>(packedWeight.getType());
+  auto resultType = dyn_cast<ValueTensorType>(scaledMm->getResult(0).getType());
+  if (!activationType || !weightType || !resultType ||
+      !activationType.hasSizes() || !weightType.hasSizes() ||
+      !resultType.hasSizes() || !activationType.hasDtype() ||
+      !weightType.hasDtype() || !resultType.hasDtype())
+    return failure();
+
+  // Full-model TorchAO MXFP4 quantizes activations dynamically. The activation
+  // operand is still high precision here; tosa.cast_to_block_scaled computes
+  // the logical FP4 activation data and matching E8M0 scales before the matmul.
+  if (!isa<FloatType>(activationType.getDtype()))
+    return failure();
+
+  MLIRContext *context = scaledMm->getContext();
+  Type storageType = IntegerType::get(context, 8, IntegerType::Unsigned);
+  if (weightType.getDtype() != storageType)
+    return failure();
+
+  ArrayRef<int64_t> aShape = activationType.getSizes();
+  ArrayRef<int64_t> bStorageShape = weightType.getSizes();
+  if (aShape.size() != 2 || bStorageShape.size() != 2)
+    return failure();
+  if (llvm::any_of(aShape,
+                   [](int64_t dim) { return ShapedType::isDynamic(dim); }) ||
+      llvm::any_of(bStorageShape,
+                   [](int64_t dim) { return ShapedType::isDynamic(dim); }))
+    return failure();
+
+  int64_t m = aShape[0];
+  int64_t k = aShape[1];
+  int64_t bKBytes = bStorageShape[0];
+  int64_t n = bStorageShape[1];
+  if (k % 32 != 0 || bKBytes * 2 != k)
+    return failure();
+  int64_t kBlocks = k / 32;
+  ArrayRef<int64_t> resultShape = resultType.getSizes();
+  if (resultShape.size() != 2 || resultShape[0] != m || resultShape[1] != n)
+    return failure();
+
+  FailureOr<int64_t> aScaleRecipe =
+      getSingleIntListValue(scaledMm->getOperand(3));
+  FailureOr<int64_t> aSwizzle = getSingleIntListValue(scaledMm->getOperand(4));
+  FailureOr<int64_t> bScaleRecipe =
+      getSingleIntListValue(scaledMm->getOperand(6));
+  FailureOr<int64_t> bSwizzle = getSingleIntListValue(scaledMm->getOperand(7));
+  if (failed(aScaleRecipe) || failed(aSwizzle) || failed(bScaleRecipe) ||
+      failed(bSwizzle))
+    return failure();
+  if (*aScaleRecipe != mxfp4_scaled_mm_v2::kScalingTypeBlockWise1x32 ||
+      *bScaleRecipe != mxfp4_scaled_mm_v2::kScalingTypeBlockWise1x32 ||
+      *aSwizzle != mxfp4_scaled_mm_v2::kSwizzle32x4x4 ||
+      *bSwizzle != mxfp4_scaled_mm_v2::kSwizzle32x4x4)
+    return failure();
+
+  if (!isa<ConstantNoneOp>(scaledMm->getOperand(8).getDefiningOp()))
+    return failure();
+  std::optional<int64_t> outputDtype = getConstantInt(scaledMm->getOperand(9));
+  if (!outputDtype)
+    return failure();
+  if (scaledMm->getNumOperands() ==
+      mxfp4_scaled_mm_v2::kScaledMmV2PythonExportOperandCount) {
+    auto reduceAxes =
+        scaledMm->getOperand(10).getDefiningOp<PrimListConstructOp>();
+    bool useFastAccum = false;
+    if (!reduceAxes || !reduceAxes.getElements().empty() ||
+        !matchPattern(scaledMm->getOperand(11),
+                      m_TorchConstantBool(&useFastAccum)) ||
+        useFastAccum)
+      return failure();
+  }
+
+  OpBuilder typeBuilder(context);
+  Type outputElementType = getScaledMmOutputElementType(context, *outputDtype);
+  if (!outputElementType || outputElementType != resultType.getDtype())
+    return failure();
+  Type fp4Type = typeBuilder.getType<Float4E2M1FNType>();
+  Type scaleType = typeBuilder.getType<Float8E8M0FNUType>();
+
+  RankedTensorType activationBuiltinType =
+      dyn_cast_or_null<RankedTensorType>(activationType.toBuiltinTensor());
+  if (!activationBuiltinType)
+    return failure();
+  RankedTensorType activationBatchType =
+      RankedTensorType::get({1, m, k}, activationType.getDtype());
+  RankedTensorType aLogicalType = RankedTensorType::get({1, m, k}, fp4Type);
+  RankedTensorType bLogicalType = RankedTensorType::get({1, n, k}, fp4Type);
+  RankedTensorType aScaleLogicalType =
+      RankedTensorType::get({1, m, kBlocks}, scaleType);
+  RankedTensorType bScaleLogicalType =
+      RankedTensorType::get({1, n, kBlocks}, scaleType);
+  RankedTensorType matmulResultType =
+      RankedTensorType::get({1, m, n}, typeBuilder.getF32Type());
+  RankedTensorType outputBatchType =
+      RankedTensorType::get({1, m, n}, outputElementType);
+  RankedTensorType outputType =
+      RankedTensorType::get({m, n}, outputElementType);
+
+  Location loc = scaledMm->getLoc();
+  ImplicitLocOpBuilder builder(loc, scaledMm);
+  auto blockSize =
+      tosa::BlockSizeAttr::get(context, tosa::BlockSize::BLOCK_SIZE_32);
+
+  Value activationBuiltin = TorchConversion::ToBuiltinTensorOp::create(
+      builder, loc, activationBuiltinType, activation);
+  Value activationShape = tosa::getTosaConstShape(builder, {1, m, k});
+  Value activationBatch = tosa::ReshapeOp::create(
+      builder, loc, activationBatchType, activationBuiltin, activationShape);
+
+  SmallVector<Type> castResultTypes = {aLogicalType, aScaleLogicalType};
+  auto castActivation = tosa::CastToBlockScaledOp::create(
+      builder, loc, castResultTypes, activationBatch, blockSize);
+  Value aData = castActivation.getResult(0);
+  Value aScale = castActivation.getResult(1);
+
+  FailureOr<Value> bPackedSource =
+      getRank3PackedFp4RhsSource(packedWeight, bKBytes, n, storageType);
+  if (failed(bPackedSource))
+    return failure();
+
+  FailureOr<Value> bData =
+      materializePackedFp4Constant(builder, loc, *bPackedSource, bLogicalType);
+  FailureOr<Value> bScale = materializeSwizzledFp4ScaleTensor(
+      builder, loc, bScaleValue, bScaleLogicalType);
+  if (failed(bData) || failed(bScale))
+    return failure();
+
+  Value output = createFp4ScaledMmV2TosaResult(
+      builder, loc, matmulResultType, outputBatchType, outputType,
+      outputElementType, aData, aScale, *bData, *bScale, blockSize);
+  Value torchOutput =
+      TorchConversion::FromBuiltinTensorOp::create(
+          builder, loc, scaledMm->getResult(0).getType(), output)
+          .getResult();
+
+  SmallVector<Operation *> cleanup;
+  llvm::SmallPtrSet<Operation *, 32> seenCleanupOps;
+  for (Value operand : scaledMm->getOperands())
+    addDefiningOpsForCleanup(operand, cleanup, seenCleanupOps);
+  scaledMm->getResult(0).replaceAllUsesWith(torchOutput);
+  scaledMm->erase();
+  eraseDeadScaledMmV2HelperOps(cleanup);
+  return success();
+}
+
+static LogicalResult rewriteDynamicFp4ScaledMmV2OpsToTosa(func::FuncOp func) {
+  SmallVector<Operation *> scaledMms;
+  func.walk([&](Operation *op) {
+    if (isScaledMmV2Operation(op))
+      scaledMms.push_back(op);
+  });
+
+  bool changed = false;
+  for (Operation *op : scaledMms)
+    changed |= succeeded(rewriteDynamicFp4ScaledMmV2ToTosa(op));
+  return changed ? success() : failure();
+}
+
+static LogicalResult rewriteFp4ScaledMmV2ToTosa(func::FuncOp func) {
+  if (func.getBody().empty() || func.getBody().getBlocks().size() != 1)
+    return failure();
+  Block &block = func.front();
+  if (block.getNumArguments() != 4)
+    return failure();
+
+  auto returnOp = dyn_cast<func::ReturnOp>(block.getTerminator());
+  if (!returnOp || returnOp.getNumOperands() != 1)
+    return failure();
+
+  Operation *scaledMm = returnOp.getOperand(0).getDefiningOp();
+  if (!scaledMm || scaledMm->getNumResults() != 1)
+    return failure();
+
+  if (!isScaledMmV2Operation(scaledMm))
+    return failure();
+
+  FailureOr<BlockArgument> aArg =
+      getPackedFp4StorageArgument(scaledMm->getOperand(0));
+  FailureOr<BlockArgument> bArg =
+      getPackedFp4StorageArgument(scaledMm->getOperand(1));
+  FailureOr<BlockArgument> aScaleArg =
+      getSingleTensorListArgument(scaledMm->getOperand(2));
+  FailureOr<BlockArgument> bScaleArg =
+      getSingleTensorListArgument(scaledMm->getOperand(5));
+  if (failed(aArg) || failed(bArg) || failed(aScaleArg) || failed(bScaleArg))
+    return failure();
+  if (aArg->getArgNumber() != 0 || bArg->getArgNumber() != 1 ||
+      aScaleArg->getArgNumber() != 2 || bScaleArg->getArgNumber() != 3)
+    return failure();
+
+  FailureOr<int64_t> aScaleRecipe =
+      getSingleIntListValue(scaledMm->getOperand(3));
+  FailureOr<int64_t> aSwizzle = getSingleIntListValue(scaledMm->getOperand(4));
+  FailureOr<int64_t> bScaleRecipe =
+      getSingleIntListValue(scaledMm->getOperand(6));
+  FailureOr<int64_t> bSwizzle = getSingleIntListValue(scaledMm->getOperand(7));
+  if (failed(aScaleRecipe) || failed(aSwizzle) || failed(bScaleRecipe) ||
+      failed(bSwizzle))
+    return failure();
+  // F.scaled_mm encodes ScalingType.BlockWise1x32 as 3 and
+  // SwizzleType.SWIZZLE_32_4_4 as 1.
+  if (*aScaleRecipe != mxfp4_scaled_mm_v2::kScalingTypeBlockWise1x32 ||
+      *bScaleRecipe != mxfp4_scaled_mm_v2::kScalingTypeBlockWise1x32 ||
+      *aSwizzle != mxfp4_scaled_mm_v2::kSwizzle32x4x4 ||
+      *bSwizzle != mxfp4_scaled_mm_v2::kSwizzle32x4x4)
+    return failure();
+
+  if (!isa<ConstantNoneOp>(scaledMm->getOperand(8).getDefiningOp()))
+    return failure();
+  std::optional<int64_t> outputDtype = getConstantInt(scaledMm->getOperand(9));
+  if (!outputDtype)
+    return failure();
+  if (scaledMm->getNumOperands() ==
+      mxfp4_scaled_mm_v2::kScaledMmV2PythonExportOperandCount) {
+    auto reduceAxes =
+        scaledMm->getOperand(10).getDefiningOp<PrimListConstructOp>();
+    bool useFastAccum = false;
+    if (!reduceAxes || !reduceAxes.getElements().empty() ||
+        !matchPattern(scaledMm->getOperand(11),
+                      m_TorchConstantBool(&useFastAccum)) ||
+        useFastAccum)
+      return failure();
+  }
+
+  MLIRContext *context = func.getContext();
+  OpBuilder typeBuilder(context);
+  Type outputElementType = getScaledMmOutputElementType(context, *outputDtype);
+  if (!outputElementType)
+    return failure();
+  Type storageType = IntegerType::get(context, 8, IntegerType::Unsigned);
+  Type fp4Type = typeBuilder.getType<Float4E2M1FNType>();
+  Type scaleType = typeBuilder.getType<Float8E8M0FNUType>();
+
+  auto aTensorType = dyn_cast<ValueTensorType>(aArg->getType());
+  auto bTensorType = dyn_cast<ValueTensorType>(bArg->getType());
+  if (!aTensorType || !bTensorType || !aTensorType.hasSizes() ||
+      !bTensorType.hasSizes() || !aTensorType.hasDtype() ||
+      !bTensorType.hasDtype())
+    return failure();
+  if (aTensorType.getDtype() != storageType ||
+      bTensorType.getDtype() != storageType)
+    return failure();
+
+  ArrayRef<int64_t> aStorageShape = aTensorType.getSizes();
+  ArrayRef<int64_t> bStorageShape = bTensorType.getSizes();
+  if (aStorageShape.size() != 2 || bStorageShape.size() != 2)
+    return failure();
+  if (llvm::any_of(aStorageShape,
+                   [](int64_t dim) { return ShapedType::isDynamic(dim); }) ||
+      llvm::any_of(bStorageShape,
+                   [](int64_t dim) { return ShapedType::isDynamic(dim); }))
+    return failure();
+
+  // PyTorch's float4_e2m1fn_x2 value is still byte storage here. For the
+  // one supported scaled-mm form, A is [M, K / 2] with packing along the last
+  // storage axis, while B is the transposed physical storage [K / 2, N].
+  // Expose the TOSA boundary as logical [1, M, K] and [1, N, K] f4 tensors
+  // and rely on the TOSA/target ABI lane order for f4 serialization.
+  int64_t m = aStorageShape[0];
+  int64_t kBytes = aStorageShape[1];
+  int64_t bKBytes = bStorageShape[0];
+  int64_t n = bStorageShape[1];
+  if (kBytes != bKBytes)
+    return failure();
+
+  int64_t k = kBytes * 2;
+  if (k % 32 != 0)
+    return failure();
+  int64_t kBlocks = k / 32;
+
+  if (failed(checkTorchScaleTensorType(*aScaleArg, m, kBlocks, scaleType)) ||
+      failed(checkTorchScaleTensorType(*bScaleArg, n, kBlocks, scaleType)))
+    return failure();
+
+  llvm::SmallPtrSet<Operation *, 24> allowedOps;
+  allowedOps.insert(scaledMm);
+  addDefiningOp(scaledMm->getOperand(8), allowedOps);
+  addDefiningOp(scaledMm->getOperand(9), allowedOps);
+  for (int operandNumber : {0, 1}) {
+    Value packedValue = scaledMm->getOperand(operandNumber);
+    addDefiningOp(packedValue, allowedOps);
+    packedValue = lookThroughMetadataOps(packedValue);
+    auto view = packedValue.getDefiningOp<AtenViewDtypeOp>();
+    if (view) {
+      allowedOps.insert(view);
+      addDefiningOp(view.getDtype(), allowedOps);
+    }
+  }
+  for (int operandNumber : {2, 3, 4, 5, 6, 7})
+    addListAndElementDefiningOps(scaledMm->getOperand(operandNumber),
+                                 allowedOps);
+  if (scaledMm->getNumOperands() ==
+      mxfp4_scaled_mm_v2::kScaledMmV2PythonExportOperandCount) {
+    addDefiningOp(scaledMm->getOperand(10), allowedOps);
+    addDefiningOp(scaledMm->getOperand(11), allowedOps);
+  }
+  if (failed(verifyOnlyAllowedOps(func, allowedOps)))
+    return failure();
+
+  RankedTensorType aLogicalType = RankedTensorType::get({1, m, k}, fp4Type);
+  RankedTensorType bLogicalType = RankedTensorType::get({1, n, k}, fp4Type);
+  RankedTensorType aScaleLogicalType =
+      RankedTensorType::get({1, m, kBlocks}, scaleType);
+  RankedTensorType bScaleLogicalType =
+      RankedTensorType::get({1, n, kBlocks}, scaleType);
+  RankedTensorType matmulResultType =
+      RankedTensorType::get({1, m, n}, typeBuilder.getF32Type());
+  RankedTensorType outputBatchType =
+      RankedTensorType::get({1, m, n}, outputElementType);
+  RankedTensorType outputType =
+      RankedTensorType::get({m, n}, outputElementType);
+
+  Location loc = scaledMm->getLoc();
+  while (!block.empty())
+    block.back().erase();
+
+  SmallVector<Type> inputTypes = {aLogicalType, bLogicalType, aScaleLogicalType,
+                                  bScaleLogicalType};
+  func.setFunctionType(FunctionType::get(context, inputTypes, {outputType}));
+  block.getArgument(0).setType(aLogicalType);
+  block.getArgument(1).setType(bLogicalType);
+  block.getArgument(2).setType(aScaleLogicalType);
+  block.getArgument(3).setType(bScaleLogicalType);
+
+  ImplicitLocOpBuilder builder(loc, context);
+  builder.setInsertionPointToEnd(&block);
+  auto blockSize =
+      tosa::BlockSizeAttr::get(context, tosa::BlockSize::BLOCK_SIZE_32);
+  Value output = createFp4ScaledMmV2TosaResult(
+      builder, loc, matmulResultType, outputBatchType, outputType,
+      outputElementType, block.getArgument(0), block.getArgument(2),
+      block.getArgument(1), block.getArgument(3), blockSize);
+  func::ReturnOp::create(builder, loc, output);
   return success();
 }
 
@@ -10544,6 +11234,29 @@ LogicalResult ConvertAtenOp<AtenQuantizePerTensorOp>::matchAndRewriteImpl(
 // -----------------------------------------------------------------------------
 
 namespace {
+class ConvertMxfp4ScaledMmV2ToTosa
+    : public impl::ConvertMxfp4ScaledMmV2ToTosaBase<
+          ConvertMxfp4ScaledMmV2ToTosa> {
+public:
+  using impl::ConvertMxfp4ScaledMmV2ToTosaBase<
+      ConvertMxfp4ScaledMmV2ToTosa>::ConvertMxfp4ScaledMmV2ToTosaBase;
+
+  void getDependentDialects(DialectRegistry &registry) const override {
+    registry
+        .insert<tosa::TosaDialect, TorchConversion::TorchConversionDialect>();
+  }
+
+  void runOnOperation() override {
+    // First handle standalone packed-FP4 functions where the function boundary
+    // itself must be rewritten. If that does not match, rewrite MXFP4
+    // scaled_mm ops inside larger graphs with dynamically quantized
+    // activations.
+    if (succeeded(rewriteFp4ScaledMmV2ToTosa(getOperation())))
+      return;
+    (void)rewriteDynamicFp4ScaledMmV2OpsToTosa(getOperation());
+  }
+};
+
 class ConvertTorchToTosa
     : public impl::ConvertTorchToTosaBase<ConvertTorchToTosa> {
 public:
@@ -11011,6 +11724,11 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
 #undef INSERT_DEQUANTIZE_ATENOP_PATTERN
 
   return illegalOps;
+}
+
+std::unique_ptr<OperationPass<func::FuncOp>>
+createConvertMxfp4ScaledMmV2ToTosaPass() {
+  return std::make_unique<ConvertMxfp4ScaledMmV2ToTosa>();
 }
 
 // Default pass creation function (required by tablegen)

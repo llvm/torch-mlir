@@ -959,8 +959,23 @@ def Torch_ValueTensorLiteralOp : Torch_Op<"vtensor.literal", [
     has a stronger set of invariants that better fit the needs of the
     compiler internals.
   }];
-  let arguments = (ins ElementsAttr:$value);
+  let arguments = (ins
+    ElementsAttr:$value,
+    OptionalAttr<UnitAttr>:$mxfp4_packed_storage
+  );
   let results = (outs Torch_ValueTensorType:$result);
+
+  let builders = [
+    OpBuilder<(ins "Type":$result, "ElementsAttr":$value), [{
+      build($_builder, $_state, result, value, ::mlir::UnitAttr());
+    }]>,
+    OpBuilder<(ins "ElementsAttr":$value), [{
+      build($_builder, $_state, value, ::mlir::UnitAttr());
+    }]>,
+    OpBuilder<(ins "TypeRange":$resultTypes, "ElementsAttr":$value), [{
+      build($_builder, $_state, resultTypes, value, ::mlir::UnitAttr());
+    }]>
+  ];
 
   let assemblyFormat = [{
     `(` $value `)` attr-dict `:` qualified(type($result))
