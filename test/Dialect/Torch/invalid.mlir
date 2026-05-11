@@ -466,6 +466,270 @@ func.func @torch.aten._scaled_mm$invalid_fp4_blockwise_scale_numel(
 
 // -----
 
+func.func @torch.aten._scaled_mm_v2$invalid_mxfp4_blockwise_scale_numel(
+    %arg0: !torch.vtensor<[128,64],f4E2M1FN>,
+    %arg1: !torch.vtensor<[64,128],f4E2M1FN>,
+    %arg2: !torch.vtensor<[256],f8E8M0FNU>,
+    %arg3: !torch.vtensor<[256],f8E8M0FNU>) -> !torch.vtensor<[128,128],bf16> {
+  %false = torch.constant.bool false
+  %int1 = torch.constant.int 1
+  %int3 = torch.constant.int 3
+  %int15 = torch.constant.int 15
+  %none = torch.constant.none
+  %scale_a = torch.prim.ListConstruct %arg2 : (!torch.vtensor<[256],f8E8M0FNU>) -> !torch.list<vtensor>
+  %recipe_a = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %swizzle_a = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %scale_b = torch.prim.ListConstruct %arg3 : (!torch.vtensor<[256],f8E8M0FNU>) -> !torch.list<vtensor>
+  %recipe_b = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %swizzle_b = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %contraction_dim = torch.prim.ListConstruct : () -> !torch.list<int>
+  // expected-error @+1 {{invalid blockwise scaling configuration: expected scale_a to have 512 elements and scale_b to have 512 elements, but got 256 and 256}}
+  %0 = torch.aten._scaled_mm_v2 %arg0, %arg1, %scale_a, %recipe_a, %swizzle_a, %scale_b, %recipe_b, %swizzle_b, %none, %int15, %contraction_dim, %false : !torch.vtensor<[128,64],f4E2M1FN>, !torch.vtensor<[64,128],f4E2M1FN>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.none, !torch.int, !torch.list<int>, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}
+
+// -----
+
+func.func @torch.aten._scaled_mm_v2$invalid_self_dtype(
+    %arg0: !torch.vtensor<[128,64],f32>,
+    %arg1: !torch.vtensor<[64,128],f4E2M1FN>,
+    %arg2: !torch.vtensor<[512],f8E8M0FNU>,
+    %arg3: !torch.vtensor<[512],f8E8M0FNU>) -> !torch.vtensor<[128,128],bf16> {
+  %false = torch.constant.bool false
+  %int1 = torch.constant.int 1
+  %int3 = torch.constant.int 3
+  %int15 = torch.constant.int 15
+  %none = torch.constant.none
+  %scale_a = torch.prim.ListConstruct %arg2 : (!torch.vtensor<[512],f8E8M0FNU>) -> !torch.list<vtensor>
+  %recipe_a = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %swizzle_a = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %scale_b = torch.prim.ListConstruct %arg3 : (!torch.vtensor<[512],f8E8M0FNU>) -> !torch.list<vtensor>
+  %recipe_b = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %swizzle_b = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %contraction_dim = torch.prim.ListConstruct : () -> !torch.list<int>
+  // expected-error @+1 {{expected self to have an FP8 or FP4 dtype}}
+  %0 = torch.aten._scaled_mm_v2 %arg0, %arg1, %scale_a, %recipe_a, %swizzle_a, %scale_b, %recipe_b, %swizzle_b, %none, %int15, %contraction_dim, %false : !torch.vtensor<[128,64],f32>, !torch.vtensor<[64,128],f4E2M1FN>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.none, !torch.int, !torch.list<int>, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}
+
+// -----
+
+func.func @torch.aten._scaled_mm_v2$invalid_mat2_dtype(
+    %arg0: !torch.vtensor<[128,64],f4E2M1FN>,
+    %arg1: !torch.vtensor<[64,128],f32>,
+    %arg2: !torch.vtensor<[512],f8E8M0FNU>,
+    %arg3: !torch.vtensor<[512],f8E8M0FNU>) -> !torch.vtensor<[128,128],bf16> {
+  %false = torch.constant.bool false
+  %int1 = torch.constant.int 1
+  %int3 = torch.constant.int 3
+  %int15 = torch.constant.int 15
+  %none = torch.constant.none
+  %scale_a = torch.prim.ListConstruct %arg2 : (!torch.vtensor<[512],f8E8M0FNU>) -> !torch.list<vtensor>
+  %recipe_a = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %swizzle_a = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %scale_b = torch.prim.ListConstruct %arg3 : (!torch.vtensor<[512],f8E8M0FNU>) -> !torch.list<vtensor>
+  %recipe_b = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %swizzle_b = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %contraction_dim = torch.prim.ListConstruct : () -> !torch.list<int>
+  // expected-error @+1 {{expected mat2 to have an FP8 or FP4 dtype}}
+  %0 = torch.aten._scaled_mm_v2 %arg0, %arg1, %scale_a, %recipe_a, %swizzle_a, %scale_b, %recipe_b, %swizzle_b, %none, %int15, %contraction_dim, %false : !torch.vtensor<[128,64],f4E2M1FN>, !torch.vtensor<[64,128],f32>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.none, !torch.int, !torch.list<int>, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}
+
+// -----
+
+func.func @torch.aten._scaled_mm_v2$invalid_rank(
+    %arg0: !torch.vtensor<[1,128,64],f4E2M1FN>,
+    %arg1: !torch.vtensor<[64,128],f4E2M1FN>,
+    %arg2: !torch.vtensor<[512],f8E8M0FNU>,
+    %arg3: !torch.vtensor<[512],f8E8M0FNU>) -> !torch.vtensor<[128,128],bf16> {
+  %false = torch.constant.bool false
+  %int1 = torch.constant.int 1
+  %int3 = torch.constant.int 3
+  %int15 = torch.constant.int 15
+  %none = torch.constant.none
+  %scale_a = torch.prim.ListConstruct %arg2 : (!torch.vtensor<[512],f8E8M0FNU>) -> !torch.list<vtensor>
+  %recipe_a = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %swizzle_a = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %scale_b = torch.prim.ListConstruct %arg3 : (!torch.vtensor<[512],f8E8M0FNU>) -> !torch.list<vtensor>
+  %recipe_b = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %swizzle_b = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %contraction_dim = torch.prim.ListConstruct : () -> !torch.list<int>
+  // expected-error @+1 {{expected self and mat2 to be rank 2, but got ranks 3 and 2}}
+  %0 = torch.aten._scaled_mm_v2 %arg0, %arg1, %scale_a, %recipe_a, %swizzle_a, %scale_b, %recipe_b, %swizzle_b, %none, %int15, %contraction_dim, %false : !torch.vtensor<[1,128,64],f4E2M1FN>, !torch.vtensor<[64,128],f4E2M1FN>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.none, !torch.int, !torch.list<int>, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}
+
+// -----
+
+func.func @torch.aten._scaled_mm_v2$invalid_contracting_dim_mismatch(
+    %arg0: !torch.vtensor<[128,64],f4E2M1FN>,
+    %arg1: !torch.vtensor<[65,128],f4E2M1FN>,
+    %arg2: !torch.vtensor<[512],f8E8M0FNU>,
+    %arg3: !torch.vtensor<[512],f8E8M0FNU>) -> !torch.vtensor<[128,128],bf16> {
+  %false = torch.constant.bool false
+  %int1 = torch.constant.int 1
+  %int3 = torch.constant.int 3
+  %int15 = torch.constant.int 15
+  %none = torch.constant.none
+  %scale_a = torch.prim.ListConstruct %arg2 : (!torch.vtensor<[512],f8E8M0FNU>) -> !torch.list<vtensor>
+  %recipe_a = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %swizzle_a = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %scale_b = torch.prim.ListConstruct %arg3 : (!torch.vtensor<[512],f8E8M0FNU>) -> !torch.list<vtensor>
+  %recipe_b = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %swizzle_b = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %contraction_dim = torch.prim.ListConstruct : () -> !torch.list<int>
+  // expected-error @+1 {{expected self and mat2 contracting dimensions to match, but got 128 and 130}}
+  %0 = torch.aten._scaled_mm_v2 %arg0, %arg1, %scale_a, %recipe_a, %swizzle_a, %scale_b, %recipe_b, %swizzle_b, %none, %int15, %contraction_dim, %false : !torch.vtensor<[128,64],f4E2M1FN>, !torch.vtensor<[65,128],f4E2M1FN>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.none, !torch.int, !torch.list<int>, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}
+
+// -----
+
+func.func @torch.aten._scaled_mm_v2$invalid_contracting_dim_divisibility(
+    %arg0: !torch.vtensor<[128,63],f4E2M1FN>,
+    %arg1: !torch.vtensor<[63,128],f4E2M1FN>,
+    %arg2: !torch.vtensor<[512],f8E8M0FNU>,
+    %arg3: !torch.vtensor<[512],f8E8M0FNU>) -> !torch.vtensor<[128,128],bf16> {
+  %false = torch.constant.bool false
+  %int1 = torch.constant.int 1
+  %int3 = torch.constant.int 3
+  %int15 = torch.constant.int 15
+  %none = torch.constant.none
+  %scale_a = torch.prim.ListConstruct %arg2 : (!torch.vtensor<[512],f8E8M0FNU>) -> !torch.list<vtensor>
+  %recipe_a = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %swizzle_a = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %scale_b = torch.prim.ListConstruct %arg3 : (!torch.vtensor<[512],f8E8M0FNU>) -> !torch.list<vtensor>
+  %recipe_b = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %swizzle_b = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %contraction_dim = torch.prim.ListConstruct : () -> !torch.list<int>
+  // expected-error @+1 {{expected self contracting dimension to be divisible by 16, but got 126}}
+  %0 = torch.aten._scaled_mm_v2 %arg0, %arg1, %scale_a, %recipe_a, %swizzle_a, %scale_b, %recipe_b, %swizzle_b, %none, %int15, %contraction_dim, %false : !torch.vtensor<[128,63],f4E2M1FN>, !torch.vtensor<[63,128],f4E2M1FN>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.none, !torch.int, !torch.list<int>, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}
+
+// -----
+
+func.func @torch.aten._scaled_mm_v2$invalid_tensorwise_scale_numel(
+    %arg0: !torch.vtensor<[128,64],f4E2M1FN>,
+    %arg1: !torch.vtensor<[64,128],f4E2M1FN>,
+    %arg2: !torch.vtensor<[],f32>,
+    %arg3: !torch.vtensor<[1,128],f32>) -> !torch.vtensor<[128,128],bf16> {
+  %false = torch.constant.bool false
+  %int1 = torch.constant.int 1
+  %int3 = torch.constant.int 3
+  %int15 = torch.constant.int 15
+  %none = torch.constant.none
+  %scale_a = torch.prim.ListConstruct %arg2 : (!torch.vtensor<[],f32>) -> !torch.list<vtensor>
+  %recipe_a = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %swizzle_a = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %scale_b = torch.prim.ListConstruct %arg3 : (!torch.vtensor<[1,128],f32>) -> !torch.list<vtensor>
+  %recipe_b = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %swizzle_b = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %contraction_dim = torch.prim.ListConstruct : () -> !torch.list<int>
+  // expected-error @+1 {{expected scale_a and scale_b to both be scalar for tensorwise scaling}}
+  %0 = torch.aten._scaled_mm_v2 %arg0, %arg1, %scale_a, %recipe_a, %swizzle_a, %scale_b, %recipe_b, %swizzle_b, %none, %int15, %contraction_dim, %false : !torch.vtensor<[128,64],f4E2M1FN>, !torch.vtensor<[64,128],f4E2M1FN>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.none, !torch.int, !torch.list<int>, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}
+
+// -----
+
+func.func @torch.aten._scaled_mm_v2$invalid_tensorwise_scale_dtype(
+    %arg0: !torch.vtensor<[128,64],f4E2M1FN>,
+    %arg1: !torch.vtensor<[64,128],f4E2M1FN>,
+    %arg2: !torch.vtensor<[],f8E8M0FNU>,
+    %arg3: !torch.vtensor<[],f8E8M0FNU>) -> !torch.vtensor<[128,128],bf16> {
+  %false = torch.constant.bool false
+  %int1 = torch.constant.int 1
+  %int3 = torch.constant.int 3
+  %int15 = torch.constant.int 15
+  %none = torch.constant.none
+  %scale_a = torch.prim.ListConstruct %arg2 : (!torch.vtensor<[],f8E8M0FNU>) -> !torch.list<vtensor>
+  %recipe_a = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %swizzle_a = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %scale_b = torch.prim.ListConstruct %arg3 : (!torch.vtensor<[],f8E8M0FNU>) -> !torch.list<vtensor>
+  %recipe_b = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %swizzle_b = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %contraction_dim = torch.prim.ListConstruct : () -> !torch.list<int>
+  // expected-error @+1 {{expected tensorwise scale_a and scale_b to have f32 dtype}}
+  %0 = torch.aten._scaled_mm_v2 %arg0, %arg1, %scale_a, %recipe_a, %swizzle_a, %scale_b, %recipe_b, %swizzle_b, %none, %int15, %contraction_dim, %false : !torch.vtensor<[128,64],f4E2M1FN>, !torch.vtensor<[64,128],f4E2M1FN>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.none, !torch.int, !torch.list<int>, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}
+
+// -----
+
+func.func @torch.aten._scaled_mm_v2$invalid_mixed_scale_dtype(
+    %arg0: !torch.vtensor<[128,64],f4E2M1FN>,
+    %arg1: !torch.vtensor<[64,128],f4E2M1FN>,
+    %arg2: !torch.vtensor<[128,1],f8E8M0FNU>,
+    %arg3: !torch.vtensor<[1,128],f32>) -> !torch.vtensor<[128,128],bf16> {
+  %false = torch.constant.bool false
+  %int1 = torch.constant.int 1
+  %int3 = torch.constant.int 3
+  %int15 = torch.constant.int 15
+  %none = torch.constant.none
+  %scale_a = torch.prim.ListConstruct %arg2 : (!torch.vtensor<[128,1],f8E8M0FNU>) -> !torch.list<vtensor>
+  %recipe_a = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %swizzle_a = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %scale_b = torch.prim.ListConstruct %arg3 : (!torch.vtensor<[1,128],f32>) -> !torch.list<vtensor>
+  %recipe_b = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %swizzle_b = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %contraction_dim = torch.prim.ListConstruct : () -> !torch.list<int>
+  // expected-error @+1 {{expected non-tensorwise, non-blockwise scale_a and scale_b to have f32 dtype}}
+  %0 = torch.aten._scaled_mm_v2 %arg0, %arg1, %scale_a, %recipe_a, %swizzle_a, %scale_b, %recipe_b, %swizzle_b, %none, %int15, %contraction_dim, %false : !torch.vtensor<[128,64],f4E2M1FN>, !torch.vtensor<[64,128],f4E2M1FN>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.none, !torch.int, !torch.list<int>, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}
+
+// -----
+
+func.func @torch.aten._scaled_mm_v2$invalid_non_tensorwise_scale_rank(
+    %arg0: !torch.vtensor<[128,64],f4E2M1FN>,
+    %arg1: !torch.vtensor<[64,128],f4E2M1FN>,
+    %arg2: !torch.vtensor<[128],f32>,
+    %arg3: !torch.vtensor<[128],f32>) -> !torch.vtensor<[128,128],bf16> {
+  %false = torch.constant.bool false
+  %int1 = torch.constant.int 1
+  %int3 = torch.constant.int 3
+  %int15 = torch.constant.int 15
+  %none = torch.constant.none
+  %scale_a = torch.prim.ListConstruct %arg2 : (!torch.vtensor<[128],f32>) -> !torch.list<vtensor>
+  %recipe_a = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %swizzle_a = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %scale_b = torch.prim.ListConstruct %arg3 : (!torch.vtensor<[128],f32>) -> !torch.list<vtensor>
+  %recipe_b = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %swizzle_b = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %contraction_dim = torch.prim.ListConstruct : () -> !torch.list<int>
+  // expected-error @+1 {{expected non-tensorwise scale_a and scale_b to be rank 2, but got ranks 1 and 1}}
+  %0 = torch.aten._scaled_mm_v2 %arg0, %arg1, %scale_a, %recipe_a, %swizzle_a, %scale_b, %recipe_b, %swizzle_b, %none, %int15, %contraction_dim, %false : !torch.vtensor<[128,64],f4E2M1FN>, !torch.vtensor<[64,128],f4E2M1FN>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.none, !torch.int, !torch.list<int>, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}
+
+// -----
+
+func.func @torch.aten._scaled_mm_v2$invalid_rowwise_scale_shape(
+    %arg0: !torch.vtensor<[128,64],f4E2M1FN>,
+    %arg1: !torch.vtensor<[64,128],f4E2M1FN>,
+    %arg2: !torch.vtensor<[64,2],f32>,
+    %arg3: !torch.vtensor<[2,64],f32>) -> !torch.vtensor<[128,128],bf16> {
+  %false = torch.constant.bool false
+  %int1 = torch.constant.int 1
+  %int3 = torch.constant.int 3
+  %int15 = torch.constant.int 15
+  %none = torch.constant.none
+  %scale_a = torch.prim.ListConstruct %arg2 : (!torch.vtensor<[64,2],f32>) -> !torch.list<vtensor>
+  %recipe_a = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %swizzle_a = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %scale_b = torch.prim.ListConstruct %arg3 : (!torch.vtensor<[2,64],f32>) -> !torch.list<vtensor>
+  %recipe_b = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %swizzle_b = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %contraction_dim = torch.prim.ListConstruct : () -> !torch.list<int>
+  // expected-error @+1 {{invalid scaling configuration for scale_a and scale_b}}
+  %0 = torch.aten._scaled_mm_v2 %arg0, %arg1, %scale_a, %recipe_a, %swizzle_a, %scale_b, %recipe_b, %swizzle_b, %none, %int15, %contraction_dim, %false : !torch.vtensor<[128,64],f4E2M1FN>, !torch.vtensor<[64,128],f4E2M1FN>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.none, !torch.int, !torch.list<int>, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}
+
+// -----
+
 func.func @torch.aten._scaled_mm$invalid_bias_dtype(
     %arg0: !torch.vtensor<[128,128],f8E4M3FN>,
     %arg1: !torch.vtensor<[128,128],f8E4M3FN>,

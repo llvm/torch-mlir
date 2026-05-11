@@ -6548,6 +6548,153 @@ LogicalResult Aten_ScaledMmOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// Aten_ScaledMmV2Op
+//===----------------------------------------------------------------------===//
+
+static FailureOr<BaseTensorType> getSingleTensorTypeFromList(Value value) {
+  auto list = value.getDefiningOp<PrimListConstructOp>();
+  if (!list || list.getElements().size() != 1)
+    return failure();
+
+  auto tensorType =
+      dyn_cast<BaseTensorType>(list.getElements().front().getType());
+  if (!tensorType)
+    return failure();
+  return tensorType;
+}
+
+LogicalResult Aten_ScaledMmV2Op::verify() {
+  auto selfType = cast<BaseTensorType>(getSelf().getType());
+  auto mat2Type = cast<BaseTensorType>(getMat2().getType());
+
+  if (selfType.hasDtype() && !isScaledMmDataDtype(selfType.getDtype()))
+    return emitOpError("expected self to have an FP8 or FP4 dtype, but got ")
+           << selfType.getDtype();
+  if (mat2Type.hasDtype() && !isScaledMmDataDtype(mat2Type.getDtype()))
+    return emitOpError("expected mat2 to have an FP8 or FP4 dtype, but got ")
+           << mat2Type.getDtype();
+
+  if (!selfType.hasSizes() || !mat2Type.hasSizes())
+    return success();
+
+  ArrayRef<int64_t> selfShape = selfType.getSizes();
+  ArrayRef<int64_t> mat2Shape = mat2Type.getSizes();
+  if (selfShape.size() != 2 || mat2Shape.size() != 2)
+    return emitOpError("expected self and mat2 to be rank 2, but got ranks ")
+           << selfShape.size() << " and " << mat2Shape.size();
+
+  int64_t m = selfShape[0];
+  int64_t k = selfShape[1];
+  int64_t mat2K = mat2Shape[0];
+  int64_t n = mat2Shape[1];
+
+  bool selfIsFp4 =
+      selfType.hasDtype() && isa<Float4E2M1FNType>(selfType.getDtype());
+  bool mat2IsFp4 =
+      mat2Type.hasDtype() && isa<Float4E2M1FNType>(mat2Type.getDtype());
+  int64_t logicalK = k;
+  int64_t mat2LogicalK = mat2K;
+  if (k != kUnknownSize && selfIsFp4)
+    logicalK = k * 2;
+  if (mat2K != kUnknownSize && mat2IsFp4)
+    mat2LogicalK = mat2K * 2;
+
+  if (logicalK != kUnknownSize && mat2LogicalK != kUnknownSize &&
+      logicalK != mat2LogicalK)
+    return emitOpError("expected self and mat2 contracting dimensions to "
+                       "match, but got ")
+           << logicalK << " and " << mat2LogicalK;
+  if (logicalK != kUnknownSize && logicalK % 16 != 0)
+    return emitOpError("expected self contracting dimension to be divisible "
+                       "by 16, but got ")
+           << logicalK;
+
+  FailureOr<BaseTensorType> scaleAType =
+      getSingleTensorTypeFromList(getScaleA());
+  FailureOr<BaseTensorType> scaleBType =
+      getSingleTensorTypeFromList(getScaleB());
+  if (failed(scaleAType) || failed(scaleBType))
+    return success();
+
+  if (!scaleAType->hasDtype() || !scaleBType->hasDtype() ||
+      !scaleAType->hasSizes() || !scaleBType->hasSizes() ||
+      !selfType.areAllSizesKnown() || !mat2Type.areAllSizesKnown())
+    return success();
+
+  Type scaleADtype = scaleAType->getDtype();
+  Type scaleBDtype = scaleBType->getDtype();
+  ArrayRef<int64_t> scaleAShape = scaleAType->getSizes();
+  ArrayRef<int64_t> scaleBShape = scaleBType->getSizes();
+
+  bool isBlockwiseScaling =
+      isScaledMmBlockwiseScaling(scaleADtype, scaleBDtype);
+
+  int64_t scaleANumel = getNumel(scaleAShape);
+  int64_t scaleBNumel = getNumel(scaleBShape);
+  if (scaleANumel == kUnknownSize || scaleBNumel == kUnknownSize)
+    return success();
+
+  // Tensorwise scaling.
+  if (scaleANumel == 1 || scaleBNumel == 1) {
+    if (scaleANumel != 1 || scaleBNumel != 1)
+      return emitOpError("expected scale_a and scale_b to both be scalar for "
+                         "tensorwise scaling");
+    if (!isScaledMmTensorwiseOrRowwiseScaleDtype(scaleADtype) ||
+        !isScaledMmTensorwiseOrRowwiseScaleDtype(scaleBDtype))
+      return emitOpError(
+          "expected tensorwise scale_a and scale_b to have f32 dtype");
+    return success();
+  }
+
+  if (isBlockwiseScaling) {
+    int64_t blockSizeMN = 128;
+    int64_t numKBlocks =
+        llvm::divideCeil(logicalK, getScaledMmBlockSizeK(scaleADtype));
+    int64_t paddedNumKBlocks = llvm::divideCeil(numKBlocks, int64_t{4}) * 4;
+    int64_t expectedScaleANumel =
+        blockSizeMN * llvm::divideCeil(m, blockSizeMN) * paddedNumKBlocks;
+    int64_t expectedScaleBNumel =
+        blockSizeMN * llvm::divideCeil(n, blockSizeMN) * paddedNumKBlocks;
+    if (scaleANumel != expectedScaleANumel ||
+        scaleBNumel != expectedScaleBNumel)
+      return emitOpError("invalid blockwise scaling configuration: expected "
+                         "scale_a to have ")
+             << expectedScaleANumel << " elements and scale_b to have "
+             << expectedScaleBNumel << " elements, but got " << scaleANumel
+             << " and " << scaleBNumel;
+    return success();
+  }
+
+  // Rowwise and f32 blockwise scale recipes.
+  if (!isScaledMmTensorwiseOrRowwiseScaleDtype(scaleADtype) ||
+      !isScaledMmTensorwiseOrRowwiseScaleDtype(scaleBDtype))
+    return emitOpError("expected non-tensorwise, non-blockwise scale_a and "
+                       "scale_b to have f32 dtype");
+
+  if (scaleAShape.size() != 2 || scaleBShape.size() != 2)
+    return emitOpError("expected non-tensorwise scale_a and scale_b to be "
+                       "rank 2, but got ranks ")
+           << scaleAShape.size() << " and " << scaleBShape.size();
+
+  int64_t kBlocks = llvm::divideCeil(logicalK, int64_t{128});
+  int64_t mBlocks = llvm::divideCeil(m, int64_t{128});
+  int64_t nBlocks = llvm::divideCeil(n, int64_t{128});
+  if (hasShape(scaleAShape, {m, 1}) && hasShape(scaleBShape, {1, n}))
+    return success();
+  if (hasShape(scaleAShape, {m, kBlocks}) &&
+      hasShape(scaleBShape, {kBlocks, nBlocks}))
+    return success();
+  if (hasShape(scaleAShape, {m, kBlocks}) &&
+      hasShape(scaleBShape, {kBlocks, n}))
+    return success();
+  if (hasShape(scaleAShape, {mBlocks, kBlocks}) &&
+      hasShape(scaleBShape, {kBlocks, n}))
+    return success();
+
+  return emitOpError("invalid scaling configuration for scale_a and scale_b");
+}
+
+//===----------------------------------------------------------------------===//
 // DtypeCalculateYieldDtypesOp
 //===----------------------------------------------------------------------===//
 

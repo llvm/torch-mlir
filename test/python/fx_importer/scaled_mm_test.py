@@ -7,6 +7,7 @@
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from torch_mlir import fx
 
@@ -86,6 +87,120 @@ def test_import_scaled_mm_block_scaled_fp4():
         a_scale_block,
         b_scale_block,
         func_name="test_import_scaled_mm_block_scaled_fp4",
+    )
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_import_scaled_mm_v2_block_scaled_fp4
+# CHECK: func.func @test_import_scaled_mm_v2_block_scaled_fp4(%arg0: !torch.vtensor<[128,64],f4E2M1FN>, %arg1: !torch.vtensor<[64,128],f4E2M1FN>, %arg2: !torch.vtensor<[512],f8E8M0FNU>, %arg3: !torch.vtensor<[512],f8E8M0FNU>) -> !torch.vtensor<[128,128],bf16>
+# CHECK-NOT: torch.operator
+# CHECK: %[[MM:.+]] = torch.aten._scaled_mm_v2 %arg0, %arg1
+# CHECK: return %[[MM]]
+def test_import_scaled_mm_v2_block_scaled_fp4():
+    class Basic(nn.Module):
+        def forward(self, a, b, a_scale_block, b_scale_block):
+            return F.scaled_mm(
+                a,
+                b,
+                scale_a=[a_scale_block],
+                scale_recipe_a=[F.ScalingType.BlockWise1x32],
+                swizzle_a=[F.SwizzleType.SWIZZLE_32_4_4],
+                scale_b=[b_scale_block],
+                scale_recipe_b=[F.ScalingType.BlockWise1x32],
+                swizzle_b=[F.SwizzleType.SWIZZLE_32_4_4],
+                bias=None,
+                output_dtype=torch.bfloat16,
+            )
+
+    a = make_fp4_tensor((128, 64))
+    b = make_fp4_tensor((64, 128), stride=(1, 64))
+    a_scale_block = torch.zeros((512,), dtype=torch.float8_e8m0fnu)
+    b_scale_block = torch.zeros((512,), dtype=torch.float8_e8m0fnu)
+
+    m = fx.export_and_import(
+        Basic(),
+        a,
+        b,
+        a_scale_block,
+        b_scale_block,
+        func_name="test_import_scaled_mm_v2_block_scaled_fp4",
+    )
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_import_scaled_mm_v2_per_tensor_fp4
+# CHECK: func.func @test_import_scaled_mm_v2_per_tensor_fp4(%arg0: !torch.vtensor<[128,64],f4E2M1FN>, %arg1: !torch.vtensor<[64,128],f4E2M1FN>, %arg2: !torch.vtensor<[],f32>, %arg3: !torch.vtensor<[],f32>) -> !torch.vtensor<[128,128],bf16>
+# CHECK-NOT: torch.operator
+# CHECK: %[[MM:.+]] = torch.aten._scaled_mm_v2 %arg0, %arg1
+# CHECK: return %[[MM]]
+def test_import_scaled_mm_v2_per_tensor_fp4():
+    class Basic(nn.Module):
+        def forward(self, a, b, a_scale, b_scale):
+            return F.scaled_mm(
+                a,
+                b,
+                scale_a=[a_scale],
+                scale_recipe_a=[F.ScalingType.TensorWise],
+                swizzle_a=[F.SwizzleType.NO_SWIZZLE],
+                scale_b=[b_scale],
+                scale_recipe_b=[F.ScalingType.TensorWise],
+                swizzle_b=[F.SwizzleType.NO_SWIZZLE],
+                bias=None,
+                output_dtype=torch.bfloat16,
+            )
+
+    a = make_fp4_tensor((128, 64))
+    b = make_fp4_tensor((64, 128), stride=(1, 64))
+    a_scale = torch.tensor(1.0, dtype=torch.float32)
+    b_scale = torch.tensor(1.0, dtype=torch.float32)
+
+    m = fx.export_and_import(
+        Basic(),
+        a,
+        b,
+        a_scale,
+        b_scale,
+        func_name="test_import_scaled_mm_v2_per_tensor_fp4",
+    )
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_import_scaled_mm_v2_out_dtype_none_fp4
+# CHECK: func.func @test_import_scaled_mm_v2_out_dtype_none_fp4(%arg0: !torch.vtensor<[128,64],f4E2M1FN>, %arg1: !torch.vtensor<[64,128],f4E2M1FN>, %arg2: !torch.vtensor<[],f32>, %arg3: !torch.vtensor<[],f32>) -> !torch.vtensor<[128,128],f4E2M1FN>
+# CHECK-NOT: torch.operator
+# CHECK: %[[MM:.+]] = torch.aten._scaled_mm_v2 %arg0, %arg1
+# CHECK: return %[[MM]]
+def test_import_scaled_mm_v2_out_dtype_none_fp4():
+    class Basic(nn.Module):
+        def forward(self, a, b, a_scale, b_scale):
+            return F.scaled_mm(
+                a,
+                b,
+                scale_a=[a_scale],
+                scale_recipe_a=[F.ScalingType.TensorWise],
+                swizzle_a=[F.SwizzleType.NO_SWIZZLE],
+                scale_b=[b_scale],
+                scale_recipe_b=[F.ScalingType.TensorWise],
+                swizzle_b=[F.SwizzleType.NO_SWIZZLE],
+                bias=None,
+                output_dtype=None,
+            )
+
+    a = make_fp4_tensor((128, 64))
+    b = make_fp4_tensor((64, 128), stride=(1, 64))
+    a_scale = torch.tensor(1.0, dtype=torch.float32)
+    b_scale = torch.tensor(1.0, dtype=torch.float32)
+
+    m = fx.export_and_import(
+        Basic(),
+        a,
+        b,
+        a_scale,
+        b_scale,
+        func_name="test_import_scaled_mm_v2_out_dtype_none_fp4",
     )
     print(m)
 
