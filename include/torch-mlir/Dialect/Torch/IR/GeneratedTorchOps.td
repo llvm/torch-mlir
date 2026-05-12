@@ -6628,6 +6628,7 @@ def Torch_Aten_ScaledMmOp : Torch_Op<"aten._scaled_mm", [
     HasValueSemantics,
     ReadOnly
   ]> {
+  let hasVerifier = 1;
   let summary = "Generated op for `aten::_scaled_mm : (Tensor, Tensor, Tensor, Tensor, Tensor?, Tensor?, int?, bool) -> (Tensor)`";
   let arguments = (ins
     AnyTorchTensorType:$self,
@@ -19270,4 +19271,3 @@ def Torch_TorchvisionNmsOp : Torch_Op<"torchvision.nms", [
     }
   }];
 }
-
