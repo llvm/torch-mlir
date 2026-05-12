@@ -163,10 +163,21 @@ class Invocation:
 
     def to_real_op_args(self):
         """Gets positional arguments appropriate for the real op."""
+
+        def initialize_tensor(t):
+            try:
+                return t.fill_(1)
+            except RuntimeError as e:
+                if t.dtype == torch.float4_e2m1fn_x2 and "not implemented" in str(e):
+                    return t
+                raise
+
         tensor_transformer = lambda o: (
-            torch.empty_strided(o.shape, o.stride, dtype=o.dtype, device=o.device)
+            initialize_tensor(
+                torch.empty_strided(o.shape, o.stride, dtype=o.dtype, device=o.device)
+            )
             if o.stride is not None
-            else torch.ones(o.shape, dtype=o.dtype).to(o.device)
+            else initialize_tensor(torch.empty(o.shape, dtype=o.dtype).to(o.device))
         )
         return _recursively_transform_tensor_args(self.args, tensor_transformer)
 
