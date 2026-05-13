@@ -29,6 +29,7 @@
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/MathExtras.h"
 #include <array>
@@ -421,6 +422,39 @@ getTorchConvWeightPermutation(Location loc, int64_t rank, bool isTransposed,
   }
 
   return success();
+}
+
+static bool canForwardFp8ActivationScaleToAtenScaledMm(Operation *op) {
+  return isa<Torch::AtenReshapeOp, Torch::AtenViewOp, Torch::AtenCloneOp,
+             Torch::AtenContiguousOp, Torch::AtenUnsqueezeOp,
+             Torch::AtenToDtypeOp, Torch::AtenDivTensorOp, Torch::AtenClampOp>(
+      op);
+}
+
+static bool
+hasFp8ActivationScaleUseInAtenScaledMm(Value value,
+                                       llvm::SmallPtrSetImpl<Operation *> &seen,
+                                       unsigned depth = 16) {
+  if (depth == 0)
+    return false;
+  for (Operation *user : value.getUsers()) {
+    if (!seen.insert(user).second)
+      continue;
+    if (isa<Torch::Aten_ScaledMmOp>(user))
+      return true;
+    if (!canForwardFp8ActivationScaleToAtenScaledMm(user) ||
+        user->getNumResults() != 1)
+      continue;
+    if (hasFp8ActivationScaleUseInAtenScaledMm(user->getResult(0), seen,
+                                               depth - 1))
+      return true;
+  }
+  return false;
+}
+
+static bool hasFp8ActivationScaleUseInAtenScaledMm(Value value) {
+  llvm::SmallPtrSet<Operation *, 32> seen;
+  return hasFp8ActivationScaleUseInAtenScaledMm(value, seen);
 }
 
 // Base class for all Torch-to-TOSA conversion patterns.
@@ -1243,34 +1277,53 @@ public:
 
     Value result;
     if (isa<mlir::FloatType>(outType.getElementType())) {
+      bool computeBf16DivInF32 = false;
+      if constexpr (std::is_same<AtenOpT, AtenDivScalarOp>()) {
+        double divisor;
+        computeBf16DivInF32 =
+            outType.getElementType().isBF16() &&
+            matchPattern(op.getOther(), m_TorchConstantFloat(&divisor)) &&
+            std::abs(divisor - 448.0) == 0.0 &&
+            hasFp8ActivationScaleUseInAtenScaledMm(op.getResult());
+      }
+      TensorType divComputeType = outType;
+      if (computeBf16DivInF32)
+        divComputeType =
+            RankedTensorType::get(outType.getShape(), rewriter.getF32Type());
+
       // The input to the reciprocal is an integer sometimes, and we may need
       // to promote it to a floating point. Per TOSA specification, the input
       // types can only be floating point for tosa::ReciprocalOp.
       rhsTensor =
-          tosa::tosaCastTensorToType(rewriter, rhsTensor, outType).value();
+          tosa::tosaCastTensorToType(rewriter, rhsTensor, divComputeType)
+              .value();
+      lhs = tosa::tosaCastTensorToType(rewriter, lhs, divComputeType).value();
       auto rhsRcp = tosa::ReciprocalOp::create(rewriter, op->getLoc(),
                                                rhsTensor.getType(), rhsTensor);
 
-      auto divResult = tosa::createMulOpAndCast(rewriter, op, outType, lhs,
-                                                rhsRcp, /*shift=*/0);
+      auto divResult = tosa::createMulOpAndCast(rewriter, op, divComputeType,
+                                                lhs, rhsRcp, /*shift=*/0);
 
       // Round result based on rounding mode
       if (roundMode.compare("floor") == 0) {
         // "floor": rounds the results of the division down. Equivalent to
         // floor division in Python (the // operator).
-        auto floorOp =
-            tosa::FloorOp::create(rewriter, op->getLoc(), outType, divResult);
+        auto floorOp = tosa::FloorOp::create(rewriter, op->getLoc(),
+                                             divComputeType, divResult);
 
         result = floorOp.getResult();
       } else if (roundMode.compare("trunc") == 0) {
         // "trunc": rounds the results of the division towards zero. Equivalent
         // to C-style integer division.
-        result = truncFloatDivWithDivResult(rewriter, op, outType, divResult)
-                     .value();
+        result =
+            truncFloatDivWithDivResult(rewriter, op, divComputeType, divResult)
+                .value();
       } else {
         // None: No rounding mode
         result = divResult.getResult();
       }
+      if (divComputeType != outType)
+        result = tosa::tosaCastTensorToType(rewriter, result, outType).value();
     } else {
       if (roundMode.compare("floor") == 0) {
         // "floor": rounds the results of the division down. Equivalent to floor

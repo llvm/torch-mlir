@@ -5046,6 +5046,49 @@ func.func @torch.aten._scaled_mm$per_row_scales_use_fast_accum(%arg0: !torch.vte
   return %0 : !torch.vtensor<[128,128],bf16>
 }
 
+// CHECK-LABEL:   func.func @torch.aten._scaled_mm$bf16_fp8_activation_scale(
+// CHECK-SAME:      %arg0: !torch.vtensor<[4,8],bf16>, %arg1: !torch.vtensor<[8,16],f8E4M3FN>, %arg2: !torch.vtensor<[1,16],f32>) -> !torch.vtensor<[4,16],bf16> {
+// CHECK:           %[[MAX:.*]] = tosa.reduce_max
+// CHECK:           %[[MAX_F32:.*]] = tosa.cast %[[MAX]] : (tensor<4x1xbf16>) -> tensor<4x1xf32>
+// CHECK:           %[[SCALE_F32:.*]] = tosa.mul %[[MAX_F32]], %{{.*}}, %{{.*}} : (tensor<4x1xf32>, tensor<1x1xf32>, tensor<1xi8>) -> tensor<4x1xf32>
+// CHECK:           %[[SCALE_BF16:.*]] = tosa.cast %[[SCALE_F32]] : (tensor<4x1xf32>) -> tensor<4x1xbf16>
+// CHECK:           %[[NORM_SCALE:.*]] = tosa.cast %[[SCALE_BF16]] : (tensor<4x1xbf16>) -> tensor<4x1xf32>
+// CHECK:           tosa.reciprocal %[[NORM_SCALE]] : (tensor<4x1xf32>) -> tensor<4x1xf32>
+// CHECK:           %[[LHS:.*]] = tosa.cast %{{.*}} : (tensor<4x8xf32>) -> tensor<4x8xf8E4M3FN>
+// CHECK:           %[[MM_MAX_F32:.*]] = tosa.cast %[[MAX]] : (tensor<4x1xbf16>) -> tensor<4x1xf32>
+// CHECK:           %[[MM_SCALE_F32:.*]] = tosa.mul %[[MM_MAX_F32]], %{{.*}}, %{{.*}} : (tensor<4x1xf32>, tensor<1x1xf32>, tensor<1xi8>) -> tensor<4x1xf32>
+// CHECK:           %[[MM_SCALE_BF16:.*]] = tosa.cast %[[MM_SCALE_F32]] : (tensor<4x1xf32>) -> tensor<4x1xbf16>
+// CHECK:           %[[MM_SCALE:.*]] = tosa.cast %[[MM_SCALE_BF16]] : (tensor<4x1xbf16>) -> tensor<4x1xf32>
+// CHECK:           %[[LHS_RESHAPE:.*]] = tosa.reshape %[[LHS]], %{{.*}} : (tensor<4x8xf8E4M3FN>, !tosa.shape<3>) -> tensor<1x4x8xf8E4M3FN>
+// CHECK:           %[[RHS_RESHAPE:.*]] = tosa.reshape %{{.*}}, %{{.*}} : (tensor<8x16xf8E4M3FN>, !tosa.shape<3>) -> tensor<1x8x16xf8E4M3FN>
+// CHECK:           %[[SCALE_RESHAPE:.*]] = tosa.reshape %[[MM_SCALE]], %{{.*}} : (tensor<4x1xf32>, !tosa.shape<3>) -> tensor<1x4x1xf32>
+// CHECK:           %[[RHS_SCALE_RESHAPE:.*]] = tosa.reshape %{{.*}}, %{{.*}} : (tensor<1x16xf32>, !tosa.shape<3>) -> tensor<1x1x16xf32>
+// CHECK:           %[[MATMUL:.*]] = tosa.matmul %[[LHS_RESHAPE]], %[[RHS_RESHAPE]], %{{.*}}, %{{.*}} : (tensor<1x4x8xf8E4M3FN>, tensor<1x8x16xf8E4M3FN>, tensor<1xf8E4M3FN>, tensor<1xf8E4M3FN>) -> tensor<1x4x16xf32>
+// CHECK:           %[[COMBINED_SCALE:.*]] = tosa.mul %[[SCALE_RESHAPE]], %[[RHS_SCALE_RESHAPE]], %{{.*}} : (tensor<1x4x1xf32>, tensor<1x1x16xf32>, tensor<1xi8>) -> tensor<1x4x16xf32>
+// CHECK:           tosa.mul %[[MATMUL]], %[[COMBINED_SCALE]], %{{.*}} : (tensor<1x4x16xf32>, tensor<1x4x16xf32>, tensor<1xi8>) -> tensor<1x4x16xf32>
+// CHECK-NOT:       torch.aten._scaled_mm
+func.func @torch.aten._scaled_mm$bf16_fp8_activation_scale(%arg0: !torch.vtensor<[4,8],bf16>, %arg1: !torch.vtensor<[8,16],f8E4M3FN>, %arg2: !torch.vtensor<[1,16],f32>) -> !torch.vtensor<[4,16],bf16> {
+  %true = torch.constant.bool true
+  %false = torch.constant.bool false
+  %int1 = torch.constant.int 1
+  %int6 = torch.constant.int 6
+  %int15 = torch.constant.int 15
+  %int24 = torch.constant.int 24
+  %none = torch.constant.none
+  %float_neg_448 = torch.constant.float -448.0
+  %float_448 = torch.constant.float 448.0
+  %abs = torch.aten.abs %arg0 : !torch.vtensor<[4,8],bf16> -> !torch.vtensor<[4,8],bf16>
+  %values, %indices = torch.aten.max.dim %abs, %int1, %true : !torch.vtensor<[4,8],bf16>, !torch.int, !torch.bool -> !torch.vtensor<[4,1],bf16>, !torch.vtensor<[4,1],si64>
+  %scale_bf16 = torch.aten.div.Scalar %values, %float_448 : !torch.vtensor<[4,1],bf16>, !torch.float -> !torch.vtensor<[4,1],bf16>
+  %scale = torch.aten.to.dtype %scale_bf16, %int6, %false, %false, %none : !torch.vtensor<[4,1],bf16>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[4,1],f32>
+  %arg0_f32 = torch.aten.to.dtype %arg0, %int6, %false, %false, %none : !torch.vtensor<[4,8],bf16>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[4,8],f32>
+  %normalized = torch.aten.div.Tensor %arg0_f32, %scale : !torch.vtensor<[4,8],f32>, !torch.vtensor<[4,1],f32> -> !torch.vtensor<[4,8],f32>
+  %clamped = torch.aten.clamp %normalized, %float_neg_448, %float_448 : !torch.vtensor<[4,8],f32>, !torch.float, !torch.float -> !torch.vtensor<[4,8],f32>
+  %lhs_fp8 = torch.aten.to.dtype %clamped, %int24, %false, %false, %none : !torch.vtensor<[4,8],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[4,8],f8E4M3FN>
+  %0 = torch.aten._scaled_mm %lhs_fp8, %arg1, %scale, %arg2, %none, %none, %int15, %false : !torch.vtensor<[4,8],f8E4M3FN>, !torch.vtensor<[8,16],f8E4M3FN>, !torch.vtensor<[4,1],f32>, !torch.vtensor<[1,16],f32>, !torch.none, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[4,16],bf16>
+  return %0 : !torch.vtensor<[4,16],bf16>
+}
+
 // -----
 module {
   func.func @torch.aten._scaled_mm$per_tensor_invalid_result_shape(%arg0: !torch.vtensor<[128,128],f8E4M3FN>, %arg1: !torch.vtensor<[128,128],f8E4M3FN>, %arg2: !torch.vtensor<[],f32>, %arg3: !torch.vtensor<[],f32>) -> !torch.vtensor<[128,127],bf16> {
