@@ -4750,13 +4750,9 @@ func.func @torch.aten._scaled_mm$per_row_scales_use_fast_accum(%arg0: !torch.vte
 // CHECK:           %[[NORM_SCALE:.*]] = tosa.cast %[[SCALE_BF16]] : (tensor<4x1xbf16>) -> tensor<4x1xf32>
 // CHECK:           tosa.reciprocal %[[NORM_SCALE]] : (tensor<4x1xf32>) -> tensor<4x1xf32>
 // CHECK:           %[[LHS:.*]] = tosa.cast %{{.*}} : (tensor<4x8xf32>) -> tensor<4x8xf8E4M3FN>
-// CHECK:           %[[MM_MAX_F32:.*]] = tosa.cast %[[MAX]] : (tensor<4x1xbf16>) -> tensor<4x1xf32>
-// CHECK:           %[[MM_SCALE_F32:.*]] = tosa.mul %[[MM_MAX_F32]], %{{.*}}, %{{.*}} : (tensor<4x1xf32>, tensor<1x1xf32>, tensor<1xi8>) -> tensor<4x1xf32>
-// CHECK:           %[[MM_SCALE_BF16:.*]] = tosa.cast %[[MM_SCALE_F32]] : (tensor<4x1xf32>) -> tensor<4x1xbf16>
-// CHECK:           %[[MM_SCALE:.*]] = tosa.cast %[[MM_SCALE_BF16]] : (tensor<4x1xbf16>) -> tensor<4x1xf32>
 // CHECK:           %[[LHS_RESHAPE:.*]] = tosa.reshape %[[LHS]], %{{.*}} : (tensor<4x8xf8E4M3FN>, !tosa.shape<3>) -> tensor<1x4x8xf8E4M3FN>
 // CHECK:           %[[RHS_RESHAPE:.*]] = tosa.reshape %{{.*}}, %{{.*}} : (tensor<8x16xf8E4M3FN>, !tosa.shape<3>) -> tensor<1x8x16xf8E4M3FN>
-// CHECK:           %[[SCALE_RESHAPE:.*]] = tosa.reshape %[[MM_SCALE]], %{{.*}} : (tensor<4x1xf32>, !tosa.shape<3>) -> tensor<1x4x1xf32>
+// CHECK:           %[[SCALE_RESHAPE:.*]] = tosa.reshape %[[NORM_SCALE]], %{{.*}} : (tensor<4x1xf32>, !tosa.shape<3>) -> tensor<1x4x1xf32>
 // CHECK:           %[[RHS_SCALE_RESHAPE:.*]] = tosa.reshape %{{.*}}, %{{.*}} : (tensor<1x16xf32>, !tosa.shape<3>) -> tensor<1x1x16xf32>
 // CHECK:           %[[MATMUL:.*]] = tosa.matmul %[[LHS_RESHAPE]], %[[RHS_RESHAPE]], %{{.*}}, %{{.*}} : (tensor<1x4x8xf8E4M3FN>, tensor<1x8x16xf8E4M3FN>, tensor<1xf8E4M3FN>, tensor<1xf8E4M3FN>) -> tensor<1x4x16xf32>
 // CHECK:           %[[COMBINED_SCALE:.*]] = tosa.mul %[[SCALE_RESHAPE]], %[[RHS_SCALE_RESHAPE]], %{{.*}} : (tensor<1x4x1xf32>, tensor<1x1x16xf32>, tensor<1xi8>) -> tensor<1x4x16xf32>
