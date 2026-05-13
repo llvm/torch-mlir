@@ -217,6 +217,11 @@ func.func private @sdpa_mask0(%arg0: !torch.vtensor<[],si32>, %arg1: !torch.vten
   return %0 : !torch.vtensor<[],i1>
 }
 
+func.func private @sdpa_mask_with_arg(%arg0: !torch.vtensor<[],si32>, %arg1: !torch.vtensor<[],si32>, %arg2: !torch.vtensor<[],si32>, %arg3: !torch.vtensor<[],si32>, %arg4: !torch.vtensor<[2,4,8,8],i1>) -> !torch.vtensor<[],i1> {
+  %0 = torch.aten.ge.Tensor %arg2, %arg3 : !torch.vtensor<[],si32>, !torch.vtensor<[],si32> -> !torch.vtensor<[],i1>
+  return %0 : !torch.vtensor<[],i1>
+}
+
 // CHECK-LABEL: func.func @torch.hop_flex_attention
 func.func @torch.hop_flex_attention (%arg0: !torch.vtensor<[2,4,8,16],f32>, %arg1: !torch.vtensor<[2,4,8,16],f32>, %arg2: !torch.vtensor<[2,4,8,16],f32>) -> (!torch.vtensor<[2,4,8,16],f32>, !torch.vtensor<[2,4,8],f32>, !torch.vtensor<[2,4,8],f32>) {
   %float1.0 = torch.constant.float 1.000000e+00
@@ -228,6 +233,20 @@ func.func @torch.hop_flex_attention (%arg0: !torch.vtensor<[2,4,8,16],f32>, %arg
   // CHECK-SAME: : !torch.vtensor<[2,4,8,16],f32>, !torch.vtensor<[2,4,8,16],f32>, !torch.vtensor<[2,4,8,16],f32>, !torch.float, !torch.bool
   // CHECK-SAME: -> !torch.vtensor<[2,4,8,16],f32>, !torch.vtensor<[2,4,8],f32>
   %output, %logsumexp, %maxscore = torch.hop_flex_attention %arg0, %arg1, %arg2, %float1.0, %false_0, %false_0 {mask_mod_fn = @sdpa_mask0, score_mod_fn = @sdpa_score0} : !torch.vtensor<[2,4,8,16],f32>, !torch.vtensor<[2,4,8,16],f32>, !torch.vtensor<[2,4,8,16],f32>, !torch.float, !torch.bool, !torch.bool -> !torch.vtensor<[2,4,8,16],f32>, !torch.vtensor<[2,4,8],f32>, !torch.vtensor<[2,4,8],f32>
+  return %output, %logsumexp, %maxscore : !torch.vtensor<[2,4,8,16],f32>, !torch.vtensor<[2,4,8],f32>, !torch.vtensor<[2,4,8],f32>
+}
+
+// CHECK-LABEL: func.func @torch.hop_flex_attention_mask_mod_other_buffers
+func.func @torch.hop_flex_attention_mask_mod_other_buffers(%arg0: !torch.vtensor<[2,4,8,16],f32>, %arg1: !torch.vtensor<[2,4,8,16],f32>, %arg2: !torch.vtensor<[2,4,8,16],f32>, %arg3: !torch.vtensor<[2,4,8,8],i1>) -> (!torch.vtensor<[2,4,8,16],f32>, !torch.vtensor<[2,4,8],f32>, !torch.vtensor<[2,4,8],f32>) {
+  %float1.0 = torch.constant.float 1.000000e+00
+  %false_0 = torch.constant.bool false
+  // CHECK: %[[MASK_FLOAT:.*]] = torch.constant.float 1.000000e+00
+  // CHECK: %[[MASK_FALSE:.*]] = torch.constant.bool false
+  // CHECK: torch.hop_flex_attention %arg0, %arg1, %arg2, %[[MASK_FLOAT]], %[[MASK_FALSE]], %[[MASK_FALSE]], mask_mod_other_buffers(%arg3)
+  // CHECK-SAME: {mask_mod_fn = @sdpa_mask_with_arg, score_mod_fn = @sdpa_score0}
+  // CHECK-SAME: : !torch.vtensor<[2,4,8,16],f32>, !torch.vtensor<[2,4,8,16],f32>, !torch.vtensor<[2,4,8,16],f32>, !torch.float, !torch.bool, !torch.bool, mask_mod_other_buffers(!torch.vtensor<[2,4,8,8],i1>)
+  // CHECK-SAME: -> !torch.vtensor<[2,4,8,16],f32>, !torch.vtensor<[2,4,8],f32>, !torch.vtensor<[2,4,8],f32>
+  %output, %logsumexp, %maxscore = torch.hop_flex_attention %arg0, %arg1, %arg2, %float1.0, %false_0, %false_0, mask_mod_other_buffers(%arg3) {mask_mod_fn = @sdpa_mask_with_arg, score_mod_fn = @sdpa_score0} : !torch.vtensor<[2,4,8,16],f32>, !torch.vtensor<[2,4,8,16],f32>, !torch.vtensor<[2,4,8,16],f32>, !torch.float, !torch.bool, !torch.bool, mask_mod_other_buffers(!torch.vtensor<[2,4,8,8],i1>) -> !torch.vtensor<[2,4,8,16],f32>, !torch.vtensor<[2,4,8],f32>, !torch.vtensor<[2,4,8],f32>
   return %output, %logsumexp, %maxscore : !torch.vtensor<[2,4,8,16],f32>, !torch.vtensor<[2,4,8],f32>, !torch.vtensor<[2,4,8],f32>
 }
 

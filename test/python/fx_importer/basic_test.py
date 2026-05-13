@@ -437,6 +437,164 @@ def test_flex_attention_noblock_return_lse():
 
 
 @run
+# CHECK-LABEL: test_flex_attention_mask_mod_other_buffer
+# Check that helper functions are emitted first.
+# CHECK: func.func private @[[SCORE_FN:sdpa_score[0-9]+]](%arg0: !torch.vtensor<[],f32>, %arg1: !torch.vtensor<[],si32>, %arg2: !torch.vtensor<[],si32>, %arg3: !torch.vtensor<[],si32>, %arg4: !torch.vtensor<[],si32>) -> !torch.vtensor<[],f32>
+# CHECK: func.func private @[[MASK_FN:sdpa_mask[0-9]+]](%arg0: !torch.vtensor<[],si32>, %arg1: !torch.vtensor<[],si32>, %arg2: !torch.vtensor<[],si32>, %arg3: !torch.vtensor<[],si32>, %arg4: !torch.vtensor<[4,8,1024,1024],i1>) -> !torch.vtensor<[],i1>
+# Then check the main function.
+# CHECK: func.func @test_flex_attention_mask_mod_other_buffer(%arg0: !torch.vtensor<[4,8,1024,64],f32>, %arg1: !torch.vtensor<[4,8,1024,64],f32>, %arg2: !torch.vtensor<[4,8,1024,64],f32>, %arg3: !torch.vtensor<[4,8,1024,1024],i1>)
+# CHECK-SAME: -> !torch.vtensor<[4,8,1024,64],f32>
+# Validate flex_attention op with a trailing mask_mod_other_buffers operand:
+# CHECK: %[[SCALE:.*]] = torch.constant.float 1.000000e+00
+# CHECK: %[[RETURN_LSE:.*]] = torch.constant.bool false
+# CHECK: %[[RETURN_MAX:.*]] = torch.constant.bool false
+# CHECK: %[[OUTPUT:.*]], %[[LOGSUMEXP:.*]], %[[MAX_SCORES:.*]] = torch.hop_flex_attention %arg0, %arg1, %arg2, %[[SCALE]], %[[RETURN_LSE]], %[[RETURN_MAX]], mask_mod_other_buffers(%arg3) {mask_mod_fn = @[[MASK_FN]], score_mod_fn = @[[SCORE_FN]]}
+# CHECK-SAME: : !torch.vtensor<[4,8,1024,64],f32>, !torch.vtensor<[4,8,1024,64],f32>, !torch.vtensor<[4,8,1024,64],f32>, !torch.float, !torch.bool, !torch.bool, mask_mod_other_buffers(!torch.vtensor<[4,8,1024,1024],i1>)
+# CHECK-SAME: -> !torch.vtensor<[4,8,1024,64],f32>, !torch.vtensor<[4,8,1024],f32>, !torch.vtensor<[4,8,1024],f32>
+# CHECK: return %[[OUTPUT]]
+def test_flex_attention_mask_mod_other_buffer():
+    from torch._higher_order_ops.flex_attention import (
+        flex_attention as flex_attention_hop,
+    )
+    from torch._subclasses.fake_tensor import FakeTensor
+    from torch.nn.attention.flex_attention import BlockMask, _LARGE_SPARSE_BLOCK_SIZE
+    from torch import Tensor
+
+    def _create_empty_block_mask(query: Tensor, key: Tensor, mask_mod):
+        device = query.device
+        return BlockMask.from_kv_blocks(
+            kv_num_blocks=torch.ones([1, 1, 1], dtype=torch.int32, device=device),
+            kv_indices=torch.zeros([1, 1, 1, 1], dtype=torch.int32, device=device),
+            BLOCK_SIZE=_LARGE_SPARSE_BLOCK_SIZE,
+            mask_mod=mask_mod,
+            seq_lengths=(query.shape[-2], key.shape[-2]),
+        )
+
+    def relative_position_bias(
+        score: Tensor,
+        batch: Tensor,
+        head: Tensor,
+        token_q: Tensor,
+        token_kv: Tensor,
+    ) -> Tensor:
+        return torch.tanh(score)
+
+    def explicit_mask(
+        batch: Tensor,
+        head: Tensor,
+        token_q: Tensor,
+        token_kv: Tensor,
+        attn_mask: Tensor,
+    ) -> Tensor:
+        return attn_mask[batch, head, token_q, token_kv]
+
+    class FlexAttention(torch.nn.Module):
+        def __init__(self, block_mask):
+            super().__init__()
+            self.block_mask = block_mask
+
+        def forward(self, q, k, v, attn_mask):
+            output, _, _ = flex_attention_hop(
+                q,
+                k,
+                v,
+                relative_position_bias,
+                self.block_mask.as_tuple(),
+                1.0,
+                {},
+                (),
+                (attn_mask,),
+            )
+            assert isinstance(output, FakeTensor)
+            return output
+
+    B, Hq, Hkv, L, S, E, Ev = 4, 8, 8, 1024, 1024, 64, 64
+    q = torch.ones(B, Hq, L, E)
+    k = torch.ones(B, Hkv, S, E)
+    v = torch.ones(B, Hkv, S, Ev)
+    attn_mask = torch.ones(B, Hq, L, S, dtype=torch.bool)
+    m = fx.export_and_import(
+        FlexAttention(_create_empty_block_mask(q, k, explicit_mask)),
+        q,
+        k,
+        v,
+        attn_mask,
+        func_name="test_flex_attention_mask_mod_other_buffer",
+    )
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_flex_attention_score_mod_other_buffer_unsupported
+# CHECK: score_mod captured buffers are not supported by the torch-mlir flex_attention importer
+def test_flex_attention_score_mod_other_buffer_unsupported():
+    from torch._higher_order_ops.flex_attention import (
+        flex_attention as flex_attention_hop,
+    )
+    from torch._subclasses.fake_tensor import FakeTensor
+    from torch.nn.attention.flex_attention import BlockMask, _LARGE_SPARSE_BLOCK_SIZE
+    from torch import Tensor
+
+    def _create_empty_block_mask(query: Tensor, key: Tensor):
+        device = query.device
+        return BlockMask.from_kv_blocks(
+            kv_num_blocks=torch.ones([1, 1, 1], dtype=torch.int32, device=device),
+            kv_indices=torch.zeros([1, 1, 1, 1], dtype=torch.int32, device=device),
+            BLOCK_SIZE=_LARGE_SPARSE_BLOCK_SIZE,
+            seq_lengths=(query.shape[-2], key.shape[-2]),
+        )
+
+    def relative_position_bias(
+        score: Tensor,
+        batch: Tensor,
+        head: Tensor,
+        token_q: Tensor,
+        token_kv: Tensor,
+        bias: Tensor,
+    ) -> Tensor:
+        return score + bias
+
+    class FlexAttention(torch.nn.Module):
+        def __init__(self, block_mask):
+            super().__init__()
+            self.block_mask = block_mask
+
+        def forward(self, q, k, v, bias):
+            output, _, _ = flex_attention_hop(
+                q,
+                k,
+                v,
+                relative_position_bias,
+                self.block_mask.as_tuple(),
+                1.0,
+                {},
+                (bias,),
+                (),
+            )
+            assert isinstance(output, FakeTensor)
+            return output
+
+    B, Hq, Hkv, L, S, E, Ev = 4, 8, 8, 1024, 1024, 64, 64
+    q = torch.ones(B, Hq, L, E)
+    k = torch.ones(B, Hkv, S, E)
+    v = torch.ones(B, Hkv, S, Ev)
+    bias = torch.ones(())
+    try:
+        fx.export_and_import(
+            FlexAttention(_create_empty_block_mask(q, k)),
+            q,
+            k,
+            v,
+            bias,
+            func_name="test_flex_attention_score_mod_other_buffer_unsupported",
+        )
+    except NotImplementedError as e:
+        print(e)
+    else:
+        raise AssertionError("expected score_mod captured buffers to be unsupported")
+
+
+@run
 # CHECK-LABEL: test_stack_trace
 # CHECK: #loc[[LOC1:.+]] = loc(
 # CHECK: %{{.+}} = torch.aten.add.Tensor {{.+}} loc(#loc[[LOC1]])

@@ -18,6 +18,7 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectResourceBlobManager.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Support/LLVM.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -259,6 +260,29 @@ LogicalResult HigherOrderFlexAttentionOp::verify() {
   }
   if (!isa<Torch::BoolType>(getReturnMaxScores().getType())) {
     return emitError() << "expected return_max_scores to be a bool type";
+  }
+  if (!getMaskModOtherBuffers().empty() && !getMaskModFnAttr()) {
+    return emitError()
+           << "expected mask_mod_fn when mask_mod_other_buffers are provided";
+  }
+  if (auto maskModFnAttr = getMaskModFnAttr()) {
+    auto maskModFn =
+        SymbolTable::lookupNearestSymbolFrom<func::FuncOp>(*this, maskModFnAttr);
+    if (!maskModFn) {
+      return emitError() << "'@" << maskModFnAttr.getValue()
+                         << "' does not reference a valid function";
+    }
+    size_t numMaskModOtherBuffers = getMaskModOtherBuffers().size();
+    unsigned expectedNumInputs = 4 + numMaskModOtherBuffers;
+    unsigned actualNumInputs = maskModFn.getFunctionType().getNumInputs();
+    if (actualNumInputs != expectedNumInputs) {
+      return emitError() << "expected mask_mod_fn to take "
+                         << expectedNumInputs
+                         << " arguments (batch, head, token_q, token_kv plus "
+                         << numMaskModOtherBuffers
+                         << " mask_mod_other_buffers), but got "
+                         << actualNumInputs;
+    }
   }
 
   auto queryType = dyn_cast<ValueTensorType>(query.getType());
