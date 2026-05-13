@@ -423,9 +423,23 @@ public:
     if (failed(materializeFolds(b, single, materialized)))
       return failure();
 
+    // `prim.NumToTensor.Scalar`'s shape function returns rank-0, so build it
+    // with a rank-0 result type. If the original `aten.select.int` produced a
+    // rank-1 `[1]` tensor (as in ONNX→Torch lowerings of `onnx.Gather`),
+    // unsqueeze back to match. The existing `getListFromTensor` already folds
+    // through `unsqueeze(NumToTensor(scalar))`, so downstream propagation
+    // patterns still see straight through the replacement.
     auto resultTy = cast<ValueTensorType>(op.getType());
-    rewriter.replaceOp(
-        op, PrimNumToTensorScalarOp::create(b, resultTy, materialized.front()));
+    auto rank0Ty = rewriter.getType<Torch::ValueTensorType>(
+        ArrayRef<int64_t>({}), resultTy.getDtype());
+    Value rank0 =
+        PrimNumToTensorScalarOp::create(b, rank0Ty, materialized.front());
+    Value result = rank0;
+    if (!resultTy.hasSizes() || !resultTy.getSizes().empty()) {
+      Value zero = Torch::ConstantIntOp::create(b, 0);
+      result = AtenUnsqueezeOp::create(b, resultTy, rank0, zero);
+    }
+    rewriter.replaceOp(op, result);
     return success();
   }
 };
