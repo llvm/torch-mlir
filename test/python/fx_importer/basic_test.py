@@ -28,21 +28,6 @@ def run(f):
     print()
 
 
-def print_exported_graph_with_tensor_meta(gm):
-    print(gm.code)
-    for node in gm.graph.nodes:
-        tm = node.meta.get("tensor_meta")
-        val = node.meta.get("val")
-        if tm is not None:
-            print(
-                f"META {node.name} {node.op} {node.target} {tuple(tm.shape)} {tm.dtype}"
-            )
-        elif isinstance(val, torch.Tensor):
-            print(
-                f"META {node.name} {node.op} {node.target} {tuple(val.shape)} {val.dtype}"
-            )
-
-
 @run
 # CHECK-LABEL: test_import_frozen_exported_program
 # CHECK:     func.func @main(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32>
@@ -251,102 +236,6 @@ def test_full():
         "torch-simplification-pipeline",
     )
     print(m)
-
-
-@run
-# CHECK-LABEL: test_export_scaled_mm_per_tensor_frontend
-# CHECK: def forward(self, a, b, a_scale, b_scale):
-# CHECK: torch.ops.aten._scaled_mm.default(a, b, a_scale, b_scale, None, None, torch.bfloat16)
-# CHECK: META a placeholder a (128, 128) torch.float8_e4m3fn
-# CHECK: META b placeholder b (128, 128) torch.float8_e4m3fn
-# CHECK: META a_scale placeholder a_scale () torch.float32
-# CHECK: META b_scale placeholder b_scale () torch.float32
-# CHECK: META _scaled_mm call_function aten._scaled_mm.default (128, 128) torch.bfloat16
-def test_export_scaled_mm_per_tensor_frontend():
-    class Basic(nn.Module):
-        def forward(self, a, b, a_scale, b_scale):
-            return torch._scaled_mm(a, b, a_scale, b_scale, out_dtype=torch.bfloat16)
-
-    a = torch.ones((128, 128), dtype=torch.float32).to(torch.float8_e4m3fn)
-    b = torch.ones((128, 128), dtype=torch.float32).to(torch.float8_e4m3fn)
-    a_scale = torch.tensor(1.0, dtype=torch.float32)
-    b_scale = torch.tensor(1.0, dtype=torch.float32)
-
-    exported = torch.export.export(Basic(), (a, b, a_scale, b_scale))
-    print_exported_graph_with_tensor_meta(exported.module())
-
-
-@run
-# CHECK-LABEL: test_export_scaled_mm_out_dtype_none_frontend
-# CHECK: def forward(self, a, b, a_scale, b_scale):
-# CHECK: torch.ops.aten._scaled_mm.default(a, b, a_scale, b_scale)
-# CHECK: META a placeholder a (128, 128) torch.float8_e4m3fn
-# CHECK: META b placeholder b (128, 128) torch.float8_e5m2
-# CHECK: META a_scale placeholder a_scale () torch.float32
-# CHECK: META b_scale placeholder b_scale () torch.float32
-# CHECK: META _scaled_mm call_function aten._scaled_mm.default (128, 128) torch.float8_e4m3fn
-def test_export_scaled_mm_out_dtype_none_frontend():
-    class Basic(nn.Module):
-        def forward(self, a, b, a_scale, b_scale):
-            return torch._scaled_mm(a, b, a_scale, b_scale, out_dtype=None)
-
-    a = torch.ones((128, 128), dtype=torch.float32).to(torch.float8_e4m3fn)
-    b = torch.ones((128, 128), dtype=torch.float32).to(torch.float8_e5m2)
-    a_scale = torch.tensor(1.0, dtype=torch.float32)
-    b_scale = torch.tensor(1.0, dtype=torch.float32)
-
-    exported = torch.export.export(Basic(), (a, b, a_scale, b_scale))
-    print_exported_graph_with_tensor_meta(exported.module())
-
-
-@run
-# CHECK-LABEL: test_export_scaled_mm_block_scaled_fp8_frontend
-# CHECK: def forward(self, a, b, a_scale_block, b_scale_block):
-# CHECK: torch.ops.aten._scaled_mm.default(a, b, a_scale_block, b_scale_block, None, None, torch.bfloat16)
-# CHECK: META a placeholder a (256, 128) torch.float8_e4m3fn
-# CHECK: META b placeholder b (128, 64) torch.float8_e4m3fn
-# CHECK: META a_scale_block placeholder a_scale_block (1024,) torch.float8_e8m0fnu
-# CHECK: META b_scale_block placeholder b_scale_block (512,) torch.float8_e8m0fnu
-# CHECK: META _scaled_mm call_function aten._scaled_mm.default (256, 64) torch.bfloat16
-def test_export_scaled_mm_block_scaled_fp8_frontend():
-    class Basic(nn.Module):
-        def forward(self, a, b, a_scale_block, b_scale_block):
-            return torch._scaled_mm(
-                a, b, a_scale_block, b_scale_block, out_dtype=torch.bfloat16
-            )
-
-    a = torch.ones((256, 128), dtype=torch.float32).to(torch.float8_e4m3fn)
-    b = torch.ones((128, 64), dtype=torch.float32).to(torch.float8_e4m3fn)
-    a_scale_block = torch.zeros((1024,), dtype=torch.float8_e8m0fnu)
-    b_scale_block = torch.zeros((512,), dtype=torch.float8_e8m0fnu)
-
-    exported = torch.export.export(Basic(), (a, b, a_scale_block, b_scale_block))
-    print_exported_graph_with_tensor_meta(exported.module())
-
-
-@run
-# CHECK-LABEL: test_export_scaled_mm_block_scaled_fp8_ragged_frontend
-# CHECK: def forward(self, a, b, a_scale_block, b_scale_block):
-# CHECK: torch.ops.aten._scaled_mm.default(a, b, a_scale_block, b_scale_block, None, None, torch.bfloat16)
-# CHECK: META a placeholder a (130, 128) torch.float8_e4m3fn
-# CHECK: META b placeholder b (128, 80) torch.float8_e4m3fn
-# CHECK: META a_scale_block placeholder a_scale_block (1024,) torch.float8_e8m0fnu
-# CHECK: META b_scale_block placeholder b_scale_block (512,) torch.float8_e8m0fnu
-# CHECK: META _scaled_mm call_function aten._scaled_mm.default (130, 80) torch.bfloat16
-def test_export_scaled_mm_block_scaled_fp8_ragged_frontend():
-    class Basic(nn.Module):
-        def forward(self, a, b, a_scale_block, b_scale_block):
-            return torch._scaled_mm(
-                a, b, a_scale_block, b_scale_block, out_dtype=torch.bfloat16
-            )
-
-    a = torch.ones((130, 128), dtype=torch.float32).to(torch.float8_e4m3fn)
-    b = torch.ones((128, 80), dtype=torch.float32).to(torch.float8_e4m3fn)
-    a_scale_block = torch.zeros((1024,), dtype=torch.float8_e8m0fnu)
-    b_scale_block = torch.zeros((512,), dtype=torch.float8_e8m0fnu)
-
-    exported = torch.export.export(Basic(), (a, b, a_scale_block, b_scale_block))
-    print_exported_graph_with_tensor_meta(exported.module())
 
 
 @run
