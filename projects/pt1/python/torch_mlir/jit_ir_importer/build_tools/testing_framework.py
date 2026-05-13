@@ -59,7 +59,9 @@ class TensorOfShape:
     this special treatment.
 
     This class also tracks a dtype of the tensor, since some ops require a
-    specific dtype.
+    specific dtype. When a stride is provided, it is only used to construct the
+    real tensor for testing the upstream op; torch-mlir does not import stride
+    metadata.
     """
 
     def __init__(
