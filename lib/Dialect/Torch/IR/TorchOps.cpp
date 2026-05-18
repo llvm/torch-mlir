@@ -266,8 +266,8 @@ LogicalResult HigherOrderFlexAttentionOp::verify() {
            << "expected mask_mod_fn when mask_mod_other_buffers are provided";
   }
   if (auto maskModFnAttr = getMaskModFnAttr()) {
-    auto maskModFn =
-        SymbolTable::lookupNearestSymbolFrom<func::FuncOp>(*this, maskModFnAttr);
+    auto maskModFn = SymbolTable::lookupNearestSymbolFrom<func::FuncOp>(
+        *this, maskModFnAttr);
     if (!maskModFn) {
       return emitError() << "'@" << maskModFnAttr.getValue()
                          << "' does not reference a valid function";
@@ -276,8 +276,7 @@ LogicalResult HigherOrderFlexAttentionOp::verify() {
     unsigned expectedNumInputs = 4 + numMaskModOtherBuffers;
     unsigned actualNumInputs = maskModFn.getFunctionType().getNumInputs();
     if (actualNumInputs != expectedNumInputs) {
-      return emitError() << "expected mask_mod_fn to take "
-                         << expectedNumInputs
+      return emitError() << "expected mask_mod_fn to take " << expectedNumInputs
                          << " arguments (batch, head, token_q, token_kv plus "
                          << numMaskModOtherBuffers
                          << " mask_mod_other_buffers), but got "
