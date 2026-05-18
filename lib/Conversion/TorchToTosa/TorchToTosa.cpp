@@ -5991,13 +5991,44 @@ LogicalResult ConvertAtenOp<AtenIscloseOp>::matchAndRewriteImpl(
   return success();
 }
 
+static LogicalResult
+rewriteClampAsMinimumMaximumOp(Operation *op, TensorType resultType, Value self,
+                               Value min, Value max,
+                               ConversionPatternRewriter &rewriter) {
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, min).failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, max).failed())
+    return rewriter.notifyMatchFailure(
+        op, "Failed to equalize ranks among operands and result");
+  self = tosa::tosaCastTensorToType(rewriter, self, resultType).value();
+  min = tosa::tosaCastTensorToType(rewriter, min, resultType).value();
+  max = tosa::tosaCastTensorToType(rewriter, max, resultType).value();
+  // max(xi, min_valuei)
+  // Use default NaN Propagation mode "PROPAGATE" for tosa.maximum
+  auto minThresholdCheck = tosa::MaximumOp::create(
+      rewriter, op->getLoc(), resultType, self, min,
+      /*nan_mode=*/
+      tosa::NanPropagationModeAttr::get(rewriter.getContext(),
+                                        tosa::NanPropagationMode::PROPAGATE));
+
+  // yi = min(max(xi, min_valuei), max_valuei)
+  // Use default NaN Propagation mode "PROPAGATE" for tosa.minimum
+  auto result = tosa::MinimumOp::create(
+      rewriter, op->getLoc(), resultType, minThresholdCheck, max,
+      /*nan_mode=*/
+      tosa::NanPropagationModeAttr::get(rewriter.getContext(),
+                                        tosa::NanPropagationMode::PROPAGATE));
+
+  rewriter.replaceOp(op, result);
+  return success();
+}
+
 template <>
 LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewriteImpl(
     AtenClampOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-
+  auto self = adaptor.getSelf();
   // Not a tensor type.
-  auto selfType = dyn_cast<TensorType>(adaptor.getSelf().getType());
+  auto selfType = dyn_cast<TensorType>(self.getType());
   if (!selfType)
     return rewriter.notifyMatchFailure(
         op, "only tensor types input are currently supported");
@@ -6013,7 +6044,6 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewriteImpl(
     return rewriter.notifyMatchFailure(
         op, "only tensor types output are currently supported");
   auto outElemTy = outType.getElementType();
-  Value self = adaptor.getSelf();
   if (selfType != outType) {
     auto castedSelf = tosa::tosaCastTensorToType(rewriter, self, outType);
     if (!castedSelf)
@@ -6055,34 +6085,70 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewriteImpl(
     }
   }
 
-  if (!isa<mlir::FloatType>(outElemTy)) {
-    IntegerAttr minIntAttr, maxIntAttr;
-    if (failed(tosa::getIntegerClampAttrs(rewriter, op, outElemTy, minInt,
-                                          maxInt, minIntAttr, maxIntAttr))) {
-      return failure();
-    }
+  return TypeSwitch<Type, LogicalResult>(outElemTy)
+      .Case<mlir::IntegerType>([&](auto intType) -> LogicalResult {
+        IntegerAttr minIntAttr, maxIntAttr;
+        if (failed(tosa::getIntegerClampAttrs(rewriter, op, outElemTy, minInt,
+                                              maxInt, minIntAttr,
+                                              maxIntAttr))) {
+          return failure();
+        }
+        // tosa.clamp does not support integer tensors wider than 16 bits.
+        //
+        // We use the following formula for 32-bit and 64-bit integers:
+        //    yi = min(max(xi, min_valuei), max_valuei)
+        switch (intType.getWidth()) {
+        case 8:
+        case 16:
+          rewriter.replaceOpWithNewOp<tosa::ClampOp>(
+              op, outType, self, minIntAttr, maxIntAttr,
+              /*nan_mode=*/
+              tosa::NanPropagationModeAttr::get(
+                  rewriter.getContext(), tosa::NanPropagationMode::PROPAGATE));
+          return success();
+        case 32: {
+          int32_t minValue = static_cast<int32_t>(minIntAttr.getInt());
+          int32_t maxValue = static_cast<int32_t>(maxIntAttr.getInt());
+          Value min =
+              tosa::getConstTensor<int32_t>(rewriter, op, minValue, {}).value();
+          Value max =
+              tosa::getConstTensor<int32_t>(rewriter, op, maxValue, {}).value();
+          return rewriteClampAsMinimumMaximumOp(op, outType, self, min, max,
+                                                rewriter);
+        }
+        case 64: {
+          int64_t minValue = static_cast<int64_t>(minIntAttr.getInt());
+          int64_t maxValue = static_cast<int64_t>(maxIntAttr.getInt());
+          Value min =
+              tosa::getConstTensor<int64_t>(rewriter, op, minValue, {}).value();
+          Value max =
+              tosa::getConstTensor<int64_t>(rewriter, op, maxValue, {}).value();
+          return rewriteClampAsMinimumMaximumOp(op, outType, self, min, max,
+                                                rewriter);
+        }
+        default:
+          return rewriter.notifyMatchFailure(op, "Unsupported integer width");
+        }
+      })
+      .Case<mlir::FloatType>([&](auto) -> LogicalResult {
+        FloatAttr minFloatAttr, maxFloatAttr;
+        if (failed(tosa::getFloatClampAttrs(rewriter, op, outElemTy, minFloat,
+                                            maxFloat, minFloatAttr,
+                                            maxFloatAttr))) {
+          return failure();
+        }
 
-    rewriter.replaceOpWithNewOp<tosa::ClampOp>(
-        op, outType, self, minIntAttr, maxIntAttr,
-        /*nan_mode=*/
-        tosa::NanPropagationModeAttr::get(rewriter.getContext(),
-                                          tosa::NanPropagationMode::PROPAGATE));
-  } else {
-    FloatAttr minFloatAttr, maxFloatAttr;
-    if (failed(tosa::getFloatClampAttrs(rewriter, op, outElemTy, minFloat,
-                                        maxFloat, minFloatAttr,
-                                        maxFloatAttr))) {
-      return failure();
-    }
-
-    rewriter.replaceOpWithNewOp<tosa::ClampOp>(
-        op, outType, self, minFloatAttr, maxFloatAttr,
-        /*nan_mode=*/
-        tosa::NanPropagationModeAttr::get(rewriter.getContext(),
-                                          tosa::NanPropagationMode::PROPAGATE));
-  }
-
-  return success();
+        rewriter.replaceOpWithNewOp<tosa::ClampOp>(
+            op, outType, self, minFloatAttr, maxFloatAttr,
+            /*nan_mode=*/
+            tosa::NanPropagationModeAttr::get(
+                rewriter.getContext(), tosa::NanPropagationMode::PROPAGATE));
+        return success();
+      })
+      .Default([&](Type) -> LogicalResult {
+        return rewriter.notifyMatchFailure(op,
+                                           "unsupported clamp element type");
+      });
 }
 
 // Legalization for aten.clamp.Tensor
@@ -6106,6 +6172,8 @@ LogicalResult ConvertAtenOp<AtenClampTensorOp>::matchAndRewriteImpl(
 
   auto resultType =
       dyn_cast<TensorType>(typeConverter->convertType(op.getType()));
+  if (!resultType)
+    return rewriter.notifyMatchFailure(op, "expected tensor result type");
 
   // Get min tensor. If None, there is no lower bound.
   Value min;
@@ -6175,33 +6243,8 @@ LogicalResult ConvertAtenOp<AtenClampTensorOp>::matchAndRewriteImpl(
             });
   }
 
-  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, min).failed() ||
-      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, max).failed())
-    return rewriter.notifyMatchFailure(
-        op, "Failed to equalize ranks among operands and result");
-
-  self = tosa::tosaCastTensorToType(rewriter, self, resultType).value();
-  min = tosa::tosaCastTensorToType(rewriter, min, resultType).value();
-  max = tosa::tosaCastTensorToType(rewriter, max, resultType).value();
-
-  // max(xi, min_valuei)
-  // Use default NaN Propagation mode "PROPAGATE" for tosa.maximum
-  auto minThresholdCheck = tosa::MaximumOp::create(
-      rewriter, op->getLoc(), resultType, self, min,
-      /*nan_mode=*/
-      tosa::NanPropagationModeAttr::get(rewriter.getContext(),
-                                        tosa::NanPropagationMode::PROPAGATE));
-
-  // yi = min(max(xi, min_valuei), max_valuei)
-  // Use default NaN Propagation mode "PROPAGATE" for tosa.minimum
-  auto result = tosa::MinimumOp::create(
-      rewriter, op->getLoc(), resultType, minThresholdCheck, max,
-      /*nan_mode=*/
-      tosa::NanPropagationModeAttr::get(rewriter.getContext(),
-                                        tosa::NanPropagationMode::PROPAGATE));
-
-  rewriter.replaceOp(op, result);
-  return success();
+  return rewriteClampAsMinimumMaximumOp(op, resultType, self, min, max,
+                                        rewriter);
 }
 
 template <>

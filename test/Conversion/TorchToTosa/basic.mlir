@@ -1547,14 +1547,86 @@ func.func @torch.aten.slice.bool_strided(%arg0: !torch.vtensor<[1,64,1],i1>) -> 
 }
 
 // -----
+// CHECK-LABEL:   func.func @torch.aten.clamp.int8(
+// CHECK-SAME:                                %[[VAL_0:.*]]: !torch.vtensor<[1,1,128,128],si8>) -> !torch.vtensor<[1,1,128,128],si8> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,1,128,128],si8> -> tensor<1x1x128x128xi8>
+// CHECK:           %[[VAL_2:.*]] = torch.constant.int 0
+// CHECK:           %[[VAL_3:.*]] = torch.constant.int 64
+// CHECK:           %[[VAL_4:.*]] = tosa.clamp %[[VAL_1]] {max_val = 64 : i8, min_val = 0 : i8} : (tensor<1x1x128x128xi8>) -> tensor<1x1x128x128xi8>
+// CHECK:           %[[VAL_5:.*]] = torch_c.from_builtin_tensor %[[VAL_4]] : tensor<1x1x128x128xi8> -> !torch.vtensor<[1,1,128,128],si8>
+// CHECK:           return %[[VAL_5]] : !torch.vtensor<[1,1,128,128],si8>
+// CHECK:         }
+func.func @torch.aten.clamp.int8(%arg0: !torch.vtensor<[1,1,128,128],si8>) -> !torch.vtensor<[1,1,128,128],si8> {
+  %int0 = torch.constant.int 0
+  %int64 = torch.constant.int 64
+  %0 = torch.aten.clamp %arg0, %int0, %int64 : !torch.vtensor<[1,1,128,128],si8>, !torch.int, !torch.int -> !torch.vtensor<[1,1,128,128],si8>
+  return %0 : !torch.vtensor<[1,1,128,128],si8>
+}
+
+// -----
+// CHECK-LABEL:   func.func @torch.aten.clamp.int32(
+// CHECK-SAME:                                %[[VAL_0:.*]]: !torch.vtensor<[1,1,128,128],si32>) -> !torch.vtensor<[1,1,128,128],si32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,1,128,128],si32> -> tensor<1x1x128x128xi32>
+// CHECK:           %[[VAL_2:.*]] = torch.constant.int 0
+// CHECK:           %[[VAL_3:.*]] = torch.constant.int 511
+// CHECK:           %[[VAL_4:.*]] = "tosa.const"() <{values = dense<0> : tensor<i32>}> : () -> tensor<i32>
+// CHECK:           %[[VAL_5:.*]] = "tosa.const"() <{values = dense<511> : tensor<i32>}> : () -> tensor<i32>
+// CHECK:           %[[VAL_6:.*]] = tosa.const_shape  {values = dense<1> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK:           %[[VAL_7:.*]] = tosa.reshape %[[VAL_4]], %[[VAL_6]] : (tensor<i32>, !tosa.shape<4>) -> tensor<1x1x1x1xi32>
+// CHECK:           %[[VAL_8:.*]] = tosa.const_shape  {values = dense<1> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK:           %[[VAL_9:.*]] = tosa.reshape %[[VAL_5]], %[[VAL_8]] : (tensor<i32>, !tosa.shape<4>) -> tensor<1x1x1x1xi32>
+// CHECK:           %[[VAL_10:.*]] = tosa.maximum %[[VAL_1]], %[[VAL_7]] : (tensor<1x1x128x128xi32>, tensor<1x1x1x1xi32>) -> tensor<1x1x128x128xi32>
+// CHECK:           %[[VAL_11:.*]] = tosa.minimum %[[VAL_10]], %[[VAL_9]] : (tensor<1x1x128x128xi32>, tensor<1x1x1x1xi32>) -> tensor<1x1x128x128xi32>
+// CHECK:           %[[VAL_12:.*]] = torch_c.from_builtin_tensor %[[VAL_11]] : tensor<1x1x128x128xi32> -> !torch.vtensor<[1,1,128,128],si32>
+// CHECK:           return %[[VAL_12]] : !torch.vtensor<[1,1,128,128],si32>
+// CHECK:         }
+func.func @torch.aten.clamp.int32(%arg0: !torch.vtensor<[1,1,128,128],si32>) -> !torch.vtensor<[1,1,128,128],si32> {
+  %int0 = torch.constant.int 0
+  %int511 = torch.constant.int 511
+  %0 = torch.aten.clamp %arg0, %int0, %int511 : !torch.vtensor<[1,1,128,128],si32>, !torch.int, !torch.int -> !torch.vtensor<[1,1,128,128],si32>
+  return %0 : !torch.vtensor<[1,1,128,128],si32>
+}
+
+// -----
+// CHECK-LABEL:   func.func @torch.aten.clamp.int64(
+// CHECK-SAME:                                %[[VAL_0:.*]]: !torch.vtensor<[1,1,128,128],si64>) -> !torch.vtensor<[1,1,128,128],si64> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,1,128,128],si64> -> tensor<1x1x128x128xi64>
+// CHECK:           %[[VAL_2:.*]] = torch.constant.int 0
+// CHECK:           %[[VAL_3:.*]] = torch.constant.int 511
+// CHECK:           %[[VAL_4:.*]] = "tosa.const"() <{values = dense<0> : tensor<i64>}> : () -> tensor<i64>
+// CHECK:           %[[VAL_5:.*]] = "tosa.const"() <{values = dense<511> : tensor<i64>}> : () -> tensor<i64>
+// CHECK:           %[[VAL_6:.*]] = tosa.const_shape  {values = dense<1> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK:           %[[VAL_7:.*]] = tosa.reshape %[[VAL_4]], %[[VAL_6]] : (tensor<i64>, !tosa.shape<4>) -> tensor<1x1x1x1xi64>
+// CHECK:           %[[VAL_8:.*]] = tosa.const_shape  {values = dense<1> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK:           %[[VAL_9:.*]] = tosa.reshape %[[VAL_5]], %[[VAL_8]] : (tensor<i64>, !tosa.shape<4>) -> tensor<1x1x1x1xi64>
+// CHECK:           %[[VAL_10:.*]] = tosa.maximum %[[VAL_1]], %[[VAL_7]] : (tensor<1x1x128x128xi64>, tensor<1x1x1x1xi64>) -> tensor<1x1x128x128xi64>
+// CHECK:           %[[VAL_11:.*]] = tosa.minimum %[[VAL_10]], %[[VAL_9]] : (tensor<1x1x128x128xi64>, tensor<1x1x1x1xi64>) -> tensor<1x1x128x128xi64>
+// CHECK:           %[[VAL_12:.*]] = torch_c.from_builtin_tensor %[[VAL_11]] : tensor<1x1x128x128xi64> -> !torch.vtensor<[1,1,128,128],si64>
+// CHECK:           return %[[VAL_12]] : !torch.vtensor<[1,1,128,128],si64>
+// CHECK:         }
+func.func @torch.aten.clamp.int64(%arg0: !torch.vtensor<[1,1,128,128],si64>) -> !torch.vtensor<[1,1,128,128],si64> {
+  %int0 = torch.constant.int 0
+  %int511 = torch.constant.int 511
+  %0 = torch.aten.clamp %arg0, %int0, %int511 : !torch.vtensor<[1,1,128,128],si64>, !torch.int, !torch.int -> !torch.vtensor<[1,1,128,128],si64>
+  return %0 : !torch.vtensor<[1,1,128,128],si64>
+}
+
+// -----
 // CHECK-LABEL:   func.func @torch.aten.clamp.min_none(
 // CHECK-SAME:                                         %[[VAL_0:.*]]: !torch.vtensor<[1,1,128,128],si64>) -> !torch.vtensor<[1,1,128,128],si64> {
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,1,128,128],si64> -> tensor<1x1x128x128xi64>
 // CHECK:           %[[VAL_2:.*]] = torch.constant.int 0
 // CHECK:           %[[VAL_3:.*]] = torch.constant.none
-// CHECK:           %[[VAL_4:.*]] = tosa.clamp %[[VAL_1]] {max_val = 0 : i64, min_val = -9223372036854775808 : i64} : (tensor<1x1x128x128xi64>) -> tensor<1x1x128x128xi64>
-// CHECK:           %[[VAL_5:.*]] = torch_c.from_builtin_tensor %[[VAL_4]] : tensor<1x1x128x128xi64> -> !torch.vtensor<[1,1,128,128],si64>
-// CHECK:           return %[[VAL_5]] : !torch.vtensor<[1,1,128,128],si64>
+// CHECK:           %[[VAL_4:.*]] = "tosa.const"() <{values = dense<-9223372036854775808> : tensor<i64>}> : () -> tensor<i64>
+// CHECK:           %[[VAL_5:.*]] = "tosa.const"() <{values = dense<0> : tensor<i64>}> : () -> tensor<i64>
+// CHECK:           %[[VAL_6:.*]] = tosa.const_shape  {values = dense<1> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK:           %[[VAL_7:.*]] = tosa.reshape %[[VAL_4]], %[[VAL_6]] : (tensor<i64>, !tosa.shape<4>) -> tensor<1x1x1x1xi64>
+// CHECK:           %[[VAL_8:.*]] = tosa.const_shape  {values = dense<1> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK:           %[[VAL_9:.*]] = tosa.reshape %[[VAL_5]], %[[VAL_8]] : (tensor<i64>, !tosa.shape<4>) -> tensor<1x1x1x1xi64>
+// CHECK:           %[[VAL_10:.*]] = tosa.maximum %[[VAL_1]], %[[VAL_7]] : (tensor<1x1x128x128xi64>, tensor<1x1x1x1xi64>) -> tensor<1x1x128x128xi64>
+// CHECK:           %[[VAL_11:.*]] = tosa.minimum %[[VAL_10]], %[[VAL_9]] : (tensor<1x1x128x128xi64>, tensor<1x1x1x1xi64>) -> tensor<1x1x128x128xi64>
+// CHECK:           %[[VAL_12:.*]] = torch_c.from_builtin_tensor %[[VAL_11]] : tensor<1x1x128x128xi64> -> !torch.vtensor<[1,1,128,128],si64>
+// CHECK:           return %[[VAL_12]] : !torch.vtensor<[1,1,128,128],si64>
 // CHECK:         }
 func.func @torch.aten.clamp.min_none(%arg0: !torch.vtensor<[1,1,128,128],si64>) -> !torch.vtensor<[1,1,128,128],si64> {
   %int0 = torch.constant.int 0
@@ -1569,31 +1641,21 @@ func.func @torch.aten.clamp.min_none(%arg0: !torch.vtensor<[1,1,128,128],si64>) 
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,1,128,128],si64> -> tensor<1x1x128x128xi64>
 // CHECK:           %[[VAL_2:.*]] = torch.constant.int 0
 // CHECK:           %[[VAL_3:.*]] = torch.constant.none
-// CHECK:           %[[VAL_4:.*]] = tosa.clamp %[[VAL_1]] {max_val = 9223372036854775807 : i64, min_val = 0 : i64} : (tensor<1x1x128x128xi64>) -> tensor<1x1x128x128xi64>
-// CHECK:           %[[VAL_5:.*]] = torch_c.from_builtin_tensor %[[VAL_4]] : tensor<1x1x128x128xi64> -> !torch.vtensor<[1,1,128,128],si64>
-// CHECK:           return %[[VAL_5]] : !torch.vtensor<[1,1,128,128],si64>
+// CHECK:           %[[VAL_4:.*]] = "tosa.const"() <{values = dense<0> : tensor<i64>}> : () -> tensor<i64>
+// CHECK:           %[[VAL_5:.*]] = "tosa.const"() <{values = dense<9223372036854775807> : tensor<i64>}> : () -> tensor<i64>
+// CHECK:           %[[VAL_6:.*]] = tosa.const_shape  {values = dense<1> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK:           %[[VAL_7:.*]] = tosa.reshape %[[VAL_4]], %[[VAL_6]] : (tensor<i64>, !tosa.shape<4>) -> tensor<1x1x1x1xi64>
+// CHECK:           %[[VAL_8:.*]] = tosa.const_shape  {values = dense<1> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK:           %[[VAL_9:.*]] = tosa.reshape %[[VAL_5]], %[[VAL_8]] : (tensor<i64>, !tosa.shape<4>) -> tensor<1x1x1x1xi64>
+// CHECK:           %[[VAL_10:.*]] = tosa.maximum %[[VAL_1]], %[[VAL_7]] : (tensor<1x1x128x128xi64>, tensor<1x1x1x1xi64>) -> tensor<1x1x128x128xi64>
+// CHECK:           %[[VAL_11:.*]] = tosa.minimum %[[VAL_10]], %[[VAL_9]] : (tensor<1x1x128x128xi64>, tensor<1x1x1x1xi64>) -> tensor<1x1x128x128xi64>
+// CHECK:           %[[VAL_12:.*]] = torch_c.from_builtin_tensor %[[VAL_11]] : tensor<1x1x128x128xi64> -> !torch.vtensor<[1,1,128,128],si64>
+// CHECK:           return %[[VAL_12]] : !torch.vtensor<[1,1,128,128],si64>
 // CHECK:         }
 func.func @torch.aten.clamp.max_none(%arg0: !torch.vtensor<[1,1,128,128],si64>) -> !torch.vtensor<[1,1,128,128],si64> {
   %int0 = torch.constant.int 0
   %none = torch.constant.none
   %0 = torch.aten.clamp %arg0, %int0, %none : !torch.vtensor<[1,1,128,128],si64>, !torch.int, !torch.none -> !torch.vtensor<[1,1,128,128],si64>
-  return %0 : !torch.vtensor<[1,1,128,128],si64>
-}
-
-// -----
-// CHECK-LABEL:   func.func @torch.aten.clamp(
-// CHECK-SAME:                                %[[VAL_0:.*]]: !torch.vtensor<[1,1,128,128],si64>) -> !torch.vtensor<[1,1,128,128],si64> {
-// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,1,128,128],si64> -> tensor<1x1x128x128xi64>
-// CHECK:           %[[VAL_2:.*]] = torch.constant.int 0
-// CHECK:           %[[VAL_3:.*]] = torch.constant.int 511
-// CHECK:           %[[VAL_4:.*]] = tosa.clamp %[[VAL_1]] {max_val = 511 : i64, min_val = 0 : i64} : (tensor<1x1x128x128xi64>) -> tensor<1x1x128x128xi64>
-// CHECK:           %[[VAL_5:.*]] = torch_c.from_builtin_tensor %[[VAL_4]] : tensor<1x1x128x128xi64> -> !torch.vtensor<[1,1,128,128],si64>
-// CHECK:           return %[[VAL_5]] : !torch.vtensor<[1,1,128,128],si64>
-// CHECK:         }
-func.func @torch.aten.clamp(%arg0: !torch.vtensor<[1,1,128,128],si64>) -> !torch.vtensor<[1,1,128,128],si64> {
-  %int0 = torch.constant.int 0
-  %int511 = torch.constant.int 511
-  %0 = torch.aten.clamp %arg0, %int0, %int511 : !torch.vtensor<[1,1,128,128],si64>, !torch.int, !torch.int -> !torch.vtensor<[1,1,128,128],si64>
   return %0 : !torch.vtensor<[1,1,128,128],si64>
 }
 
