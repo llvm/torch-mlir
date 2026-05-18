@@ -3825,7 +3825,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "IndexPutImpl1DFloatAccumulateModule_basic",
     "IndexPutImpl1DIntAccumulateModule_basic",
     "IndexPutImpl2DFloatAccumulateModule_basic",
-    "IndexPutImpl2DImplicitModule_basic",
     "IndexPutImpl2DIndexModule_basic",
     "IndexPutImpl2DNoneIndexStaticModule_basic",
     "IndexPutImpl3DFloatAccumulateModule_basic",
