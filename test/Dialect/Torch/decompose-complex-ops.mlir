@@ -1089,6 +1089,7 @@ func.func @channel_shuffle(%arg0: !torch.vtensor<[1,8,4,4],f32>) -> !torch.vtens
 func.func @torch.aten.mish$f8E8M0FNU(%arg0: !torch.vtensor<[2,3],f8E8M0FNU>) -> !torch.vtensor<[2,3],f8E8M0FNU> {
   %0 = torch.aten.mish %arg0 : !torch.vtensor<[2,3],f8E8M0FNU> -> !torch.vtensor<[2,3],f8E8M0FNU>
   return %0 : !torch.vtensor<[2,3],f8E8M0FNU>
+}
 
 // -----
 
