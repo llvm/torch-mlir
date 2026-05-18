@@ -6001,10 +6001,25 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewriteImpl(
   if (!selfType)
     return rewriter.notifyMatchFailure(
         op, "only tensor types input are currently supported");
+  auto selfTorchType = dyn_cast<Torch::BaseTensorType>(op.getSelf().getType());
+  if (selfTorchType && selfTorchType.getDtype().isUnsignedInteger()) {
+    return rewriter.notifyMatchFailure(
+        op, "unsigned integer clamp is not currently supported");
+  }
 
   auto outType =
       dyn_cast<TensorType>(getTypeConverter()->convertType(op.getType()));
+  if (!outType)
+    return rewriter.notifyMatchFailure(
+        op, "only tensor types output are currently supported");
   auto outElemTy = outType.getElementType();
+  Value self = adaptor.getSelf();
+  if (selfType != outType) {
+    auto castedSelf = tosa::tosaCastTensorToType(rewriter, self, outType);
+    if (!castedSelf)
+      return rewriter.notifyMatchFailure(op, "failed to cast self");
+    self = *castedSelf;
+  }
 
   std::optional<int64_t> minInt;
   std::optional<double> minFloat;
@@ -6048,7 +6063,7 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewriteImpl(
     }
 
     rewriter.replaceOpWithNewOp<tosa::ClampOp>(
-        op, outType, adaptor.getSelf(), minIntAttr, maxIntAttr,
+        op, outType, self, minIntAttr, maxIntAttr,
         /*nan_mode=*/
         tosa::NanPropagationModeAttr::get(rewriter.getContext(),
                                           tosa::NanPropagationMode::PROPAGATE));
@@ -6061,7 +6076,7 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewriteImpl(
     }
 
     rewriter.replaceOpWithNewOp<tosa::ClampOp>(
-        op, outType, adaptor.getSelf(), minFloatAttr, maxFloatAttr,
+        op, outType, self, minFloatAttr, maxFloatAttr,
         /*nan_mode=*/
         tosa::NanPropagationModeAttr::get(rewriter.getContext(),
                                           tosa::NanPropagationMode::PROPAGATE));

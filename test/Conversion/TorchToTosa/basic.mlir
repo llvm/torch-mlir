@@ -1615,6 +1615,34 @@ func.func @torch.aten.clamp.float(%arg0: !torch.vtensor<[1,1,128,128],f32>) -> !
 }
 
 // -----
+// CHECK-LABEL:   func.func @torch.aten.clamp.promote_int_input_to_float_result(
+// CHECK-SAME:                                                                    %[[VAL_0:.*]]: !torch.vtensor<[1,2500],si64>) -> !torch.vtensor<[1,2500],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,2500],si64> -> tensor<1x2500xi64>
+// CHECK:           %[[VAL_2:.*]] = torch.constant.float 1.500000e+00
+// CHECK:           %[[VAL_3:.*]] = torch.constant.none
+// CHECK:           %[[VAL_4:.*]] = tosa.cast %[[VAL_1]] : (tensor<1x2500xi64>) -> tensor<1x2500xf32>
+// CHECK:           %[[VAL_5:.*]] = tosa.clamp %[[VAL_4]] {max_val = 3.40282347E+38 : f32, min_val = 1.500000e+00 : f32} : (tensor<1x2500xf32>) -> tensor<1x2500xf32>
+// CHECK:           %[[VAL_6:.*]] = torch_c.from_builtin_tensor %[[VAL_5]] : tensor<1x2500xf32> -> !torch.vtensor<[1,2500],f32>
+// CHECK:           return %[[VAL_6]] : !torch.vtensor<[1,2500],f32>
+// CHECK:         }
+func.func @torch.aten.clamp.promote_int_input_to_float_result(%arg0: !torch.vtensor<[1,2500],si64>) -> !torch.vtensor<[1,2500],f32> {
+  %fp_min = torch.constant.float 1.500000e+00
+  %none = torch.constant.none
+  %0 = torch.aten.clamp %arg0, %fp_min, %none : !torch.vtensor<[1,2500],si64>, !torch.float, !torch.none -> !torch.vtensor<[1,2500],f32>
+  return %0 : !torch.vtensor<[1,2500],f32>
+}
+
+// -----
+
+func.func @torch.aten.clamp.unsigned_input(%arg0: !torch.vtensor<[1,2500],ui8>) -> !torch.vtensor<[1,2500],ui8> {
+  %int1 = torch.constant.int 1
+  %none = torch.constant.none
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.clamp' that was explicitly marked illegal}}
+  %0 = torch.aten.clamp %arg0, %int1, %none : !torch.vtensor<[1,2500],ui8>, !torch.int, !torch.none -> !torch.vtensor<[1,2500],ui8>
+  return %0 : !torch.vtensor<[1,2500],ui8>
+}
+
+// -----
 // CHECK-LABEL:   func.func @torch.aten.masked_fill.Scalar(
 // CHECK-SAME:                                             %[[VAL_0:.*]]: !torch.vtensor<[1,12,128,128],f32>,
 // CHECK-SAME:                                             %[[VAL_1:.*]]: !torch.vtensor<[1,1,128,128],i1>) -> !torch.vtensor<[1,12,128,128],f32> {

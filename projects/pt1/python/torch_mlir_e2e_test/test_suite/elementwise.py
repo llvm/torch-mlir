@@ -1815,6 +1815,29 @@ def ElementwiseClampModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseClampIntToFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int64, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.clamp(x, min=-2.5, max=2.5)
+
+
+@register_test_case(module_factory=lambda: ElementwiseClampIntToFloatModule())
+def ElementwiseClampIntToFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 5, low=-10, high=10))
+
+
+# ==============================================================================
+
+
 class ElementwiseClampBFloat16Module(torch.nn.Module):
     def __init__(self):
         super().__init__()
