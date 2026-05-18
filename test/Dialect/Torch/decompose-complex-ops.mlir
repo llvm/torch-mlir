@@ -1089,4 +1089,29 @@ func.func @channel_shuffle(%arg0: !torch.vtensor<[1,8,4,4],f32>) -> !torch.vtens
 func.func @torch.aten.mish$f8E8M0FNU(%arg0: !torch.vtensor<[2,3],f8E8M0FNU>) -> !torch.vtensor<[2,3],f8E8M0FNU> {
   %0 = torch.aten.mish %arg0 : !torch.vtensor<[2,3],f8E8M0FNU> -> !torch.vtensor<[2,3],f8E8M0FNU>
   return %0 : !torch.vtensor<[2,3],f8E8M0FNU>
+
+// -----
+
+
+// CHECK-LABEL: func.func @repeat_mixed_dims_broadcast_singletons
+// CHECK-SAME: (%[[ARG0:.*]]: !torch.vtensor<[1,2,1],f32>) -> !torch.vtensor<[3,8,5],f32>
+// CHECK-DAG: %[[CNEG1:.*]] = torch.constant.int -1
+// CHECK-DAG: %[[C1:.*]] = torch.constant.int 1
+// CHECK-DAG: %[[C2:.*]] = torch.constant.int 2
+// CHECK-DAG: %[[C3:.*]] = torch.constant.int 3
+// CHECK-DAG: %[[C4:.*]] = torch.constant.int 4
+// CHECK-DAG: %[[C5:.*]] = torch.constant.int 5
+// CHECK: %[[UNSQUEEZE:.*]] = torch.aten.unsqueeze %[[ARG0]], %[[C1]] : !torch.vtensor<[1,2,1],f32>, !torch.int -> !torch.vtensor<[1,1,2,1],f32>
+// CHECK: %[[SHAPE:.*]] = torch.prim.ListConstruct %[[C3]], %[[C4]], %[[C2]], %[[C5]] : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK: %[[BROADCAST:.*]] = torch.aten.broadcast_to %[[UNSQUEEZE]], %[[SHAPE]] : !torch.vtensor<[1,1,2,1],f32>, !torch.list<int> -> !torch.vtensor<[3,4,2,5],f32>
+// CHECK: %[[VIEW_SHAPE:.*]] = torch.prim.ListConstruct %[[C3]], %[[CNEG1]], %[[C5]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK: %[[VIEW:.*]] = torch.aten.view %[[BROADCAST]], %[[VIEW_SHAPE]] : !torch.vtensor<[3,4,2,5],f32>, !torch.list<int> -> !torch.vtensor<[3,8,5],f32>
+// CHECK: return %[[VIEW]] : !torch.vtensor<[3,8,5],f32>
+func.func @repeat_mixed_dims_broadcast_singletons(%arg0: !torch.vtensor<[1,2,1],f32>) -> !torch.vtensor<[3,8,5],f32> {
+  %int3 = torch.constant.int 3
+  %int4 = torch.constant.int 4
+  %int5 = torch.constant.int 5
+  %0 = torch.prim.ListConstruct %int3, %int4, %int5 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.repeat %arg0, %0 : !torch.vtensor<[1,2,1],f32>, !torch.list<int> -> !torch.vtensor<[3,8,5],f32>
+  return %1 : !torch.vtensor<[3,8,5],f32>
 }
