@@ -115,6 +115,49 @@ static bool isSupportedStaticScaledMmScaleElementType(Type type) {
   return type.isF32() || type.isF16() || type.isBF16();
 }
 
+static constexpr int64_t kScaledMmOutputAlignment = 16;
+
+static int64_t roundUpToMultiple(int64_t value, int64_t alignment) {
+  return ((value + alignment - 1) / alignment) * alignment;
+}
+
+static FailureOr<Value> padLastDimWithZeros(Value input, int64_t paddedLastDim,
+                                            ConversionPatternRewriter &rewriter,
+                                            Location loc) {
+  auto inputTy = dyn_cast<RankedTensorType>(input.getType());
+  if (!inputTy || !inputTy.hasStaticShape())
+    return failure();
+
+  int64_t rank = inputTy.getRank();
+  if (rank == 0)
+    return failure();
+
+  int64_t lastDim = inputTy.getDimSize(rank - 1);
+  if (lastDim == paddedLastDim)
+    return input;
+  if (lastDim > paddedLastDim)
+    return failure();
+
+  SmallVector<int64_t> paddedShape(inputTy.getShape().begin(),
+                                   inputTy.getShape().end());
+  paddedShape[rank - 1] = paddedLastDim;
+
+  SmallVector<int64_t> pads(2 * rank, 0);
+  pads[2 * (rank - 1) + 1] = paddedLastDim - lastDim;
+  Value padsConst = tosa::getTosaConstShape(rewriter, loc, pads);
+
+  auto padValueOr = tosa::createZeroPointTensor(
+      rewriter, loc, inputTy.getElementType(), /*zeroPoint=*/0);
+  if (!padValueOr)
+    return failure();
+
+  auto paddedTy = RankedTensorType::get(makeShapeLLVMCompatible(paddedShape),
+                                        inputTy.getElementType());
+  return tosa::PadOp::create(rewriter, loc, paddedTy, input, padsConst,
+                             *padValueOr)
+      .getResult();
+}
+
 static std::optional<SmallVector<int64_t>>
 getStaticScaledMmBatchedScaleShape(RankedTensorType scaleTy, int64_t m,
                                    int64_t n, bool isLhsScale) {
@@ -293,16 +336,29 @@ static LogicalResult rewriteScaledMmToMatMulOp(
     RankedTensorType scaleBTy, RankedTensorType resultTy, int64_t m, int64_t k,
     int64_t n, ConversionPatternRewriter &rewriter, Location loc) {
   auto f32Ty = rewriter.getF32Type();
+  int64_t paddedN = roundUpToMultiple(n, kScaledMmOutputAlignment);
+  bool needsOutputPadding = paddedN != n;
+
+  if (needsOutputPadding) {
+    FailureOr<Value> paddedRhsOr =
+        padLastDimWithZeros(rhs, paddedN, rewriter, loc);
+    if (failed(paddedRhsOr))
+      return rewriter.notifyMatchFailure(
+          op, "failed to pad aten._scaled_mm rhs output dimension");
+    rhs = *paddedRhsOr;
+  }
+
   auto batchedLhsTy = RankedTensorType::get({1, m, k}, lhsTy.getElementType());
-  auto batchedRhsTy = RankedTensorType::get({1, k, n}, rhsTy.getElementType());
+  auto batchedRhsTy =
+      RankedTensorType::get({1, k, paddedN}, rhsTy.getElementType());
   lhs =
       tosa::ReshapeOp::create(rewriter, loc, batchedLhsTy, lhs,
                               tosa::getTosaConstShape(rewriter, loc, {1, m, k}))
           .getResult();
-  rhs =
-      tosa::ReshapeOp::create(rewriter, loc, batchedRhsTy, rhs,
-                              tosa::getTosaConstShape(rewriter, loc, {1, k, n}))
-          .getResult();
+  rhs = tosa::ReshapeOp::create(
+            rewriter, loc, batchedRhsTy, rhs,
+            tosa::getTosaConstShape(rewriter, loc, {1, k, paddedN}))
+            .getResult();
 
   auto scaleAF32Ty = RankedTensorType::get(
       makeShapeLLVMCompatible(scaleATy.getShape()), f32Ty);
@@ -322,16 +378,29 @@ static LogicalResult rewriteScaledMmToMatMulOp(
                                        "scales to be scalar, [1], lhs [M], or "
                                        "rhs [N]");
 
-  auto batchedScaleATy = RankedTensorType::get(*batchedScaleAShape, f32Ty);
-  auto batchedScaleBTy = RankedTensorType::get(*batchedScaleBShape, f32Ty);
+  SmallVector<int64_t> batchedScaleAShapeVec = *batchedScaleAShape;
+  SmallVector<int64_t> batchedScaleBShapeVec = *batchedScaleBShape;
+
+  auto batchedScaleATy = RankedTensorType::get(batchedScaleAShapeVec, f32Ty);
+  auto batchedScaleBTy = RankedTensorType::get(batchedScaleBShapeVec, f32Ty);
   scaleA = tosa::ReshapeOp::create(
                rewriter, loc, batchedScaleATy, scaleA,
-               tosa::getTosaConstShape(rewriter, loc, *batchedScaleAShape))
+               tosa::getTosaConstShape(rewriter, loc, batchedScaleAShapeVec))
                .getResult();
   scaleB = tosa::ReshapeOp::create(
                rewriter, loc, batchedScaleBTy, scaleB,
-               tosa::getTosaConstShape(rewriter, loc, *batchedScaleBShape))
+               tosa::getTosaConstShape(rewriter, loc, batchedScaleBShapeVec))
                .getResult();
+
+  if (needsOutputPadding && batchedScaleBShapeVec[2] == n) {
+    FailureOr<Value> paddedScaleBOr =
+        padLastDimWithZeros(scaleB, paddedN, rewriter, loc);
+    if (failed(paddedScaleBOr))
+      return rewriter.notifyMatchFailure(
+          op, "failed to pad aten._scaled_mm rhs channel scale");
+    scaleB = *paddedScaleBOr;
+    batchedScaleBShapeVec[2] = paddedN;
+  }
 
   auto zeroPointAOr =
       tosa::createZeroPointTensor(rewriter, loc, lhsTy.getElementType(), 0);
@@ -341,14 +410,14 @@ static LogicalResult rewriteScaledMmToMatMulOp(
     return rewriter.notifyMatchFailure(
         op, "failed to materialize FP8 zero point for matmul");
 
-  auto matmulTy = RankedTensorType::get({1, m, n}, f32Ty);
+  auto matmulTy = RankedTensorType::get({1, m, paddedN}, f32Ty);
   Value matmul = tosa::MatMulOp::create(rewriter, loc, matmulTy, lhs, rhs,
                                         *zeroPointAOr, *zeroPointBOr)
                      .getResult();
 
   auto combinedScaleTy = RankedTensorType::get(
-      {1, std::max((*batchedScaleAShape)[1], (*batchedScaleBShape)[1]),
-       std::max((*batchedScaleAShape)[2], (*batchedScaleBShape)[2])},
+      {1, std::max(batchedScaleAShapeVec[1], batchedScaleBShapeVec[1]),
+       std::max(batchedScaleAShapeVec[2], batchedScaleBShapeVec[2])},
       f32Ty);
   Value combinedScale =
       tosa::createMulOpAndCast(rewriter, op, combinedScaleTy, scaleA, scaleB,
@@ -356,6 +425,15 @@ static LogicalResult rewriteScaledMmToMatMulOp(
   Value scaledMatmul =
       tosa::createMulOpAndCast(rewriter, op, matmulTy, matmul, combinedScale,
                                /*shift=*/0);
+
+  if (needsOutputPadding) {
+    auto slicedTy = RankedTensorType::get({1, m, n}, f32Ty);
+    scaledMatmul =
+        tosa::SliceOp::create(rewriter, loc, slicedTy, scaledMatmul,
+                              tosa::getTosaConstShape(rewriter, loc, {0, 0, 0}),
+                              tosa::getTosaConstShape(rewriter, loc, {1, m, n}))
+            .getResult();
+  }
 
   auto reshapedTy = RankedTensorType::get(resultTy.getShape(), f32Ty);
   Value result = tosa::ReshapeOp::create(
