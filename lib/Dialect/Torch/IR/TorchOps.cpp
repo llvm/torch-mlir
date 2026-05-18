@@ -6388,11 +6388,6 @@ LogicalResult Aten_ScaledMmOp::verify() {
     return emitOpError("expected mat2 contracting dimension to be divisible "
                        "by 16, but got ")
            << mat2K;
-  if (n != kUnknownSize && n % 16 != 0)
-    return emitOpError("expected mat2 output dimension to be divisible by 16, "
-                       "but got ")
-           << n;
-
   if (!scaleAType.hasDtype() || !scaleBType.hasDtype() ||
       !scaleAType.hasSizes() || !scaleBType.hasSizes() ||
       !selfType.areAllSizesKnown() || !mat2Type.areAllSizesKnown())
