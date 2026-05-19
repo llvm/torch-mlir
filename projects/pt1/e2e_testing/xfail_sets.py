@@ -23,6 +23,7 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "InterpolateStaticModule_scales_bilinear_align_corners",
     "InterpolateStaticModule_sizes_bilinear_no_align_corners",
     "InterpolateDynamicModule_scales_recompute_bilinear",
+    "ElementwiseAtanTensorBFloat16SpecialValuesModule_basic",
     "ElementwiseFloatTensorGtIntTensorModule_basic",
     # TODO: The values are extremely close to the golden values, but the test fails because of strict rtol/atol.
     "AtenInstanceNormModuleFp16_basic",
@@ -122,6 +123,7 @@ TORCHDYNAMO_XFAIL_SET = {
     # %6:4 = torch.operator "aten._embedding_bag_forward_only"(%1, %3, %5, %false, %int0, %false, %none, %false, %int-1) : (!torch.tensor<*,f32>, !torch.tensor<*,si64>, !torch.tensor<*,si64>, !torch.bool, !torch.int, !torch.bool, !torch.none, !torch.bool, !torch.int) -> (!torch.tensor, !torch.tensor, !torch.tensor, !torch.tensor)
     # See also: https://github.com/pytorch/torchdynamo/issues/327
     "AtenEmbeddingBagSumExample_basic",
+    "ElementwiseAtanTensorBFloat16SpecialValuesModule_basic",
     # error: unsupported by backend contract: tensor with unknown rank
     # note: see current operation: %1 = "torch.tensor_static_info_cast"(%arg0) : (!torch.vtensor<[5,4,3,2,1],f32>) -> !torch.vtensor<*,f32>
     "ElementwisePreluModule_basic",
@@ -443,6 +445,7 @@ FX_IMPORTER_XFAIL_SET = {
     "CumprodModule_basic",
     "DeformConv2D_basic",
     "DivIntModule_basic",
+    "ElementwiseAtanTensorBFloat16SpecialValuesModule_basic",
     "ElementwiseDequantizePerChannelModule_basic",
     "ElementwiseDequantizePerTensorModule_basic",
     "ElementwiseQuantizePerTensorModule_basic",
@@ -548,6 +551,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenPolarFloatModule_basic",
     "DiagonalWithStaticShapeModule_basic",
     "EinsumStaticDiagonalDimensionModule_basic",
+    "ElementwiseAtanTensorBFloat16SpecialValuesModule_basic",
     "ElementwiseRemainderScalarModule_Bool_NegativeDivisor_basic",
     "ElementwiseRemainderScalarModule_Float_NegativeDividend_basic",
     "ElementwiseRemainderScalarModule_Float_NegativeDivisor_basic",
@@ -2763,6 +2767,7 @@ ONNX_XFAIL_SET = {
     "BroadcastDynamicDimModule_basic",
     "ElementwiseAtan2TensorIntModule_basic",
     "ElementwiseAtan2TensorIntStaticModule_basic",
+    "ElementwiseAtanTensorBFloat16SpecialValuesModule_basic",
     "ElementwiseAtenFloorDivideScalarNegativeModule_basic",
     "ElementwiseAtenFloorDivideTensorNegativeModule_basic",
     "ElementwiseLog10IntModule_basic",
@@ -3623,6 +3628,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "LayerNormManualFwAndBwModule_basic",
     "SelfAttentionFwAndBwModule_basic",
     "ElementwiseCopysignModule_basic",
+    "ElementwiseAtanTensorBFloat16SpecialValuesModule_basic",
     "ElementwiseSignbitModule_basic",
     "Aten_TrilinearModuleVaryingRanks_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
@@ -4084,6 +4090,7 @@ ONNX_TOSA_XFAIL_SET = {
     "ElementwiseLogAddExp2BroadcastModule_basic",
     "FloatPowerTensorTensorStaticModule_basic",
     "IsInfiniteModule_basic",
+    "ElementwiseAtanTensorBFloat16SpecialValuesModule_basic",
     "ElementwiseCopysignModule_basic",
     "ElementwiseFracModule_basic",
     "ElementwiseLdexpModule_basic",
