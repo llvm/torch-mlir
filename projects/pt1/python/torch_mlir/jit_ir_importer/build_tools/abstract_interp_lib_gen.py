@@ -4187,9 +4187,12 @@ def aten〇logical_not〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 def aten〇isclose〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int], rtol: float = 1.0000000000000001e-05, atol: float = 1e-08, equal_nan: bool = False) -> int:
     return torch.bool
 
-@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(3, 4, 32, 16), (3, 4, 32, 16), (3, 4, 32, 16)]))
+@check_dtype_function(_check_tensors_with_the_same_dtype(
+    tensor_shapes=[(3, 4, 32, 16), (3, 4, 32, 16), (3, 4, 32, 16)],
+    error_types={*all_integer_dtypes()}))
 def aten〇scaled_dot_product_attention〡dtype(query_rank_dtype: Tuple[int, int], key_rank_dtype: Tuple[int, int], value_rank_dtype: Tuple[int, int], attn_mask_rank_dtype: Optional[Tuple[int, int]] = None, dropout_p: float = 0., is_causal: bool = False, scale: Optional[float] = None, enable_gqa: bool = False) -> int:
     _, query_dtype = query_rank_dtype
+    assert not is_integer_dtype(query_dtype)
     return query_dtype
 
 @check_dtype_function(_check_two_tensor_op())
@@ -4497,20 +4500,19 @@ def aten〇bitwise_left_shift〇Tensor〡dtype(self_rank_dtype: Tuple[int, int],
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 4), (2, 4, 3)]) +
     # Different width
-    [Invocation(TensorOfShape(2, 3, 4, dtype=torch.float64),
-                TensorOfShape(2, 4, 3, dtype=torch.float32)),
+    [ErrorInvocation(TensorOfShape(2, 3, 4, dtype=torch.float64),
+                     TensorOfShape(2, 4, 3, dtype=torch.float32)),
      # Two f16 types
-     Invocation(TensorOfShape(2, 3, 4, dtype=torch.float16),
-                TensorOfShape(2, 4, 3, dtype=torch.bfloat16)),
+     ErrorInvocation(TensorOfShape(2, 3, 4, dtype=torch.float16),
+                     TensorOfShape(2, 4, 3, dtype=torch.bfloat16)),
      # Different type
-     Invocation(TensorOfShape(2, 3, 4, dtype=torch.float32),
-                TensorOfShape(2, 4, 3, dtype=torch.int32))])
+     ErrorInvocation(TensorOfShape(2, 3, 4, dtype=torch.float32),
+                     TensorOfShape(2, 4, 3, dtype=torch.int32))])
 def aten〇bmm〡dtype(self_rank_dtype: Tuple[int, int], mat2_rank_dtype: Tuple[int, int]) -> int:
     mat2_rank, mat2_dtype = mat2_rank_dtype
     self_rank, self_dtype = self_rank_dtype
-    mat2_priority = get_priority_of_dtype(mat2_dtype)
-    self_priority = get_priority_of_dtype(self_dtype)
-    return mat2_dtype if mat2_priority < self_priority else self_dtype
+    assert self_dtype == mat2_dtype
+    return self_dtype
 
 @check_dtype_function(_check_two_tensor_op(input_error_types={torch.complex64, torch.complex128}, output_error_types={torch.bool}))
 def aten〇floor_divide〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
@@ -4604,17 +4606,20 @@ def aten〇dot〡dtype(self_rank_dtype: Tuple[int, int], tensor_rank_dtype: Tupl
 @check_dtype_function(
     _check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 4), (2, 4, 3)]) +
     # Different width
-    [Invocation(TensorOfShape(2, 3, 4, dtype=torch.float64),
-                TensorOfShape(2, 4, 3, dtype=torch.float32)),
+    [ErrorInvocation(TensorOfShape(2, 3, 4, dtype=torch.float64),
+                     TensorOfShape(2, 4, 3, dtype=torch.float32)),
      # Two f16 types
-     Invocation(TensorOfShape(2, 3, 4, dtype=torch.float16),
-                TensorOfShape(2, 4, 3, dtype=torch.bfloat16)),
+     ErrorInvocation(TensorOfShape(2, 3, 4, dtype=torch.float16),
+                     TensorOfShape(2, 4, 3, dtype=torch.bfloat16)),
      # Different type
-     Invocation(TensorOfShape(2, 3, 4, dtype=torch.float32),
-                TensorOfShape(2, 4, 3, dtype=torch.int32))])
+     ErrorInvocation(TensorOfShape(2, 3, 4, dtype=torch.float32),
+                     TensorOfShape(2, 4, 3, dtype=torch.int32))])
 def aten〇matmul〡dtype(self_rank_dtype: Tuple[int, int], other_rank_dtype: Tuple[int, int]) -> int:
     other_rank, other_dtype = other_rank_dtype
     self_rank, self_dtype = self_rank_dtype
+    if other_rank > 2 or (self_rank == 1 and other_rank == 1):
+        assert self_dtype == other_dtype
+        return self_dtype
     other_priority = get_priority_of_dtype(other_dtype)
     self_priority = get_priority_of_dtype(self_dtype)
     return other_dtype if other_priority < self_priority else self_dtype
@@ -6369,4 +6374,3 @@ def _create_argparse() -> argparse.ArgumentParser:
 
 if __name__ == "__main__":
     main(_create_argparse().parse_args())
-
