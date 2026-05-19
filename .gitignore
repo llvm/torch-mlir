@@ -22,7 +22,7 @@ __pycache__
 # Pip artifacts.
 *.egg-info
 *.whl
-/wheelhouse
+wheelhouse/
 
 # Bazel
 bazel-*

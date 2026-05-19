@@ -10,6 +10,22 @@ blacklist:
 - size
 - copy_
 
+# PyTorch API changes: return type changed from Tensor to tuple/void, breaks codegen
+- rrelu_with_noise
+- _assert_tensor_metadata
+
+# No Value or Device type in signature (only Scalar/str/int), unsupported by LTC codegen
+- _assert_scalar
+- _print
+- sym_constrain_range
+- sym_constrain_range_for_size
+- _use_cudnn_rnn_flatten_weight
+- is_vulkan_available
+- _nnpack_available
+- result_type.Scalar_Scalar
+- can_cast
+- promote_types
+
 # Disabled for consistency with TS backend
 - lift_fresh_copy
 - rsub
