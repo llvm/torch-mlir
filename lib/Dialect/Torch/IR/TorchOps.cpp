@@ -6355,9 +6355,6 @@ LogicalResult Aten_ScaledMmOp::verify() {
   auto scaleAType = cast<BaseTensorType>(getScaleA().getType());
   auto scaleBType = cast<BaseTensorType>(getScaleB().getType());
 
-  if (selfType.hasDtype() && !isScaledMmDataDtype(selfType.getDtype()))
-    return emitOpError("expected self to have an FP8 dtype, but got ")
-           << selfType.getDtype();
   if (mat2Type.hasDtype() && !isScaledMmDataDtype(mat2Type.getDtype()))
     return emitOpError("expected mat2 to have an FP8 dtype, but got ")
            << mat2Type.getDtype();
@@ -6398,16 +6395,20 @@ LogicalResult Aten_ScaledMmOp::verify() {
   ArrayRef<int64_t> scaleAShape = scaleAType.getSizes();
   ArrayRef<int64_t> scaleBShape = scaleBType.getSizes();
 
+  bool hasBlockwiseScales = scaleADtype == scaleBDtype &&
+                            isScaledMmBlockwiseScaleDtype(scaleADtype);
+  if (selfType.hasDtype() && !isScaledMmDataDtype(selfType.getDtype()) &&
+      !hasBlockwiseScales)
+    return emitOpError("expected self to have an FP8 dtype, but got ")
+           << selfType.getDtype();
+
   int64_t scaleANumel;
   int64_t scaleBNumel;
   if (!getNumel(scaleAShape, scaleANumel) ||
       !getNumel(scaleBShape, scaleBNumel))
     return success();
 
-  if (scaleANumel == 1 || scaleBNumel == 1) {
-    if (scaleANumel != 1 || scaleBNumel != 1)
-      return emitOpError("expected scale_a and scale_b to both be scalar for "
-                         "tensorwise scaling");
+  if (scaleANumel == 1 && scaleBNumel == 1) {
     if (!isScaledMmTensorwiseOrRowwiseScaleDtype(scaleADtype) ||
         !isScaledMmTensorwiseOrRowwiseScaleDtype(scaleBDtype))
       return emitOpError(
@@ -6415,8 +6416,7 @@ LogicalResult Aten_ScaledMmOp::verify() {
     return success();
   }
 
-  if (scaleADtype == scaleBDtype &&
-      isScaledMmBlockwiseScaleDtype(scaleADtype)) {
+  if (hasBlockwiseScales) {
     int64_t blockSizeK = isa<Float8E4M3FNType>(scaleADtype) ? 16 : 32;
     int64_t numKBlocks = ceilDivPositive(k, blockSizeK);
     int64_t paddedNumKBlocks = ceilDivPositive(numKBlocks, 4) * 4;
@@ -6438,6 +6438,11 @@ LogicalResult Aten_ScaledMmOp::verify() {
       !isScaledMmTensorwiseOrRowwiseScaleDtype(scaleBDtype))
     return emitOpError("expected non-tensorwise, non-blockwise scale_a and "
                        "scale_b to have f32 dtype");
+
+  if (scaleANumel == 1 && hasShape(scaleBShape, {n}))
+    return success();
+  if (scaleBNumel == 1 && hasShape(scaleAShape, {m}))
+    return success();
 
   if (scaleAShape.size() != 2 || scaleBShape.size() != 2)
     return emitOpError("expected non-tensorwise scale_a and scale_b to be "
