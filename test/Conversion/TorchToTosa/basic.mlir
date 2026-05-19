@@ -3672,6 +3672,60 @@ func.func @torch.aten.atan$basic(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vte
 
 // -----
 
+// CHECK-LABEL:   func.func @torch.aten.atan$f16(
+// CHECK-SAME:                                   %[[ARG:.*]]: !torch.vtensor<[3,4],f16>) -> !torch.vtensor<[3,4],f16> {
+// CHECK:           %[[INPUT:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[3,4],f16> -> tensor<3x4xf16>
+// CHECK:           %[[CAST:.*]] = tosa.cast %[[INPUT]] : (tensor<3x4xf16>) -> tensor<3x4xf32>
+// CHECK:           %[[ABS:.*]] = tosa.abs %[[CAST]] : (tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[GT_ONE:.*]] = tosa.greater %[[ABS]], {{.*}} : (tensor<3x4xf32>, tensor<1x1xf32>) -> tensor<3x4xi1>
+// CHECK:           %[[RCP_INPUT:.*]] = tosa.select %[[GT_ONE]], %[[ABS]], {{.*}} : (tensor<3x4xi1>, tensor<3x4xf32>, tensor<1x1xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[RCP:.*]] = tosa.reciprocal %[[RCP_INPUT]] : (tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[REDUCED:.*]] = tosa.select %[[GT_ONE]], %[[RCP]], %[[ABS]] : (tensor<3x4xi1>, tensor<3x4xf32>, tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[REDUCED_SQ:.*]] = tosa.mul %[[REDUCED]], %[[REDUCED]], {{.*}} : (tensor<3x4xf32>, tensor<3x4xf32>, tensor<1xi8>) -> tensor<3x4xf32>
+// CHECK:           %[[MAGNITUDE:.*]] = tosa.select %[[GT_ONE]], {{.*}}, {{.*}} : (tensor<3x4xi1>, tensor<3x4xf32>, tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[GE_ZERO:.*]] = tosa.greater_equal %[[CAST]], {{.*}} : (tensor<3x4xf32>, tensor<1x1xf32>) -> tensor<3x4xi1>
+// CHECK:           %[[NEG_MAGNITUDE:.*]] = tosa.sub {{.*}}, %[[MAGNITUDE]] : (tensor<1x1xf32>, tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[SIGNED_MAGNITUDE:.*]] = tosa.select %[[GE_ZERO]], %[[MAGNITUDE]], %[[NEG_MAGNITUDE]] : (tensor<3x4xi1>, tensor<3x4xf32>, tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[IS_ZERO:.*]] = tosa.equal %[[CAST]], {{.*}} : (tensor<3x4xf32>, tensor<1x1xf32>) -> tensor<3x4xi1>
+// CHECK:           %[[RESULT_F32:.*]] = tosa.select %[[IS_ZERO]], %[[CAST]], %[[SIGNED_MAGNITUDE]] : (tensor<3x4xi1>, tensor<3x4xf32>, tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[RESULT_F16:.*]] = tosa.cast %[[RESULT_F32]] : (tensor<3x4xf32>) -> tensor<3x4xf16>
+// CHECK:           %[[OUT:.*]] = torch_c.from_builtin_tensor %[[RESULT_F16]] : tensor<3x4xf16> -> !torch.vtensor<[3,4],f16>
+// CHECK:           return %[[OUT]] : !torch.vtensor<[3,4],f16>
+// CHECK:         }
+func.func @torch.aten.atan$f16(%arg0: !torch.vtensor<[3,4],f16>) -> !torch.vtensor<[3,4],f16> {
+  %0 = torch.aten.atan %arg0 : !torch.vtensor<[3,4],f16> -> !torch.vtensor<[3,4],f16>
+  return %0 : !torch.vtensor<[3,4],f16>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.atan$bf16(
+// CHECK-SAME:                                    %[[ARG:.*]]: !torch.vtensor<[3,4],bf16>) -> !torch.vtensor<[3,4],bf16> {
+// CHECK:           %[[INPUT:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[3,4],bf16> -> tensor<3x4xbf16>
+// CHECK:           %[[CAST:.*]] = tosa.cast %[[INPUT]] : (tensor<3x4xbf16>) -> tensor<3x4xf32>
+// CHECK:           %[[ABS:.*]] = tosa.abs %[[CAST]] : (tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[GT_ONE:.*]] = tosa.greater %[[ABS]], {{.*}} : (tensor<3x4xf32>, tensor<1x1xf32>) -> tensor<3x4xi1>
+// CHECK:           %[[RCP_INPUT:.*]] = tosa.select %[[GT_ONE]], %[[ABS]], {{.*}} : (tensor<3x4xi1>, tensor<3x4xf32>, tensor<1x1xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[RCP:.*]] = tosa.reciprocal %[[RCP_INPUT]] : (tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[REDUCED:.*]] = tosa.select %[[GT_ONE]], %[[RCP]], %[[ABS]] : (tensor<3x4xi1>, tensor<3x4xf32>, tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[REDUCED_SQ:.*]] = tosa.mul %[[REDUCED]], %[[REDUCED]], {{.*}} : (tensor<3x4xf32>, tensor<3x4xf32>, tensor<1xi8>) -> tensor<3x4xf32>
+// CHECK:           %[[MAGNITUDE:.*]] = tosa.select %[[GT_ONE]], {{.*}}, {{.*}} : (tensor<3x4xi1>, tensor<3x4xf32>, tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[GE_ZERO:.*]] = tosa.greater_equal %[[CAST]], {{.*}} : (tensor<3x4xf32>, tensor<1x1xf32>) -> tensor<3x4xi1>
+// CHECK:           %[[NEG_MAGNITUDE:.*]] = tosa.sub {{.*}}, %[[MAGNITUDE]] : (tensor<1x1xf32>, tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[SIGNED_MAGNITUDE:.*]] = tosa.select %[[GE_ZERO]], %[[MAGNITUDE]], %[[NEG_MAGNITUDE]] : (tensor<3x4xi1>, tensor<3x4xf32>, tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[IS_ZERO:.*]] = tosa.equal %[[CAST]], {{.*}} : (tensor<3x4xf32>, tensor<1x1xf32>) -> tensor<3x4xi1>
+// CHECK:           %[[RESULT_F32:.*]] = tosa.select %[[IS_ZERO]], %[[CAST]], %[[SIGNED_MAGNITUDE]] : (tensor<3x4xi1>, tensor<3x4xf32>, tensor<3x4xf32>) -> tensor<3x4xf32>
+// CHECK:           %[[RESULT_BF16:.*]] = tosa.cast %[[RESULT_F32]] : (tensor<3x4xf32>) -> tensor<3x4xbf16>
+// CHECK:           %[[OUT:.*]] = torch_c.from_builtin_tensor %[[RESULT_BF16]] : tensor<3x4xbf16> -> !torch.vtensor<[3,4],bf16>
+// CHECK:           return %[[OUT]] : !torch.vtensor<[3,4],bf16>
+// CHECK:         }
+func.func @torch.aten.atan$bf16(%arg0: !torch.vtensor<[3,4],bf16>) -> !torch.vtensor<[3,4],bf16> {
+  %0 = torch.aten.atan %arg0 : !torch.vtensor<[3,4],bf16> -> !torch.vtensor<[3,4],bf16>
+  return %0 : !torch.vtensor<[3,4],bf16>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.atan$int(
 // CHECK-SAME:                                   %[[ARG:.*]]: !torch.vtensor<[3,4],si32>) -> !torch.vtensor<[3,4],f32> {
 // CHECK:           %[[INPUT:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[3,4],si32> -> tensor<3x4xi32>

@@ -9772,8 +9772,9 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
     AtenAtanOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
   // Approximate atan using only TOSA-supported elementwise ops.
-  // This lowering is currently restricted to f32 results because the
-  // approximation tables below were only characterized in that precision:
+  // This lowering evaluates the approximation in f32 because the tables below
+  // were characterized in that precision. F16/BF16 results are cast back after
+  // the approximation:
   //   1. Use odd symmetry to work on |x| and restore the sign at the end:
   //      atan(x) = sign(x) * atan(|x|)
   //   2. Reduce the approximation domain to [0, 1]:
@@ -9808,15 +9809,21 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
     return rewriter.notifyMatchFailure(
         op, "Only ranked tensor types are supported");
 
-  if (!resultType.getElementType().isF32())
+  Type resultElemTy = resultType.getElementType();
+  if (!resultElemTy.isF32() && !resultElemTy.isF16() && !resultElemTy.isBF16())
     return rewriter.notifyMatchFailure(
-        op, "Only f32 result types are currently supported");
+        op, "Only f32, f16 and bf16 result types are currently supported");
 
-  if (!isa<mlir::FloatType>(selfType.getElementType())) {
-    auto castedSelf = tosa::tosaCastTensorToType(rewriter, self, resultType);
+  RankedTensorType computeType = resultType;
+  if (!resultElemTy.isF32())
+    computeType =
+        RankedTensorType::get(resultType.getShape(), rewriter.getF32Type());
+
+  if (self.getType() != computeType) {
+    auto castedSelf = tosa::tosaCastTensorToType(rewriter, self, computeType);
     if (!castedSelf)
-      return rewriter.notifyMatchFailure(op,
-                                         "Failed to cast input to result type");
+      return rewriter.notifyMatchFailure(
+          op, "Failed to cast input to approximation type");
     self = *castedSelf;
   }
 
@@ -9874,10 +9881,11 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
   Value split1 = *split1Or;
   Value piOverTwo = *piOverTwoOr;
   auto boolType =
-      RankedTensorType::get(resultType.getShape(), rewriter.getIntegerType(1));
+      RankedTensorType::get(computeType.getShape(), rewriter.getIntegerType(1));
 
   // Step 1. Work with the magnitude and remember which values need reflection.
-  Value absSelf = tosa::AbsOp::create(rewriter, op->getLoc(), resultType, self);
+  Value absSelf =
+      tosa::AbsOp::create(rewriter, op->getLoc(), computeType, self);
   Value gtOne =
       tosa::GreaterOp::create(rewriter, op->getLoc(), boolType, absSelf, one);
 
@@ -9885,11 +9893,11 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
   // |x| > 1 region need a reciprocal, so feed the reciprocal op with `1`
   // elsewhere and avoid evaluating reciprocal(0).
   Value reciprocalInput = tosa::SelectOp::create(
-      rewriter, op->getLoc(), resultType, gtOne, absSelf, one);
+      rewriter, op->getLoc(), computeType, gtOne, absSelf, one);
   Value reciprocalAbsSelf = tosa::ReciprocalOp::create(
-      rewriter, op->getLoc(), resultType, reciprocalInput);
+      rewriter, op->getLoc(), computeType, reciprocalInput);
   Value reducedInput = tosa::SelectOp::create(
-      rewriter, op->getLoc(), resultType, gtOne, reciprocalAbsSelf, absSelf);
+      rewriter, op->getLoc(), computeType, gtOne, reciprocalAbsSelf, absSelf);
   Value gtSplit0 = tosa::GreaterOp::create(rewriter, op->getLoc(), boolType,
                                            reducedInput, split0);
   Value gtSplit1 = tosa::GreaterOp::create(rewriter, op->getLoc(), boolType,
@@ -9898,7 +9906,7 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
   // Step 3. Evaluate the three polynomial pieces on the reduced input and
   // select the interval-specific approximation.
   Value reducedInputSquared = tosa::createMulOpAndCast(
-      rewriter, op, resultType, reducedInput, reducedInput, /*shift=*/0);
+      rewriter, op, computeType, reducedInput, reducedInput, /*shift=*/0);
   FailureOr<Value> lowApproxOr = emitPolynomialFromSquared(
       reducedInput, reducedInputSquared, ArrayRef<float>(kAtanLowCoefficients));
   FailureOr<Value> midApproxOr = emitPolynomialFromSquared(
@@ -9910,33 +9918,44 @@ LogicalResult ConvertAtenOp<AtenAtanOp>::matchAndRewriteImpl(
     return rewriter.notifyMatchFailure(
         op, "Failed to evaluate atan polynomial approximation");
 
-  Value reducedApprox = tosa::SelectOp::create(
-      rewriter, op->getLoc(), resultType, gtSplit0, *midApproxOr, *lowApproxOr);
+  Value reducedApprox =
+      tosa::SelectOp::create(rewriter, op->getLoc(), computeType, gtSplit0,
+                             *midApproxOr, *lowApproxOr);
   reducedApprox =
-      tosa::SelectOp::create(rewriter, op->getLoc(), resultType, gtSplit1,
+      tosa::SelectOp::create(rewriter, op->getLoc(), computeType, gtSplit1,
                              *highApproxOr, reducedApprox);
 
   // Step 4. For |x| > 1, map atan(1/|x|) back to atan(|x|) using pi/2 - y.
   Value reflectedApprox = tosa::SubOp::create(
-      rewriter, op->getLoc(), resultType, piOverTwo, reducedApprox);
+      rewriter, op->getLoc(), computeType, piOverTwo, reducedApprox);
   Value magnitude =
-      tosa::SelectOp::create(rewriter, op->getLoc(), resultType, gtOne,
+      tosa::SelectOp::create(rewriter, op->getLoc(), computeType, gtOne,
                              reflectedApprox, reducedApprox);
 
   // Step 5. Restore the original sign.
   Value isNonNegative = tosa::GreaterEqualOp::create(rewriter, op->getLoc(),
                                                      boolType, self, zero);
   Value negMagnitude =
-      tosa::SubOp::create(rewriter, op->getLoc(), resultType, zero, magnitude);
+      tosa::SubOp::create(rewriter, op->getLoc(), computeType, zero, magnitude);
 
   Value signedMagnitude =
-      tosa::SelectOp::create(rewriter, op->getLoc(), resultType, isNonNegative,
+      tosa::SelectOp::create(rewriter, op->getLoc(), computeType, isNonNegative,
                              magnitude, negMagnitude);
   Value isZero =
       tosa::EqualOp::create(rewriter, op->getLoc(), boolType, self, zero);
 
-  rewriter.replaceOpWithNewOp<tosa::SelectOp>(op, resultType, isZero, self,
-                                              signedMagnitude);
+  Value result = tosa::SelectOp::create(rewriter, op->getLoc(), computeType,
+                                        isZero, self, signedMagnitude);
+  if (computeType != resultType) {
+    auto castedResult =
+        tosa::tosaCastTensorToType(rewriter, result, resultType);
+    if (!castedResult)
+      return rewriter.notifyMatchFailure(
+          op, "Failed to cast approximation to result type");
+    result = *castedResult;
+  }
+
+  rewriter.replaceOp(op, result);
   return success();
 }
 
