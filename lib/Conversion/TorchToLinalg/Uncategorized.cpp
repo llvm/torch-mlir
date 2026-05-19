@@ -2775,24 +2775,26 @@ static Value nearestInterpolate(OpBuilder &b, Location loc,
       nearestFP = arith::SelectOp::create(b, loc, cmp, floor, ceil);
     } else if (nearestMode == "round_prefer_ceil") {
       Value cstHalf = arith::ConstantOp::create(b, loc, b.getF32FloatAttr(0.5));
-      Value cstOne = arith::ConstantOp::create(b, loc, b.getF32FloatAttr(1));
       Value floor = math::FloorOp::create(b, loc, proj);
       Value ceil = math::CeilOp::create(b, loc, proj);
       Value decimal = arith::SubFOp::create(b, loc, proj, floor);
       Value cmp = arith::CmpFOp::create(b, loc, arith::CmpFPredicate::UGE,
                                         decimal, cstHalf);
       nearestFP = arith::SelectOp::create(b, loc, cmp, ceil, floor);
-      Value inputSizeMOne = arith::SubFOp::create(b, loc, inputSizeFP, cstOne);
-      // don't extract out of bounds
-      nearestFP = arith::MinimumFOp::create(b, loc, nearestFP, inputSizeMOne);
     } else if (nearestMode == "ceil") {
-      Value cstOne = arith::ConstantOp::create(b, loc, b.getF32FloatAttr(1));
-      Value inputSizeMOne = arith::SubFOp::create(b, loc, inputSizeFP, cstOne);
       nearestFP = math::CeilOp::create(b, loc, proj);
-      nearestFP = arith::MinimumFOp::create(b, loc, nearestFP, inputSizeMOne);
     } else {
       llvm_unreachable("Unsupported nearest mode");
     }
+    // Clamp to valid input indices. ONNX half_pixel (and asymmetric) coords can
+    // lie slightly outside [0, length-1] before rounding; without clamping,
+    // tensor.extract uses out-of-range indices (garbage on some backends).
+    Value cstOne = arith::ConstantOp::create(b, loc, b.getF32FloatAttr(1.0));
+    Value cstZero = arith::ConstantOp::create(b, loc, b.getF32FloatAttr(0.0));
+    Value inputSizeMOne = arith::SubFOp::create(b, loc, inputSizeFP, cstOne);
+    nearestFP = arith::MaximumFOp::create(b, loc, nearestFP, cstZero);
+    nearestFP = arith::MinimumFOp::create(b, loc, nearestFP, inputSizeMOne);
+
     Value nearestInt =
         arith::FPToSIOp::create(b, loc, b.getI64Type(), nearestFP);
     Value nearest =

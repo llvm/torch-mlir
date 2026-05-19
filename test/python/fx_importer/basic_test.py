@@ -116,6 +116,38 @@ def test_import_frozen_exported_program_with_dynamic_shapes():
 
 
 @run
+# CHECK-LABEL: test_dynamic_shape_symfloat_mul_uses_scalar_overload
+# CHECK:     func.func @test_net(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[?,10],f32>) -> !torch.vtensor<[?,10],f32>
+# CHECK:     torch.aten.mul.Scalar {{.*}} : !torch.vtensor<[?,10],f32>, !torch.float -> !torch.vtensor<[?,10],f32>
+def test_dynamic_shape_symfloat_mul_uses_scalar_overload():
+    class Basic(nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x):
+            # When exported with dynamic_shapes, n will be a symbolic int, and
+            # the right hand side of the multiplication will be a symbolic float.
+            n = x.shape[0]
+            return x * (n / (n - 1))
+
+    # Sample input
+    x = torch.randn(8, 10)
+
+    dim_0 = Dim("dim_0", min=2, max=64)
+    dynamic_shapes = {"x": {0: dim_0}}
+
+    m = fx.export_and_import(
+        Basic(),
+        x,
+        dynamic_shapes=dynamic_shapes,
+        func_name="test_net",
+        strict=True,
+    )
+    print(m)
+    m.operation.verify()
+
+
+@run
 # CHECK-LABEL: test_broadcast_with_dynamic_shapes
 # CHECK:     func.func @test_net(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[1,2],f32>, %[[ARG1:[a-zA-Z0-9]+]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,2],f32>
 # CHECK:     %[[S0:.*]] = torch.symbolic_int "{{[a-z0-9]+}}" {min_val = {{[0-9]+}}, max_val = {{[0-9]+}}} : !torch.int

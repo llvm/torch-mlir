@@ -40,7 +40,7 @@ jobs:
       # restore to avoid the cache going stale over time
       # https://github.com/actions/cache/blob/main/workarounds.md#update-a-cache
       - name: Setup cache for bazel
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5.0.3
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.cache/bazel
           key: torch_mlir-bazel-build-cache-${{ runner.os }}-${{ github.sha }}
@@ -102,7 +102,7 @@ jobs:
 
       - name: Send mail
         if: failure()
-        uses: dawidd6/action-send-mail@afe978662944c6805dd197bac88b27acb0bda55a # v8
+        uses: dawidd6/action-send-mail@42942bc2f8fba4e611b459a018967a6a7c78c68c # v17
         with:
           server_address: ${{ secrets.SMTP_SERVER }}
           server_port: ${{ secrets.SMTP_PORT }}

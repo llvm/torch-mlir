@@ -1457,7 +1457,7 @@ def Torch_HigherOrderFlexAttentionOp : Torch_Op<"hop_flex_attention", [
     HasValueSemantics,
     ReadOnly
   ]> {
-  let summary = "Computes the flex_attention operation (1-1 with torch._higher_order_ops.flex_attention)";
+  let summary = "Computes the flex_attention operation";
   let description = [{
     FlexAttention operation with flexible block-sparse attention patterns.
 
@@ -1469,6 +1469,11 @@ def Torch_HigherOrderFlexAttentionOp : Torch_Op<"hop_flex_attention", [
       return_lse: Bool to return log-sum-exp values
 
     Attributes:
+      enable_gqa: Optional bool metadata indicating lowerings should expand
+        key/value heads to query heads for grouped-query attention. When
+        omitted, lowerings may infer whether grouped-query attention expansion
+        is needed from the query/key/value head dimensions. This is not a
+        PyTorch HOP operand.
       score_mod_fn: Optional function symbol reference for score modification
       mask_mod_fn: Optional function symbol reference for mask modification
 
@@ -1487,6 +1492,7 @@ def Torch_HigherOrderFlexAttentionOp : Torch_Op<"hop_flex_attention", [
     AnyTorchOptionalFloatType:$scale,
     Torch_BoolType:$return_lse,
     Torch_BoolType:$return_max_scores,
+    OptionalAttr<BoolAttr>:$enable_gqa,
     OptionalAttr<FlatSymbolRefAttr>:$score_mod_fn,
     OptionalAttr<FlatSymbolRefAttr>:$mask_mod_fn
   );

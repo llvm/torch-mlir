@@ -114,6 +114,7 @@ from ..ir import (
     Float8E4M3FNType,
     Float8E5M2FNUZType,
     Float8E4M3FNUZType,
+    Float8E8M0FNUType,
     F16Type,
     F32Type,
     F64Type,
@@ -170,6 +171,7 @@ OPTIONAL_TORCH_DTYPE_TO_MLIR_TYPE_ASM = {
     "float8_e4m3fn": "f8E4M3FN",
     "float8_e5m2fnuz": "f8E5M2FNUZ",
     "float8_e4m3fnuz": "f8E4M3FNUZ",
+    "float8_e8m0fnu": "f8E8M0FNU",
 }
 for dtype_str, dtype_asm in OPTIONAL_TORCH_DTYPE_TO_MLIR_TYPE_ASM.items():
     if hasattr(torch, dtype_str):
@@ -198,6 +200,7 @@ OPTIONAL_TORCH_DTYPE_TO_MLIR_TYPE = {
     "float8_e4m3fn": lambda: Float8E4M3FNType.get(),
     "float8_e5m2fnuz": lambda: Float8E5M2FNUZType.get(),
     "float8_e4m3fnuz": lambda: Float8E4M3FNUZType.get(),
+    "float8_e8m0fnu": lambda: Float8E8M0FNUType.get(),
 }
 for dtype_str, mlir_type in OPTIONAL_TORCH_DTYPE_TO_MLIR_TYPE.items():
     if hasattr(torch, dtype_str):
@@ -225,6 +228,7 @@ if ml_dtypes is not None:
     TORCH_DTYPE_TO_NPY_TYPE[torch.float8_e4m3fn] = ml_dtypes.float8_e4m3fn
     TORCH_DTYPE_TO_NPY_TYPE[torch.float8_e5m2fnuz] = ml_dtypes.float8_e5m2fnuz
     TORCH_DTYPE_TO_NPY_TYPE[torch.float8_e4m3fnuz] = ml_dtypes.float8_e4m3fnuz
+    TORCH_DTYPE_TO_NPY_TYPE[torch.float8_e8m0fnu] = ml_dtypes.float8_e8m0fnu
 
 TORCH_DTYPE_TO_INT = {
     torch.uint8: 0,
@@ -250,6 +254,7 @@ OPTIONAL_TORCH_DTYPE_TO_INT = {
     "float8_e4m3fn": 24,
     "float8_e5m2fnuz": 25,
     "float8_e4m3fnuz": 26,
+    "float8_e8m0fnu": 28,
 }
 for dtype_str, dtype_int in OPTIONAL_TORCH_DTYPE_TO_INT.items():
     if hasattr(torch, dtype_str):
@@ -452,6 +457,16 @@ def is_symbolic(obj: Any) -> bool:
 
 def is_builtin_function_or_method(obj: Any) -> bool:
     return isinstance(obj, (BuiltinMethodType, BuiltinFunctionType))
+
+
+def is_scalar_arg(arg: NodeArgument) -> bool:
+    """Check whether an arg is, or carries a meta val of, a literal or symbolic scalar."""
+    if isinstance(arg, (float, int)) or is_symbolic(arg):
+        return True
+    if isinstance(arg, torch_fx.Node):
+        val = arg.meta.get("val")
+        return isinstance(val, (float, int)) or is_symbolic(val)
+    return False
 
 
 # TODO: switch back to `slots=True` when py3.9 support is dropped
@@ -2068,9 +2083,7 @@ class GraphNodeImporter:
         mlir_op_name = _get_mlir_op_name_for_schema(schema)
 
         # Intervening to use Scalar ops due to incorrect ops from AOT-autograd with scalar arguments.
-        if mlir_op_name in TENSOR_SCALAR_OP_CONVERTER and (
-            isinstance(node.args[1], float) or isinstance(node.args[1], int)
-        ):
+        if mlir_op_name in TENSOR_SCALAR_OP_CONVERTER and is_scalar_arg(node.args[1]):
             mlir_op_name = TENSOR_SCALAR_OP_CONVERTER[mlir_op_name]
             # we are dynamically changing which op is emitted here due to an issue in
             # torch dynamo where it emits the Tensor variant of ops even when processing
