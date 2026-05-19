@@ -4779,6 +4779,7 @@ func.func @torch.aten._scaled_mm$per_row_scales_use_fast_accum(%arg0: !torch.vte
   return %0 : !torch.vtensor<[128,128],bf16>
 }
 
+// -----
 module {
   func.func @torch.aten._scaled_mm$per_tensor_invalid_result_shape(%arg0: !torch.vtensor<[128,128],f8E4M3FN>, %arg1: !torch.vtensor<[128,128],f8E4M3FN>, %arg2: !torch.vtensor<[],f32>, %arg3: !torch.vtensor<[],f32>) -> !torch.vtensor<[128,127],bf16> {
     %false = torch.constant.bool false
