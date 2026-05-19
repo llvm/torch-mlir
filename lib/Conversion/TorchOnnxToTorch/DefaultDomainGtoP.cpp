@@ -10,6 +10,7 @@
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "llvm/Support/MathExtras.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -563,24 +564,34 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.tensorResultType(resultType))
           return failure();
 
-        if (binder.tensorOperandAtIndex(lhsZp, 2)) {
-          lhsZp = Torch::ConstantIntOp::create(
-              rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
-              rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+        auto lhsZpMissing = binder.tensorOperandAtIndex(lhsZp, 2);
+        auto rhsZpMissing = binder.tensorOperandAtIndex(rhsZp, 3);
+
+        // When both zero-points are absent (symmetric quantization, zp=0),
+        // keep the native element types for the matmul operands.
+        if (lhsZpMissing && rhsZpMissing) {
+          rewriter.replaceOpWithNewOp<Torch::AtenMatmulOp>(
+              binder.op, resultType, lhs, rhs);
+          return success();
         }
 
-        if (binder.tensorOperandAtIndex(rhsZp, 3)) {
-          rhsZp = Torch::ConstantIntOp::create(
-              rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
-              rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
-        }
-
-        // This op is lowered as follows:
+        // This op is lowered as follows if at least one zero-point is provided:
         // lhs = lhs.to(dtype=torch.int32)
         // rhs = rhs.to(dtype=torch.int32)
         // lhs = lhs - lhsZp
         // rhs = rhs - rhsZp
         // res = torch.mm(lhs, rhs)
+        if (lhsZpMissing) {
+          lhsZp = Torch::ConstantIntOp::create(
+              rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+        }
+
+        if (rhsZpMissing) {
+          rhsZp = Torch::ConstantIntOp::create(
+              rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
+        }
 
         // Converting lhs and rhs tensor to `si32` type.
         lhs = Torch::convertTensorToDtype(
@@ -741,7 +752,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Value oneFltConst =
             Torch::ConstantFloatOp::create(b, rewriter.getF64FloatAttr(1));
         Value LnToLog10Const = Torch::ConstantFloatOp::create(
-            b, rewriter.getF64FloatAttr(M_LOG10E));
+            b, rewriter.getF64FloatAttr(llvm::numbers::log10e));
 
         Value lfDiv7Hfloat =
             Torch::AtenDivFloatOp::create(b, lowerEdgeHzItem, sevenHConst);

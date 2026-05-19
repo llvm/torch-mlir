@@ -620,6 +620,31 @@ func.func @test_matmulinteger_non_scalar_rhsZp(%arg0: !torch.vtensor<[?,?],ui8>,
 
 // -----
 
+// CHECK-LABEL: @test_matmulinteger_no_zero_points
+func.func @test_matmulinteger_no_zero_points(%arg0: !torch.vtensor<[4,3],si8>, %arg1: !torch.vtensor<[3,2],si8>) -> !torch.vtensor<[4,2],si32> attributes {torch.onnx_meta.ir_version = 5 : si64, torch.onnx_meta.opset_version = 10 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // When zero-points are absent, operands stay in their native dtype (i8xi8 -> i32 in this case)
+  // CHECK-NOT: torch.aten.to.dtype
+  // CHECK-NOT: torch.aten.sub
+  // CHECK: %[[MM:.+]] = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[4,3],si8>, !torch.vtensor<[3,2],si8> -> !torch.vtensor<[4,2],si32>
+  // CHECK: return %[[MM]] : !torch.vtensor<[4,2],si32>
+  %0 = torch.operator "onnx.MatMulInteger"(%arg0, %arg1) : (!torch.vtensor<[4,3],si8>, !torch.vtensor<[3,2],si8>) -> !torch.vtensor<[4,2],si32>
+  return %0 : !torch.vtensor<[4,2],si32>
+}
+
+// -----
+
+// CHECK-LABEL: @test_matmulinteger_no_zero_points_batched
+func.func @test_matmulinteger_no_zero_points_batched(%arg0: !torch.vtensor<[2,4096,640],si8>, %arg1: !torch.vtensor<[2,640,640],si8>) -> !torch.vtensor<[2,4096,640],si32> attributes {torch.onnx_meta.ir_version = 5 : si64, torch.onnx_meta.opset_version = 10 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK-NOT: torch.aten.to.dtype
+  // CHECK-NOT: torch.aten.sub
+  // CHECK: %[[MM:.+]] = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[2,4096,640],si8>, !torch.vtensor<[2,640,640],si8> -> !torch.vtensor<[2,4096,640],si32>
+  // CHECK: return %[[MM]] : !torch.vtensor<[2,4096,640],si32>
+  %0 = torch.operator "onnx.MatMulInteger"(%arg0, %arg1) : (!torch.vtensor<[2,4096,640],si8>, !torch.vtensor<[2,640,640],si8>) -> !torch.vtensor<[2,4096,640],si32>
+  return %0 : !torch.vtensor<[2,4096,640],si32>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @test_mul
   func.func @test_mul(%arg0: !torch.vtensor<[3,4,5],f32>, %arg1: !torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[3,4,5],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 14 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
     // CHECK: torch.aten.mul.Tensor %arg0, %arg1 : !torch.vtensor<[3,4,5],f32>, !torch.vtensor<[3,4,5],f32> -> !torch.vtensor<[3,4,5],f32>

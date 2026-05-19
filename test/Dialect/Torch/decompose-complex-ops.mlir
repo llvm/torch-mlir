@@ -1071,3 +1071,22 @@ func.func @channel_shuffle(%arg0: !torch.vtensor<[1,8,4,4],f32>) -> !torch.vtens
   %0 = torch.aten.channel_shuffle %arg0, %int4 : !torch.vtensor<[1,8,4,4],f32>, !torch.int -> !torch.vtensor<[1,8,4,4],f32>
   return %0 : !torch.vtensor<[1,8,4,4],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.mish$f8E8M0FNU
+// CHECK:         %[[ONE:.*]] = torch.constant.float 1.000000e+00
+// CHECK:         %[[THRESHOLD:.*]] = torch.constant.float 2.000000e+01
+// CHECK:         %[[SCALED:.*]] = torch.aten.mul.Scalar %arg0, %[[ONE]]
+// CHECK:         %[[EXP:.*]] = torch.aten.exp %[[SCALED]]
+// CHECK:         %[[LOG1P:.*]] = torch.aten.log1p %[[EXP]]
+// CHECK:         %[[SOFTPLUS:.*]] = torch.aten.div.Scalar %[[LOG1P]], %[[ONE]]
+// CHECK:         %[[GT:.*]] = torch.aten.gt.Scalar %[[SCALED]], %[[THRESHOLD]]
+// CHECK:         %[[SOFTPLUS_STABLE:.*]] = torch.aten.where.self %[[GT]], %arg0, %[[SOFTPLUS]]
+// CHECK:         %[[TANH:.*]] = torch.aten.tanh %[[SOFTPLUS_STABLE]]
+// CHECK:         %[[MUL:.*]] = torch.aten.mul.Tensor %arg0, %[[TANH]]
+// CHECK:         return %[[MUL]]
+func.func @torch.aten.mish$f8E8M0FNU(%arg0: !torch.vtensor<[2,3],f8E8M0FNU>) -> !torch.vtensor<[2,3],f8E8M0FNU> {
+  %0 = torch.aten.mish %arg0 : !torch.vtensor<[2,3],f8E8M0FNU> -> !torch.vtensor<[2,3],f8E8M0FNU>
+  return %0 : !torch.vtensor<[2,3],f8E8M0FNU>
+}

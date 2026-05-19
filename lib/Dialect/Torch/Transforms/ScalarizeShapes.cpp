@@ -109,6 +109,26 @@ LogicalResult getListFromTensor(Value value, SmallVector<OpFoldResult> &vals) {
     return success();
   }
 
+  // aten.cat of 1D tensors: recurse into each element.
+  if (auto catOp = value.getDefiningOp<Torch::AtenCatOp>()) {
+    int64_t catDim;
+    if (matchPattern(catOp.getDim(), m_TorchConstantInt(&catDim)) &&
+        catDim == 0) {
+      SmallVector<Value> tensors;
+      if (succeeded(getListOperands(catOp.getTensors(), tensors))) {
+        SmallVector<OpFoldResult> catElements;
+        if (llvm::all_of(tensors,
+                         [&](Value t) {
+                           return succeeded(getListFromTensor(t, catElements));
+                         }) &&
+            (int64_t)catElements.size() <= kMaxFold) {
+          vals.append(catElements.begin(), catElements.end());
+          return success();
+        }
+      }
+    }
+  }
+
   // Last supported case: ValueTensorLiteralOp
   auto literalOp = value.getDefiningOp<Torch::ValueTensorLiteralOp>();
   if (!literalOp)
@@ -351,6 +371,74 @@ public:
 
     Value result =
         constructAtenTensorOpFromList(b, op.getType(), materializedSelected);
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+// Fold `aten.select.int(1d_tensor, 0, const_idx)` by extracting the i-th
+// scalar element via getListFromTensor (which handles literals, unsqueeze,
+// NumToTensor, cat, etc.).
+class PropagateAtenSelectIntPattern : public OpRewritePattern<AtenSelectIntOp> {
+public:
+  using OpRewritePattern<AtenSelectIntOp>::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenSelectIntOp op,
+                                PatternRewriter &rewriter) const override {
+    ImplicitLocOpBuilder b(op.getLoc(), rewriter);
+
+    int64_t dim;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+      return rewriter.notifyMatchFailure(op, "requires a constant dim");
+
+    int64_t idx;
+    if (!matchPattern(op.getIndex(), m_TorchConstantInt(&idx)))
+      return rewriter.notifyMatchFailure(op, "requires a constant index");
+
+    auto selfTy = cast<BaseTensorType>(op.getSelf().getType());
+    if (!selfTy.hasSizes() || selfTy.getSizes().size() != 1)
+      return rewriter.notifyMatchFailure(op, "expected 1D input");
+
+    int64_t selfRank = selfTy.getSizes().size();
+    dim = toPositiveDim(dim, selfRank);
+    if (!isValidDim(dim, selfRank))
+      return rewriter.notifyMatchFailure(op, "invalid dim");
+
+    int64_t dimLength = selfTy.getSizes()[dim];
+    if (dimLength == kUnknownSize)
+      return rewriter.notifyMatchFailure(op, "unknown dim length");
+
+    idx = toPositiveDim(idx, dimLength);
+    if (!isValidDim(idx, dimLength))
+      return rewriter.notifyMatchFailure(op, "invalid index");
+
+    SmallVector<OpFoldResult> elements;
+    if (failed(getListFromTensor(op.getSelf(), elements)) ||
+        idx >= (int64_t)elements.size())
+      return rewriter.notifyMatchFailure(op, "cannot decompose source tensor");
+
+    SmallVector<Value, 1> materialized;
+    SmallVector<OpFoldResult, 1> single = {elements[idx]};
+    if (failed(materializeFolds(b, single, materialized)))
+      return failure();
+
+    // `prim.NumToTensor.Scalar`'s shape function returns rank-0, so build it
+    // with a rank-0 result type. If the original `aten.select.int` produced a
+    // rank-1 `[1]` tensor (as in ONNX→Torch lowerings of `onnx.Gather`),
+    // unsqueeze back to match. The existing `getListFromTensor` already folds
+    // through `unsqueeze(NumToTensor(scalar))`, so downstream propagation
+    // patterns still see straight through the replacement.
+    auto resultTy = cast<ValueTensorType>(op.getType());
+    auto rank0Ty = rewriter.getType<Torch::ValueTensorType>(
+        ArrayRef<int64_t>({}), resultTy.getDtype());
+    Value rank0 =
+        PrimNumToTensorScalarOp::create(b, rank0Ty, materialized.front());
+    Value result = rank0;
+    if (!resultTy.hasSizes() || !resultTy.getSizes().empty()) {
+      Value zero = Torch::ConstantIntOp::create(b, 0);
+      result = AtenUnsqueezeOp::create(b, resultTy, rank0, zero);
+    }
     rewriter.replaceOp(op, result);
     return success();
   }
@@ -1507,10 +1595,11 @@ void populateScalarizationPropagationPatterns(RewritePatternSet &patterns) {
   // are positive so floor divide should be a sufficient scalar replacement.
   patterns.insert<
       PropagateAtenCatPattern, PropagateAtenIndexSelectPattern,
-      PropagateAtenItemPattern, PropagateAtenShapeToTensorPattern,
-      PropagateAtenSliceTensorPattern, PropagateAtenEqTensorPattern,
-      PropagateAtenWhereSelfPattern, PropagateAtenBroadcastToPattern,
-      PropagateAtenTransposeIntPattern, PropagateAtenToDtypePattern,
+      PropagateAtenSelectIntPattern, PropagateAtenItemPattern,
+      PropagateAtenShapeToTensorPattern, PropagateAtenSliceTensorPattern,
+      PropagateAtenEqTensorPattern, PropagateAtenWhereSelfPattern,
+      PropagateAtenBroadcastToPattern, PropagateAtenTransposeIntPattern,
+      PropagateAtenToDtypePattern,
       PropagateAtenUnaryPattern<AtenNegOp, AtenNegIntOp>,
       PropagateAtenArithmeticPattern<AtenAddTensorOp, AtenAddIntOp>,
       PropagateAtenArithmeticPattern<AtenSubTensorOp, AtenSubIntOp>,

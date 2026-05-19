@@ -3218,7 +3218,7 @@ LogicalResult AtenSortOp::fold(FoldAdaptor adaptor,
 
 LogicalResult NonValueTensorLiteralOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
+    DictionaryAttr attributes, PropertyRef properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   auto attr =
       dyn_cast_or_null<ElementsAttr>(properties.as<Properties *>()->getValue());
@@ -3259,7 +3259,7 @@ bool NonValueTensorLiteralOp::isCompatibleReturnTypes(TypeRange inferred,
 
 LogicalResult ValueTensorLiteralOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
+    DictionaryAttr attributes, PropertyRef properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   auto attr =
       dyn_cast_or_null<ElementsAttr>(properties.as<Properties *>()->getValue());
@@ -3343,7 +3343,7 @@ LogicalResult CopyToNonValueTensorOp::verify() {
 
 LogicalResult CopyToNonValueTensorOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
+    DictionaryAttr attributes, PropertyRef properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   auto resultType = cast<ValueTensorType>(operands[0].getType());
   inferredReturnTypes.push_back(resultType.getWithoutValueSemantics());
@@ -3371,7 +3371,7 @@ LogicalResult CopyToValueTensorOp::verify() {
 
 LogicalResult CopyToValueTensorOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
-    DictionaryAttr attributes, OpaqueProperties properties, RegionRange regions,
+    DictionaryAttr attributes, PropertyRef properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
   auto resultType = cast<NonValueTensorType>(operands[0].getType());
   inferredReturnTypes.push_back(resultType.getWithValueSemantics());

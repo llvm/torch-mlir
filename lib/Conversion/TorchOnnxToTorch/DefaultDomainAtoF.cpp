@@ -1875,23 +1875,89 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
               binder.op, "Expected input type having sizes");
         }
         ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
+        if (binder.s64IntegerArrayAttr(outputShape, "output_shape", {}))
+          return failure();
+        if (!outputShape.empty() && outputShape.size() != rank - 2) {
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "output_shape list size does not match the number of axes");
+        }
+
+        auto inferOutputPaddingFromOutputShape =
+            [&]() -> FailureOr<SmallVector<int64_t>> {
+          if (padding.size() != rank - 2 && padding.size() != 2 * (rank - 2)) {
+            return rewriter.notifyMatchFailure(
+                binder.op,
+                "padding list size does not match the number of axes");
+          }
+          bool isPerAxisPadded = padding.size() == rank - 2;
+          SmallVector<int64_t> inferredOutputPadding;
+          inferredOutputPadding.reserve(rank - 2);
+          for (unsigned i = 0; i < rank - 2; i++) {
+            // ONNX pads are laid out as [x1_begin, ..., xN_begin, x1_end,
+            // ..., xN_end] when fully specified, or as a per-axis symmetric
+            // value when half-sized.
+            int64_t totalPadding = isPerAxisPadded
+                                       ? 2 * padding[i]
+                                       : padding[i] + padding[i + rank - 2];
+            int64_t inferredDim = strides[i] * (inputShape[2 + i] - 1) -
+                                  totalPadding +
+                                  ((kernelShape[i] - 1) * dilations[i] + 1);
+            int64_t inferredOutputPaddingValue = outputShape[i] - inferredDim;
+            if (inferredOutputPaddingValue < 0) {
+              return rewriter.notifyMatchFailure(
+                  binder.op,
+                  "output_shape would require a negative output_padding");
+            }
+            if (inferredOutputPaddingValue >= strides[i]) {
+              return rewriter.notifyMatchFailure(
+                  binder.op,
+                  "output_shape would require output_padding >= stride, "
+                  "which violates the ONNX ConvTranspose specification");
+            }
+            inferredOutputPadding.push_back(inferredOutputPaddingValue);
+          }
+          return inferredOutputPadding;
+        };
+
+        auto applyOutputPaddingFromOutputShape = [&]() -> LogicalResult {
+          FailureOr<SmallVector<int64_t>> inferredOutputPadding =
+              inferOutputPaddingFromOutputShape();
+          if (failed(inferredOutputPadding))
+            return failure();
+          if (outputPadding != defaultOutputPadding &&
+              outputPadding != *inferredOutputPadding) {
+            return rewriter.notifyMatchFailure(
+                binder.op, "output_shape and output_padding imply different "
+                           "output_padding values");
+          }
+          outputPadding = *inferredOutputPadding;
+          return success();
+        };
 
         if (autoPad == "VALID") {
           // Zero padding.
           padding = defaultPadding;
+          if (!outputShape.empty()) {
+            if (failed(applyOutputPaddingFromOutputShape()))
+              return failure();
+          }
         } else if (autoPad == "NOTSET") {
           // Explicit padding; read pads with defaults.
           if (binder.s64IntegerArrayAttr(padding, "pads", defaultPadding))
             return failure();
-        } else { // autopad == SAME_UPPER or SAME_LOWER
-          // Auto-padding; output_shape defaults to input_shape * strides.
-          SmallVector<int64_t> defaultOutputShape;
-          for (unsigned i = 0; i < rank - 2; i++) {
-            defaultOutputShape.push_back(inputShape[2 + i] * strides[i]);
+          if (!outputShape.empty()) {
+            if (failed(applyOutputPaddingFromOutputShape()))
+              return failure();
           }
-          if (binder.s64IntegerArrayAttr(outputShape, "output_shape",
-                                         defaultOutputShape))
-            return failure();
+        } else { // autopad == SAME_UPPER or SAME_LOWER
+          // Auto-padding. When output_shape is not specified, default it to
+          // input_shape * strides.
+          if (outputShape.empty()) {
+            for (unsigned i = 0; i < rank - 2; i++) {
+              outputShape.push_back(inputShape[2 + i] * strides[i]);
+            }
+          }
           SmallVector<int64_t> paddingEnd;
           for (unsigned i = 0; i < rank - 2; i++) {
             int64_t totalPadding =

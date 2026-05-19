@@ -113,7 +113,8 @@ enum class TypeKind {
   _(c10::Float8_e4m3fn, Float8_e4m3fn)     /* 24 */                            \
   _(c10::Float8_e5m2fnuz, Float8_e5m2fnuz) /* 25 */                            \
   _(c10::Float8_e4m3fnuz, Float8_e4m3fnuz) /* 26 */                            \
-  _(c10::qint16, QInt16)                   /* 27 */
+  _(c10::qint16, QInt16)                   /* 27 */                            \
+  _(c10::Float8_e8m0fnu, Float8_e8m0fnu)   /* 28 */
 
 enum class ScalarType : int8_t {
 #define DEFINE_ENUM(_1, n) n,

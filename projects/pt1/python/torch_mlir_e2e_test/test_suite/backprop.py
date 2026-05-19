@@ -60,6 +60,34 @@ def TanhBackward_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class SigmoidBackwardModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, grad_out, output):
+        return torch.ops.aten.sigmoid_backward(grad_out, output)
+
+
+@register_test_case(module_factory=lambda: SigmoidBackwardModule())
+def SigmoidBackwardModule_basic(module, tu: TestUtils):
+    # `output` must be a valid sigmoid result (in (0, 1)) so the derivative
+    # output * (1 - output) matches what the upstream op produces.
+    grad = tu.rand(3, 3)
+    output = torch.sigmoid(tu.rand(3, 3, low=-2, high=2))
+    module.forward(grad, output)
+
+
+# ==============================================================================
+
+
 class HardtanhBackwardModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -81,6 +109,56 @@ class HardtanhBackwardModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: HardtanhBackwardModule())
 def HardtanhBackward_basic(module, tu: TestUtils):
     module.forward(tu.rand(10, 20), tu.rand(10, 20))
+
+
+# ==============================================================================
+
+
+class SoftplusBackwardModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, grad_output, self_):
+        return torch.ops.aten.softplus_backward(
+            grad_output, self_, beta=1.0, threshold=20.0
+        )
+
+
+@register_test_case(module_factory=lambda: SoftplusBackwardModule())
+def SoftplusBackwardModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 3, low=-1, high=1), tu.rand(5, 3, low=-1, high=1))
+
+
+class SoftplusBackwardNonDefaultModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, grad_output, self_):
+        return torch.ops.aten.softplus_backward(
+            grad_output, self_, beta=2.0, threshold=5.0
+        )
+
+
+@register_test_case(module_factory=lambda: SoftplusBackwardNonDefaultModule())
+def SoftplusBackwardNonDefaultModule_basic(module, tu: TestUtils):
+    # Mix of values below, near, and above the threshold (beta*self vs threshold).
+    module.forward(tu.rand(5, 3, low=-1, high=1), tu.rand(5, 3, low=-1, high=4))
 
 
 # ==============================================================================
@@ -363,6 +441,122 @@ class GeluBackwardModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: GeluBackwardModule())
 def GeluBackwardModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 3), tu.rand(5, 3))
+
+
+class GeluTanhBackwardModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, grad, input):
+        return torch.ops.aten.gelu_backward(grad, input, approximate="tanh")
+
+
+@register_test_case(module_factory=lambda: GeluTanhBackwardModule())
+def GeluTanhBackwardModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 3), tu.rand(5, 3))
+
+
+# ==============================================================================
+
+
+class EluBackwardModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, grad, self_):
+        return torch.ops.aten.elu_backward(
+            grad,
+            alpha=1.0,
+            scale=1.0,
+            input_scale=1.0,
+            is_result=False,
+            self_or_result=self_,
+        )
+
+
+@register_test_case(module_factory=lambda: EluBackwardModule())
+def EluBackwardModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 3, low=-1, high=1), tu.rand(5, 3, low=-1, high=1))
+
+
+class EluBackwardNonDefaultModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, grad, self_):
+        return torch.ops.aten.elu_backward(
+            grad,
+            alpha=2.0,
+            scale=1.5,
+            input_scale=3.0,
+            is_result=False,
+            self_or_result=self_,
+        )
+
+
+@register_test_case(module_factory=lambda: EluBackwardNonDefaultModule())
+def EluBackwardNonDefaultModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 3, low=-1, high=1), tu.rand(5, 3, low=-1, high=1))
+
+
+class EluBackwardIsResultModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, grad, result):
+        return torch.ops.aten.elu_backward(
+            grad,
+            alpha=1.0,
+            scale=1.0,
+            input_scale=1.0,
+            is_result=True,
+            self_or_result=result,
+        )
+
+
+@register_test_case(module_factory=lambda: EluBackwardIsResultModule())
+def EluBackwardIsResultModule_basic(module, tu: TestUtils):
+    # When is_result is True, self_or_result is the output of ELU forward,
+    # which for default alpha=1, scale=1, input_scale=1 lies in (-1, +inf).
+    grad = tu.rand(5, 3, low=-1, high=1)
+    x = tu.rand(5, 3, low=-2, high=2)
+    result = torch.nn.functional.elu(x)
+    module.forward(grad, result)
+
+
+# ==============================================================================
 
 
 class LogSoftmaxBackwardModule(torch.nn.Module):

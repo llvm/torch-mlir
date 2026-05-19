@@ -1730,8 +1730,8 @@ public:
     int64_t rank = queryTy.getRank();
 
     int64_t qNumHeads = queryTy.getDimSize(rank - 3);
-    int64_t kNumHeads = valueTy.getDimSize(rank - 3);
-    int64_t vNumHeads = keyTy.getDimSize(rank - 3);
+    int64_t vNumHeads = valueTy.getDimSize(rank - 3);
+    int64_t kNumHeads = keyTy.getDimSize(rank - 3);
 
     if (llvm::any_of(llvm::ArrayRef<int64_t>{qNumHeads, kNumHeads, vNumHeads},
                      [](int64_t d) { return d == Torch::kUnknownSize; })) {

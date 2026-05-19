@@ -5479,6 +5479,32 @@ def Torch_AtenSoftplusOp : Torch_Op<"aten.softplus", [
   }];
 }
 
+def Torch_AtenSoftplusBackwardOp : Torch_Op<"aten.softplus_backward", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::softplus_backward : (Tensor, Tensor, Scalar, Scalar) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$grad_output,
+    AnyTorchTensorType:$self,
+    AnyTorchScalarType:$beta,
+    AnyTorchScalarType:$threshold
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenSoftplusBackwardOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 4, 1);
+    }
+    void AtenSoftplusBackwardOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 4, 1);
+    }
+  }];
+}
+
 def Torch_AtenPreluOp : Torch_Op<"aten.prelu", [
     AllowsTypeRefinement,
     HasValueSemantics,
@@ -18965,6 +18991,31 @@ def Torch_PrimsSqueezeOp : Torch_Op<"prims.squeeze", [
     }
     void PrimsSqueezeOp::print(OpAsmPrinter &printer) {
       printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
+def Torch_PrimsProdOp : Torch_Op<"prims.prod", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `prims::prod : (Tensor, int[]?, int?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$inp,
+    AnyTorchOptionalListOfTorchIntType:$dims,
+    AnyTorchOptionalIntType:$output_dtype
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult PrimsProdOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 1);
+    }
+    void PrimsProdOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
 }

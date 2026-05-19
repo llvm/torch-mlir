@@ -709,3 +709,81 @@ func.func @transpose$prop_3d_m1_0(%arg0: !torch.vtensor<[?,?,?,?],f32>, %arg1: !
     %12 = torch.prim.ListConstruct %11 : (!torch.int) -> !torch.list<int>
     return %7 : !torch.vtensor<[2,2,2],si64>
 }
+
+// -----
+
+// select.int on cat of constants and dynamic — folds constant elements.
+// CHECK-LABEL: @select_int_from_cat_fold
+func.func @select_int_from_cat_fold(%arg0: !torch.vtensor<[1,?,2048],f16>, %arg1: !torch.int) -> !torch.vtensor<[?,?,?,?],f16> {
+    // CHECK-DAG: %[[INT1:.*]] = torch.constant.int 1
+    // CHECK-DAG: %[[INT16:.*]] = torch.constant.int 16
+    // CHECK-DAG: %[[INT128:.*]] = torch.constant.int 128
+    // CHECK: %[[LIST:.*]] = torch.prim.ListConstruct %[[INT1]], %arg1, %[[INT16]], %[[INT128]]
+    // CHECK: %[[RESULT:.*]] = torch.aten.reshape %arg0, %[[LIST]]
+    // CHECK: return %[[RESULT]]
+    %int0 = torch.constant.int 0
+    %int1 = torch.constant.int 1
+    %int2 = torch.constant.int 2
+    %int3 = torch.constant.int 3
+    %c1 = torch.vtensor.literal(dense<1> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
+    %c16 = torch.vtensor.literal(dense<16> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
+    %c128 = torch.vtensor.literal(dense<128> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
+    %dyn = torch.prim.NumToTensor.Scalar %arg1 : !torch.int -> !torch.vtensor<[],si64>
+    %dyn_unsq = torch.aten.unsqueeze %dyn, %int0 : !torch.vtensor<[],si64>, !torch.int -> !torch.vtensor<[1],si64>
+    %list = torch.prim.ListConstruct %c1, %dyn_unsq, %c16, %c128 : (!torch.vtensor<[1],si64>, !torch.vtensor<[1],si64>, !torch.vtensor<[1],si64>, !torch.vtensor<[1],si64>) -> !torch.list<vtensor>
+    %cat = torch.aten.cat %list, %int0 : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[4],si64>
+    %s0 = torch.aten.select.int %cat, %int0, %int0 : !torch.vtensor<[4],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+    %d0 = torch.aten.item %s0 : !torch.vtensor<[1],si64> -> !torch.int
+    %s1 = torch.aten.select.int %cat, %int0, %int1 : !torch.vtensor<[4],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+    %d1 = torch.aten.item %s1 : !torch.vtensor<[1],si64> -> !torch.int
+    %s2 = torch.aten.select.int %cat, %int0, %int2 : !torch.vtensor<[4],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+    %d2 = torch.aten.item %s2 : !torch.vtensor<[1],si64> -> !torch.int
+    %s3 = torch.aten.select.int %cat, %int0, %int3 : !torch.vtensor<[4],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+    %d3 = torch.aten.item %s3 : !torch.vtensor<[1],si64> -> !torch.int
+    %shape = torch.prim.ListConstruct %d0, %d1, %d2, %d3 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+    %result = torch.aten.reshape %arg0, %shape : !torch.vtensor<[1,?,2048],f16>, !torch.list<int> -> !torch.vtensor<[?,?,?,?],f16>
+    return %result : !torch.vtensor<[?,?,?,?],f16>
+}
+
+// -----
+
+// select.int with negative index — selects last element.
+// CHECK-LABEL: @select_int_negative_index
+func.func @select_int_negative_index(%arg0: !torch.int) -> !torch.list<int> {
+    // CHECK-DAG: %[[INT128:.*]] = torch.constant.int 128
+    // CHECK: %[[LIST:.*]] = torch.prim.ListConstruct %[[INT128]]
+    // CHECK: return %[[LIST]]
+    %int0 = torch.constant.int 0
+    %int_neg1 = torch.constant.int -1
+    %c1 = torch.vtensor.literal(dense<1> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
+    %c128 = torch.vtensor.literal(dense<128> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
+    %dyn = torch.prim.NumToTensor.Scalar %arg0 : !torch.int -> !torch.vtensor<[],si64>
+    %dyn_unsq = torch.aten.unsqueeze %dyn, %int0 : !torch.vtensor<[],si64>, !torch.int -> !torch.vtensor<[1],si64>
+    %list = torch.prim.ListConstruct %c1, %dyn_unsq, %c128 : (!torch.vtensor<[1],si64>, !torch.vtensor<[1],si64>, !torch.vtensor<[1],si64>) -> !torch.list<vtensor>
+    %cat = torch.aten.cat %list, %int0 : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[3],si64>
+    %sel = torch.aten.select.int %cat, %int0, %int_neg1 : !torch.vtensor<[3],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+    %result = torch.aten.item %sel : !torch.vtensor<[1],si64> -> !torch.int
+    %shape = torch.prim.ListConstruct %result : (!torch.int) -> !torch.list<int>
+    return %shape : !torch.list<int>
+}
+
+// -----
+
+// select.int on cat with multi-element sub-tensor.
+// cat([vtensor<[2]>, vtensor<[1]>]) produces [3], select at index 1.
+// CHECK-LABEL: @select_int_multi_element_subtensor
+func.func @select_int_multi_element_subtensor() -> !torch.list<int> {
+    // CHECK-DAG: %[[INT42:.*]] = torch.constant.int 42
+    // CHECK: %[[LIST:.*]] = torch.prim.ListConstruct %[[INT42]]
+    // CHECK: return %[[LIST]]
+    %int0 = torch.constant.int 0
+    %int1 = torch.constant.int 1
+    %c = torch.vtensor.literal(dense<[10, 42]> : tensor<2xsi64>) : !torch.vtensor<[2],si64>
+    %c2 = torch.vtensor.literal(dense<99> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
+    %list = torch.prim.ListConstruct %c, %c2 : (!torch.vtensor<[2],si64>, !torch.vtensor<[1],si64>) -> !torch.list<vtensor>
+    %cat = torch.aten.cat %list, %int0 : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[3],si64>
+    %sel = torch.aten.select.int %cat, %int0, %int1 : !torch.vtensor<[3],si64>, !torch.int, !torch.int -> !torch.vtensor<[1],si64>
+    %result = torch.aten.item %sel : !torch.vtensor<[1],si64> -> !torch.int
+    %shape = torch.prim.ListConstruct %result : (!torch.int) -> !torch.list<int>
+    return %shape : !torch.list<int>
+}

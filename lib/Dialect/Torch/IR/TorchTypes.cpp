@@ -192,7 +192,7 @@ static bool isValidTorchDtype(Type dtype) {
   if (isa<Float16Type, BFloat16Type, Float32Type, Float64Type>(dtype))
     return true;
   if (isa<Float8E5M2Type, Float8E4M3FNType, Float8E5M2FNUZType,
-          Float8E4M3FNUZType, Float8E4M3B11FNUZType>(dtype))
+          Float8E4M3FNUZType, Float8E4M3B11FNUZType, Float8E8M0FNUType>(dtype))
     return true;
 
   if (isa<Torch::StringType>(dtype))

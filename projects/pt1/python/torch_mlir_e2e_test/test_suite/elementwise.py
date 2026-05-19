@@ -1815,6 +1815,29 @@ def ElementwiseClampModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseClampIntToFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int64, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.clamp(x, min=-2.5, max=2.5)
+
+
+@register_test_case(module_factory=lambda: ElementwiseClampIntToFloatModule())
+def ElementwiseClampIntToFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 5, low=-10, high=10))
+
+
+# ==============================================================================
+
+
 class ElementwiseClampBFloat16Module(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -2518,6 +2541,63 @@ def ElementwiseAtanTensorFloatModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseAtanTensorFloatSpecialValuesModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 23], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        atan = torch.atan(a)
+        return atan
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseAtanTensorFloatSpecialValuesModule()
+)
+def ElementwiseAtanTensorFloatSpecialValuesModule_basic(module, tu: TestUtils):
+    module.forward(
+        torch.tensor(
+            [
+                [
+                    float("-inf"),
+                    -2.0,
+                    -1.0,
+                    -0.791,
+                    -0.790,
+                    -0.789,
+                    -0.546,
+                    -0.545,
+                    -0.544,
+                    -0.1,
+                    -0.0,
+                    0.0,
+                    0.1,
+                    0.544,
+                    0.545,
+                    0.546,
+                    0.789,
+                    0.790,
+                    0.791,
+                    1.0,
+                    2.0,
+                    float("inf"),
+                    float("nan"),
+                ]
+            ],
+            dtype=torch.float32,
+        )
+    )
+
+
+# ==============================================================================
+
+
 class ElementwiseAtanTensorIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -2810,6 +2890,30 @@ def ElementwiseLogAddExpModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseLogAddExpBroadcastModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.logaddexp(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseLogAddExpBroadcastModule())
+def ElementwiseLogAddExpBroadcastModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4), tu.rand(3, 1, 4))
+
+
+# ==============================================================================
+
+
 class ElementwiseLogAddExp2Module(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -2829,6 +2933,30 @@ class ElementwiseLogAddExp2Module(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseLogAddExp2Module())
 def ElementwiseLogAddExp2Module_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 2, 4), tu.rand(3, 2, 4))
+
+
+# ==============================================================================
+
+
+class ElementwiseLogAddExp2BroadcastModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.logaddexp2(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseLogAddExp2BroadcastModule())
+def ElementwiseLogAddExp2BroadcastModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 2, 4), tu.rand(3, 1, 4))
 
 
 # ==============================================================================
