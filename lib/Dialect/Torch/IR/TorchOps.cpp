@@ -3194,9 +3194,16 @@ LogicalResult AtenSortOp::fold(FoldAdaptor adaptor,
   if (!dimAttribute)
     return failure();
   int64_t dimInt = dimAttribute.getValue().getSExtValue();
-  if (dimInt < 0)
-    dimInt += operandType.getSizes().size();
-  if (dimAttribute) {
+  int64_t rank = operandType.getSizes().size();
+  if (rank == 0) {
+    if (dimInt != 0 && dimInt != -1)
+      return failure();
+    unaryDim = true;
+  } else {
+    if (dimInt < 0)
+      dimInt += rank;
+    if (dimInt < 0 || dimInt >= rank)
+      return failure();
     unaryDim = operandType.getSizes()[dimInt] == 1;
   }
 
