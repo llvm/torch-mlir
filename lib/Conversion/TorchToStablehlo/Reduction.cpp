@@ -47,7 +47,7 @@ static Value createInitialValueForReduceOp(Operation *op, Type elementTy,
   auto constType = RankedTensorType::get({}, elementTy);
   DenseElementsAttr constAttr = nullptr;
   if (isa<AtenSumOp, AtenSumDimIntListOp, AtenFrobeniusNormDimOp,
-          AtenLinalgVectorNormOp>(op)) {
+          AtenLinalgVectorNormOp, PrimsXorSumOp>(op)) {
     if (isa<mlir::FloatType>(elementTy)) {
       constAttr = DenseElementsAttr::get(
           constType, {APFloat::getZero(
@@ -156,6 +156,9 @@ static Value createReduceOpWithSingleRegionOp(Operation *op, Value input,
                                        *firstArgument, *secondArgument);
     } else if (isa<AtenProdOp, AtenProdDimIntOp>(op)) {
       result = stablehlo::MulOp::create(rewriter, op->getLoc(), blockArgumentTy,
+                                        *firstArgument, *secondArgument);
+    } else if (isa<PrimsXorSumOp>(op)) {
+      result = stablehlo::XorOp::create(rewriter, op->getLoc(), blockArgumentTy,
                                         *firstArgument, *secondArgument);
     } else {
       op->emitError("unimplemented lowering in "
@@ -756,6 +759,64 @@ LogicalResult ConvertAtenReductionOp<AtenSumDimIntListOp>::matchAndRewrite(
 }
 } // namespace
 
+// PrimsXorSumOp
+namespace {
+template <>
+LogicalResult ConvertAtenReductionOp<PrimsXorSumOp>::matchAndRewrite(
+    PrimsXorSumOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value input = adaptor.getInp();
+  auto inputTy = dyn_cast<RankedTensorType>(input.getType());
+  auto outTy =
+      dyn_cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  if (!inputTy || !outTy) {
+    return rewriter.notifyMatchFailure(
+        op, "only Tensor types supported in StableHLO");
+  }
+
+  auto inputElemTy = inputTy.getElementType();
+  if (!isa<mlir::IntegerType>(inputElemTy)) {
+    return rewriter.notifyMatchFailure(
+        op, "XOR reduction requires integer element type");
+  }
+
+  SmallVector<int64_t> inputDims;
+  SmallVector<int64_t> dims;
+  if (failed(checkNotNone(rewriter, op, op.getDims()))) {
+    inputDims = llvm::to_vector<4>(llvm::seq<int64_t>(0, inputTy.getRank()));
+  } else {
+    if (!matchPattern(op.getDims(), m_TorchListOfConstantInts(inputDims))) {
+      return rewriter.notifyMatchFailure(
+          op, "non-const integer `dims` is not supported");
+    }
+    if (inputDims.empty()) {
+      inputDims = llvm::to_vector<4>(llvm::seq<int64_t>(0, inputTy.getRank()));
+    }
+  }
+  for (auto d : inputDims) {
+    d = toPositiveDim(d, inputTy.getRank());
+    if (isValidDim(d, inputTy.getRank())) {
+      dims.push_back(d);
+    }
+  }
+  llvm::sort(dims.begin(), dims.end());
+
+  SmallVector<int64_t> reduceResultShape =
+      getReduceOutputShape(inputTy.getShape(), dims);
+
+  Value reduceResult = createReduceOpWithSingleRegionOp(
+      op, input,
+      RankedTensorType::get(reduceResultShape, outTy.getElementType()), dims,
+      rewriter, /*allowNonFinites=*/false);
+  if (!reduceResult) {
+    return op->emitError("createReduceOpWithSingleRegionOp return nullptr");
+  }
+
+  rewriter.replaceOp(op, reduceResult);
+  return success();
+}
+} // namespace
+
 // AtenProdDimIntOp
 namespace {
 template <>
@@ -1003,6 +1064,7 @@ void mlir::torch::torch_to_stablehlo::populateReductionOpPatternsAndLegality(
   INSERT_ATEN_REDUCTION_OP_PATTERN(AtenFrobeniusNormDimOp);
   INSERT_ATEN_REDUCTION_OP_PATTERN(AtenLinalgVectorNormOp);
   INSERT_ATEN_REDUCTION_OP_PATTERN(AtenProdDimIntOp);
+  INSERT_ATEN_REDUCTION_OP_PATTERN(PrimsXorSumOp);
 #undef INSERT_ATEN_REDUCTION_OP_PATTERN
 
 #define INSERT_ATEN_REDUCTION_ALL_DIMS_OP_PATTERN(AtenOp)                      \
