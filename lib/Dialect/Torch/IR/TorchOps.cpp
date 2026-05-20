@@ -6331,6 +6331,11 @@ static bool isScaledMmBlockwiseScaleDtype(Type dtype) {
   return isa<Float8E8M0FNUType, Float8E4M3FNType>(dtype);
 }
 
+static bool isScaledMmBlockwiseScaling(Type scaleADtype, Type scaleBDtype) {
+  return scaleADtype == scaleBDtype &&
+         isScaledMmBlockwiseScaleDtype(scaleADtype);
+}
+
 static int64_t ceilDivPositive(int64_t dividend, int64_t divisor) {
   return (dividend + divisor - 1) / divisor;
 }
@@ -6398,12 +6403,16 @@ LogicalResult Aten_ScaledMmOp::verify() {
   ArrayRef<int64_t> scaleAShape = scaleAType.getSizes();
   ArrayRef<int64_t> scaleBShape = scaleBType.getSizes();
 
+  bool isBlockwiseScaling =
+      isScaledMmBlockwiseScaling(scaleADtype, scaleBDtype);
+
   int64_t scaleANumel;
   int64_t scaleBNumel;
   if (!getNumel(scaleAShape, scaleANumel) ||
       !getNumel(scaleBShape, scaleBNumel))
     return success();
 
+  // Tensorwise scaling.
   if (scaleANumel == 1 || scaleBNumel == 1) {
     if (scaleANumel != 1 || scaleBNumel != 1)
       return emitOpError("expected scale_a and scale_b to both be scalar for "
@@ -6415,15 +6424,24 @@ LogicalResult Aten_ScaledMmOp::verify() {
     return success();
   }
 
-  if (scaleADtype == scaleBDtype &&
-      isScaledMmBlockwiseScaleDtype(scaleADtype)) {
-    int64_t blockSizeK = isa<Float8E4M3FNType>(scaleADtype) ? 16 : 32;
+  // Blockwise scaling. Keep this structured like PyTorch's
+  // _check_scaled_mm_sizes scale-recipe branch.
+  if (isBlockwiseScaling) {
+    int64_t blockSizeK;
+    if (isa<Float8E4M3FNType>(scaleADtype)) {
+      // Match PyTorch's f8e4m3fn scale recipe: 16 K elements per scale block.
+      blockSizeK = 16;
+    } else {
+      // MXFP8 uses e8m0 scales and 32 elements per K block.
+      blockSizeK = 32;
+    }
+    int64_t blockSizeMN = 128;
     int64_t numKBlocks = ceilDivPositive(k, blockSizeK);
     int64_t paddedNumKBlocks = ceilDivPositive(numKBlocks, 4) * 4;
     int64_t expectedScaleANumel =
-        128 * ceilDivPositive(m, 128) * paddedNumKBlocks;
+        blockSizeMN * ceilDivPositive(m, blockSizeMN) * paddedNumKBlocks;
     int64_t expectedScaleBNumel =
-        128 * ceilDivPositive(n, 128) * paddedNumKBlocks;
+        blockSizeMN * ceilDivPositive(n, blockSizeMN) * paddedNumKBlocks;
     if (scaleANumel != expectedScaleANumel ||
         scaleBNumel != expectedScaleBNumel)
       return emitOpError("invalid blockwise scaling configuration: expected "
@@ -6434,6 +6452,7 @@ LogicalResult Aten_ScaledMmOp::verify() {
     return success();
   }
 
+  // Rowwise and f32 blockwise scale recipes.
   if (!isScaledMmTensorwiseOrRowwiseScaleDtype(scaleADtype) ||
       !isScaledMmTensorwiseOrRowwiseScaleDtype(scaleBDtype))
     return emitOpError("expected non-tensorwise, non-blockwise scale_a and "
