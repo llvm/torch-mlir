@@ -112,7 +112,7 @@ static bool isSupportedScaledMmDataElementType(Type type) {
 }
 
 static bool isSupportedStaticScaledMmScaleElementType(Type type) {
-  return type.isF32() || type.isF16() || type.isBF16();
+  return type.isF32();
 }
 
 static constexpr int64_t kScaledMmMatmulNAlignment = 16;
@@ -167,43 +167,39 @@ static FailureOr<Value> padLastDimWithZeros(Value input, int64_t paddedLastDim,
       .getResult();
 }
 
-static std::optional<SmallVector<int64_t>>
-getStaticScaledMmBatchedScaleShape(RankedTensorType scaleTy, int64_t m,
-                                   int64_t n, bool isLhsScale) {
-  if (!scaleTy.hasStaticShape() ||
-      !isSupportedStaticScaledMmScaleElementType(scaleTy.getElementType()))
+struct StaticScaledMmScaleShapes {
+  SmallVector<int64_t> scaleA;
+  SmallVector<int64_t> scaleB;
+};
+
+static std::optional<StaticScaledMmScaleShapes>
+getStaticScaledMmBatchedScaleShapes(RankedTensorType scaleATy,
+                                    RankedTensorType scaleBTy, int64_t m,
+                                    int64_t n) {
+  if (!scaleATy.hasStaticShape() || !scaleBTy.hasStaticShape() ||
+      !isSupportedStaticScaledMmScaleElementType(scaleATy.getElementType()) ||
+      !isSupportedStaticScaledMmScaleElementType(scaleBTy.getElementType()))
     return std::nullopt;
 
-  if (scaleTy.getRank() == 0)
-    return SmallVector<int64_t>{1, 1, 1};
+  if (scaleATy.getNumElements() == 1 && scaleBTy.getNumElements() == 1)
+    return StaticScaledMmScaleShapes{{1, 1, 1}, {1, 1, 1}};
 
-  if (scaleTy.getRank() == 2) {
-    int64_t rows = scaleTy.getDimSize(0);
-    int64_t cols = scaleTy.getDimSize(1);
-    if (rows == 1 && cols == 1)
-      return SmallVector<int64_t>{1, 1, 1};
-
-    if (isLhsScale && rows == m && cols == 1)
-      return SmallVector<int64_t>{1, m, 1};
-
-    if (!isLhsScale && rows == 1 && cols == n)
-      return SmallVector<int64_t>{1, 1, n};
-
-    return std::nullopt;
-  }
-
-  if (scaleTy.getRank() != 1)
+  if (scaleATy.getRank() != 2 || scaleBTy.getRank() != 2)
     return std::nullopt;
 
-  int64_t size = scaleTy.getDimSize(0);
-  if (size == 1)
-    return SmallVector<int64_t>{1, 1, 1};
+  int64_t scaleARows = scaleATy.getDimSize(0);
+  int64_t scaleACols = scaleATy.getDimSize(1);
+  int64_t scaleBRows = scaleBTy.getDimSize(0);
+  int64_t scaleBCols = scaleBTy.getDimSize(1);
 
-  if (isLhsScale && size == m)
-    return SmallVector<int64_t>{1, m, 1};
+  if (scaleARows == m && scaleACols == 1 && scaleBRows == 1 && scaleBCols == n)
+    return StaticScaledMmScaleShapes{{1, m, 1}, {1, 1, n}};
 
-  if (!isLhsScale && size == n)
-    return SmallVector<int64_t>{1, 1, n};
+  if (scaleARows == m && scaleACols == 1 && scaleBRows == 1 && scaleBCols == 1)
+    return StaticScaledMmScaleShapes{{1, m, 1}, {1, 1, 1}};
+
+  if (scaleARows == 1 && scaleACols == 1 && scaleBRows == 1 && scaleBCols == n)
+    return StaticScaledMmScaleShapes{{1, 1, 1}, {1, 1, n}};
 
   return std::nullopt;
 }
@@ -371,19 +367,15 @@ static LogicalResult rewriteScaledMmToMatMulOp(
   scaleA = tosa::tosaCastTensorToType(rewriter, scaleA, scaleAF32Ty).value();
   scaleB = tosa::tosaCastTensorToType(rewriter, scaleB, scaleBF32Ty).value();
 
-  std::optional<SmallVector<int64_t>> batchedScaleAShape =
-      getStaticScaledMmBatchedScaleShape(scaleATy, m, n, /*isLhsScale=*/true);
-  std::optional<SmallVector<int64_t>> batchedScaleBShape =
-      getStaticScaledMmBatchedScaleShape(scaleBTy, m, n,
-                                         /*isLhsScale=*/false);
-  if (!batchedScaleAShape || !batchedScaleBShape)
-    return rewriter.notifyMatchFailure(op,
-                                       "aten._scaled_mm expects static FP8 "
-                                       "scales to be scalar, [1], lhs [M], or "
-                                       "rhs [N]");
+  std::optional<StaticScaledMmScaleShapes> batchedScaleShapes =
+      getStaticScaledMmBatchedScaleShapes(scaleATy, scaleBTy, m, n);
+  if (!batchedScaleShapes)
+    return rewriter.notifyMatchFailure(
+        op, "aten._scaled_mm expects static FP8 scales to be fp32 "
+            "tensorwise scales or paired 2D PyTorch scale layouts");
 
-  SmallVector<int64_t> batchedScaleAShapeVec = *batchedScaleAShape;
-  SmallVector<int64_t> batchedScaleBShapeVec = *batchedScaleBShape;
+  SmallVector<int64_t> batchedScaleAShapeVec = batchedScaleShapes->scaleA;
+  SmallVector<int64_t> batchedScaleBShapeVec = batchedScaleShapes->scaleB;
 
   scaleA = reshapeTensor(scaleA, batchedScaleAShapeVec, f32Ty, rewriter, loc);
   scaleB = reshapeTensor(scaleB, batchedScaleBShapeVec, f32Ty, rewriter, loc);
@@ -2956,7 +2948,7 @@ public:
     if (!isSupportedStaticScaledMmScaleElementType(scaleATy.getElementType()) ||
         !isSupportedStaticScaledMmScaleElementType(scaleBTy.getElementType()))
       return rewriter.notifyMatchFailure(
-          op, "aten._scaled_mm expects f32/f16/bf16 static FP8 scales");
+          op, "aten._scaled_mm expects fp32 static FP8 scales");
 
     Location loc = op.getLoc();
 
