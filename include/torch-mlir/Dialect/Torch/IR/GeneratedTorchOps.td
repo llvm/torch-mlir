@@ -6696,6 +6696,7 @@ def Torch_AtenMatmulOp : Torch_Op<"aten.matmul", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+  let hasVerifier = 1;
 }
 
 def Torch_AtenMvOp : Torch_Op<"aten.mv", [
