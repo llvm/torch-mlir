@@ -158,6 +158,10 @@ LogicalResult getPermutedType(BaseTensorType inType,
                               SmallVector<int64_t> permuteDims,
                               Type &permutedType);
 
+// Check whether the given shapes of 2 tensors are broadcastable or not.
+LogicalResult areStaticallyBroadcastCompatible(ArrayRef<int64_t> shapeA,
+                                               ArrayRef<int64_t> shapeB);
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir
