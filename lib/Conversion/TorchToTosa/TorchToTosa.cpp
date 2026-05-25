@@ -5995,30 +5995,79 @@ static LogicalResult
 rewriteClampAsMinimumMaximumOp(Operation *op, TensorType resultType, Value self,
                                Value min, Value max,
                                ConversionPatternRewriter &rewriter) {
-  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, min).failed() ||
-      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, max).failed())
-    return rewriter.notifyMatchFailure(
-        op, "Failed to equalize ranks among operands and result");
-  self = tosa::tosaCastTensorToType(rewriter, self, resultType).value();
-  min = tosa::tosaCastTensorToType(rewriter, min, resultType).value();
-  max = tosa::tosaCastTensorToType(rewriter, max, resultType).value();
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, min).failed())
+    return rewriter.notifyMatchFailure(op, "failed to equalize self and min");
+
+  auto selfType = cast<RankedTensorType>(self.getType());
+  auto minType = cast<RankedTensorType>(min.getType());
+
+  self = tosa::tosaCastTensorToType(rewriter, self,
+                                    selfType.clone(resultType.getElementType()))
+             .value();
+  min = tosa::tosaCastTensorToType(rewriter, min,
+                                   minType.clone(resultType.getElementType()))
+            .value();
+
+  auto maxRank = cast<RankedTensorType>(self.getType()).getRank();
+  auto dynamicIntermediateType =
+      RankedTensorType::get(SmallVector<int64_t>(maxRank, ShapedType::kDynamic),
+                            resultType.getElementType());
+
   // max(xi, min_valuei)
   // Use default NaN Propagation mode "PROPAGATE" for tosa.maximum
-  auto minThresholdCheck = tosa::MaximumOp::create(
-      rewriter, op->getLoc(), resultType, self, min,
-      /*nan_mode=*/
+  auto minThresholdCheck = tosa::CreateOpAndInfer<tosa::MaximumOp>(
+      rewriter, op->getLoc(), dynamicIntermediateType, self, min,
       tosa::NanPropagationModeAttr::get(rewriter.getContext(),
                                         tosa::NanPropagationMode::PROPAGATE));
 
+  Value tmp = minThresholdCheck.getResult();
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), tmp, max).failed())
+    return rewriter.notifyMatchFailure(
+        op, "failed to equalize intermediate and max");
+
+  auto maxType = cast<RankedTensorType>(max.getType());
+  max = tosa::tosaCastTensorToType(rewriter, max,
+                                   maxType.clone(resultType.getElementType()))
+            .value();
+
   // yi = min(max(xi, min_valuei), max_valuei)
   // Use default NaN Propagation mode "PROPAGATE" for tosa.minimum
-  auto result = tosa::MinimumOp::create(
-      rewriter, op->getLoc(), resultType, minThresholdCheck, max,
-      /*nan_mode=*/
+  auto result = tosa::CreateOpAndInfer<tosa::MinimumOp>(
+      rewriter, op->getLoc(), resultType, tmp, max,
       tosa::NanPropagationModeAttr::get(rewriter.getContext(),
                                         tosa::NanPropagationMode::PROPAGATE));
 
   rewriter.replaceOp(op, result);
+  return success();
+}
+
+static LogicalResult validateClampBoundsInValidRange(
+    ConversionPatternRewriter &rewriter, Operation *op, IntegerType intType,
+    std::optional<int64_t> minInt, std::optional<int64_t> maxInt) {
+  auto isOutOfRange = [&](int64_t value) {
+    switch (intType.getWidth()) {
+    case 8:
+      return value < std::numeric_limits<int8_t>::min() ||
+             value > std::numeric_limits<int8_t>::max();
+    case 16:
+      return value < std::numeric_limits<int16_t>::min() ||
+             value > std::numeric_limits<int16_t>::max();
+    case 32:
+      return value < std::numeric_limits<int32_t>::min() ||
+             value > std::numeric_limits<int32_t>::max();
+    case 64:
+      return false;
+    default:
+      return true;
+    }
+  };
+
+  if ((minInt && isOutOfRange(*minInt)) || (maxInt && isOutOfRange(*maxInt))) {
+    return rewriter.notifyMatchFailure(
+        op, "explicit clamp bound is not representable in result integer type");
+  }
+
   return success();
 }
 
@@ -6087,6 +6136,10 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewriteImpl(
 
   return TypeSwitch<Type, LogicalResult>(outElemTy)
       .Case<mlir::IntegerType>([&](auto intType) -> LogicalResult {
+        if (failed(validateClampBoundsInValidRange(rewriter, op, intType,
+                                                   minInt, maxInt)))
+          return failure();
+
         IntegerAttr minIntAttr, maxIntAttr;
         if (failed(tosa::getIntegerClampAttrs(rewriter, op, outElemTy, minInt,
                                               maxInt, minIntAttr,
@@ -6100,6 +6153,8 @@ LogicalResult ConvertAtenOp<AtenClampOp>::matchAndRewriteImpl(
         switch (intType.getWidth()) {
         case 8:
         case 16:
+          if (minIntAttr.getInt() > maxIntAttr.getInt())
+            minIntAttr = maxIntAttr;
           rewriter.replaceOpWithNewOp<tosa::ClampOp>(
               op, outType, self, minIntAttr, maxIntAttr,
               /*nan_mode=*/
@@ -6194,6 +6249,11 @@ LogicalResult ConvertAtenOp<AtenClampTensorOp>::matchAndRewriteImpl(
                 return tosa::getConstTensor<int8_t>(
                            rewriter, op, std::numeric_limits<int8_t>::min(), {})
                     .value();
+              case 16:
+                return tosa::getConstTensor<int16_t>(
+                           rewriter, op, std::numeric_limits<int16_t>::min(),
+                           {})
+                    .value();
               case 32:
                 return tosa::getConstTensor<int32_t>(
                            rewriter, op, std::numeric_limits<int32_t>::min(),
@@ -6227,6 +6287,11 @@ LogicalResult ConvertAtenOp<AtenClampTensorOp>::matchAndRewriteImpl(
               case 8:
                 return tosa::getConstTensor<int8_t>(
                            rewriter, op, std::numeric_limits<int8_t>::max(), {})
+                    .value();
+              case 16:
+                return tosa::getConstTensor<int16_t>(
+                           rewriter, op, std::numeric_limits<int16_t>::max(),
+                           {})
                     .value();
               case 32:
                 return tosa::getConstTensor<int32_t>(
