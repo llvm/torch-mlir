@@ -1093,7 +1093,6 @@ func.func @torch.aten.mish$f8E8M0FNU(%arg0: !torch.vtensor<[2,3],f8E8M0FNU>) -> 
 
 // -----
 
-
 // CHECK-LABEL: func.func @repeat_mixed_dims_broadcast_singletons
 // CHECK-SAME: (%[[ARG0:.*]]: !torch.vtensor<[1,2,1],f32>) -> !torch.vtensor<[3,8,5],f32>
 // CHECK-DAG: %[[CNEG1:.*]] = torch.constant.int -1
@@ -1115,4 +1114,25 @@ func.func @repeat_mixed_dims_broadcast_singletons(%arg0: !torch.vtensor<[1,2,1],
   %0 = torch.prim.ListConstruct %int3, %int4, %int5 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
   %1 = torch.aten.repeat %arg0, %0 : !torch.vtensor<[1,2,1],f32>, !torch.list<int> -> !torch.vtensor<[3,8,5],f32>
   return %1 : !torch.vtensor<[3,8,5],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func @repeat_broadcasts_static_singleton_dims
+func.func @repeat_broadcasts_static_singleton_dims(%arg0: !torch.vtensor<[1,1,6,1,4,4],f32>) -> !torch.vtensor<[4,1,6,2500,4,4],f32> {
+  %int4 = torch.constant.int 4
+  %int1 = torch.constant.int 1
+  %int2500 = torch.constant.int 2500
+  // CHECK-DAG: %[[C4:.*]] = torch.constant.int 4
+  // CHECK-DAG: %[[C2500:.*]] = torch.constant.int 2500
+  // CHECK-DAG: %[[C1:.*]] = torch.constant.int 1
+  // CHECK-DAG: %[[C6:.*]] = torch.constant.int 6
+  // CHECK: %[[SHAPE:.*]] = torch.prim.ListConstruct %[[C4]], %[[C1]], %[[C6]], %[[C2500]], %[[C4]], %[[C4]] : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK-NOT: torch.aten.unsqueeze
+  // CHECK-NOT: torch.aten.flatten
+  // CHECK: %[[BROADCAST:.*]] = torch.aten.broadcast_to %arg0, %[[SHAPE]] : !torch.vtensor<[1,1,6,1,4,4],f32>, !torch.list<int> -> !torch.vtensor<[4,1,6,2500,4,4],f32>
+  // CHECK: return %[[BROADCAST]] : !torch.vtensor<[4,1,6,2500,4,4],f32>
+  %repeats = torch.prim.ListConstruct %int4, %int1, %int1, %int2500, %int1, %int1 : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.repeat %arg0, %repeats : !torch.vtensor<[1,1,6,1,4,4],f32>, !torch.list<int> -> !torch.vtensor<[4,1,6,2500,4,4],f32>
+  return %0 : !torch.vtensor<[4,1,6,2500,4,4],f32>
 }
