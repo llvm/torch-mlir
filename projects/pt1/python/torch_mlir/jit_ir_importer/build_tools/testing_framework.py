@@ -59,9 +59,11 @@ class TensorOfShape:
     this special treatment.
 
     This class also tracks a dtype of the tensor, since some ops require a
-    specific dtype. When a stride is provided, it is only used to construct the
-    real tensor for testing the upstream op; torch-mlir does not import stride
-    metadata.
+    specific dtype. The optional stride is only used when constructing the real
+    PyTorch tensor for upstream behavior checks. Some ops, such as
+    `_scaled_mm`, reject otherwise valid logical inputs unless the tensor has a
+    required physical layout. The abstract shape/dtype functions still receive
+    only shape and dtype; torch-mlir does not import this stride.
     """
 
     def __init__(
@@ -167,12 +169,12 @@ class Invocation:
         """Gets positional arguments appropriate for the real op."""
 
         def initialize_tensor(t):
-            try:
-                return t.fill_(1)
-            except RuntimeError as e:
-                if t.dtype == torch.float4_e2m1fn_x2 and "not implemented" in str(e):
-                    return t
-                raise
+            if t.dtype == torch.float4_e2m1fn_x2:
+                # fill_ is not implemented for this shell dtype. Fill the
+                # packed bytes; shape/dtype tests only need a valid tensor.
+                t.view(torch.uint8).fill_(1)
+                return t
+            return t.fill_(1)
 
         tensor_transformer = lambda o: (
             initialize_tensor(

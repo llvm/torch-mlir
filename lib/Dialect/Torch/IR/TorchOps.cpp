@@ -6319,8 +6319,8 @@ LogicalResult AtenKthvalueOp::verify() {
 //===----------------------------------------------------------------------===//
 
 static bool isScaledMmDataDtype(Type dtype) {
-  return isa<Float8E4M3FNType, Float8E4M3FNUZType, Float8E5M2Type,
-             Float8E5M2FNUZType>(dtype);
+  return isa<Float4E2M1FNType, Float8E4M3FNType, Float8E4M3FNUZType,
+             Float8E5M2Type, Float8E5M2FNUZType>(dtype);
 }
 
 static bool isScaledMmTensorwiseOrRowwiseScaleDtype(Type dtype) {
@@ -6340,14 +6340,27 @@ static int64_t ceilDivPositive(int64_t dividend, int64_t divisor) {
   return (dividend + divisor - 1) / divisor;
 }
 
-static bool getNumel(ArrayRef<int64_t> sizes, int64_t &numel) {
-  numel = 1;
+static int64_t getNumel(ArrayRef<int64_t> sizes) {
+  int64_t numel = 1;
   for (int64_t size : sizes) {
     if (size == kUnknownSize)
-      return false;
+      return kUnknownSize;
     numel *= size;
   }
-  return true;
+  return numel;
+}
+
+static int64_t getScaledMmBlockSizeK(Type scaleDtype) {
+  return isa<Float8E4M3FNType>(scaleDtype) ? 16 : 32;
+}
+
+static int64_t getScaledMmScaleK(int64_t contractingDim, Type dataDtype,
+                                 Type scaleDtype) {
+  if (contractingDim == kUnknownSize)
+    return kUnknownSize;
+  return isa<Float4E2M1FNType>(dataDtype) || isa<Float8E4M3FNType>(scaleDtype)
+             ? contractingDim * 2
+             : contractingDim;
 }
 
 static bool hasShape(ArrayRef<int64_t> sizes, ArrayRef<int64_t> expected) {
@@ -6355,16 +6368,20 @@ static bool hasShape(ArrayRef<int64_t> sizes, ArrayRef<int64_t> expected) {
 }
 
 LogicalResult Aten_ScaledMmOp::verify() {
+  // Mirror the statically checkable parts of PyTorch's _scaled_mm metadata
+  // validation:
+  // https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/cuda/ScaledBlas.cpp
   auto selfType = cast<BaseTensorType>(getSelf().getType());
   auto mat2Type = cast<BaseTensorType>(getMat2().getType());
   auto scaleAType = cast<BaseTensorType>(getScaleA().getType());
   auto scaleBType = cast<BaseTensorType>(getScaleB().getType());
+  auto resultType = cast<BaseTensorType>(getResult().getType());
 
   if (selfType.hasDtype() && !isScaledMmDataDtype(selfType.getDtype()))
-    return emitOpError("expected self to have an FP8 dtype, but got ")
+    return emitOpError("expected self to have an FP8 or FP4 dtype, but got ")
            << selfType.getDtype();
   if (mat2Type.hasDtype() && !isScaledMmDataDtype(mat2Type.getDtype()))
-    return emitOpError("expected mat2 to have an FP8 dtype, but got ")
+    return emitOpError("expected mat2 to have an FP8 or FP4 dtype, but got ")
            << mat2Type.getDtype();
 
   if (!selfType.hasSizes() || !mat2Type.hasSizes())
@@ -6393,6 +6410,53 @@ LogicalResult Aten_ScaledMmOp::verify() {
     return emitOpError("expected mat2 contracting dimension to be divisible "
                        "by 16, but got ")
            << mat2K;
+
+  if (!isa<Torch::NoneType>(getBias().getType())) {
+    auto biasType = dyn_cast<BaseTensorType>(getBias().getType());
+    if (!biasType)
+      return success();
+    if (biasType.hasSizes()) {
+      int64_t biasNumel = getNumel(biasType.getSizes());
+      if (biasNumel != kUnknownSize && n != kUnknownSize && biasNumel != n)
+        return emitOpError("expected bias to have ")
+               << n << " elements, but got " << biasNumel;
+    }
+    if (biasType.hasDtype()) {
+      Type biasDtype = biasType.getDtype();
+      if (!biasDtype.isBF16() && !biasDtype.isF16())
+        return emitOpError("expected bias to have bf16 or f16 dtype, but got ")
+               << biasDtype;
+      if (resultType.hasDtype()) {
+        Type resultDtype = resultType.getDtype();
+        if (resultDtype.isF32())
+          return emitOpError("expected bias to be absent for f32 result dtype");
+        if (resultDtype.isBF16() && !biasDtype.isBF16())
+          return emitOpError("expected bias to have bf16 dtype for bf16 "
+                             "result dtype, but got ")
+                 << biasDtype;
+        if (resultDtype.isF16() && !biasDtype.isF16())
+          return emitOpError("expected bias to have f16 dtype for f16 "
+                             "result dtype, but got ")
+                 << biasDtype;
+      }
+    }
+  }
+
+  if (!isa<Torch::NoneType>(getScaleResult().getType())) {
+    auto scaleResultType = dyn_cast<BaseTensorType>(getScaleResult().getType());
+    if (!scaleResultType)
+      return success();
+    if (scaleResultType.hasDtype() && !scaleResultType.getDtype().isF32())
+      return emitOpError("expected scale_result to have f32 dtype, but got ")
+             << scaleResultType.getDtype();
+    if (scaleResultType.hasSizes()) {
+      int64_t scaleResultNumel = getNumel(scaleResultType.getSizes());
+      if (scaleResultNumel != kUnknownSize && scaleResultNumel != 1)
+        return emitOpError("expected scale_result to have 1 element, but got ")
+               << scaleResultNumel;
+    }
+  }
+
   if (!scaleAType.hasDtype() || !scaleBType.hasDtype() ||
       !scaleAType.hasSizes() || !scaleBType.hasSizes() ||
       !selfType.areAllSizesKnown() || !mat2Type.areAllSizesKnown())
@@ -6406,10 +6470,12 @@ LogicalResult Aten_ScaledMmOp::verify() {
   bool isBlockwiseScaling =
       isScaledMmBlockwiseScaling(scaleADtype, scaleBDtype);
 
-  int64_t scaleANumel;
-  int64_t scaleBNumel;
-  if (!getNumel(scaleAShape, scaleANumel) ||
-      !getNumel(scaleBShape, scaleBNumel))
+  if (!selfType.hasDtype() || !mat2Type.hasDtype())
+    return success();
+
+  int64_t scaleANumel = getNumel(scaleAShape);
+  int64_t scaleBNumel = getNumel(scaleBShape);
+  if (scaleANumel == kUnknownSize || scaleBNumel == kUnknownSize)
     return success();
 
   // Tensorwise scaling.
@@ -6424,24 +6490,23 @@ LogicalResult Aten_ScaledMmOp::verify() {
     return success();
   }
 
-  // Blockwise scaling. Keep this structured like PyTorch's
-  // _check_scaled_mm_sizes scale-recipe branch.
+  // Blockwise scaling. Match PyTorch's _check_scaled_mm_sizes scale-recipe
+  // branch.
   if (isBlockwiseScaling) {
-    int64_t blockSizeK;
-    if (isa<Float8E4M3FNType>(scaleADtype)) {
-      // Match PyTorch's f8e4m3fn scale recipe: 16 K elements per scale block.
-      blockSizeK = 16;
-    } else {
-      // MXFP8 uses e8m0 scales and 32 elements per K block.
-      blockSizeK = 32;
-    }
     int64_t blockSizeMN = 128;
-    int64_t numKBlocks = ceilDivPositive(k, blockSizeK);
-    int64_t paddedNumKBlocks = ceilDivPositive(numKBlocks, 4) * 4;
+    int64_t scaleAK = getScaledMmScaleK(k, selfType.getDtype(), scaleADtype);
+    int64_t scaleBK =
+        getScaledMmScaleK(mat2K, mat2Type.getDtype(), scaleBDtype);
+    int64_t numAKBlocks =
+        ceilDivPositive(scaleAK, getScaledMmBlockSizeK(scaleADtype));
+    int64_t numBKBlocks =
+        ceilDivPositive(scaleBK, getScaledMmBlockSizeK(scaleBDtype));
+    int64_t paddedNumAKBlocks = ceilDivPositive(numAKBlocks, 4) * 4;
+    int64_t paddedNumBKBlocks = ceilDivPositive(numBKBlocks, 4) * 4;
     int64_t expectedScaleANumel =
-        blockSizeMN * ceilDivPositive(m, blockSizeMN) * paddedNumKBlocks;
+        blockSizeMN * ceilDivPositive(m, blockSizeMN) * paddedNumAKBlocks;
     int64_t expectedScaleBNumel =
-        blockSizeMN * ceilDivPositive(n, blockSizeMN) * paddedNumKBlocks;
+        blockSizeMN * ceilDivPositive(n, blockSizeMN) * paddedNumBKBlocks;
     if (scaleANumel != expectedScaleANumel ||
         scaleBNumel != expectedScaleBNumel)
       return emitOpError("invalid blockwise scaling configuration: expected "
