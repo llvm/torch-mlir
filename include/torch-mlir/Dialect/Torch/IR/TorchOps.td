@@ -1467,6 +1467,12 @@ def Torch_HigherOrderFlexAttentionOp : Torch_Op<"hop_flex_attention", [
       value: Value tensor [B, H, N, Ev]
       scale: Optional float for scaling attention scores (None means 1/sqrt(head_dim))
       return_lse: Bool to return log-sum-exp values
+      return_max_scores: Bool to return max score values
+
+    Variadic Args:
+      mask_mod_other_buffers: Additional values passed to mask_mod_fn after
+        (batch, head, token_q, token_kv). These make PyTorch mask_mod closure
+        captures from traced/exported HOP graphs explicit in MLIR.
 
     Attributes:
       enable_gqa: Optional bool metadata indicating lowerings should expand
@@ -1492,6 +1498,7 @@ def Torch_HigherOrderFlexAttentionOp : Torch_Op<"hop_flex_attention", [
     AnyTorchOptionalFloatType:$scale,
     Torch_BoolType:$return_lse,
     Torch_BoolType:$return_max_scores,
+    Variadic<AnyTorchType>:$mask_mod_other_buffers,
     OptionalAttr<BoolAttr>:$enable_gqa,
     OptionalAttr<FlatSymbolRefAttr>:$score_mod_fn,
     OptionalAttr<FlatSymbolRefAttr>:$mask_mod_fn
@@ -1503,14 +1510,14 @@ def Torch_HigherOrderFlexAttentionOp : Torch_Op<"hop_flex_attention", [
     AnyTorchOptionalTensorType:$max_scores
   );
 
-  let hasCustomAssemblyFormat = 1;
-  let extraClassDefinition = [{
-    ParseResult HigherOrderFlexAttentionOp::parse(OpAsmParser &parser, OperationState &result) {
-      return parseDefaultTorchOp(parser, result, 6, 3);
-    }
-    void HigherOrderFlexAttentionOp::print(OpAsmPrinter &printer) {
-      printDefaultTorchOp(printer, *this, 6, 3);
-    }
+  let assemblyFormat = [{
+    $query `,` $key `,` $value `,` $scale `,` $return_lse `,`
+    $return_max_scores
+    (`,` `mask_mod_other_buffers` `(` $mask_mod_other_buffers^ `)`)? attr-dict `:`
+    type($query) `,` type($key) `,` type($value) `,` type($scale) `,`
+    type($return_lse) `,` type($return_max_scores)
+    (`,` `mask_mod_other_buffers` `(` type($mask_mod_other_buffers)^ `)`)? `->` type($output) `,`
+    type($logsumexp) `,` type($max_scores)
   }];
   let hasVerifier = 1;
 }
