@@ -2253,6 +2253,7 @@ TOSA_PASS_SET = {
     "ElementwiseClampModule_basic",
     "ElementwiseClampTensorInt8Module_basic",
     "ElementwiseClampInt32Module_basic",
+    "ElementwiseClampInt64Module_basic",
     "ElementwiseCloneChannelsLastMemoryFormatModule_basic",
     "ElementwiseCloneContiguousModule_basic",
     "ElementwiseCloneModule_basic",
