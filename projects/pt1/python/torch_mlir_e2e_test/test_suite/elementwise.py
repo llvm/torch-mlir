@@ -5548,6 +5548,34 @@ def ElementwiseSubTensorInt8Module_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseAddTensorInt16Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int16, True),
+            ([-1, -1], torch.int16, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.add(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAddTensorInt16Module())
+def ElementwiseAddTensorInt16Module_basic(module, tu: TestUtils):
+    # Bound each input to ±2^14 so the sum stays within signed i16 (±2^15).
+    module.forward(
+        tu.randint(3, 4, low=-(2**14), high=2**14).to(dtype=torch.int16),
+        tu.randint(3, 4, low=-(2**14), high=2**14).to(dtype=torch.int16),
+    )
+
+
+# ==============================================================================
+
+
 class ElementwiseSubScalarIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
