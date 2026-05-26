@@ -123,6 +123,10 @@ static bool isSupportedBlockedScaledMmScaleElementType(Type type) {
   return isa<Float8E8M0FNUType>(type);
 }
 
+static bool isSupportedStaticScaledMmResultElementType(Type type) {
+  return type.isF32() || type.isF16() || type.isBF16();
+}
+
 static constexpr int64_t kScaledMmMatmulNAlignment = 16;
 
 static SmallVector<int64_t> getTensorShape(RankedTensorType tensorTy) {
@@ -3330,6 +3334,11 @@ public:
       return rewriter.notifyMatchFailure(
           op, "aten._scaled_mm expects static fp32 scales, blocked "
               "float8_e8m0fnu flat scales with surrounding reshape ops");
+
+    if (!isSupportedStaticScaledMmResultElementType(resultTy.getElementType()))
+      return rewriter.notifyMatchFailure(
+          op, "aten._scaled_mm expects f32, f16 or bf16 result type for "
+              "static FP8 scales");
 
     Location loc = op.getLoc();
 
