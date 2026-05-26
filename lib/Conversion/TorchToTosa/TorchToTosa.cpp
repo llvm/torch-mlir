@@ -386,13 +386,26 @@ static FailureOr<Value> createScaledMmMatmulTBlockScaledResult(
 static FailureOr<Value> reshapeFlatBlockedScaleForTosa(
     Value scale, RankedTensorType scaleTy, int64_t rows, int64_t scaleCols,
     ConversionPatternRewriter &rewriter, Location loc) {
-  if (scaleTy.getRank() != 1 || !scaleTy.hasStaticShape())
+  if (!scaleTy.hasStaticShape())
     return failure();
 
   int64_t compactNumel = rows * scaleCols;
-  int64_t numel = scaleTy.getDimSize(0);
   SmallVector<int64_t> scaleShape = {1, rows, scaleCols};
   auto reshapedTy = RankedTensorType::get(scaleShape, scaleTy.getElementType());
+
+  if (scaleTy.getRank() == 2) {
+    if (scaleTy.getDimSize(0) != rows || scaleTy.getDimSize(1) != scaleCols)
+      return failure();
+    return tosa::ReshapeOp::create(
+               rewriter, loc, reshapedTy, scale,
+               tosa::getTosaConstShape(rewriter, loc, scaleShape))
+        .getResult();
+  }
+
+  if (scaleTy.getRank() != 1)
+    return failure();
+
+  int64_t numel = scaleTy.getDimSize(0);
   if (numel == compactNumel)
     return tosa::ReshapeOp::create(
                rewriter, loc, reshapedTy, scale,
@@ -490,13 +503,18 @@ static FailureOr<Value> getBlockedScaleForTosa(
   if (!scaleTy.hasStaticShape())
     return failure();
 
+  if (auto flatScale =
+          reshapeFlatBlockedScaleForTosa(scale, scaleTy, rows, scaleCols,
+                                         rewriter, loc);
+      succeeded(flatScale))
+    return *flatScale;
+
   if (auto swizzledScale = canonicalizeSwizzledBlockedScaleForTosa(
           scale, scaleTy, rows, scaleCols, rewriter, loc);
       succeeded(swizzledScale))
     return *swizzledScale;
 
-  return reshapeFlatBlockedScaleForTosa(scale, scaleTy, rows, scaleCols,
-                                        rewriter, loc);
+  return failure();
 }
 
 static FailureOr<Value> getRank3BlockedRhsSourceForTosa(Value rhs,

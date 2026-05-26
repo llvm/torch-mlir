@@ -4826,6 +4826,24 @@ func.func @torch.aten._scaled_mm$block_scaled_fp8_flat(%arg0: !torch.vtensor<[12
 }
 
 // -----
+
+// CHECK-LABEL:   func.func @torch.aten._scaled_mm$block_scaled_fp8_rank2_compact_scales(
+// CHECK-SAME:      %arg0: !torch.vtensor<[128,128],f8E4M3FN>, %arg1: !torch.vtensor<[128,128],f8E4M3FN>, %arg2: !torch.vtensor<[128,4],f8E8M0FNU>, %arg3: !torch.vtensor<[128,4],f8E8M0FNU>) -> !torch.vtensor<[128,128],bf16> {
+// CHECK-DAG:       %[[SCALE_A:.*]] = torch_c.to_builtin_tensor %arg2 : !torch.vtensor<[128,4],f8E8M0FNU> -> tensor<128x4xf8E8M0FNU>
+// CHECK-DAG:       %[[SCALE_B:.*]] = torch_c.to_builtin_tensor %arg3 : !torch.vtensor<[128,4],f8E8M0FNU> -> tensor<128x4xf8E8M0FNU>
+// CHECK:           %[[SCALE_A_3D:.*]] = tosa.reshape %[[SCALE_A]], %{{.*}} : (tensor<128x4xf8E8M0FNU>, !tosa.shape<3>) -> tensor<1x128x4xf8E8M0FNU>
+// CHECK:           %[[SCALE_B_3D:.*]] = tosa.reshape %[[SCALE_B]], %{{.*}} : (tensor<128x4xf8E8M0FNU>, !tosa.shape<3>) -> tensor<1x128x4xf8E8M0FNU>
+// CHECK:           tosa.matmul_t_block_scaled %{{.*}}, %[[SCALE_A_3D]], %{{.*}}, %[[SCALE_B_3D]] {block_size = BLOCK_SIZE_32}
+// CHECK-NOT:       torch.aten._scaled_mm
+func.func @torch.aten._scaled_mm$block_scaled_fp8_rank2_compact_scales(%arg0: !torch.vtensor<[128,128],f8E4M3FN>, %arg1: !torch.vtensor<[128,128],f8E4M3FN>, %arg2: !torch.vtensor<[128,4],f8E8M0FNU>, %arg3: !torch.vtensor<[128,4],f8E8M0FNU>) -> !torch.vtensor<[128,128],bf16> {
+  %false = torch.constant.bool false
+  %int15 = torch.constant.int 15
+  %none = torch.constant.none
+  %0 = torch.aten._scaled_mm %arg0, %arg1, %arg2, %arg3, %none, %none, %int15, %false : !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[128,4],f8E8M0FNU>, !torch.vtensor<[128,4],f8E8M0FNU>, !torch.none, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}
+
+// -----
 // CHECK-LABEL:   func.func @torch.aten._scaled_mm$block_scaled_fp8_flat_ragged_scales(
 // CHECK-SAME:      %arg0: !torch.vtensor<[130,128],f8E4M3FN>, %arg1: !torch.vtensor<[128,80],f8E4M3FN>, %arg2: !torch.vtensor<[1024],f8E8M0FNU>, %arg3: !torch.vtensor<[512],f8E8M0FNU>) -> !torch.vtensor<[130,80],bf16> {
 // CHECK-DAG:       %[[SCALE_A:.*]] = torch_c.to_builtin_tensor %arg2 : !torch.vtensor<[1024],f8E8M0FNU> -> tensor<1024xf8E8M0FNU>
@@ -4865,6 +4883,26 @@ func.func @torch.aten._scaled_mm$dynamic_mxfp8_flat(%arg0: !torch.vtensor<[128,1
   %int15 = torch.constant.int 15
   %none = torch.constant.none
   %0 = torch.aten._scaled_mm %arg0, %arg1, %arg2, %arg3, %none, %none, %int15, %false : !torch.vtensor<[128,128],bf16>, !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[512],f8E8M0FNU>, !torch.vtensor<[512],f8E8M0FNU>, !torch.none, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten._scaled_mm$dynamic_mxfp8_rank2_compact_scales(
+// CHECK-SAME:      %arg0: !torch.vtensor<[128,128],bf16>, %arg1: !torch.vtensor<[128,128],f8E4M3FN>, %arg2: !torch.vtensor<[128,4],f8E8M0FNU>, %arg3: !torch.vtensor<[128,4],f8E8M0FNU>) -> !torch.vtensor<[128,128],bf16> {
+// CHECK-DAG:       %[[RHS_SCALE:.*]] = torch_c.to_builtin_tensor %arg3 : !torch.vtensor<[128,4],f8E8M0FNU> -> tensor<128x4xf8E8M0FNU>
+// CHECK-DAG:       %[[LHS_IN:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[128,128],bf16> -> tensor<128x128xbf16>
+// CHECK-NOT:       torch_c.to_builtin_tensor %arg2
+// CHECK:           %[[LHS_HP:.*]] = tosa.reshape %[[LHS_IN]], %{{.*}} : (tensor<128x128xbf16>, !tosa.shape<3>) -> tensor<1x128x128xbf16>
+// CHECK:           %[[LHS:.*]], %[[LHS_SCALE:.*]] = tosa.cast_to_block_scaled %[[LHS_HP]] {block_size = BLOCK_SIZE_32} : (tensor<1x128x128xbf16>) -> (tensor<1x128x128xf8E4M3FN>, tensor<1x128x4xf8E8M0FNU>)
+// CHECK:           %[[RHS_SCALE_3D:.*]] = tosa.reshape %[[RHS_SCALE]], %{{.*}} : (tensor<128x4xf8E8M0FNU>, !tosa.shape<3>) -> tensor<1x128x4xf8E8M0FNU>
+// CHECK:           tosa.matmul_t_block_scaled %[[LHS]], %[[LHS_SCALE]], %{{.*}}, %[[RHS_SCALE_3D]] {block_size = BLOCK_SIZE_32}
+// CHECK-NOT:       torch.aten._scaled_mm
+func.func @torch.aten._scaled_mm$dynamic_mxfp8_rank2_compact_scales(%arg0: !torch.vtensor<[128,128],bf16>, %arg1: !torch.vtensor<[128,128],f8E4M3FN>, %arg2: !torch.vtensor<[128,4],f8E8M0FNU>, %arg3: !torch.vtensor<[128,4],f8E8M0FNU>) -> !torch.vtensor<[128,128],bf16> {
+  %false = torch.constant.bool false
+  %int15 = torch.constant.int 15
+  %none = torch.constant.none
+  %0 = torch.aten._scaled_mm %arg0, %arg1, %arg2, %arg3, %none, %none, %int15, %false : !torch.vtensor<[128,128],bf16>, !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[128,4],f8E8M0FNU>, !torch.vtensor<[128,4],f8E8M0FNU>, !torch.none, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[128,128],bf16>
   return %0 : !torch.vtensor<[128,128],bf16>
 }
 
