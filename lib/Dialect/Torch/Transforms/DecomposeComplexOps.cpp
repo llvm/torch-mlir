@@ -7,6 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "CheckedInt.h"
+#include "StorageViewUtils.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/BuiltinDialect.h"
@@ -20,10 +22,12 @@
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
-#include "llvm/Support/MathExtras.h"
+#include <algorithm>
 #include <cstdint>
+#include <optional>
 #include <set>
 using namespace mlir;
 using namespace mlir::torch;
@@ -13175,42 +13179,146 @@ public:
 } // namespace
 
 namespace {
+/// Check that a shape can use PyTorch's dense view stride convention.
+///
+/// Empty tensors still get strides. PyTorch computes those strides from inner
+/// to outer dimensions with `max(size, 1)`, so a leading zero does not make the
+/// inner stride math disappear.
+LogicalResult checkDenseViewShape(ArrayRef<int64_t> sizes) {
+  std::optional<int64_t> running = int64_t{1};
+  for (int64_t dim = static_cast<int64_t>(sizes.size()); dim-- > 0;) {
+    int64_t size = sizes[dim];
+    if (size < 0 && size != kUnknownSize)
+      return failure();
+    if (!running || size == kUnknownSize) {
+      running = std::nullopt;
+      continue;
+    }
+    if (dim == 0)
+      continue;
+    FailureOr<int64_t> next = checkedMul(*running, std::max<int64_t>(size, 1));
+    if (failed(next))
+      return failure();
+    running = *next;
+  }
+  return success();
+}
+
+bool hasNonNegativeValues(ArrayRef<int64_t> values) {
+  return llvm::all_of(values, [](int64_t value) { return value >= 0; });
+}
+
+/// Return true when `op` is listed in this pass's `legal-ops` option.
+bool isLegalForDecomposeComplexOps(Operation *op,
+                                   const llvm::StringSet<> &legalOpsSet) {
+  return legalOpsSet.contains(
+      op->getName().getStringRef().ltrim(kTorchOpPrefix));
+}
+
+/// Return static numel, zero, or `kUnknownSize` for a Torch tensor shape.
+FailureOr<int64_t> checkedTensorNumelOrUnknown(ArrayRef<int64_t> sizes) {
+  if (!llvm::is_contained(sizes, kUnknownSize))
+    return checkedProduct(sizes);
+  if (llvm::is_contained(sizes, 0))
+    return int64_t{0};
+  return kUnknownSize;
+}
+
+/// Detect view suffixes that can lose storage identity in this pass.
+bool suffixHasIllegalStorageView(Value input, Value base,
+                                 const llvm::StringSet<> &legalOpsSet) {
+  Value current = input;
+  while (current != base) {
+    Operation *op = current.getDefiningOp();
+    if (!op)
+      return true;
+    if (!isLegalForDecomposeComplexOps(op, legalOpsSet))
+      return true;
+    current = op->getOperand(0);
+  }
+  return false;
+}
+
+/// Rewrite as_strided(view, size, stride, storage_offset) to use the traced
+/// base.
+///
+/// `storage_offset=None` is normalized to the traced view offset. An explicit
+/// storage offset is already absolute in base storage and is preserved.
+class NormalizeAsStridedStorageUserOp
+    : public OpRewritePattern<AtenAsStridedOp> {
+public:
+  NormalizeAsStridedStorageUserOp(MLIRContext *context,
+                                  const llvm::StringSet<> &legalOpsSet)
+      : OpRewritePattern<AtenAsStridedOp>(context), legalOpsSet(legalOpsSet) {}
+
+  LogicalResult matchAndRewrite(AtenAsStridedOp op,
+                                PatternRewriter &rewriter) const override {
+    Value originalInput = op.getSelf();
+    FailureOr<StorageViewBase> storageBase =
+        traceViewLikeStorageBase(originalInput);
+    if (failed(storageBase) || storageBase->base == originalInput)
+      return failure();
+    if (!suffixHasIllegalStorageView(originalInput, storageBase->base,
+                                     legalOpsSet))
+      return failure();
+
+    Value storageOffset = op.getStorageOffset();
+    if (isa<Torch::NoneType>(storageOffset.getType()) &&
+        storageBase->storageOffset != 0) {
+      storageOffset = ConstantIntOp::create(
+          rewriter, op.getLoc(),
+          rewriter.getI64IntegerAttr(storageBase->storageOffset));
+    }
+
+    rewriter.replaceOpWithNewOp<AtenAsStridedOp>(
+        op, op.getType(), storageBase->base, op.getSize(), op.getStride(),
+        storageOffset);
+    return success();
+  }
+
+private:
+  const llvm::StringSet<> &legalOpsSet;
+};
+
 class DecomposeAtenAsStridedOp : public OpRewritePattern<AtenAsStridedOp> {
 public:
   using OpRewritePattern<AtenAsStridedOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenAsStridedOp op,
                                 PatternRewriter &rewriter) const override {
 
-    // The `aten.as_strided` operation is decomposed into a series of
-    // operations that compute the indices based on the provided sizes and
-    // strides, and then index into the flattened input tensor as follows:
-
-    // input_flat = input.view(-1)
+    // Lower `aten.as_strided` to a gather from rank-1 storage.
     //
-    // for dim, s in enumerate(self.size):
-    //     arange = torch.arange(s)
-    //     view_shape = []
-    //     for i in range(len(self.size)):
-    //         if i == dim:
-    //             view_shape.append(-1)
-    //         else:
-    //             view_shape.append(1)
-    //     arange = arange.view(view_shape)
-    //     if dim != 0:
-    //         idx = idx + arange * self.stride[dim]
+    // `traceViewLikeStorageBase` returns the storage base and the static offset
+    // already carried by `self`. `storage_offset=None` uses that offset. An
+    // explicit `storage_offset` is absolute in the base storage and replaces
+    // it.
     //
-    // # Flatten indices and add offset
-    // final_indices = idx.reshape(-1) + self.storage_offset
+    // Index construction:
     //
-    // # Index the flattened input tensor
-    // output = input_flat[final_indices]
+    //   storage = storageBase.view([numStorageElements])
+    //   linearIndices = 0
+    //   for dim, size in enumerate(resultSizes):
+    //     axis = arange(size).view([1, ..., size, ..., 1])
+    //     linearIndices += axis * resultStrides[dim]
+    //   linearIndices = linearIndices.view([numResultElements])
+    //   linearIndices += storageOffset
+    //   result = storage[linearIndices].view(resultSizes)
     //
-    // # Reshape to desired output size
-    // return output.view(self.size)
+    // Empty results with a valid view shape never read storage, so an empty
+    // index tensor is enough. Non-empty results require a static storage size:
+    // this decomposition proves bounds at compile time and does not emit
+    // PyTorch's runtime storage check.
 
     Location loc = op.getLoc();
     MLIRContext *context = op->getContext();
+
     Value input = op.getSelf();
+    FailureOr<StorageViewBase> storageBase = traceViewLikeStorageBase(input);
+    if (failed(storageBase))
+      return rewriter.notifyMatchFailure(op,
+                                         "input storage view analysis failed");
+    input = storageBase->base;
+
     auto inputType = dyn_cast<BaseTensorType>(input.getType());
 
     if (!inputType || !inputType.hasSizes())
@@ -13225,6 +13333,12 @@ public:
     if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(stridesInts)))
       return rewriter.notifyMatchFailure(
           op, "strides must be a list of constant ints");
+    if (sizesInts.size() != stridesInts.size())
+      return rewriter.notifyMatchFailure(op, "sizes and strides rank mismatch");
+    if (!hasNonNegativeValues(sizesInts))
+      return rewriter.notifyMatchFailure(op, "sizes must be non-negative");
+    if (!hasNonNegativeValues(stridesInts))
+      return rewriter.notifyMatchFailure(op, "strides must be non-negative");
 
     int64_t storageOffset = 0;
     if (!isa<Torch::NoneType>(op.getStorageOffset().getType())) {
@@ -13232,47 +13346,96 @@ public:
                         m_TorchConstantInt(&storageOffset)))
         return rewriter.notifyMatchFailure(
             op, "storage_offset must be a constant integer");
+    } else {
+      storageOffset = storageBase->storageOffset;
     }
+    if (storageOffset < 0)
+      return rewriter.notifyMatchFailure(op,
+                                         "storage_offset must be non-negative");
 
     ArrayRef<int64_t> inputSizes = inputType.getSizes();
     int64_t inputRank = inputSizes.size();
     int64_t resultRank = sizesInts.size();
 
-    Value cstZero =
-        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
-    if (inputRank > 1) {
-      // If the input is not a 1-d tensor, we need to flatten it
-      // to a 1D tensor before applying the strided indexing.
-      int64_t flattenedInputSize = 1;
-      for (int64_t size : inputSizes) {
-        if (size == kUnknownSize) {
-          flattenedInputSize = kUnknownSize;
-          break;
-        }
-        flattenedInputSize *= size;
+    FailureOr<int64_t> maybeFlattenedResultSize = checkedProduct(sizesInts);
+    if (failed(maybeFlattenedResultSize))
+      return rewriter.notifyMatchFailure(op, "result size overflow");
+    if (failed(checkDenseViewShape(sizesInts)))
+      return rewriter.notifyMatchFailure(op, "result view shape overflows");
+    int64_t flattenedResultSize = *maybeFlattenedResultSize;
+    if (flattenedResultSize != 0 && !inputType.areAllSizesKnown())
+      return rewriter.notifyMatchFailure(
+          op, "non-empty as_strided requires static input storage size");
+
+    if (flattenedResultSize != 0) {
+      int64_t maxIndex = storageOffset;
+      for (auto [size, stride] : llvm::zip_equal(sizesInts, stridesInts)) {
+        FailureOr<int64_t> nextMaxIndex =
+            checkedMulAdd(size - 1, stride, maxIndex);
+        if (failed(nextMaxIndex))
+          return rewriter.notifyMatchFailure(op, "max storage index overflow");
+        maxIndex = *nextMaxIndex;
       }
+      if (inputType.areAllSizesKnown()) {
+        FailureOr<int64_t> maybeInputNumel = checkedProduct(inputSizes);
+        if (failed(maybeInputNumel))
+          return rewriter.notifyMatchFailure(op, "input numel overflow");
+        int64_t inputNumel = *maybeInputNumel;
+        if (maxIndex >= inputNumel)
+          return rewriter.notifyMatchFailure(
+              op, "as_strided indexes beyond static input storage");
+      }
+    }
+
+    if (inputRank != 1) {
+      // Indexing expects a 1-D storage tensor. Rank-0 inputs have one storage
+      // element, so flatten them to [1] instead of indexing a scalar.
+      FailureOr<int64_t> maybeFlattenedInputSize =
+          checkedTensorNumelOrUnknown(inputSizes);
+      if (failed(maybeFlattenedInputSize))
+        return rewriter.notifyMatchFailure(op, "input flatten size overflow");
+      if (failed(checkDenseViewShape(inputSizes)))
+        return rewriter.notifyMatchFailure(op, "input view shape overflows");
+      int64_t flattenedInputSize = *maybeFlattenedInputSize;
 
       auto flattenedInputTy =
           cast<BaseTensorType>(inputType.getWithSizesAndDtype(
               {flattenedInputSize}, inputType.getOptionalDtype()));
-
-      Value end = ConstantIntOp::create(
-          rewriter, loc, rewriter.getI64IntegerAttr(inputRank - 1));
-      input = AtenFlattenUsingIntsOp::create(rewriter, loc, flattenedInputTy,
-                                             input, cstZero, end);
+      Value flattenedInputSizeValue = ConstantIntOp::create(
+          rewriter, loc, rewriter.getI64IntegerAttr(flattenedInputSize));
+      Value flattenedInputSizeList = Torch::PrimListConstructOp::create(
+          rewriter, loc, Torch::ListType::get(Torch::IntType::get(context)),
+          SmallVector<Value>{flattenedInputSizeValue});
+      input = AtenViewOp::create(rewriter, loc, flattenedInputTy, input,
+                                 flattenedInputSizeList);
     }
 
     Value cstOne =
         ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
-    Value cstMinusOne =
-        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(-1));
-
     SmallVector<int64_t> viewShapeInts(resultRank, 1);
     SmallVector<Value> viewShapeListElems(resultRank, cstOne);
 
     auto si64Type = IntegerType::get(context, 64, IntegerType::Signed);
     Value finalIndices;
-    for (unsigned dim = 0; dim < sizesInts.size(); dim++) {
+    if (flattenedResultSize == 0) {
+      auto indicesType = ValueTensorType::get(
+          context, llvm::ArrayRef(flattenedResultSize), si64Type);
+      finalIndices = ValueTensorLiteralOp::create(
+          rewriter, loc, indicesType,
+          DenseElementsAttr::get(indicesType.toBuiltinTensor(),
+                                 ArrayRef<Attribute>()));
+    } else if (resultRank == 0) {
+      Value cstNone = ConstantNoneOp::create(rewriter, loc);
+      int64_t indexSize = 1;
+      Value end = ConstantIntOp::create(rewriter, loc,
+                                        rewriter.getI64IntegerAttr(indexSize));
+      finalIndices = Torch::AtenArangeOp::create(
+          rewriter, loc,
+          ValueTensorType::get(context, llvm::ArrayRef(indexSize), si64Type),
+          end, cstNone, cstNone, cstNone, cstNone);
+    }
+    for (unsigned dim = 0; flattenedResultSize != 0 && dim < sizesInts.size();
+         dim++) {
       int64_t size = sizesInts[dim];
       Value cstNone = ConstantNoneOp::create(rewriter, loc);
       Value end = ConstantIntOp::create(rewriter, loc,
@@ -13283,9 +13446,12 @@ public:
       Value index = Torch::AtenArangeOp::create(
           rewriter, loc, arangeType, end, cstNone, cstNone, cstNone, cstNone);
 
-      // Set the current dimension to -1 for broadcasting
-      viewShapeInts[dim] = -1;
-      viewShapeListElems[dim] = cstMinusOne;
+      // Set the current dimension to its static size for broadcasting. The
+      // as_strided decomposition requires constant result sizes, so avoid
+      // losing that information through `-1` reshape dimensions.
+      viewShapeInts[dim] = size;
+      viewShapeListElems[dim] = ConstantIntOp::create(
+          rewriter, loc, rewriter.getI64IntegerAttr(size));
 
       Value viewShapeList = Torch::PrimListConstructOp::create(
           rewriter, loc, Torch::ListType::get(Torch::IntType::get(context)),
@@ -13295,13 +13461,14 @@ public:
           context, llvm::ArrayRef(viewShapeInts), si64Type);
       index = AtenViewOp::create(rewriter, loc, viewType, index, viewShapeList);
 
-      // Multiply the index with the stride for the current dimension
+      // Scale this axis by its storage stride before accumulating the linear
+      // index.
       Value cstStride = ConstantIntOp::create(
           rewriter, loc, rewriter.getI64IntegerAttr(stridesInts[dim]));
       index =
           AtenMulScalarOp::create(rewriter, loc, viewType, index, cstStride);
 
-      // Reset the current dimension to 1 for the next iteration
+      // Restore the singleton shape used by later axes.
       viewShapeInts[dim] = 1;
       viewShapeListElems[dim] = cstOne;
 
@@ -13310,7 +13477,7 @@ public:
         continue;
       }
 
-      // calculate common shape for broadcast
+      // Materialize the broadcast shape for adding this axis to prior axes.
       SmallVector<int64_t> broadcastShape;
       SmallVector<Value> broadcastShapeValue;
       computeBroadcastShape(rewriter, loc, {finalIndices, index},
@@ -13322,18 +13489,20 @@ public:
                                              finalIndices, index, cstOne);
     }
 
-    int64_t flattenedResultSize = 1;
-    for (int64_t size : sizesInts)
-      flattenedResultSize *= size;
-
-    // Flattening the indices and adding the storage offset
-    finalIndices = AtenFlattenUsingIntsOp::create(
+    // Collapse the N-D index grid to the 1-D index tensor expected by
+    // `aten.index`.
+    Value flattenedResultSizeValue = ConstantIntOp::create(
+        rewriter, loc, rewriter.getI64IntegerAttr(flattenedResultSize));
+    Value flattenedResultSizeList = Torch::PrimListConstructOp::create(
+        rewriter, loc, Torch::ListType::get(Torch::IntType::get(context)),
+        SmallVector<Value>{flattenedResultSizeValue});
+    finalIndices = AtenViewOp::create(
         rewriter, loc,
         ValueTensorType::get(context, llvm::ArrayRef(flattenedResultSize),
                              si64Type),
-        finalIndices, cstZero, cstMinusOne); // -1 means flatten all
+        finalIndices, flattenedResultSizeList);
 
-    if (storageOffset != 0) {
+    if (storageOffset != 0 && flattenedResultSize != 0) {
       Value cstStorageOffset = ConstantIntOp::create(
           rewriter, loc, rewriter.getI64IntegerAttr(storageOffset));
       finalIndices =
@@ -13341,7 +13510,7 @@ public:
                                   finalIndices, cstStorageOffset, cstOne);
     }
 
-    // Index the flattened input tensor
+    // Gather from flattened storage.
     Type listElemType =
         inputType.getWithSizesAndDtype(/*optionalSizes=*/std::nullopt,
                                        /*optionalDtype=*/nullptr);
@@ -13355,7 +13524,7 @@ public:
     Value result = AtenIndexTensorOp::create(rewriter, loc, flattenedResultTy,
                                              input, indicesList);
 
-    // Reshape the result to the desired output size
+    // Restore the logical `as_strided` result shape.
     SmallVector<Value> sizesIntsValues;
     for (int64_t size : sizesInts) {
       sizesIntsValues.push_back(ConstantIntOp::create(
@@ -13395,17 +13564,37 @@ private:
       patterns.add<DecomposePattern>(context);
   }
 
+  LogicalResult applyGreedy(RewritePatternSet &&patterns) {
+    GreedyRewriteConfig config;
+    config.setUseTopDownTraversal(true);
+    config.setMaxIterations(GreedyRewriteConfig::kNoLimit);
+    return applyPatternsGreedily(getOperation(), std::move(patterns), config);
+  }
+
+  LogicalResult normalizeAsStridedStorageUsersBeforeDecomposition() {
+    RewritePatternSet patterns(&getContext());
+    patterns.add<NormalizeAsStridedStorageUserOp>(&getContext(), legalOpsSet);
+    return applyGreedy(std::move(patterns));
+  }
+
 public:
   using impl::DecomposeComplexOpsBase<
       DecomposeComplexOpsPass>::DecomposeComplexOpsBase;
   void runOnOperation() override {
     MLIRContext *context = &getContext();
-    RewritePatternSet patterns(context);
     // The strings in the `legalOps` ArrayRef don't exist during the call to the
     // constructor `DecomposeComplexOpsPass`, so the creation of the
     // `legalOpsSet` must be delayed to when `runOnOperation` gets called.
     legalOpsSet.clear();
     legalOpsSet.insert(legalOps.begin(), legalOps.end());
+
+    // Run before view decompositions. PyTorch defines storage_offset=None as
+    // inheriting the input tensor's current storage offset. If a view producer
+    // is first rewritten to a materializing op, that offset is lost.
+    if (failed(normalizeAsStridedStorageUsersBeforeDecomposition()))
+      return signalPassFailure();
+
+    RewritePatternSet patterns(context);
 
     addPatternIfTargetOpIsIllegal<DecomposeAtenScaledDotProductAttentionOp>(
         patterns);
@@ -13709,12 +13898,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRoundDecimalsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAsStridedOp>(patterns);
 
-    GreedyRewriteConfig config;
-    config.setUseTopDownTraversal(true);
-    config.setMaxIterations(GreedyRewriteConfig::kNoLimit);
-
-    if (failed(applyPatternsGreedily(getOperation(), std::move(patterns),
-                                     config))) {
+    if (failed(applyGreedy(std::move(patterns)))) {
       return signalPassFailure();
     }
   }
