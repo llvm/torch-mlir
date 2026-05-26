@@ -115,6 +115,10 @@ static bool isSupportedStaticScaledMmScaleElementType(Type type) {
   return type.isF32();
 }
 
+static bool isSupportedStaticScaledMmResultElementType(Type type) {
+  return type.isF32() || type.isF16() || type.isBF16();
+}
+
 static constexpr int64_t kScaledMmMatmulNAlignment = 16;
 
 static SmallVector<int64_t> getTensorShape(RankedTensorType tensorTy) {
@@ -2949,6 +2953,11 @@ public:
         !isSupportedStaticScaledMmScaleElementType(scaleBTy.getElementType()))
       return rewriter.notifyMatchFailure(
           op, "aten._scaled_mm expects fp32 static FP8 scales");
+
+    if (!isSupportedStaticScaledMmResultElementType(resultTy.getElementType()))
+      return rewriter.notifyMatchFailure(
+          op, "aten._scaled_mm expects f32, f16 or bf16 result type for "
+              "static FP8 scales");
 
     Location loc = op.getLoc();
 
