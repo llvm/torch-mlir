@@ -5027,3 +5027,38 @@ func.func @torch.aten.remainder.Scalar.zero_output(%arg0: !torch.vtensor<[0],si3
   %0 = torch.aten.remainder.Scalar %arg0, %int16 : !torch.vtensor<[0],si32>, !torch.int -> !torch.vtensor<[0],si32>
   return %0 : !torch.vtensor<[0],si32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.avg_pool2d$encoded_stride_with_unit_dilation
+// CHECK: tosa.avg_pool2d
+// CHECK-SAME: stride = array<i64: 8, 8>
+func.func @torch.aten.avg_pool2d$encoded_stride_with_unit_dilation(%arg0: !torch.vtensor<[1,64,8,8],f32>) -> !torch.vtensor<[1,64,1,1],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int8 = torch.constant.int 8
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %kernel = torch.prim.ListConstruct %int8, %int8 : (!torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int8, %int8, %int1, %int1 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.avg_pool2d %arg0, %kernel, %stride, %padding, %false, %false, %none : !torch.vtensor<[1,64,8,8],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,64,1,1],f32>
+  return %0 : !torch.vtensor<[1,64,1,1],f32>
+}
+
+// -----
+
+func.func @torch.aten.avg_pool2d$encoded_stride_with_non_unit_dilation(%arg0: !torch.vtensor<[1,64,16,16],f32>) -> !torch.vtensor<[1,64,7,7],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int4 = torch.constant.int 4
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %kernel = torch.prim.ListConstruct %int4, %int4 : (!torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int2, %int2, %int2, %int2 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.avg_pool2d' that was explicitly marked illegal}}
+  %0 = torch.aten.avg_pool2d %arg0, %kernel, %stride, %padding, %false, %false, %none : !torch.vtensor<[1,64,16,16],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,64,7,7],f32>
+  return %0 : !torch.vtensor<[1,64,7,7],f32>
+}
