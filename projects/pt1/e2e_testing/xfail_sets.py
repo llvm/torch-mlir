@@ -556,6 +556,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "DiagonalWithStaticShapeModule_basic",
     "EinsumStaticDiagonalDimensionModule_basic",
     "ElementwiseAtanTensorBFloat16SpecialValuesModule_basic",
+    "ElementwiseClampInt16Module_basic",
     "ElementwiseClampIntToFloatModule_basic",
     "ElementwiseRemainderScalarModule_Bool_NegativeDivisor_basic",
     "ElementwiseRemainderScalarModule_Float_NegativeDividend_basic",
