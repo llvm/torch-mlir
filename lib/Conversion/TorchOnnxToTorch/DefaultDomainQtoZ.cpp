@@ -4327,6 +4327,10 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         // through scatter and are already in place. The inverse is therefore
         // an unflatten of axis 0 alone, splitting it back into
         // dataDims[0:indicesLastDim].
+        if (indicesLastDim == 1) {
+          rewriter.replaceOp(binder.op, scatter);
+          return success();
+        }
         SmallVector<Value> collapsedDataDims(dataDims.begin(),
                                              dataDims.begin() + indicesLastDim);
         Value unflattenSizeList = Torch::PrimListConstructOp::create(
