@@ -6315,6 +6315,176 @@ LogicalResult AtenKthvalueOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// Aten_ScaledMmOp
+//===----------------------------------------------------------------------===//
+
+static bool isScaledMmDataDtype(Type dtype) {
+  return isa<Float8E4M3FNType, Float8E4M3FNUZType, Float8E5M2Type,
+             Float8E5M2FNUZType>(dtype);
+}
+
+static bool isScaledMmTensorwiseOrRowwiseScaleDtype(Type dtype) {
+  return dtype.isF32();
+}
+
+static bool isScaledMmBlockwiseScaleDtype(Type dtype) {
+  return isa<Float8E8M0FNUType, Float8E4M3FNType>(dtype);
+}
+
+static bool isScaledMmBlockwiseScaling(Type scaleADtype, Type scaleBDtype) {
+  return scaleADtype == scaleBDtype &&
+         isScaledMmBlockwiseScaleDtype(scaleADtype);
+}
+
+static int64_t ceilDivPositive(int64_t dividend, int64_t divisor) {
+  return (dividend + divisor - 1) / divisor;
+}
+
+static bool getNumel(ArrayRef<int64_t> sizes, int64_t &numel) {
+  numel = 1;
+  for (int64_t size : sizes) {
+    if (size == kUnknownSize)
+      return false;
+    numel *= size;
+  }
+  return true;
+}
+
+static bool hasShape(ArrayRef<int64_t> sizes, ArrayRef<int64_t> expected) {
+  return sizes.size() == expected.size() && llvm::equal(sizes, expected);
+}
+
+LogicalResult Aten_ScaledMmOp::verify() {
+  auto selfType = cast<BaseTensorType>(getSelf().getType());
+  auto mat2Type = cast<BaseTensorType>(getMat2().getType());
+  auto scaleAType = cast<BaseTensorType>(getScaleA().getType());
+  auto scaleBType = cast<BaseTensorType>(getScaleB().getType());
+
+  if (mat2Type.hasDtype() && !isScaledMmDataDtype(mat2Type.getDtype()))
+    return emitOpError("expected mat2 to have an FP8 dtype, but got ")
+           << mat2Type.getDtype();
+
+  if (!selfType.hasSizes() || !mat2Type.hasSizes())
+    return success();
+
+  ArrayRef<int64_t> selfShape = selfType.getSizes();
+  ArrayRef<int64_t> mat2Shape = mat2Type.getSizes();
+  if (selfShape.size() != 2 || mat2Shape.size() != 2)
+    return emitOpError("expected self and mat2 to be rank 2, but got ranks ")
+           << selfShape.size() << " and " << mat2Shape.size();
+
+  int64_t m = selfShape[0];
+  int64_t k = selfShape[1];
+  int64_t mat2K = mat2Shape[0];
+  int64_t n = mat2Shape[1];
+
+  if (k != kUnknownSize && mat2K != kUnknownSize && k != mat2K)
+    return emitOpError("expected self and mat2 contracting dimensions to "
+                       "match, but got ")
+           << k << " and " << mat2K;
+  if (k != kUnknownSize && k % 16 != 0)
+    return emitOpError("expected self contracting dimension to be divisible "
+                       "by 16, but got ")
+           << k;
+  if (mat2K != kUnknownSize && mat2K % 16 != 0)
+    return emitOpError("expected mat2 contracting dimension to be divisible "
+                       "by 16, but got ")
+           << mat2K;
+  if (!scaleAType.hasDtype() || !scaleBType.hasDtype() ||
+      !scaleAType.hasSizes() || !scaleBType.hasSizes() ||
+      !selfType.areAllSizesKnown() || !mat2Type.areAllSizesKnown())
+    return success();
+
+  Type scaleADtype = scaleAType.getDtype();
+  Type scaleBDtype = scaleBType.getDtype();
+  ArrayRef<int64_t> scaleAShape = scaleAType.getSizes();
+  ArrayRef<int64_t> scaleBShape = scaleBType.getSizes();
+
+  bool isBlockwiseScaling =
+      isScaledMmBlockwiseScaling(scaleADtype, scaleBDtype);
+  if (selfType.hasDtype() && !isScaledMmDataDtype(selfType.getDtype()) &&
+      !isBlockwiseScaling)
+    return emitOpError("expected self to have an FP8 dtype, but got ")
+           << selfType.getDtype();
+
+  int64_t scaleANumel;
+  int64_t scaleBNumel;
+  if (!getNumel(scaleAShape, scaleANumel) ||
+      !getNumel(scaleBShape, scaleBNumel))
+    return success();
+
+  // Tensorwise scaling.
+  if (scaleANumel == 1 && scaleBNumel == 1) {
+    if (!isScaledMmTensorwiseOrRowwiseScaleDtype(scaleADtype) ||
+        !isScaledMmTensorwiseOrRowwiseScaleDtype(scaleBDtype))
+      return emitOpError(
+          "expected tensorwise scale_a and scale_b to have f32 dtype");
+    return success();
+  }
+
+  // Blockwise scaling. Keep this structured like PyTorch's
+  // _check_scaled_mm_sizes scale-recipe branch.
+  if (isBlockwiseScaling) {
+    int64_t blockSizeK;
+    if (isa<Float8E4M3FNType>(scaleADtype)) {
+      // Match PyTorch's f8e4m3fn scale recipe: 16 K elements per scale block.
+      blockSizeK = 16;
+    } else {
+      // MXFP8 uses e8m0 scales and 32 elements per K block.
+      blockSizeK = 32;
+    }
+    int64_t blockSizeMN = 128;
+    int64_t numKBlocks = ceilDivPositive(k, blockSizeK);
+    int64_t paddedNumKBlocks = ceilDivPositive(numKBlocks, 4) * 4;
+    int64_t expectedScaleANumel =
+        blockSizeMN * ceilDivPositive(m, blockSizeMN) * paddedNumKBlocks;
+    int64_t expectedScaleBNumel =
+        blockSizeMN * ceilDivPositive(n, blockSizeMN) * paddedNumKBlocks;
+    if (scaleANumel != expectedScaleANumel ||
+        scaleBNumel != expectedScaleBNumel)
+      return emitOpError("invalid blockwise scaling configuration: expected "
+                         "scale_a to have ")
+             << expectedScaleANumel << " elements and scale_b to have "
+             << expectedScaleBNumel << " elements, but got " << scaleANumel
+             << " and " << scaleBNumel;
+    return success();
+  }
+
+  // Rowwise and f32 blockwise scale recipes.
+  if (!isScaledMmTensorwiseOrRowwiseScaleDtype(scaleADtype) ||
+      !isScaledMmTensorwiseOrRowwiseScaleDtype(scaleBDtype))
+    return emitOpError("expected non-tensorwise, non-blockwise scale_a and "
+                       "scale_b to have f32 dtype");
+
+  if (scaleANumel == 1 && hasShape(scaleBShape, {n}))
+    return success();
+  if (scaleBNumel == 1 && hasShape(scaleAShape, {m}))
+    return success();
+
+  if (scaleAShape.size() != 2 || scaleBShape.size() != 2)
+    return emitOpError("expected non-tensorwise scale_a and scale_b to be "
+                       "rank 2, but got ranks ")
+           << scaleAShape.size() << " and " << scaleBShape.size();
+
+  int64_t kBlocks = ceilDivPositive(k, 128);
+  int64_t mBlocks = ceilDivPositive(m, 128);
+  int64_t nBlocks = ceilDivPositive(n, 128);
+  if (hasShape(scaleAShape, {m, 1}) && hasShape(scaleBShape, {1, n}))
+    return success();
+  if (hasShape(scaleAShape, {m, kBlocks}) &&
+      hasShape(scaleBShape, {kBlocks, nBlocks}))
+    return success();
+  if (hasShape(scaleAShape, {m, kBlocks}) &&
+      hasShape(scaleBShape, {kBlocks, n}))
+    return success();
+  if (hasShape(scaleAShape, {mBlocks, kBlocks}) &&
+      hasShape(scaleBShape, {kBlocks, n}))
+    return success();
+
+  return emitOpError("invalid scaling configuration for scale_a and scale_b");
+}
+
+//===----------------------------------------------------------------------===//
 // DtypeCalculateYieldDtypesOp
 //===----------------------------------------------------------------------===//
 

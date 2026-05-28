@@ -29,6 +29,7 @@
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/MathExtras.h"
 #include <array>
@@ -106,6 +107,133 @@ static SmallVector<int64_t> permuteShape(ArrayRef<int64_t> originalShape,
   return result;
 }
 
+static bool isSupportedScaledMmDataElementType(Type type) {
+  return isa<Float8E4M3FNType, Float8E5M2Type>(type);
+}
+
+static bool isSupportedDynamicMxfpActivationElementType(Type type) {
+  return type.isF32() || type.isF16() || type.isBF16();
+}
+
+static bool isSupportedStaticScaledMmScaleElementType(Type type) {
+  return type.isF32();
+}
+
+static bool isSupportedBlockedScaledMmScaleElementType(Type type) {
+  return isa<Float8E8M0FNUType>(type);
+}
+
+static bool isSupportedStaticScaledMmResultElementType(Type type) {
+  return type.isF32() || type.isF16() || type.isBF16();
+}
+
+static constexpr int64_t kScaledMmMatmulNAlignment = 16;
+
+static SmallVector<int64_t> getTensorShape(RankedTensorType tensorTy) {
+  return SmallVector<int64_t>(tensorTy.getShape().begin(),
+                              tensorTy.getShape().end());
+}
+
+static Value reshapeTensor(Value input, ArrayRef<int64_t> shape, Type elementTy,
+                           ConversionPatternRewriter &rewriter, Location loc) {
+  auto resultTy =
+      RankedTensorType::get(makeShapeLLVMCompatible(shape), elementTy);
+  return tosa::ReshapeOp::create(rewriter, loc, resultTy, input,
+                                 tosa::getTosaConstShape(rewriter, loc, shape))
+      .getResult();
+}
+
+static std::optional<Value>
+createScaledMmZeroTensor(ConversionPatternRewriter &rewriter, Location loc,
+                         Type elementType) {
+  if (!isa<Float8E4M3FNType, Float8E5M2Type, Float8E8M0FNUType>(elementType))
+    return tosa::createZeroPointTensor(rewriter, loc, elementType,
+                                       /*zeroPoint=*/0);
+
+  auto zeroPointType = RankedTensorType::get({1}, elementType);
+  std::array<char, 1> rawZero = {0};
+  auto zeroPointAttr =
+      DenseElementsAttr::getFromRawBuffer(zeroPointType, rawZero);
+  return tosa::ConstOp::create(rewriter, loc, zeroPointType, zeroPointAttr)
+      .getResult();
+}
+
+static FailureOr<Value> padLastDimWithZeros(Value input, int64_t paddedLastDim,
+                                            ConversionPatternRewriter &rewriter,
+                                            Location loc) {
+  auto inputTy = dyn_cast<RankedTensorType>(input.getType());
+  if (!inputTy || !inputTy.hasStaticShape())
+    return failure();
+
+  int64_t rank = inputTy.getRank();
+  if (rank == 0)
+    return failure();
+
+  int64_t lastDim = inputTy.getDimSize(rank - 1);
+  if (lastDim == paddedLastDim)
+    return input;
+  if (lastDim > paddedLastDim)
+    return failure();
+
+  SmallVector<int64_t> paddedShape = getTensorShape(inputTy);
+  paddedShape[rank - 1] = paddedLastDim;
+
+  SmallVector<int64_t> pads(2 * rank, 0);
+  pads[2 * (rank - 1) + 1] = paddedLastDim - lastDim;
+  Value padsConst = tosa::getTosaConstShape(rewriter, loc, pads);
+
+  auto padValueOr =
+      createScaledMmZeroTensor(rewriter, loc, inputTy.getElementType());
+  if (!padValueOr)
+    return failure();
+
+  auto paddedTy = RankedTensorType::get(makeShapeLLVMCompatible(paddedShape),
+                                        inputTy.getElementType());
+  return tosa::PadOp::create(rewriter, loc, paddedTy, input, padsConst,
+                             *padValueOr)
+      .getResult();
+}
+
+struct StaticScaledMmScaleShapes {
+  SmallVector<int64_t> scaleA;
+  SmallVector<int64_t> scaleB;
+};
+
+static std::optional<StaticScaledMmScaleShapes>
+getStaticScaledMmBatchedScaleShapes(RankedTensorType scaleATy,
+                                    RankedTensorType scaleBTy, int64_t m,
+                                    int64_t n) {
+  if (!scaleATy.hasStaticShape() || !scaleBTy.hasStaticShape() ||
+      !isSupportedStaticScaledMmScaleElementType(scaleATy.getElementType()) ||
+      !isSupportedStaticScaledMmScaleElementType(scaleBTy.getElementType()))
+    return std::nullopt;
+
+  if (scaleATy.getNumElements() == 1 && scaleBTy.getNumElements() == 1)
+    return StaticScaledMmScaleShapes{{1, 1, 1}, {1, 1, 1}};
+
+  if (scaleATy.getRank() != 2 || scaleBTy.getRank() != 2)
+    return std::nullopt;
+
+  int64_t scaleARows = scaleATy.getDimSize(0);
+  int64_t scaleACols = scaleATy.getDimSize(1);
+  int64_t scaleBRows = scaleBTy.getDimSize(0);
+  int64_t scaleBCols = scaleBTy.getDimSize(1);
+
+  if (scaleARows == m && scaleACols == 1 && scaleBRows == 1 &&
+      scaleBCols == n)
+    return StaticScaledMmScaleShapes{{1, m, 1}, {1, 1, n}};
+
+  if (scaleARows == m && scaleACols == 1 && scaleBRows == 1 &&
+      scaleBCols == 1)
+    return StaticScaledMmScaleShapes{{1, m, 1}, {1, 1, 1}};
+
+  if (scaleARows == 1 && scaleACols == 1 && scaleBRows == 1 &&
+      scaleBCols == n)
+    return StaticScaledMmScaleShapes{{1, 1, 1}, {1, 1, n}};
+
+  return std::nullopt;
+}
+
 struct ZeroInsertionResult {
   Value value;
   bool trimmedTail;
@@ -162,8 +290,7 @@ insertZerosAlongAxis(Value input, int axis, int64_t stride,
   // Torch IR does not convey quantization params via tensor element types, so
   // we use a literal zero here. Quantized frontends will insert the necessary
   // rescale ops before we hit this lowering.
-  auto padValueOr =
-      tosa::createZeroPointTensor(rewriter, loc, elementType, /*zeroPoint=*/0);
+  auto padValueOr = createScaledMmZeroTensor(rewriter, loc, elementType);
   if (!padValueOr.has_value())
     return failure();
   Value padValue = *padValueOr;
@@ -208,6 +335,577 @@ insertZerosAlongAxis(Value input, int axis, int64_t stride,
   }
 
   return ZeroInsertionResult{result, trimmedTail};
+}
+
+static Value castScaledMmResultToType(Value result, RankedTensorType resultTy,
+                                      ConversionPatternRewriter &rewriter) {
+  if (result.getType() == resultTy)
+    return result;
+  return tosa::tosaCastTensorToType(rewriter, result, resultTy).value();
+}
+
+static FailureOr<Value>
+addBiasToScaledMmAccumulator(Value accumulator, Value bias,
+                             ConversionPatternRewriter &rewriter,
+                             Location loc) {
+  if (isa<Torch::NoneType>(bias.getType()))
+    return accumulator;
+  auto biasTy = dyn_cast<RankedTensorType>(bias.getType());
+  if (!biasTy)
+    return failure();
+  auto accumulatorTy = cast<RankedTensorType>(accumulator.getType());
+  auto biasAccumulatorTy =
+      RankedTensorType::get(biasTy.getShape(), accumulatorTy.getElementType());
+  bias = tosa::tosaCastTensorToType(rewriter, bias, biasAccumulatorTy).value();
+  if (mlir::tosa::EqualizeRanks(rewriter, loc, accumulator, bias).failed())
+    return failure();
+  return tosa::AddOp::create(rewriter, loc, accumulator.getType(), accumulator,
+                             bias)
+      .getResult();
+}
+
+static FailureOr<Value> createScaledMmMatmulTBlockScaledResult(
+    Operation *op, Value lhs, Value rhs, Value scaleA, Value scaleB, Value bias,
+    RankedTensorType resultTy, ConversionPatternRewriter &rewriter,
+    Location loc) {
+  auto f32Ty = rewriter.getF32Type();
+  auto blockedMatmulTy = RankedTensorType::get(resultTy.getShape(), f32Ty);
+  Value blockedMatmul = tosa::MatmulTBlockScaledOp::create(
+                            rewriter, loc, blockedMatmulTy, lhs, scaleA, rhs,
+                            scaleB, tosa::BlockSize::BLOCK_SIZE_32)
+                            .getResult();
+  auto resultWithBiasOr =
+      addBiasToScaledMmAccumulator(blockedMatmul, bias, rewriter, loc);
+  if (failed(resultWithBiasOr))
+    return rewriter.notifyMatchFailure(op,
+                                       "Failed to add bias to aten._scaled_mm "
+                                       "accumulator");
+  return castScaledMmResultToType(*resultWithBiasOr, resultTy, rewriter);
+}
+
+static FailureOr<Value> reshapeFlatBlockedScaleForTosa(
+    Value scale, RankedTensorType scaleTy, int64_t rows, int64_t scaleCols,
+    ConversionPatternRewriter &rewriter, Location loc) {
+  if (!scaleTy.hasStaticShape())
+    return failure();
+
+  int64_t compactNumel = rows * scaleCols;
+  SmallVector<int64_t> scaleShape = {1, rows, scaleCols};
+  auto reshapedTy = RankedTensorType::get(scaleShape, scaleTy.getElementType());
+
+  if (scaleTy.getRank() == 2) {
+    if (scaleTy.getDimSize(0) != rows || scaleTy.getDimSize(1) != scaleCols)
+      return failure();
+    return tosa::ReshapeOp::create(
+               rewriter, loc, reshapedTy, scale,
+               tosa::getTosaConstShape(rewriter, loc, scaleShape))
+        .getResult();
+  }
+
+  if (scaleTy.getRank() != 1)
+    return failure();
+
+  int64_t numel = scaleTy.getDimSize(0);
+  if (numel == compactNumel)
+    return tosa::ReshapeOp::create(
+               rewriter, loc, reshapedTy, scale,
+               tosa::getTosaConstShape(rewriter, loc, scaleShape))
+        .getResult();
+
+  int64_t rowBlocks = llvm::divideCeil(rows, int64_t{128});
+  int64_t colBlocks = llvm::divideCeil(scaleCols, int64_t{4});
+  SmallVector<int64_t> paddedScaleShape = {1, rowBlocks * 128,
+                                           colBlocks * 4};
+  if (numel != paddedScaleShape[1] * paddedScaleShape[2])
+    return failure();
+
+  auto paddedScaleTy =
+      RankedTensorType::get(paddedScaleShape, scaleTy.getElementType());
+  Value paddedScale =
+      tosa::ReshapeOp::create(
+          rewriter, loc, paddedScaleTy, scale,
+          tosa::getTosaConstShape(rewriter, loc, paddedScaleShape))
+          .getResult();
+  return tosa::SliceOp::create(
+             rewriter, loc, reshapedTy, paddedScale,
+             tosa::getTosaConstShape(rewriter, loc, {0, 0, 0}),
+             tosa::getTosaConstShape(rewriter, loc, scaleShape))
+      .getResult();
+}
+
+static FailureOr<ArrayRef<char>> getDenseConstantRawByteData(Value value) {
+  auto constOp = value.getDefiningOp<tosa::ConstOp>();
+  if (!constOp)
+    return failure();
+
+  ElementsAttr attr = constOp.getValues();
+  if (auto denseAttr = dyn_cast<DenseElementsAttr>(attr))
+    return denseAttr.getRawData();
+
+  if (auto resourceAttr = dyn_cast<DenseResourceElementsAttr>(attr)) {
+    auto *blob = resourceAttr.getRawHandle().getBlob();
+    if (!blob)
+      return failure();
+    return blob->getData();
+  }
+
+  return failure();
+}
+
+static FailureOr<Value> canonicalizeSwizzledBlockedScaleForTosa(
+    Value scale, RankedTensorType scaleTy, int64_t rows, int64_t scaleCols,
+    ConversionPatternRewriter &rewriter, Location loc) {
+  if (!scaleTy.hasStaticShape())
+    return failure();
+  if (scaleTy.getRank() != 2)
+    return failure();
+
+  int64_t rowBlocks = llvm::divideCeil(rows, int64_t{128});
+  int64_t colBlocks = llvm::divideCeil(scaleCols, int64_t{4});
+  int64_t paddedNumel = rowBlocks * colBlocks * 32 * 16;
+  if (scaleTy.getNumElements() != paddedNumel)
+    return failure();
+
+  // E8M0 scale values are layout-reordered byte payloads here, not numerically
+  // transformed. Reading raw bytes lets us canonicalize the swizzled constant
+  // at compile time without introducing TOSA reshape/transpose ops on FP8 data.
+  FailureOr<ArrayRef<char>> rawData = getDenseConstantRawByteData(scale);
+  if (failed(rawData) || static_cast<int64_t>(rawData->size()) != paddedNumel)
+    return failure();
+
+  SmallVector<char> compactData(rows * scaleCols);
+  for (int64_t row = 0; row < rows; ++row) {
+    int64_t rowBlock = row / 128;
+    int64_t rowInBlock = row % 128;
+    for (int64_t col = 0; col < scaleCols; ++col) {
+      int64_t colBlock = col / 4;
+      int64_t colInBlock = col % 4;
+      int64_t block = rowBlock * colBlocks + colBlock;
+      int64_t srcIndex = block * 512 + (rowInBlock % 32) * 16 +
+                         (rowInBlock / 32) * 4 + colInBlock;
+      compactData[row * scaleCols + col] = (*rawData)[srcIndex];
+    }
+  }
+
+  SmallVector<int64_t> compactShape = {1, rows, scaleCols};
+  auto compactTy =
+      RankedTensorType::get(compactShape, scaleTy.getElementType());
+  auto blob = HeapAsmResourceBlob::allocateAndCopyInferAlign(
+      ArrayRef<char>(compactData.data(), compactData.size()));
+  auto attr = DenseResourceElementsAttr::get(compactTy, "mxfp8_block_scale",
+                                             std::move(blob));
+  return tosa::ConstOp::create(rewriter, loc, compactTy, attr).getResult();
+}
+
+static FailureOr<Value> getBlockedScaleForTosa(
+    Value scale, RankedTensorType scaleTy, int64_t rows, int64_t scaleCols,
+    ConversionPatternRewriter &rewriter, Location loc) {
+  if (!scaleTy.hasStaticShape())
+    return failure();
+
+  if (auto flatScale =
+          reshapeFlatBlockedScaleForTosa(scale, scaleTy, rows, scaleCols,
+                                         rewriter, loc);
+      succeeded(flatScale))
+    return *flatScale;
+
+  if (auto swizzledScale = canonicalizeSwizzledBlockedScaleForTosa(
+          scale, scaleTy, rows, scaleCols, rewriter, loc);
+      succeeded(swizzledScale))
+    return *swizzledScale;
+
+  return failure();
+}
+
+static FailureOr<Value> getRank3BlockedRhsSourceForTosa(Value rhs,
+                                                        RankedTensorType rhsTy,
+                                                        int64_t k, int64_t n) {
+  if (!rhsTy.hasStaticShape() || rhsTy.getRank() != 2 ||
+      rhsTy.getDimSize(0) != k || rhsTy.getDimSize(1) != n ||
+      !isSupportedScaledMmDataElementType(rhsTy.getElementType()))
+    return failure();
+
+  auto transposeOp = rhs.getDefiningOp<tosa::TransposeOp>();
+  if (!transposeOp)
+    return failure();
+  const llvm::ArrayRef<int32_t> perms = transposeOp.getPerms();
+  if (perms.size() != 2 || perms[0] != 1 || perms[1] != 0)
+    return failure();
+
+  auto transposeInputTy =
+      dyn_cast<RankedTensorType>(transposeOp.getInput1().getType());
+  if (!transposeInputTy || !transposeInputTy.hasStaticShape() ||
+      transposeInputTy.getRank() != 2 || transposeInputTy.getDimSize(0) != n ||
+      transposeInputTy.getDimSize(1) != k ||
+      transposeInputTy.getElementType() != rhsTy.getElementType())
+    return failure();
+
+  auto reshapeOp = transposeOp.getInput1().getDefiningOp<tosa::ReshapeOp>();
+  if (!reshapeOp)
+    return failure();
+
+  auto sourceTy = dyn_cast<RankedTensorType>(reshapeOp.getInput1().getType());
+  if (!sourceTy || !sourceTy.hasStaticShape() || sourceTy.getRank() != 3 ||
+      sourceTy.getDimSize(0) != 1 || sourceTy.getDimSize(1) != n ||
+      sourceTy.getDimSize(2) != k ||
+      sourceTy.getElementType() != rhsTy.getElementType())
+    return failure();
+
+  return reshapeOp.getInput1();
+}
+
+static Value getBlockedRhsForTosa(Value rhs, RankedTensorType rhsTy, int64_t k,
+                                  int64_t n,
+                                  ConversionPatternRewriter &rewriter,
+                                  Location loc) {
+  if (auto rank3Rhs = getRank3BlockedRhsSourceForTosa(rhs, rhsTy, k, n);
+      succeeded(rank3Rhs))
+    return *rank3Rhs;
+
+  auto rhsTransposedTy = RankedTensorType::get({n, k}, rhsTy.getElementType());
+  rhs = tosa::TransposeOp::create(rewriter, loc, rhsTransposedTy, rhs,
+                                  rewriter.getDenseI32ArrayAttr({1, 0}))
+            .getResult();
+  auto rhsBlockedTy = RankedTensorType::get({1, n, k}, rhsTy.getElementType());
+  return tosa::ReshapeOp::create(
+             rewriter, loc, rhsBlockedTy, rhs,
+             tosa::getTosaConstShape(rewriter, loc, {1, n, k}))
+      .getResult();
+}
+
+static FailureOr<Value> getRank3BlockedLhsSourceForTosa(Value lhs, int64_t m,
+                                                        int64_t k) {
+  auto lhsTy = dyn_cast<RankedTensorType>(lhs.getType());
+  if (!lhsTy || !lhsTy.hasStaticShape() || lhsTy.getRank() != 2 ||
+      lhsTy.getDimSize(0) != m || lhsTy.getDimSize(1) != k)
+    return failure();
+
+  auto reshapeOp = lhs.getDefiningOp<tosa::ReshapeOp>();
+  if (!reshapeOp)
+    return failure();
+
+  auto sourceTy = dyn_cast<RankedTensorType>(reshapeOp.getInput1().getType());
+  if (!sourceTy || !sourceTy.hasStaticShape() || sourceTy.getRank() != 3 ||
+      sourceTy.getDimSize(0) != 1 || sourceTy.getDimSize(1) != m ||
+      sourceTy.getDimSize(2) != k ||
+      sourceTy.getElementType() != lhsTy.getElementType())
+    return failure();
+
+  return reshapeOp.getInput1();
+}
+
+static Value getBlockedLhsForTosa(Value lhs, RankedTensorType lhsTy, int64_t m,
+                                  int64_t k,
+                                  ConversionPatternRewriter &rewriter,
+                                  Location loc) {
+  if (auto rank3Lhs = getRank3BlockedLhsSourceForTosa(lhs, m, k);
+      succeeded(rank3Lhs))
+    return *rank3Lhs;
+
+  auto lhsBlockedTy = RankedTensorType::get({1, m, k}, lhsTy.getElementType());
+  return tosa::ReshapeOp::create(
+             rewriter, loc, lhsBlockedTy, lhs,
+             tosa::getTosaConstShape(rewriter, loc, {1, m, k}))
+      .getResult();
+}
+
+static bool isRank3ScaledMmResultShape(ArrayRef<int64_t> shape, int64_t m,
+                                       int64_t n) {
+  return shape.size() == 3 && shape[0] == 1 && shape[1] == m && shape[2] == n;
+}
+
+static bool hasRank3ScaledMmResultType(Operation *op, int64_t m, int64_t n) {
+  if (op->getNumResults() != 1)
+    return false;
+  auto resultTy = dyn_cast<RankedTensorType>(op->getResult(0).getType());
+  return resultTy && resultTy.hasStaticShape() &&
+         isRank3ScaledMmResultShape(resultTy.getShape(), m, n);
+}
+
+static Operation *getRank3ScaledMmResultReshapeUser(Operation *op, int64_t m,
+                                                    int64_t n) {
+  if (!op->getResult(0).hasOneUse())
+    return nullptr;
+
+  Operation *user = *op->getResult(0).user_begin();
+  if (auto reshapeOp = dyn_cast<AtenReshapeOp>(user)) {
+    SmallVector<int64_t> shape;
+    if (matchPattern(reshapeOp.getShape(), m_TorchListOfConstantInts(shape)) &&
+        isRank3ScaledMmResultShape(shape, m, n))
+      return user;
+  }
+  if (auto viewOp = dyn_cast<AtenViewOp>(user)) {
+    SmallVector<int64_t> shape;
+    if (matchPattern(viewOp.getSize(), m_TorchListOfConstantInts(shape)) &&
+        isRank3ScaledMmResultShape(shape, m, n))
+      return user;
+  }
+  if (isa<tosa::ReshapeOp>(user) && hasRank3ScaledMmResultType(user, m, n))
+    return user;
+
+  return nullptr;
+}
+
+static SmallVector<Operation *> getOperandDefiningOps(Operation *op) {
+  SmallVector<Operation *> definingOps;
+  for (Value operand : op->getOperands()) {
+    if (Operation *definingOp = operand.getDefiningOp())
+      definingOps.push_back(definingOp);
+  }
+  return definingOps;
+}
+
+static void eraseDeadProducerChain(Operation *op,
+                                   ConversionPatternRewriter &rewriter) {
+  if (!op || !op->use_empty())
+    return;
+
+  SmallVector<Operation *> definingOps = getOperandDefiningOps(op);
+  rewriter.eraseOp(op);
+  for (Operation *definingOp : llvm::reverse(definingOps))
+    eraseDeadProducerChain(definingOp, rewriter);
+}
+
+static LogicalResult rewriteFlatBlockedScaledMmToMatmulTBlockScaledOp(
+    Operation *op, Value lhs, Value rhs, Value scaleA, Value scaleB, Value bias,
+    RankedTensorType lhsTy, RankedTensorType rhsTy, RankedTensorType scaleATy,
+    RankedTensorType scaleBTy, RankedTensorType resultTy,
+    ConversionPatternRewriter &rewriter, Location loc) {
+  if (lhsTy.getRank() != 2 || rhsTy.getRank() != 2 || resultTy.getRank() != 2)
+    return rewriter.notifyMatchFailure(
+        op, "aten._scaled_mm expects rank-2 tensors for flat blocked scales");
+
+  int64_t m = lhsTy.getDimSize(0);
+  int64_t k = lhsTy.getDimSize(1);
+  int64_t rhsK = rhsTy.getDimSize(0);
+  int64_t n = rhsTy.getDimSize(1);
+  if (k != rhsK)
+    return rewriter.notifyMatchFailure(
+        op, "aten._scaled_mm requires inner dimensions of lhs/rhs to match");
+  if (k % 32 != 0)
+    return rewriter.notifyMatchFailure(
+        op, "aten._scaled_mm expects blocked-scale K to be divisible by 32");
+  if (resultTy.getDimSize(0) != m || resultTy.getDimSize(1) != n)
+    return rewriter.notifyMatchFailure(
+        op, "aten._scaled_mm expects blocked result shape [M, N]");
+
+  int64_t scaleCols = k / 32;
+  auto lhsBlockedTy = RankedTensorType::get({1, m, k}, lhsTy.getElementType());
+  lhs =
+      tosa::ReshapeOp::create(rewriter, loc, lhsBlockedTy, lhs,
+                              tosa::getTosaConstShape(rewriter, loc, {1, m, k}))
+          .getResult();
+
+  rhs = getBlockedRhsForTosa(rhs, rhsTy, k, n, rewriter, loc);
+
+  auto scaleAOr =
+      getBlockedScaleForTosa(scaleA, scaleATy, m, scaleCols, rewriter, loc);
+  auto scaleBOr =
+      getBlockedScaleForTosa(scaleB, scaleBTy, n, scaleCols, rewriter, loc);
+  if (failed(scaleAOr) || failed(scaleBOr))
+    return rewriter.notifyMatchFailure(
+        op, "failed to reshape aten._scaled_mm flat blocked scales");
+
+  auto rank3ResultTy =
+      RankedTensorType::get({1, m, n}, resultTy.getElementType());
+  auto rank3ResultOr = createScaledMmMatmulTBlockScaledResult(
+      op, lhs, rhs, *scaleAOr, *scaleBOr, bias, rank3ResultTy, rewriter, loc);
+  if (failed(rank3ResultOr))
+    return failure();
+
+  SmallVector<Operation *> definingOps = getOperandDefiningOps(op);
+  Value result = tosa::ReshapeOp::create(
+                     rewriter, loc, resultTy, *rank3ResultOr,
+                     tosa::getTosaConstShape(
+                         rewriter, loc,
+                         SmallVector<int64_t>(resultTy.getShape().begin(),
+                                              resultTy.getShape().end())))
+                     .getResult();
+  rewriter.replaceOp(op, {result});
+  for (Operation *definingOp : llvm::reverse(definingOps))
+    eraseDeadProducerChain(definingOp, rewriter);
+  return success();
+}
+
+static LogicalResult rewriteDynamicMxfpScaledMmToMatmulTBlockScaledOp(
+    Operation *op, Value lhs, Value rhs, Value scaleB, Value bias,
+    RankedTensorType lhsTy, RankedTensorType rhsTy, RankedTensorType scaleBTy,
+    RankedTensorType resultTy, ConversionPatternRewriter &rewriter,
+    Location loc) {
+  if (lhsTy.getRank() != 2 || rhsTy.getRank() != 2 || resultTy.getRank() != 2)
+    return rewriter.notifyMatchFailure(
+        op,
+        "dynamic MXFP aten._scaled_mm expects rank-2 input/result tensors");
+
+  int64_t m = lhsTy.getDimSize(0);
+  int64_t k = lhsTy.getDimSize(1);
+  int64_t rhsK = rhsTy.getDimSize(0);
+  int64_t n = rhsTy.getDimSize(1);
+  if (k != rhsK)
+    return rewriter.notifyMatchFailure(
+        op, "dynamic MXFP aten._scaled_mm requires matching K dimensions");
+  if (k % 32 != 0)
+    return rewriter.notifyMatchFailure(
+        op, "dynamic MXFP aten._scaled_mm expects K to be divisible by 32");
+  if (resultTy.getDimSize(0) != m || resultTy.getDimSize(1) != n)
+    return rewriter.notifyMatchFailure(
+        op, "dynamic MXFP aten._scaled_mm expects result shape [M, N]");
+
+  int64_t scaleCols = k / 32;
+  Value lhsHpBlocked = getBlockedLhsForTosa(lhs, lhsTy, m, k, rewriter, loc);
+
+  auto lhsBlockedTy =
+      RankedTensorType::get({1, m, k}, rhsTy.getElementType());
+  auto lhsScaleTy =
+      RankedTensorType::get({1, m, scaleCols}, scaleBTy.getElementType());
+  auto castToBlocked = tosa::CastToBlockScaledOp::create(
+      rewriter, loc, lhsBlockedTy, lhsScaleTy, lhsHpBlocked,
+      tosa::BlockSize::BLOCK_SIZE_32);
+  Value lhsBlocked = castToBlocked.getResult(0);
+  Value scaleABlocked = castToBlocked.getResult(1);
+
+  rhs = getBlockedRhsForTosa(rhs, rhsTy, k, n, rewriter, loc);
+
+  auto scaleBOr =
+      getBlockedScaleForTosa(scaleB, scaleBTy, n, scaleCols, rewriter, loc);
+  if (failed(scaleBOr))
+    return rewriter.notifyMatchFailure(
+        op, "failed to reshape dynamic MXFP aten._scaled_mm rhs scale");
+
+  auto rank3ResultTy =
+      RankedTensorType::get({1, m, n}, resultTy.getElementType());
+  auto rank3ResultOr = createScaledMmMatmulTBlockScaledResult(
+      op, lhsBlocked, rhs, scaleABlocked, *scaleBOr, bias, rank3ResultTy,
+      rewriter, loc);
+  if (failed(rank3ResultOr))
+    return failure();
+
+  SmallVector<Operation *> definingOps = getOperandDefiningOps(op);
+  if (Operation *rank3User = getRank3ScaledMmResultReshapeUser(op, m, n)) {
+    rewriter.replaceOp(rank3User, {*rank3ResultOr});
+    rewriter.eraseOp(op);
+    for (Operation *definingOp : llvm::reverse(definingOps))
+      eraseDeadProducerChain(definingOp, rewriter);
+    return success();
+  }
+
+  Value result = tosa::ReshapeOp::create(
+                     rewriter, loc, resultTy, *rank3ResultOr,
+                     tosa::getTosaConstShape(
+                         rewriter, loc,
+                         SmallVector<int64_t>(resultTy.getShape().begin(),
+                                              resultTy.getShape().end())))
+                     .getResult();
+  rewriter.replaceOp(op, {result});
+  for (Operation *definingOp : llvm::reverse(definingOps))
+    eraseDeadProducerChain(definingOp, rewriter);
+  return success();
+}
+
+static LogicalResult rewriteScaledMmToMatMulOp(
+    Operation *op, Value lhs, Value rhs, Value scaleA, Value scaleB, Value bias,
+    RankedTensorType lhsTy, RankedTensorType rhsTy, RankedTensorType scaleATy,
+    RankedTensorType scaleBTy, RankedTensorType resultTy, int64_t m, int64_t k,
+    int64_t n, ConversionPatternRewriter &rewriter, Location loc) {
+  auto f32Ty = rewriter.getF32Type();
+  int64_t paddedN = llvm::alignTo(n, kScaledMmMatmulNAlignment);
+  bool needsOutputPadding = paddedN != n;
+
+  // TOSA FP8 matmul requires the output channel dimension to be aligned. Pad
+  // RHS columns and slice the f32 accumulator back to the user-visible N after
+  // matmul/scaling.
+  if (needsOutputPadding) {
+    FailureOr<Value> paddedRhsOr =
+        padLastDimWithZeros(rhs, paddedN, rewriter, loc);
+    if (failed(paddedRhsOr))
+      return rewriter.notifyMatchFailure(
+          op, "failed to pad aten._scaled_mm rhs output dimension");
+    rhs = *paddedRhsOr;
+  }
+
+  lhs = reshapeTensor(lhs, {1, m, k}, lhsTy.getElementType(), rewriter, loc);
+  rhs = reshapeTensor(rhs, {1, k, paddedN}, rhsTy.getElementType(), rewriter,
+                      loc);
+
+  auto scaleAF32Ty = RankedTensorType::get(
+      makeShapeLLVMCompatible(scaleATy.getShape()), f32Ty);
+  auto scaleBF32Ty = RankedTensorType::get(
+      makeShapeLLVMCompatible(scaleBTy.getShape()), f32Ty);
+  scaleA = tosa::tosaCastTensorToType(rewriter, scaleA, scaleAF32Ty).value();
+  scaleB = tosa::tosaCastTensorToType(rewriter, scaleB, scaleBF32Ty).value();
+
+  std::optional<StaticScaledMmScaleShapes> batchedScaleShapes =
+      getStaticScaledMmBatchedScaleShapes(scaleATy, scaleBTy, m, n);
+  if (!batchedScaleShapes)
+    return rewriter.notifyMatchFailure(
+        op, "aten._scaled_mm expects static FP8 scales to be fp32 "
+            "tensorwise scales or paired 2D PyTorch scale layouts");
+
+  SmallVector<int64_t> batchedScaleAShapeVec = batchedScaleShapes->scaleA;
+  SmallVector<int64_t> batchedScaleBShapeVec = batchedScaleShapes->scaleB;
+
+  scaleA = reshapeTensor(scaleA, batchedScaleAShapeVec, f32Ty, rewriter, loc);
+  scaleB = reshapeTensor(scaleB, batchedScaleBShapeVec, f32Ty, rewriter, loc);
+
+  // If the RHS scale is per output channel, pad it alongside the RHS data so
+  // the scale multiply broadcasts over the padded matmul result.
+  if (needsOutputPadding && batchedScaleBShapeVec[2] == n) {
+    FailureOr<Value> paddedScaleBOr =
+        padLastDimWithZeros(scaleB, paddedN, rewriter, loc);
+    if (failed(paddedScaleBOr))
+      return rewriter.notifyMatchFailure(
+          op, "failed to pad aten._scaled_mm rhs channel scale");
+    scaleB = *paddedScaleBOr;
+    batchedScaleBShapeVec[2] = paddedN;
+  }
+
+  auto zeroPointAOr =
+      createScaledMmZeroTensor(rewriter, loc, lhsTy.getElementType());
+  auto zeroPointBOr =
+      createScaledMmZeroTensor(rewriter, loc, rhsTy.getElementType());
+  if (!zeroPointAOr || !zeroPointBOr)
+    return rewriter.notifyMatchFailure(
+        op, "failed to materialize FP8 zero point for matmul");
+
+  auto matmulTy = RankedTensorType::get({1, m, paddedN}, f32Ty);
+  Value matmul = tosa::MatMulOp::create(rewriter, loc, matmulTy, lhs, rhs,
+                                        *zeroPointAOr, *zeroPointBOr)
+                     .getResult();
+
+  auto combinedScaleTy = RankedTensorType::get(
+      {1, std::max(batchedScaleAShapeVec[1], batchedScaleBShapeVec[1]),
+       std::max(batchedScaleAShapeVec[2], batchedScaleBShapeVec[2])},
+      f32Ty);
+  Value combinedScale =
+      tosa::createMulOpAndCast(rewriter, op, combinedScaleTy, scaleA, scaleB,
+                               /*shift=*/0);
+  Value scaledMatmul =
+      tosa::createMulOpAndCast(rewriter, op, matmulTy, matmul, combinedScale,
+                               /*shift=*/0);
+
+  if (needsOutputPadding) {
+    auto slicedTy = RankedTensorType::get({1, m, n}, f32Ty);
+    scaledMatmul =
+        tosa::SliceOp::create(rewriter, loc, slicedTy, scaledMatmul,
+                              tosa::getTosaConstShape(rewriter, loc, {0, 0, 0}),
+                              tosa::getTosaConstShape(rewriter, loc, {1, m, n}))
+            .getResult();
+  }
+
+  auto reshapedTy = RankedTensorType::get(resultTy.getShape(), f32Ty);
+  Value result =
+      tosa::ReshapeOp::create(
+          rewriter, loc, reshapedTy, scaledMatmul,
+          tosa::getTosaConstShape(rewriter, loc, getTensorShape(resultTy)))
+          .getResult();
+  auto resultWithBiasOr =
+      addBiasToScaledMmAccumulator(result, bias, rewriter, loc);
+  if (failed(resultWithBiasOr))
+    return rewriter.notifyMatchFailure(
+        op, "Failed to add bias to aten._scaled_mm accumulator");
+  result = castScaledMmResultToType(*resultWithBiasOr, resultTy, rewriter);
+  rewriter.replaceOp(op, {result});
+  return success();
 }
 
 static LogicalResult
@@ -1074,6 +1772,7 @@ public:
       // types can only be floating point for tosa::ReciprocalOp.
       rhsTensor =
           tosa::tosaCastTensorToType(rewriter, rhsTensor, outType).value();
+      lhs = tosa::tosaCastTensorToType(rewriter, lhs, outType).value();
       auto rhsRcp = tosa::ReciprocalOp::create(rewriter, op->getLoc(),
                                                rhsTensor.getType(), rhsTensor);
 
@@ -2589,6 +3288,134 @@ public:
     rewriter.replaceOp(op, {matmulPlusBias});
 
     return success();
+  }
+};
+
+template <typename AtenOpT>
+class ConvertAtenScaledMmOp : public TorchToTosaOpConversionPattern<AtenOpT> {
+public:
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+
+  LogicalResult
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
+    bool useFastAccum = false;
+    if (!matchPattern(op.getUseFastAccum(), m_TorchConstantBool(&useFastAccum)))
+      return rewriter.notifyMatchFailure(
+          op, "aten._scaled_mm requires a constant bool use_fast_accum");
+    // TOSA does not expose an equivalent fast-accumulation mode. Lower both
+    // PyTorch modes to the same f32-accumulating TOSA sequence.
+
+    if (!isa<Torch::NoneType>(op.getScaleResult().getType()))
+      return rewriter.notifyMatchFailure(
+          op, "aten._scaled_mm with scale_result is not supported");
+
+    Value lhs = adaptor.getSelf();
+    Value rhs = adaptor.getMat2();
+    Value scaleA = adaptor.getScaleA();
+    Value scaleB = adaptor.getScaleB();
+    Value bias = adaptor.getBias();
+
+    auto lhsTy = dyn_cast<RankedTensorType>(lhs.getType());
+    auto rhsTy = dyn_cast<RankedTensorType>(rhs.getType());
+    auto scaleATy = dyn_cast<RankedTensorType>(scaleA.getType());
+    auto scaleBTy = dyn_cast<RankedTensorType>(scaleB.getType());
+    auto resultTy = dyn_cast<RankedTensorType>(
+        this->getTypeConverter()->convertType(op.getType()));
+
+    if (!lhsTy || !rhsTy || !scaleATy || !scaleBTy || !resultTy)
+      return rewriter.notifyMatchFailure(
+          op,
+          "aten._scaled_mm requires tensor operands with ranked result type");
+
+    if (!lhsTy.hasStaticShape() || !rhsTy.hasStaticShape() ||
+        !resultTy.hasStaticShape())
+      return rewriter.notifyMatchFailure(
+          op, "aten._scaled_mm requires static input/result shapes");
+
+    auto lhsElemTy = lhsTy.getElementType();
+    auto rhsElemTy = rhsTy.getElementType();
+
+    auto isBlockedScale = [](RankedTensorType ty) {
+      return (ty.getRank() == 1 || ty.getRank() == 2) &&
+             ty.hasStaticShape() &&
+             isSupportedBlockedScaledMmScaleElementType(ty.getElementType());
+    };
+    bool useStaticFp8Scales =
+        isSupportedStaticScaledMmScaleElementType(scaleATy.getElementType()) &&
+        isSupportedStaticScaledMmScaleElementType(scaleBTy.getElementType());
+    bool useFlatBlockedScales =
+        isBlockedScale(scaleATy) && isBlockedScale(scaleBTy);
+
+    if (!useStaticFp8Scales && !useFlatBlockedScales)
+      return rewriter.notifyMatchFailure(
+          op, "aten._scaled_mm expects static fp32 scales, blocked "
+              "float8_e8m0fnu flat scales with surrounding reshape ops");
+
+    if (!isSupportedStaticScaledMmResultElementType(resultTy.getElementType()))
+      return rewriter.notifyMatchFailure(
+          op, "aten._scaled_mm expects f32, f16 or bf16 result type for "
+              "static FP8 scales");
+
+    Location loc = op.getLoc();
+
+    if (useStaticFp8Scales) {
+      if (!isSupportedScaledMmDataElementType(lhsElemTy) ||
+          !isSupportedScaledMmDataElementType(rhsElemTy))
+        return rewriter.notifyMatchFailure(
+            op, "aten._scaled_mm expects FP8 input types for static scales");
+
+      if (lhsTy.getRank() != 2 || rhsTy.getRank() != 2 ||
+          resultTy.getRank() != 2)
+        return rewriter.notifyMatchFailure(
+            op, "aten._scaled_mm expects rank-2 input and result tensors for "
+                "static FP8 scales");
+
+      int64_t m = lhsTy.getShape()[0];
+      int64_t k = lhsTy.getShape()[1];
+      int64_t rhsK = rhsTy.getShape()[0];
+      int64_t n = rhsTy.getShape()[1];
+      if (k != rhsK)
+        return rewriter.notifyMatchFailure(
+            op,
+            "aten._scaled_mm requires inner dimensions of lhs/rhs to match");
+      if (resultTy.getShape()[0] != m || resultTy.getShape()[1] != n)
+        return rewriter.notifyMatchFailure(
+            op, "aten._scaled_mm expects static FP8 result shape [M, N]");
+
+      return rewriteScaledMmToMatMulOp(op, lhs, rhs, scaleA, scaleB, bias,
+                                       lhsTy, rhsTy, scaleATy, scaleBTy,
+                                       resultTy, m, k, n, rewriter, loc);
+    }
+
+    if (!isSupportedScaledMmDataElementType(rhsElemTy))
+      return rewriter.notifyMatchFailure(
+          op, "aten._scaled_mm expects FP8 rhs input for blocked scales");
+
+    if (isSupportedDynamicMxfpActivationElementType(lhsElemTy))
+      return rewriteDynamicMxfpScaledMmToMatmulTBlockScaledOp(
+          op, lhs, rhs, scaleB, bias, lhsTy, rhsTy, scaleBTy, resultTy, rewriter,
+          loc);
+
+    if (!isSupportedScaledMmDataElementType(lhsElemTy))
+      return rewriter.notifyMatchFailure(
+          op, "aten._scaled_mm expects FP8 or high-precision lhs input for "
+              "blocked scales");
+
+    if (lhsElemTy != rhsElemTy)
+      return rewriter.notifyMatchFailure(
+          op, "aten._scaled_mm requires matching lhs/rhs element types for "
+              "blocked scales");
+
+    if (useFlatBlockedScales)
+      return rewriteFlatBlockedScaledMmToMatmulTBlockScaledOp(
+          op, lhs, rhs, scaleA, scaleB, bias, lhsTy, rhsTy, scaleATy, scaleBTy,
+          resultTy, rewriter, loc);
+
+    return rewriter.notifyMatchFailure(
+        op, "aten._scaled_mm expects blocked scales in the exported reshape -> "
+            "_scaled_mm -> reshape pattern");
   }
 };
 
@@ -10827,6 +11654,10 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
       AtenOp::getOperationName(), typeConverter, context);
   INSERT_LINEAR_ATENOP_PATTERN(AtenLinearOp);
 #undef INSERT_LINEAR_ATENOP_PATTERN
+
+  illegalOps.insert(Aten_ScaledMmOp::getOperationName());
+  patterns.addWithLabel<ConvertAtenScaledMmOp<Aten_ScaledMmOp>>(
+      Aten_ScaledMmOp::getOperationName(), typeConverter, context);
 
 #define INSERT_ADAPTIVE_POOLING_ATENOP_PATTERN(AtenOp, TosaOpT)                \
   illegalOps.insert(AtenOp::getOperationName());                               \

@@ -6623,6 +6623,37 @@ def Torch_AtenMmOp : Torch_Op<"aten.mm", [
   }];
 }
 
+def Torch_Aten_ScaledMmOp : Torch_Op<"aten._scaled_mm", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::_scaled_mm : (Tensor, Tensor, Tensor, Tensor, Tensor?, Tensor?, int?, bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$mat2,
+    AnyTorchTensorType:$scale_a,
+    AnyTorchTensorType:$scale_b,
+    AnyTorchOptionalTensorType:$bias,
+    AnyTorchOptionalTensorType:$scale_result,
+    AnyTorchOptionalIntType:$out_dtype,
+    Torch_BoolType:$use_fast_accum
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult Aten_ScaledMmOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 8, 1);
+    }
+    void Aten_ScaledMmOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 8, 1);
+    }
+  }];
+  let hasVerifier = 1;
+}
+
 def Torch_Aten_IntMmOp : Torch_Op<"aten._int_mm", [
     AllowsTypeRefinement,
     HasValueSemantics,
