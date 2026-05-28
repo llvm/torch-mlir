@@ -2543,13 +2543,6 @@ public:
     Type resultElementType =
         cast<RankedTensorType>(newResultType).getElementType();
 
-    Value lhsDim = getDimOp(rewriter, loc, lhs, 0);
-    Value rhsDim = getDimOp(rewriter, loc, rhs, 0);
-
-    if (!lhsType.hasRank() || !rhsType.hasRank())
-      return rewriter.notifyMatchFailure(
-          op, "unsupported: only ranked tensors are supported");
-
     if (lhsType.getRank() != 1 || rhsType.getRank() != 1)
       return rewriter.notifyMatchFailure(
           op, "expected both operands to aten.outer to be rank 1");
@@ -2561,6 +2554,9 @@ public:
     if (rhsElementType != resultElementType)
       rhs = torch_to_linalg::convertTensorToElementType(rewriter, loc, rhs,
                                                         resultElementType);
+
+    Value lhsDim = getDimOp(rewriter, loc, lhs, 0);
+    Value rhsDim = getDimOp(rewriter, loc, rhs, 0);
 
     Value initTensor = tensor::EmptyOp::create(
         rewriter, loc, getAsOpFoldResult(ValueRange{lhsDim, rhsDim}),

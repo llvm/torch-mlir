@@ -1023,3 +1023,21 @@ class AtenOuterInt(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenOuterInt())
 def AtenOuterInt_basic(module, tu: TestUtils):
     module.forward(tu.randint(4), tu.randint(3))
+
+
+# ==============================================================================
+
+
+class AtenOuterF32F64(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1], torch.float32, True), ([-1], torch.float64, True)])
+    def forward(self, a, b):
+        return torch.ops.aten.outer(a, b)
+
+
+@register_test_case(module_factory=lambda: AtenOuterF32F64())
+def AtenOuterF32F64_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4), tu.rand(3).to(torch.float64))
