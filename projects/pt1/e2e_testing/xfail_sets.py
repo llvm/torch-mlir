@@ -26,6 +26,7 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "ElementwiseAtanTensorBFloat16SpecialValuesModule_basic",
     "ElementwiseFloatTensorGtIntTensorModule_basic",
     "ElementwiseClampIntToFloatModule_basic",
+    "ElementwiseClampInt16Module_basic",
     # TODO: The values are extremely close to the golden values, but the test fails because of strict rtol/atol.
     "AtenInstanceNormModuleFp16_basic",
     "AtenIntMM_basic",
@@ -518,6 +519,7 @@ FX_IMPORTER_XFAIL_SET = {
     "ReflectionPad3dModuleFront_basic",
     "ReflectionPad3dModuleBack_basic",
     "ElementwiseClampIntToFloatModule_basic",
+    "ElementwiseClampInt16Module_basic",
     # error: argument must be a memref of f32, f64, i32, i64, i8, i1, c32, c64, but got 'memref<3x5xbf16>'
     "ElementwiseClampMaxModule_bfloat16",
     "ElementwiseClampMinModule_bfloat16",
@@ -554,6 +556,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "DiagonalWithStaticShapeModule_basic",
     "EinsumStaticDiagonalDimensionModule_basic",
     "ElementwiseAtanTensorBFloat16SpecialValuesModule_basic",
+    "ElementwiseClampInt16Module_basic",
     "ElementwiseClampIntToFloatModule_basic",
     "ElementwiseRemainderScalarModule_Bool_NegativeDivisor_basic",
     "ElementwiseRemainderScalarModule_Float_NegativeDividend_basic",
@@ -2249,9 +2252,12 @@ TOSA_PASS_SET = {
     "ElementwiseCeluModule_basic",
     "ElementwiseCeluStaticModule_basic",
     "ElementwiseClampMaxModule_basic",
+    "ElementwiseClampInt8MinGreaterThanMaxModule_basic",
     "ElementwiseClampMinModule_basic",
     "ElementwiseClampModule_basic",
     "ElementwiseClampTensorInt8Module_basic",
+    "ElementwiseClampInt32Module_basic",
+    "ElementwiseClampInt64Module_basic",
     "ElementwiseCloneChannelsLastMemoryFormatModule_basic",
     "ElementwiseCloneContiguousModule_basic",
     "ElementwiseCloneModule_basic",
@@ -3550,6 +3556,7 @@ if torch_version_for_comparison() > version.parse("2.10.0.dev"):
     ONNX_XFAIL_SET = ONNX_XFAIL_SET | {
         "Aten_CastLongModule_basic",
         "Aten_CastFloatModule_basic",
+        "ElementwiseClampInt16Module_basic",
     }
 
 if torch_version_for_comparison() < version.parse("2.4.0.dev"):
@@ -4056,6 +4063,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ElementwiseClampMinModule_bfloat16",
     "ElementwiseClampModule_bfloat16",
     "ElementwiseReluModule_bfloat16",
+    "ElementwiseClampInt16Module_basic",  # 'memref<3x5xi16>'
 }
 
 ONNX_TOSA_CRASHING_SET = {
@@ -5195,4 +5203,5 @@ if torch_version_for_comparison() > version.parse("2.5.1"):
         # error: 'memref.cast' op operand type 'memref<2x6x4x3xf32>' and result type 'memref<2x6x5x3xf32>' are cast incompatible
         # torch.onnx.export produces onnx.MaxPool op with incorrect output shape of 2x6x5x3 instead of 2x6x4x3
         "MaxPool2dStaticCeilModeTrueReduceOutputModule_basic",
+        "ElementwiseClampInt16Module_basic",
     }
