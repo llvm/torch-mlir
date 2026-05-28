@@ -25,6 +25,7 @@
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/MathExtras.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -6336,10 +6337,6 @@ static bool isScaledMmBlockwiseScaling(Type scaleADtype, Type scaleBDtype) {
          isScaledMmBlockwiseScaleDtype(scaleADtype);
 }
 
-static int64_t ceilDivPositive(int64_t dividend, int64_t divisor) {
-  return (dividend + divisor - 1) / divisor;
-}
-
 static int64_t getNumel(ArrayRef<int64_t> sizes) {
   int64_t numel = 1;
   for (int64_t size : sizes) {
@@ -6410,6 +6407,10 @@ LogicalResult Aten_ScaledMmOp::verify() {
     return emitOpError("expected mat2 contracting dimension to be divisible "
                        "by 16, but got ")
            << mat2K;
+  if (n != kUnknownSize && n % 16 != 0)
+    return emitOpError("expected mat2 non-contracting dimension to be "
+                       "divisible by 16, but got ")
+           << n;
 
   if (!isa<Torch::NoneType>(getBias().getType())) {
     auto biasType = dyn_cast<BaseTensorType>(getBias().getType());
@@ -6498,15 +6499,15 @@ LogicalResult Aten_ScaledMmOp::verify() {
     int64_t scaleBK =
         getScaledMmScaleK(mat2K, mat2Type.getDtype(), scaleBDtype);
     int64_t numAKBlocks =
-        ceilDivPositive(scaleAK, getScaledMmBlockSizeK(scaleADtype));
+        llvm::divideCeil(scaleAK, getScaledMmBlockSizeK(scaleADtype));
     int64_t numBKBlocks =
-        ceilDivPositive(scaleBK, getScaledMmBlockSizeK(scaleBDtype));
-    int64_t paddedNumAKBlocks = ceilDivPositive(numAKBlocks, 4) * 4;
-    int64_t paddedNumBKBlocks = ceilDivPositive(numBKBlocks, 4) * 4;
+        llvm::divideCeil(scaleBK, getScaledMmBlockSizeK(scaleBDtype));
+    int64_t paddedNumAKBlocks = llvm::divideCeil(numAKBlocks, int64_t{4}) * 4;
+    int64_t paddedNumBKBlocks = llvm::divideCeil(numBKBlocks, int64_t{4}) * 4;
     int64_t expectedScaleANumel =
-        blockSizeMN * ceilDivPositive(m, blockSizeMN) * paddedNumAKBlocks;
+        blockSizeMN * llvm::divideCeil(m, blockSizeMN) * paddedNumAKBlocks;
     int64_t expectedScaleBNumel =
-        blockSizeMN * ceilDivPositive(n, blockSizeMN) * paddedNumBKBlocks;
+        blockSizeMN * llvm::divideCeil(n, blockSizeMN) * paddedNumBKBlocks;
     if (scaleANumel != expectedScaleANumel ||
         scaleBNumel != expectedScaleBNumel)
       return emitOpError("invalid blockwise scaling configuration: expected "
@@ -6528,9 +6529,9 @@ LogicalResult Aten_ScaledMmOp::verify() {
                        "rank 2, but got ranks ")
            << scaleAShape.size() << " and " << scaleBShape.size();
 
-  int64_t kBlocks = ceilDivPositive(k, 128);
-  int64_t mBlocks = ceilDivPositive(m, 128);
-  int64_t nBlocks = ceilDivPositive(n, 128);
+  int64_t kBlocks = llvm::divideCeil(k, int64_t{128});
+  int64_t mBlocks = llvm::divideCeil(m, int64_t{128});
+  int64_t nBlocks = llvm::divideCeil(n, int64_t{128});
   if (hasShape(scaleAShape, {m, 1}) && hasShape(scaleBShape, {1, n}))
     return success();
   if (hasShape(scaleAShape, {m, kBlocks}) &&
