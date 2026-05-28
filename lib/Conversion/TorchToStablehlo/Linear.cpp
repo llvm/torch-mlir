@@ -849,33 +849,33 @@ public:
   }
 };
 
-template <typename AtenOpT>
-class ConvertAtenOuterOp : public ConvertAtenOp<AtenOpT> {
+class ConvertAtenOuterOp : public ConvertAtenOp<AtenOuterOp> {
 public:
-  using ConvertAtenOp<AtenOpT>::ConvertAtenOp;
-  using OpAdaptor = typename AtenOpT::Adaptor;
+  using ConvertAtenOp<AtenOuterOp>::ConvertAtenOp;
+  using OpAdaptor = typename AtenOuterOp::Adaptor;
   LogicalResult
   matchAndRewrite(AtenOuterOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     Value lhs = adaptor.getSelf();
-    auto lhsTy = cast<RankedTensorType>(lhs.getType());
+    auto lhsTy = dyn_cast<RankedTensorType>(lhs.getType());
     Value rhs = adaptor.getVec2();
-    auto rhsTy = cast<RankedTensorType>(rhs.getType());
+    auto rhsTy = dyn_cast<RankedTensorType>(rhs.getType());
 
     if (!lhsTy || !rhsTy)
-      return op.emitError("inputs must be ranked tensors");
+      return rewriter.notifyMatchFailure(op, "inputs must be ranked tensors");
 
     auto lhsRank = lhsTy.getRank();
     auto rhsRank = rhsTy.getRank();
 
     if (lhsRank != 1 || rhsRank != 1)
-      return op.emitError("input tensors must be rank 1");
+      return rewriter.notifyMatchFailure(op, "input tensors must be rank 1");
 
     auto lhsElemTy = lhsTy.getElementType();
     auto rhsElemTy = rhsTy.getElementType();
 
     auto outTy = cast<RankedTensorType>(
-        ConvertAtenOp<AtenOpT>::getTypeConverter()->convertType(op.getType()));
+        ConvertAtenOp<AtenOuterOp>::getTypeConverter()->convertType(
+            op.getType()));
     auto outElemTy = outTy.getElementType();
 
     if (lhsElemTy != outElemTy) {
@@ -930,7 +930,7 @@ void mlir::torch::torch_to_stablehlo::populateLinearOpPatternsAndLegality(
 
 #define INSERT_OUTER_ATENOP_PATTERN(AtenOp)                                    \
   target.addIllegalOp<AtenOp>();                                               \
-  patterns.add<ConvertAtenOuterOp<AtenOp>>(typeConverter, context, options)
+  patterns.add<ConvertAtenOuterOp>(typeConverter, context, options)
   INSERT_OUTER_ATENOP_PATTERN(AtenOuterOp);
 #undef INSERT_OUTER_ATENOP_PATTERN
 }
