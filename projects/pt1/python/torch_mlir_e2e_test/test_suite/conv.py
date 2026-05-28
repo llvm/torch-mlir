@@ -1835,6 +1835,54 @@ def Conv2dQInt8Module_not_depthwise(module, tu: TestUtils):
     module.forward(inputVec, weight, bias)
 
 
+class Conv2dQInt16Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.int16, True),
+            ([-1, -1, -1, -1], torch.int16, True),
+            ([-1], torch.int32, True),
+        ]
+    )
+    def forward(self, inputVec, weight, bias):
+        inputVec = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            inputVec, 0.01, 0, -(2**15), 2**15 - 1, torch.int16
+        )
+        weight = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            weight, 0.01, 0, -(2**15), 2**15 - 1, torch.int16
+        )
+        bias = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            bias, 1e-4, 0, -(2**31), 2**31 - 1, torch.int32
+        )
+
+        conv = torch.ops.aten.conv2d(
+            inputVec,
+            weight,
+            bias=bias,
+            stride=[1, 1],
+            padding=[0, 0],
+            dilation=[1, 1],
+            groups=1,
+        )
+
+        # Use int32 to avoid overflows.
+        return torch.ops.quantized_decomposed.quantize_per_tensor.default(
+            conv, 1e-4, 0, -(2**31), 2**31 - 1, torch.int32
+        )
+
+
+@register_test_case(module_factory=lambda: Conv2dQInt16Module())
+def Conv2dQInt16Module_basic(module, tu: TestUtils):
+    inputVec = tu.randint(2, 4, 7, 8, low=-128, high=127).to(torch.int16)
+    weight = tu.randint(3, 4, 3, 2, low=-128, high=127).to(torch.int16)
+    bias = tu.randint(3, low=-1000, high=1000).to(torch.int32)
+    module.forward(inputVec, weight, bias)
+
+
 class ConvTranspose2DQInt8Module(torch.nn.Module):
 
     def __init__(self):

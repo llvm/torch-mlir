@@ -139,3 +139,33 @@ func.func @quantized_conv(%arg0: !torch.vtensor<[?,4,7,8],si8>, %arg1: !torch.vt
   %11 = torch.aten.dequantize.tensor %10 : !torch.vtensor<[?,3,5,7],!torch.qint32> -> !torch.vtensor<[?,3,5,7],f32>
   return %11 : !torch.vtensor<[?,3,5,7],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @quantized_conv_i16(
+// CHECK:           %[[CONV:.*]] = tosa.conv2d
+// CHECK-SAME:      {acc_type = i48,
+func.func @quantized_conv_i16(%arg0: !torch.vtensor<[?,4,7,8],si16>, %arg1: !torch.vtensor<[3,4,3,2],si16>, %arg2: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,3,5,7],f32> {
+  %false = torch.constant.bool false
+  %int1 = torch.constant.int 1
+  %int0 = torch.constant.int 0
+  %float1.000000e-04 = torch.constant.float 1.000000e-04
+  %int3 = torch.constant.int 3
+  %int7 = torch.constant.int 7
+  %float1.000000e-02 = torch.constant.float 1.000000e-02
+  %int14 = torch.constant.int 14
+  %0 = torch.aten.quantize_per_tensor %arg2, %float1.000000e-04, %int0, %int14 : !torch.vtensor<[?],f32>, !torch.float, !torch.int, !torch.int -> !torch.vtensor<[?],!torch.qint32>
+  %1 = torch.aten.dequantize.self %0 : !torch.vtensor<[?],!torch.qint32> -> !torch.vtensor<[?],f32>
+  %2 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %3 = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %4 = torch.prim.ListConstruct  : () -> !torch.list<int>
+  // TOSA spec requires zero-point = 0 for non-int8 integer convs.
+  %5 = torch.aten._make_per_tensor_quantized_tensor %arg0, %float1.000000e-02, %int0 : !torch.vtensor<[?,4,7,8],si16>, !torch.float, !torch.int -> !torch.vtensor<[?,4,7,8],!torch.qint16>
+  %6 = torch.aten._make_per_tensor_quantized_tensor %arg1, %float1.000000e-02, %int0 : !torch.vtensor<[3,4,3,2],si16>, !torch.float, !torch.int -> !torch.vtensor<[3,4,3,2],!torch.qint16>
+  %7 = torch.aten.quantize_per_tensor %1, %float1.000000e-04, %int0, %int14 : !torch.vtensor<[?],f32>, !torch.float, !torch.int, !torch.int -> !torch.vtensor<[?],!torch.qint32>
+  %8 = torch.aten.int_repr %7 : !torch.vtensor<[?],!torch.qint32> -> !torch.vtensor<[?],si32>
+  %9 = torch.aten.convolution %5, %6, %8, %2, %3, %2, %false, %4, %int1 : !torch.vtensor<[?,4,7,8],!torch.qint16>, !torch.vtensor<[3,4,3,2],!torch.qint16>, !torch.vtensor<[?],si32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[?,3,5,7],si32>
+  %10 = torch.aten._make_per_tensor_quantized_tensor %9, %float1.000000e-04, %int0 : !torch.vtensor<[?,3,5,7],si32>, !torch.float, !torch.int -> !torch.vtensor<[?,3,5,7],!torch.qint32>
+  %11 = torch.aten.dequantize.tensor %10 : !torch.vtensor<[?,3,5,7],!torch.qint32> -> !torch.vtensor<[?,3,5,7],f32>
+  return %11 : !torch.vtensor<[?,3,5,7],f32>
+}

@@ -511,8 +511,7 @@ LogicalResult getConvOpsAccType(PatternRewriter &rewriter,
              (weightElemTy.isInteger(8) || weightElemTy.isInteger(4)) &&
              outputElemTy.isInteger(32)) {
     accType = mlir::TypeAttr::get(rewriter.getIntegerType(32));
-  } else if (inputElemTy.isInteger(16) && weightElemTy.isInteger(8) &&
-             outputElemTy.isInteger(48)) {
+  } else if (inputElemTy.isInteger(16)) {
     accType = mlir::TypeAttr::get(rewriter.getIntegerType(48));
   } else if ((isa<Float8E4M3Type>(inputElemTy) &&
               isa<Float8E4M3Type>(weightElemTy) && outputElemTy.isF16()) ||
