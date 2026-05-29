@@ -333,10 +333,17 @@ public:
                   arith::CmpIOp::create(b, loc, arith::CmpIPredicate::eq,
                                         castIndexToInt64(b, loc, offsetsLength),
                                         offsetIndexPlusOneInt);
+              // Clamp the index to avoid an unconditional out-of-bounds
+              // tensor.extract when i+1 == num_offsets (the last bag). The
+              // extracted value is discarded by the arith.select below, so
+              // any in-bounds index (0) is a safe fallback.
+              Value zeroIndex = arith::ConstantIndexOp::create(b, loc, 0);
+              Value safeOffsetIndexPlusOne = arith::SelectOp::create(
+                  b, loc, checkLast, zeroIndex, offsetIndexPlusOne);
               Value nextOffset = arith::SelectOp::create(
                   b, loc, checkLast, castIndexToInt64(b, loc, indicesLength),
                   tensor::ExtractOp::create(b, loc, offsets,
-                                            offsetIndexPlusOne));
+                                            safeOffsetIndexPlusOne));
 
               Value indicesIndex = castIndexToInt64(
                   b, loc, linalg::IndexOp::create(b, loc, /*value=*/1));
