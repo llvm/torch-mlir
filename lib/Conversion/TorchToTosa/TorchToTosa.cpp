@@ -161,12 +161,6 @@ getStaticScaledMmBatchedScaleShapes(RankedTensorType scaleATy,
   if (scaleARows == m && scaleACols == 1 && scaleBRows == 1 && scaleBCols == n)
     return StaticScaledMmScaleShapes{{1, m, 1}, {1, 1, n}};
 
-  if (scaleARows == m && scaleACols == 1 && scaleBRows == 1 && scaleBCols == 1)
-    return StaticScaledMmScaleShapes{{1, m, 1}, {1, 1, 1}};
-
-  if (scaleARows == 1 && scaleACols == 1 && scaleBRows == 1 && scaleBCols == n)
-    return StaticScaledMmScaleShapes{{1, 1, 1}, {1, 1, n}};
-
   return std::nullopt;
 }
 
