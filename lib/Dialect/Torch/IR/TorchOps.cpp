@@ -3258,22 +3258,35 @@ bool NonValueTensorLiteralOp::isCompatibleReturnTypes(TypeRange inferred,
 // ValueTensorLiteralOp
 //===----------------------------------------------------------------------===//
 
+// Marker used only for MXFP4 packed qdata literals. It is declared on
+// torch.vtensor.literal so type inference can see it while deciding whether raw
+// signless i8 storage should remain unsigned ui8 instead of torch's default
+// si8.
+
 LogicalResult ValueTensorLiteralOp::inferReturnTypes(
     MLIRContext *context, std::optional<Location> location, ValueRange operands,
     DictionaryAttr attributes, PropertyRef properties, RegionRange regions,
     SmallVectorImpl<Type> &inferredReturnTypes) {
+  (void)attributes;
   auto attr =
       dyn_cast_or_null<ElementsAttr>(properties.as<Properties *>()->getValue());
   if (!attr)
     return failure();
   RankedTensorType tensorType = cast<RankedTensorType>(attr.getType());
 
-  // Convert signless integers (except i1) to signed for torch compatibility
+  bool isMxfp4PackedStorageLiteral =
+      properties.as<Properties *>()->getMxfp4PackedStorage() != nullptr;
+
+  // Convert signless integers (except i1) to signed for torch compatibility.
+  // MXFP4 qdata literals are raw packed bytes; keep those explicitly marked
+  // tensors unsigned so they continue to match torch.float4_e2m1fn_x2 storage.
   Type elementType = tensorType.getElementType();
   if (auto intType = dyn_cast<IntegerType>(elementType)) {
     if (intType.isSignless() && intType.getWidth() > 1) {
-      elementType =
-          IntegerType::get(context, intType.getWidth(), IntegerType::Signed);
+      auto signedness = IntegerType::Signed;
+      if (isMxfp4PackedStorageLiteral && intType.getWidth() == 8)
+        signedness = IntegerType::Unsigned;
+      elementType = IntegerType::get(context, intType.getWidth(), signedness);
     }
   }
 
@@ -6542,6 +6555,230 @@ LogicalResult Aten_ScaledMmOp::verify() {
     return success();
   if (hasShape(scaleAShape, {mBlocks, kBlocks}) &&
       hasShape(scaleBShape, {kBlocks, n}))
+    return success();
+
+  return emitOpError("invalid scaling configuration for scale_a and scale_b");
+}
+
+//===----------------------------------------------------------------------===//
+// Aten_ScaledMmV2Op
+//===----------------------------------------------------------------------===//
+
+static bool isScaledMmV2PackedFp4StorageDtype(Type dtype) {
+  auto intType = dyn_cast<IntegerType>(dtype);
+  return intType && intType.isUnsigned() && intType.getWidth() == 8;
+}
+
+static bool isScaledMmV2DataDtype(Type dtype) {
+  return isScaledMmV2PackedFp4StorageDtype(dtype) ||
+         isa<Float8E4M3FNType, Float8E4M3FNUZType, Float8E5M2Type,
+             Float8E5M2FNUZType>(dtype);
+}
+
+static bool isScaledMmV2DynamicMxfpActivationDtype(Type dtype) {
+  return dtype.isF32() || dtype.isF16() || dtype.isBF16();
+}
+
+static bool isScaledMmV2TensorwiseOrRowwiseScaleDtype(Type dtype) {
+  return dtype.isF32();
+}
+
+static bool isScaledMmV2BlockwiseScaleDtype(Type dtype) {
+  return isa<Float8E8M0FNUType, Float8E4M3FNType>(dtype);
+}
+
+static bool isScaledMmV2BlockwiseScaling(Type scaleADtype, Type scaleBDtype) {
+  return scaleADtype == scaleBDtype &&
+         isScaledMmV2BlockwiseScaleDtype(scaleADtype);
+}
+
+static int64_t ceilDivPositiveForScaledMmV2(int64_t dividend, int64_t divisor) {
+  return (dividend + divisor - 1) / divisor;
+}
+
+static bool getNumelForScaledMmV2(ArrayRef<int64_t> sizes, int64_t &numel) {
+  numel = 1;
+  for (int64_t size : sizes) {
+    if (size == kUnknownSize)
+      return false;
+    numel *= size;
+  }
+  return true;
+}
+
+static bool hasShapeForScaledMmV2(ArrayRef<int64_t> sizes,
+                                  ArrayRef<int64_t> expected) {
+  return sizes.size() == expected.size() && llvm::equal(sizes, expected);
+}
+
+static FailureOr<BaseTensorType> getSingleTensorTypeFromList(Value value) {
+  auto list = value.getDefiningOp<PrimListConstructOp>();
+  if (!list || list.getElements().size() != 1)
+    return failure();
+
+  auto tensorType =
+      dyn_cast<BaseTensorType>(list.getElements().front().getType());
+  if (!tensorType)
+    return failure();
+  return tensorType;
+}
+
+LogicalResult Aten_ScaledMmV2Op::verify() {
+  auto selfType = cast<BaseTensorType>(getSelf().getType());
+  auto mat2Type = cast<BaseTensorType>(getMat2().getType());
+
+  bool selfIsDynamicMxfpActivation =
+      selfType.hasDtype() && mat2Type.hasDtype() &&
+      isScaledMmV2DynamicMxfpActivationDtype(selfType.getDtype()) &&
+      isScaledMmV2PackedFp4StorageDtype(mat2Type.getDtype());
+
+  if (selfType.hasDtype() && !isScaledMmV2DataDtype(selfType.getDtype()) &&
+      !selfIsDynamicMxfpActivation)
+    return emitOpError("expected self to have an FP8 dtype or packed FP4 ui8 "
+                       "storage dtype, or high-precision dynamic MXFP "
+                       "activation dtype with packed FP4 mat2, but got ")
+           << selfType.getDtype();
+  if (mat2Type.hasDtype() && !isScaledMmV2DataDtype(mat2Type.getDtype()))
+    return emitOpError("expected mat2 to have an FP8 dtype or packed FP4 ui8 "
+                       "storage dtype, but got ")
+           << mat2Type.getDtype();
+
+  if (!selfType.hasSizes() || !mat2Type.hasSizes())
+    return success();
+
+  ArrayRef<int64_t> selfShape = selfType.getSizes();
+  ArrayRef<int64_t> mat2Shape = mat2Type.getSizes();
+  if (selfShape.size() != 2 || mat2Shape.size() != 2)
+    return emitOpError("expected self and mat2 to be rank 2, but got ranks ")
+           << selfShape.size() << " and " << mat2Shape.size();
+
+  int64_t m = selfShape[0];
+  int64_t k = selfShape[1];
+  int64_t mat2K = mat2Shape[0];
+  int64_t n = mat2Shape[1];
+
+  bool selfPackedFp4Storage =
+      selfType.hasDtype() &&
+      isScaledMmV2PackedFp4StorageDtype(selfType.getDtype());
+  bool mat2PackedFp4Storage =
+      mat2Type.hasDtype() &&
+      isScaledMmV2PackedFp4StorageDtype(mat2Type.getDtype());
+  int64_t logicalK = k;
+  int64_t mat2LogicalK = mat2K;
+  if (selfPackedFp4Storage) {
+    if (k != kUnknownSize)
+      logicalK = k * 2;
+  }
+  if (mat2PackedFp4Storage) {
+    if (mat2K != kUnknownSize)
+      mat2LogicalK = mat2K * 2;
+  }
+
+  if (logicalK != kUnknownSize && mat2LogicalK != kUnknownSize &&
+      logicalK != mat2LogicalK)
+    return emitOpError("expected self and mat2 contracting dimensions to "
+                       "match, but got ")
+           << logicalK << " and " << mat2LogicalK;
+  if (logicalK != kUnknownSize && logicalK % 16 != 0)
+    return emitOpError("expected self contracting dimension to be divisible "
+                       "by 16, but got ")
+           << logicalK;
+  if (mat2LogicalK != kUnknownSize && mat2LogicalK % 16 != 0)
+    return emitOpError("expected mat2 contracting dimension to be divisible "
+                       "by 16, but got ")
+           << mat2LogicalK;
+
+  FailureOr<BaseTensorType> scaleAType =
+      getSingleTensorTypeFromList(getScaleA());
+  FailureOr<BaseTensorType> scaleBType =
+      getSingleTensorTypeFromList(getScaleB());
+  if (failed(scaleAType) || failed(scaleBType))
+    return success();
+
+  if (!scaleAType->hasDtype() || !scaleBType->hasDtype() ||
+      !scaleAType->hasSizes() || !scaleBType->hasSizes() ||
+      !selfType.areAllSizesKnown() || !mat2Type.areAllSizesKnown())
+    return success();
+
+  Type scaleADtype = scaleAType->getDtype();
+  Type scaleBDtype = scaleBType->getDtype();
+  ArrayRef<int64_t> scaleAShape = scaleAType->getSizes();
+  ArrayRef<int64_t> scaleBShape = scaleBType->getSizes();
+
+  bool isBlockwiseScaling =
+      isScaledMmV2BlockwiseScaling(scaleADtype, scaleBDtype);
+
+  int64_t scaleANumel;
+  int64_t scaleBNumel;
+  if (!getNumelForScaledMmV2(scaleAShape, scaleANumel) ||
+      !getNumelForScaledMmV2(scaleBShape, scaleBNumel))
+    return success();
+
+  // Tensorwise scaling.
+  if (scaleANumel == 1 || scaleBNumel == 1) {
+    if (scaleANumel != 1 || scaleBNumel != 1)
+      return emitOpError("expected scale_a and scale_b to both be scalar for "
+                         "tensorwise scaling");
+    if (!isScaledMmV2TensorwiseOrRowwiseScaleDtype(scaleADtype) ||
+        !isScaledMmV2TensorwiseOrRowwiseScaleDtype(scaleBDtype))
+      return emitOpError(
+          "expected tensorwise scale_a and scale_b to have f32 dtype");
+    return success();
+  }
+
+  if (isBlockwiseScaling) {
+    int64_t blockSizeK;
+    if (isa<Float8E4M3FNType>(scaleADtype)) {
+      // Match PyTorch's f8e4m3fn scale recipe: 16 K elements per scale block.
+      blockSizeK = 16;
+    } else {
+      // MX block scaling uses e8m0 scales and 32 elements per K block.
+      blockSizeK = 32;
+    }
+    int64_t blockSizeMN = 128;
+    int64_t numKBlocks = ceilDivPositiveForScaledMmV2(logicalK, blockSizeK);
+    int64_t paddedNumKBlocks = ceilDivPositiveForScaledMmV2(numKBlocks, 4) * 4;
+    int64_t expectedScaleANumel = blockSizeMN *
+                                  ceilDivPositiveForScaledMmV2(m, blockSizeMN) *
+                                  paddedNumKBlocks;
+    int64_t expectedScaleBNumel = blockSizeMN *
+                                  ceilDivPositiveForScaledMmV2(n, blockSizeMN) *
+                                  paddedNumKBlocks;
+    if (scaleANumel != expectedScaleANumel ||
+        scaleBNumel != expectedScaleBNumel)
+      return emitOpError("invalid blockwise scaling configuration: expected "
+                         "scale_a to have ")
+             << expectedScaleANumel << " elements and scale_b to have "
+             << expectedScaleBNumel << " elements, but got " << scaleANumel
+             << " and " << scaleBNumel;
+    return success();
+  }
+
+  // Rowwise and f32 blockwise scale recipes.
+  if (!isScaledMmV2TensorwiseOrRowwiseScaleDtype(scaleADtype) ||
+      !isScaledMmV2TensorwiseOrRowwiseScaleDtype(scaleBDtype))
+    return emitOpError("expected non-tensorwise, non-blockwise scale_a and "
+                       "scale_b to have f32 dtype");
+
+  if (scaleAShape.size() != 2 || scaleBShape.size() != 2)
+    return emitOpError("expected non-tensorwise scale_a and scale_b to be "
+                       "rank 2, but got ranks ")
+           << scaleAShape.size() << " and " << scaleBShape.size();
+
+  int64_t kBlocks = ceilDivPositiveForScaledMmV2(logicalK, 128);
+  int64_t mBlocks = ceilDivPositiveForScaledMmV2(m, 128);
+  int64_t nBlocks = ceilDivPositiveForScaledMmV2(n, 128);
+  if (hasShapeForScaledMmV2(scaleAShape, {m, 1}) &&
+      hasShapeForScaledMmV2(scaleBShape, {1, n}))
+    return success();
+  if (hasShapeForScaledMmV2(scaleAShape, {m, kBlocks}) &&
+      hasShapeForScaledMmV2(scaleBShape, {kBlocks, nBlocks}))
+    return success();
+  if (hasShapeForScaledMmV2(scaleAShape, {m, kBlocks}) &&
+      hasShapeForScaledMmV2(scaleBShape, {kBlocks, n}))
+    return success();
+  if (hasShapeForScaledMmV2(scaleAShape, {mBlocks, kBlocks}) &&
+      hasShapeForScaledMmV2(scaleBShape, {kBlocks, n}))
     return success();
 
   return emitOpError("invalid scaling configuration for scale_a and scale_b");

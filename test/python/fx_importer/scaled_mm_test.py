@@ -60,13 +60,14 @@ def test_import_scaled_mm_per_tensor():
 
 @run
 # CHECK-LABEL: test_import_scaled_mm_block_scaled_fp4
-# CHECK: func.func @test_import_scaled_mm_block_scaled_fp4(%arg0: !torch.vtensor<[128,64],f4E2M1FN>, %arg1: !torch.vtensor<[64,128],f4E2M1FN>, %arg2: !torch.vtensor<[512],f8E8M0FNU>, %arg3: !torch.vtensor<[512],f8E8M0FNU>) -> !torch.vtensor<[128,128],bf16>
-# CHECK: %[[NONE:.+]] = torch.constant.none
-# CHECK: %[[NONE_0:.+]] = torch.constant.none
-# CHECK: %[[INT15:.+]] = torch.constant.int 15
-# CHECK: %[[FALSE:.+]] = torch.constant.bool false
-# CHECK: %[[MM:.+]] = torch.aten._scaled_mm %arg0, %arg1, %arg2, %arg3, %[[NONE]], %[[NONE_0]], %[[INT15]], %[[FALSE]]
-# CHECK: return %[[MM]]
+# CHECK: "func.func"() <{function_type = (!torch.vtensor<[128,64],ui8>, !torch.vtensor<[64,128],ui8>, !torch.vtensor<[512],f8E8M0FNU>, !torch.vtensor<[512],f8E8M0FNU>) -> !torch.vtensor<[128,128],bf16>, sym_name = "test_import_scaled_mm_block_scaled_fp4"}> ({
+# CHECK: ^bb0(%arg0: !torch.vtensor<[128,64],ui8>, %arg1: !torch.vtensor<[64,128],ui8>, %arg2: !torch.vtensor<[512],f8E8M0FNU>, %arg3: !torch.vtensor<[512],f8E8M0FNU>):
+# CHECK: %[[NONE:.+]] = "torch.constant.none"
+# CHECK: %[[NONE_0:.+]] = "torch.constant.none"
+# CHECK: %[[INT15:.+]] = "torch.constant.int"() <{value = 15 : i64}>
+# CHECK: %[[FALSE:.+]] = "torch.constant.bool"() <{value = false}>
+# CHECK: %[[MM:.+]] = "torch.aten._scaled_mm"(%arg0, %arg1, %arg2, %arg3, %[[NONE]], %[[NONE_0]], %[[INT15]], %[[FALSE]])
+# CHECK: "func.return"(%[[MM]])
 def test_import_scaled_mm_block_scaled_fp4():
     class Basic(nn.Module):
         def forward(self, a, b, a_scale_block, b_scale_block):

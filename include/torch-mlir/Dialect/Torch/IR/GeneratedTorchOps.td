@@ -6654,6 +6654,41 @@ def Torch_Aten_ScaledMmOp : Torch_Op<"aten._scaled_mm", [
   let hasVerifier = 1;
 }
 
+def Torch_Aten_ScaledMmV2Op : Torch_Op<"aten._scaled_mm_v2", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::_scaled_mm_v2 : (Tensor, Tensor, Tensor[], int[], int[], Tensor[], int[], int[], Tensor?, int?, int[], bool) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$mat2,
+    AnyTorchListOfTensorType:$scale_a,
+    AnyTorchListOfTorchIntType:$recipe_a,
+    AnyTorchListOfTorchIntType:$swizzle_a,
+    AnyTorchListOfTensorType:$scale_b,
+    AnyTorchListOfTorchIntType:$recipe_b,
+    AnyTorchListOfTorchIntType:$swizzle_b,
+    AnyTorchOptionalTensorType:$bias,
+    AnyTorchOptionalIntType:$out_dtype,
+    AnyTorchListOfTorchIntType:$contraction_dim,
+    Torch_BoolType:$use_fast_accum
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult Aten_ScaledMmV2Op::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 12, 1);
+    }
+    void Aten_ScaledMmV2Op::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 12, 1);
+    }
+  }];
+  let hasVerifier = 1;
+}
+
 def Torch_Aten_IntMmOp : Torch_Op<"aten._int_mm", [
     AllowsTypeRefinement,
     HasValueSemantics,
