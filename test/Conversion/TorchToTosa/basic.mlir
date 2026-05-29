@@ -4854,7 +4854,7 @@ module {
     %false = torch.constant.bool false
     %int15 = torch.constant.int 15
     %none = torch.constant.none
-    // expected-error @below {{failed to legalize operation 'torch.aten._scaled_mm' that was explicitly marked illegal}}
+    // expected-error @below {{expected non-tensorwise scale_a and scale_b to be rank 2, but got ranks 1 and 1}}
     %0 = torch.aten._scaled_mm %arg0, %arg1, %arg2, %arg3, %none, %none, %int15, %false : !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[128],f32>, !torch.vtensor<[128],f32>, !torch.none, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[128,128],bf16>
     return %0 : !torch.vtensor<[128,128],bf16>
   }
@@ -4866,7 +4866,7 @@ module {
     %false = torch.constant.bool false
     %int15 = torch.constant.int 15
     %none = torch.constant.none
-    // expected-error @below {{failed to legalize operation 'torch.aten._scaled_mm' that was explicitly marked illegal}}
+    // expected-error @below {{expected tensorwise scale_a and scale_b to have f32 dtype}}
     %0 = torch.aten._scaled_mm %arg0, %arg1, %arg2, %arg3, %none, %none, %int15, %false : !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[],bf16>, !torch.vtensor<[],bf16>, !torch.none, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[128,128],bf16>
     return %0 : !torch.vtensor<[128,128],bf16>
   }
