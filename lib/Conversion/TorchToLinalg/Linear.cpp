@@ -71,12 +71,14 @@ static Value transposeValue(Location loc, Value value, ArrayRef<int64_t> perms,
   return transpose;
 }
 
-class ConvertAtenMmOp : public OpConversionPattern<AtenMmOp> {
+template <typename AtenOpT>
+class ConvertAtenMmOp : public OpConversionPattern<AtenOpT> {
 public:
-  using OpConversionPattern::OpConversionPattern;
+  using OpConversionPattern<AtenOpT>::OpConversionPattern;
   LogicalResult
-  matchAndRewrite(AtenMmOp op, OpAdaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
+  matchAndRewrite(
+      AtenOpT op, typename OpConversionPattern<AtenOpT>::OpAdaptor adaptor,
+      ConversionPatternRewriter &rewriter) const override {
     Location loc = op->getLoc();
     Value lhs = adaptor.getSelf();
     Value rhs = adaptor.getMat2();
@@ -143,7 +145,7 @@ public:
     }
 
     TensorType resultType =
-        cast<TensorType>(getTypeConverter()->convertType(op.getType()));
+        cast<TensorType>(this->getTypeConverter()->convertType(op.getType()));
     Type elementType = resultType.getElementType();
     auto accumulatorDType =
         getDefaultAccType(rewriter, lhsType.getElementType());
@@ -155,13 +157,13 @@ public:
 
     Value matmul;
     if (lhsZeroPoint) {
-      lhsZeroPoint = typeConverter->materializeTargetConversion(
+      lhsZeroPoint = this->typeConverter->materializeTargetConversion(
           rewriter, loc,
-          getTypeConverter()->convertType(lhsZeroPoint.getType()),
+          this->getTypeConverter()->convertType(lhsZeroPoint.getType()),
           lhsZeroPoint);
-      rhsZeroPoint = typeConverter->materializeTargetConversion(
+      rhsZeroPoint = this->typeConverter->materializeTargetConversion(
           rewriter, loc,
-          getTypeConverter()->convertType(rhsZeroPoint.getType()),
+          this->getTypeConverter()->convertType(rhsZeroPoint.getType()),
           rhsZeroPoint);
       lhsZeroPoint = arith::TruncIOp::create(
           rewriter, loc, rewriter.getI32Type(), lhsZeroPoint);
@@ -2524,7 +2526,9 @@ void mlir::torch::torch_to_linalg::populateLinearPatternsAndLegality(
     ConversionTarget &target) {
   MLIRContext *context = patterns.getContext();
   target.addIllegalOp<AtenMmOp>();
-  patterns.add<ConvertAtenMmOp>(typeConverter, context);
+  patterns.add<ConvertAtenMmOp<AtenMmOp>>(typeConverter, context);
+  target.addIllegalOp<Aten_IntMmOp>();
+  patterns.add<ConvertAtenMmOp<Aten_IntMmOp>>(typeConverter, context);
   target.addIllegalOp<AtenFlipOp>();
   patterns.add<ConvertAtenFlipOp>(typeConverter, context);
   target.addIllegalOp<AtenMatmulOp>();
