@@ -25,6 +25,7 @@
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/MathExtras.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -6312,6 +6313,238 @@ LogicalResult AtenKthvalueOp::verify() {
            << 1 << ", " << selfShape[dim] << "], but got " << k;
 
   return success();
+}
+
+//===----------------------------------------------------------------------===//
+// Aten_ScaledMmOp
+//===----------------------------------------------------------------------===//
+
+static bool isScaledMmDataDtype(Type dtype) {
+  return isa<Float4E2M1FNType, Float8E4M3FNType, Float8E4M3FNUZType,
+             Float8E5M2Type, Float8E5M2FNUZType>(dtype);
+}
+
+static bool isScaledMmTensorwiseOrRowwiseScaleDtype(Type dtype) {
+  return dtype.isF32();
+}
+
+static bool isScaledMmBlockwiseScaleDtype(Type dtype) {
+  return isa<Float8E8M0FNUType, Float8E4M3FNType>(dtype);
+}
+
+static bool isScaledMmBlockwiseScaling(Type scaleADtype, Type scaleBDtype) {
+  return scaleADtype == scaleBDtype &&
+         isScaledMmBlockwiseScaleDtype(scaleADtype);
+}
+
+static int64_t getNumel(ArrayRef<int64_t> sizes) {
+  int64_t numel = 1;
+  for (int64_t size : sizes) {
+    if (size == kUnknownSize)
+      return kUnknownSize;
+    numel *= size;
+  }
+  return numel;
+}
+
+static int64_t getScaledMmBlockSizeK(Type scaleDtype) {
+  return isa<Float8E4M3FNType>(scaleDtype) ? 16 : 32;
+}
+
+static int64_t getScaledMmScaleK(int64_t contractingDim, Type dataDtype,
+                                 Type scaleDtype) {
+  if (contractingDim == kUnknownSize)
+    return kUnknownSize;
+  return isa<Float4E2M1FNType>(dataDtype) || isa<Float8E4M3FNType>(scaleDtype)
+             ? contractingDim * 2
+             : contractingDim;
+}
+
+static bool hasShape(ArrayRef<int64_t> sizes, ArrayRef<int64_t> expected) {
+  return sizes.size() == expected.size() && llvm::equal(sizes, expected);
+}
+
+LogicalResult Aten_ScaledMmOp::verify() {
+  // Mirror the statically checkable parts of PyTorch's _scaled_mm metadata
+  // validation:
+  // https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/cuda/ScaledBlas.cpp
+  auto selfType = cast<BaseTensorType>(getSelf().getType());
+  auto mat2Type = cast<BaseTensorType>(getMat2().getType());
+  auto scaleAType = cast<BaseTensorType>(getScaleA().getType());
+  auto scaleBType = cast<BaseTensorType>(getScaleB().getType());
+  auto resultType = cast<BaseTensorType>(getResult().getType());
+
+  if (selfType.hasDtype() && !isScaledMmDataDtype(selfType.getDtype()))
+    return emitOpError("expected self to have an FP8 or FP4 dtype, but got ")
+           << selfType.getDtype();
+  if (mat2Type.hasDtype() && !isScaledMmDataDtype(mat2Type.getDtype()))
+    return emitOpError("expected mat2 to have an FP8 or FP4 dtype, but got ")
+           << mat2Type.getDtype();
+
+  if (!selfType.hasSizes() || !mat2Type.hasSizes())
+    return success();
+
+  ArrayRef<int64_t> selfShape = selfType.getSizes();
+  ArrayRef<int64_t> mat2Shape = mat2Type.getSizes();
+  if (selfShape.size() != 2 || mat2Shape.size() != 2)
+    return emitOpError("expected self and mat2 to be rank 2, but got ranks ")
+           << selfShape.size() << " and " << mat2Shape.size();
+
+  int64_t m = selfShape[0];
+  int64_t k = selfShape[1];
+  int64_t mat2K = mat2Shape[0];
+  int64_t n = mat2Shape[1];
+
+  if (k != kUnknownSize && mat2K != kUnknownSize && k != mat2K)
+    return emitOpError("expected self and mat2 contracting dimensions to "
+                       "match, but got ")
+           << k << " and " << mat2K;
+  if (k != kUnknownSize && k % 16 != 0)
+    return emitOpError("expected self contracting dimension to be divisible "
+                       "by 16, but got ")
+           << k;
+  if (mat2K != kUnknownSize && mat2K % 16 != 0)
+    return emitOpError("expected mat2 contracting dimension to be divisible "
+                       "by 16, but got ")
+           << mat2K;
+  if (n != kUnknownSize && n % 16 != 0)
+    return emitOpError("expected mat2 non-contracting dimension to be "
+                       "divisible by 16, but got ")
+           << n;
+
+  if (!isa<Torch::NoneType>(getBias().getType())) {
+    auto biasType = dyn_cast<BaseTensorType>(getBias().getType());
+    if (!biasType)
+      return success();
+    if (biasType.hasSizes()) {
+      int64_t biasNumel = getNumel(biasType.getSizes());
+      if (biasNumel != kUnknownSize && n != kUnknownSize && biasNumel != n)
+        return emitOpError("expected bias to have ")
+               << n << " elements, but got " << biasNumel;
+    }
+    if (biasType.hasDtype()) {
+      Type biasDtype = biasType.getDtype();
+      if (!biasDtype.isBF16() && !biasDtype.isF16())
+        return emitOpError("expected bias to have bf16 or f16 dtype, but got ")
+               << biasDtype;
+      if (resultType.hasDtype()) {
+        Type resultDtype = resultType.getDtype();
+        if (resultDtype.isF32())
+          return emitOpError("expected bias to be absent for f32 result dtype");
+        if (resultDtype.isBF16() && !biasDtype.isBF16())
+          return emitOpError("expected bias to have bf16 dtype for bf16 "
+                             "result dtype, but got ")
+                 << biasDtype;
+        if (resultDtype.isF16() && !biasDtype.isF16())
+          return emitOpError("expected bias to have f16 dtype for f16 "
+                             "result dtype, but got ")
+                 << biasDtype;
+      }
+    }
+  }
+
+  if (!isa<Torch::NoneType>(getScaleResult().getType())) {
+    auto scaleResultType = dyn_cast<BaseTensorType>(getScaleResult().getType());
+    if (!scaleResultType)
+      return success();
+    if (scaleResultType.hasDtype() && !scaleResultType.getDtype().isF32())
+      return emitOpError("expected scale_result to have f32 dtype, but got ")
+             << scaleResultType.getDtype();
+    if (scaleResultType.hasSizes()) {
+      int64_t scaleResultNumel = getNumel(scaleResultType.getSizes());
+      if (scaleResultNumel != kUnknownSize && scaleResultNumel != 1)
+        return emitOpError("expected scale_result to have 1 element, but got ")
+               << scaleResultNumel;
+    }
+  }
+
+  if (!scaleAType.hasDtype() || !scaleBType.hasDtype() ||
+      !scaleAType.hasSizes() || !scaleBType.hasSizes() ||
+      !selfType.areAllSizesKnown() || !mat2Type.areAllSizesKnown())
+    return success();
+
+  Type scaleADtype = scaleAType.getDtype();
+  Type scaleBDtype = scaleBType.getDtype();
+  ArrayRef<int64_t> scaleAShape = scaleAType.getSizes();
+  ArrayRef<int64_t> scaleBShape = scaleBType.getSizes();
+
+  bool isBlockwiseScaling =
+      isScaledMmBlockwiseScaling(scaleADtype, scaleBDtype);
+
+  if (!selfType.hasDtype() || !mat2Type.hasDtype())
+    return success();
+
+  int64_t scaleANumel = getNumel(scaleAShape);
+  int64_t scaleBNumel = getNumel(scaleBShape);
+  if (scaleANumel == kUnknownSize || scaleBNumel == kUnknownSize)
+    return success();
+
+  // Tensorwise scaling.
+  if (scaleANumel == 1 || scaleBNumel == 1) {
+    if (scaleANumel != 1 || scaleBNumel != 1)
+      return emitOpError("expected scale_a and scale_b to both be scalar for "
+                         "tensorwise scaling");
+    if (!isScaledMmTensorwiseOrRowwiseScaleDtype(scaleADtype) ||
+        !isScaledMmTensorwiseOrRowwiseScaleDtype(scaleBDtype))
+      return emitOpError(
+          "expected tensorwise scale_a and scale_b to have f32 dtype");
+    return success();
+  }
+
+  // Blockwise scaling. Match PyTorch's _check_scaled_mm_sizes scale-recipe
+  // branch.
+  if (isBlockwiseScaling) {
+    int64_t blockSizeMN = 128;
+    int64_t scaleAK = getScaledMmScaleK(k, selfType.getDtype(), scaleADtype);
+    int64_t scaleBK =
+        getScaledMmScaleK(mat2K, mat2Type.getDtype(), scaleBDtype);
+    int64_t numAKBlocks =
+        llvm::divideCeil(scaleAK, getScaledMmBlockSizeK(scaleADtype));
+    int64_t numBKBlocks =
+        llvm::divideCeil(scaleBK, getScaledMmBlockSizeK(scaleBDtype));
+    int64_t paddedNumAKBlocks = llvm::divideCeil(numAKBlocks, int64_t{4}) * 4;
+    int64_t paddedNumBKBlocks = llvm::divideCeil(numBKBlocks, int64_t{4}) * 4;
+    int64_t expectedScaleANumel =
+        blockSizeMN * llvm::divideCeil(m, blockSizeMN) * paddedNumAKBlocks;
+    int64_t expectedScaleBNumel =
+        blockSizeMN * llvm::divideCeil(n, blockSizeMN) * paddedNumBKBlocks;
+    if (scaleANumel != expectedScaleANumel ||
+        scaleBNumel != expectedScaleBNumel)
+      return emitOpError("invalid blockwise scaling configuration: expected "
+                         "scale_a to have ")
+             << expectedScaleANumel << " elements and scale_b to have "
+             << expectedScaleBNumel << " elements, but got " << scaleANumel
+             << " and " << scaleBNumel;
+    return success();
+  }
+
+  // Rowwise and f32 blockwise scale recipes.
+  if (!isScaledMmTensorwiseOrRowwiseScaleDtype(scaleADtype) ||
+      !isScaledMmTensorwiseOrRowwiseScaleDtype(scaleBDtype))
+    return emitOpError("expected non-tensorwise, non-blockwise scale_a and "
+                       "scale_b to have f32 dtype");
+
+  if (scaleAShape.size() != 2 || scaleBShape.size() != 2)
+    return emitOpError("expected non-tensorwise scale_a and scale_b to be "
+                       "rank 2, but got ranks ")
+           << scaleAShape.size() << " and " << scaleBShape.size();
+
+  int64_t kBlocks = llvm::divideCeil(k, int64_t{128});
+  int64_t mBlocks = llvm::divideCeil(m, int64_t{128});
+  int64_t nBlocks = llvm::divideCeil(n, int64_t{128});
+  if (hasShape(scaleAShape, {m, 1}) && hasShape(scaleBShape, {1, n}))
+    return success();
+  if (hasShape(scaleAShape, {m, kBlocks}) &&
+      hasShape(scaleBShape, {kBlocks, nBlocks}))
+    return success();
+  if (hasShape(scaleAShape, {m, kBlocks}) &&
+      hasShape(scaleBShape, {kBlocks, n}))
+    return success();
+  if (hasShape(scaleAShape, {mBlocks, kBlocks}) &&
+      hasShape(scaleBShape, {kBlocks, n}))
+    return success();
+
+  return emitOpError("invalid scaling configuration for scale_a and scale_b");
 }
 
 //===----------------------------------------------------------------------===//

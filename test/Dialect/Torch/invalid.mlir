@@ -403,3 +403,95 @@ func.func @torch.symbolic_int$no_shape_symbols(%arg0: !torch.vtensor<[?],f32>) -
   torch.bind_symbolic_shape %arg0, [%int0], affine_map<()[s0] -> (s0)> : !torch.vtensor<[?],f32>
   return %arg0 : !torch.vtensor<[?],f32>
 }
+
+// -----
+
+func.func @torch.aten._scaled_mm$invalid_blockwise_scale_numel(
+    %arg0: !torch.vtensor<[128,128],f8E4M3FN>,
+    %arg1: !torch.vtensor<[128,128],f8E4M3FN>,
+    %arg2: !torch.vtensor<[512],f8E4M3FN>,
+    %arg3: !torch.vtensor<[512],f8E4M3FN>) -> !torch.vtensor<[128,128],bf16> {
+  %false = torch.constant.bool false
+  %int15 = torch.constant.int 15
+  %none = torch.constant.none
+  // expected-error @+1 {{'torch.aten._scaled_mm' op invalid blockwise scaling configuration: expected scale_a to have 2048 elements and scale_b to have 2048 elements, but got 512 and 512}}
+  %0 = torch.aten._scaled_mm %arg0, %arg1, %arg2, %arg3, %none, %none, %int15, %false : !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[512],f8E4M3FN>, !torch.vtensor<[512],f8E4M3FN>, !torch.none, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}
+
+// -----
+
+func.func @torch.aten._scaled_mm$invalid_mat2_non_contracting_dim(
+    %arg0: !torch.vtensor<[128,128],f8E4M3FN>,
+    %arg1: !torch.vtensor<[128,127],f8E4M3FN>,
+    %arg2: !torch.vtensor<[],f32>,
+    %arg3: !torch.vtensor<[],f32>) -> !torch.vtensor<[128,127],bf16> {
+  %false = torch.constant.bool false
+  %int15 = torch.constant.int 15
+  %none = torch.constant.none
+  // expected-error @+1 {{'torch.aten._scaled_mm' op expected mat2 non-contracting dimension to be divisible by 16, but got 127}}
+  %0 = torch.aten._scaled_mm %arg0, %arg1, %arg2, %arg3, %none, %none, %int15, %false : !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[128,127],f8E4M3FN>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.none, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[128,127],bf16>
+  return %0 : !torch.vtensor<[128,127],bf16>
+}
+
+// -----
+
+func.func @torch.aten._scaled_mm$invalid_mixed_scale_dtype(
+    %arg0: !torch.vtensor<[128,128],f8E4M3FN>,
+    %arg1: !torch.vtensor<[128,128],f8E4M3FN>,
+    %arg2: !torch.vtensor<[512],f8E8M0FNU>,
+    %arg3: !torch.vtensor<[512],f32>) -> !torch.vtensor<[128,128],bf16> {
+  %false = torch.constant.bool false
+  %int15 = torch.constant.int 15
+  %none = torch.constant.none
+  // expected-error @+1 {{'torch.aten._scaled_mm' op expected non-tensorwise, non-blockwise scale_a and scale_b to have f32 dtype}}
+  %0 = torch.aten._scaled_mm %arg0, %arg1, %arg2, %arg3, %none, %none, %int15, %false : !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[512],f8E8M0FNU>, !torch.vtensor<[512],f32>, !torch.none, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}
+
+// -----
+
+func.func @torch.aten._scaled_mm$invalid_fp4_blockwise_scale_numel(
+    %arg0: !torch.vtensor<[128,128],f4E2M1FN>,
+    %arg1: !torch.vtensor<[128,128],f4E2M1FN>,
+    %arg2: !torch.vtensor<[512],f8E8M0FNU>,
+    %arg3: !torch.vtensor<[512],f8E8M0FNU>) -> !torch.vtensor<[128,128],bf16> {
+  %false = torch.constant.bool false
+  %int15 = torch.constant.int 15
+  %none = torch.constant.none
+  // expected-error @+1 {{'torch.aten._scaled_mm' op invalid blockwise scaling configuration: expected scale_a to have 1024 elements and scale_b to have 1024 elements, but got 512 and 512}}
+  %0 = torch.aten._scaled_mm %arg0, %arg1, %arg2, %arg3, %none, %none, %int15, %false : !torch.vtensor<[128,128],f4E2M1FN>, !torch.vtensor<[128,128],f4E2M1FN>, !torch.vtensor<[512],f8E8M0FNU>, !torch.vtensor<[512],f8E8M0FNU>, !torch.none, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}
+
+// -----
+
+func.func @torch.aten._scaled_mm$invalid_bias_dtype(
+    %arg0: !torch.vtensor<[128,128],f8E4M3FN>,
+    %arg1: !torch.vtensor<[128,128],f8E4M3FN>,
+    %arg2: !torch.vtensor<[],f32>,
+    %arg3: !torch.vtensor<[],f32>,
+    %arg4: !torch.vtensor<[128],f32>) -> !torch.vtensor<[128,128],bf16> {
+  %false = torch.constant.bool false
+  %int15 = torch.constant.int 15
+  %none = torch.constant.none
+  // expected-error @+1 {{'torch.aten._scaled_mm' op expected bias to have bf16 or f16 dtype, but got 'f32'}}
+  %0 = torch.aten._scaled_mm %arg0, %arg1, %arg2, %arg3, %arg4, %none, %int15, %false : !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[128],f32>, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}
+
+// -----
+
+func.func @torch.aten._scaled_mm$invalid_scale_result_numel(
+    %arg0: !torch.vtensor<[128,128],f8E4M3FN>,
+    %arg1: !torch.vtensor<[128,128],f8E4M3FN>,
+    %arg2: !torch.vtensor<[],f32>,
+    %arg3: !torch.vtensor<[],f32>,
+    %arg4: !torch.vtensor<[2],f32>) -> !torch.vtensor<[128,128],bf16> {
+  %false = torch.constant.bool false
+  %int15 = torch.constant.int 15
+  %none = torch.constant.none
+  // expected-error @+1 {{'torch.aten._scaled_mm' op expected scale_result to have 1 element, but got 2}}
+  %0 = torch.aten._scaled_mm %arg0, %arg1, %arg2, %arg3, %none, %arg4, %int15, %false : !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.none, !torch.vtensor<[2],f32>, !torch.int, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}

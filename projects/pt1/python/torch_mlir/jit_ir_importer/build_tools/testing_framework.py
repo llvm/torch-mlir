@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 
-from typing import Any, List, Iterable, Optional, Callable
+from typing import Any, List, Iterable, Optional, Callable, Tuple
 
 import torch
 from torch import Tensor
@@ -59,7 +59,11 @@ class TensorOfShape:
     this special treatment.
 
     This class also tracks a dtype of the tensor, since some ops require a
-    specific dtype.
+    specific dtype. The optional stride is only used when constructing the real
+    PyTorch tensor for upstream behavior checks. Some ops, such as
+    `_scaled_mm`, reject otherwise valid logical inputs unless the tensor has a
+    required physical layout. The abstract shape/dtype functions still receive
+    only shape and dtype; torch-mlir does not import this stride.
     """
 
     def __init__(
@@ -67,14 +71,19 @@ class TensorOfShape:
         *shape: int,
         dtype: torch.dtype = torch.float32,
         device: Optional[torch.device] = None,
+        stride: Optional[Tuple[int, ...]] = None,
     ):
         self.shape = list(shape)
         self.dtype = dtype
         self.device = "meta" if device is None else device
+        self.stride = stride
 
     def __repr__(self):
         args_str = ", ".join(repr(x) for x in self.shape)
-        return f"TensorOfShape({args_str}, dtype={self.dtype}, device={self.device})"
+        kwargs = f"dtype={self.dtype}, device={self.device}"
+        if self.stride is not None:
+            kwargs += f", stride={self.stride}"
+        return f"TensorOfShape({args_str}, {kwargs})"
 
 
 def LongTensorOfShape(*args, **kwargs):
@@ -158,7 +167,22 @@ class Invocation:
 
     def to_real_op_args(self):
         """Gets positional arguments appropriate for the real op."""
-        tensor_transformer = lambda o: torch.ones(o.shape, dtype=o.dtype).to(o.device)
+
+        def initialize_tensor(t):
+            if t.dtype == torch.float4_e2m1fn_x2:
+                # fill_ is not implemented for this shell dtype. Fill the
+                # packed bytes; shape/dtype tests only need a valid tensor.
+                t.view(torch.uint8).fill_(1)
+                return t
+            return t.fill_(1)
+
+        tensor_transformer = lambda o: (
+            initialize_tensor(
+                torch.empty_strided(o.shape, o.stride, dtype=o.dtype, device=o.device)
+            )
+            if o.stride is not None
+            else initialize_tensor(torch.empty(o.shape, dtype=o.dtype).to(o.device))
+        )
         return _recursively_transform_tensor_args(self.args, tensor_transformer)
 
     def __repr__(self) -> str:
