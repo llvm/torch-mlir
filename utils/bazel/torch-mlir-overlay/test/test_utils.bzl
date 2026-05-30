@@ -63,7 +63,7 @@ def runfiles_path(label):
 
     # When running tests, the CWD is in <testxyz.runfiles>/_main
     # The runfiles for external modules are located in <testxyz.runfiles>/<external_mod.workspace_name>/<pkg_path>
-    # So, we need to move back a directory and then start looking for the package
+    # So, we need to move up a directory and then down into the package
     rfiles_path = "../" + paths.join(Label(label).workspace_name, Label(label).package)
     rfiles_path = paths.normalize(rfiles_path)
     return rfiles_path
