@@ -1,4 +1,4 @@
-load("@llvm-project//llvm:lit_test.bzl", "lit_test")
+load("@torch-mlir//test:test_utils.bzl", "lit_test")
 
 package(default_visibility = ["//visibility:public"])
 
