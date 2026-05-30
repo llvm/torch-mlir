@@ -29,14 +29,14 @@ bazel_dep(
 
 bazel_dep(
     name = "buildifier_prebuilt",
-    version = "8.2.1",
+    version = "8.5.1.2",
     dev_dependency = True,
 )
 
 # For macOS
 bazel_dep(
     name = "apple_support",
-    version = "1.24.2",
+    version = "2.5.4",
     repo_name = "build_bazel_apple_support",
 )
 
@@ -85,9 +85,9 @@ http_archive(
     ],
 )
 
-# StableHLO
 local_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:local.bzl", "local_repository")
 
+# StableHLO
 local_repository(
     name = "stablehlo",
     path = "../../externals/stablehlo/",
