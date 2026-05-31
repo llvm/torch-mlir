@@ -1,3 +1,7 @@
+# This file is licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
 """
 Collection of utilites for running Torch-MLIR LIT tests using Bazel
 """
@@ -6,7 +10,7 @@ load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@rules_python//python:defs.bzl", _py_test = "py_test")
 
 # The LIT macro from LLVM relies on the legacy runfiles
-# This is an adaptation of the same macro which uses the runfiles_path macro
+# This is an adaptation of the same macro which uses rlocationpath
 # to find the test runfiles. The old runfiles structure matched with what execpath provided
 # but, in the new runfiles structure that is not so.
 # #
