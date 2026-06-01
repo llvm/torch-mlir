@@ -1229,7 +1229,6 @@ public:
       // types can only be floating point for tosa::ReciprocalOp.
       rhsTensor =
           tosa::tosaCastTensorToType(rewriter, rhsTensor, outType).value();
-      lhs = tosa::tosaCastTensorToType(rewriter, lhs, outType).value();
       auto rhsRcp = tosa::ReciprocalOp::create(rewriter, op->getLoc(),
                                                rhsTensor.getType(), rhsTensor);
 
