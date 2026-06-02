@@ -1815,6 +1815,75 @@ def ElementwiseClampModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseClampInt16Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int16, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.clamp(x, min=-5, max=5)
+
+
+@register_test_case(module_factory=lambda: ElementwiseClampInt16Module())
+def ElementwiseClampInt16Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 5, low=-10, high=10, dtype=torch.int16))
+
+
+# ==============================================================================
+
+
+class ElementwiseClampInt32Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.clamp(x, min=-5, max=5)
+
+
+@register_test_case(module_factory=lambda: ElementwiseClampInt32Module())
+def ElementwiseClampInt32Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 5, low=-10, high=10, dtype=torch.int32))
+
+
+# ==============================================================================
+
+
+class ElementwiseClampInt64Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int64, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.clamp(x, min=-5, max=5)
+
+
+@register_test_case(module_factory=lambda: ElementwiseClampInt64Module())
+def ElementwiseClampInt64Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 5, low=-10, high=10, dtype=torch.int64))
+
+
+# ==============================================================================
+
+
 class ElementwiseClampIntToFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -2127,6 +2196,26 @@ class ElementwiseClampTensorInt8Module(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseClampTensorInt8Module())
 def ElementwiseClampTensorInt8Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 5, low=-10, high=10, dtype=torch.int8))
+
+
+# ==============================================================================
+
+
+class ElementwiseClampInt8MinGreaterThanMaxModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1], torch.int8, True)])
+    def forward(self, x):
+        return torch.clamp(x, min=4, max=2)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseClampInt8MinGreaterThanMaxModule()
+)
+def ElementwiseClampInt8MinGreaterThanMaxModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 5, low=-10, high=10, dtype=torch.int8))
 
 
