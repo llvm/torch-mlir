@@ -29,7 +29,6 @@
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/MathExtras.h"
 #include <array>
@@ -275,18 +274,23 @@ static Value castScaledMmResultToType(Value result, RankedTensorType resultTy,
   return tosa::tosaCastTensorToType(rewriter, result, resultTy).value();
 }
 
+static bool isValidScaledMmBias(Value bias, int64_t n) {
+  if (isa<Torch::NoneType>(bias.getType()))
+    return true;
+  auto biasTy = dyn_cast<RankedTensorType>(bias.getType());
+  return biasTy && biasTy.hasStaticShape() && biasTy.getRank() == 1 &&
+         biasTy.getDimSize(0) == n;
+}
+
 static FailureOr<Value>
 addBiasToScaledMmAccumulator(Value accumulator, Value bias, int64_t n,
                              ConversionPatternRewriter &rewriter,
                              Location loc) {
+  if (!isValidScaledMmBias(bias, n))
+    return failure();
   if (isa<Torch::NoneType>(bias.getType()))
     return accumulator;
-  auto biasTy = dyn_cast<RankedTensorType>(bias.getType());
-  if (!biasTy)
-    return failure();
-  if (!biasTy.hasStaticShape() || biasTy.getRank() != 1 ||
-      biasTy.getDimSize(0) != n)
-    return failure();
+  auto biasTy = cast<RankedTensorType>(bias.getType());
 
   auto accumulatorTy = cast<RankedTensorType>(accumulator.getType());
   auto biasAccumulatorTy =
@@ -302,9 +306,11 @@ addBiasToScaledMmAccumulator(Value accumulator, Value bias, int64_t n,
 static LogicalResult rewriteScaledMmToMatMulOp(
     Operation *op, Value lhs, Value rhs, Value scaleA, Value scaleB, Value bias,
     RankedTensorType lhsTy, RankedTensorType rhsTy, RankedTensorType scaleATy,
-    RankedTensorType scaleBTy, RankedTensorType resultTy, int64_t m, int64_t k,
+    RankedTensorType scaleBTy, RankedTensorType resultTy,
+    const StaticScaledMmScaleShapes &batchedScaleShapes, int64_t m, int64_t k,
     int64_t n, ConversionPatternRewriter &rewriter, Location loc) {
   auto f32Ty = rewriter.getF32Type();
+  auto f16Ty = rewriter.getF16Type();
 
   lhs = reshapeTensor(lhs, {1, m, k}, lhsTy.getElementType(), rewriter, loc);
   rhs = reshapeTensor(rhs, {1, k, n}, rhsTy.getElementType(), rewriter, loc);
@@ -316,16 +322,8 @@ static LogicalResult rewriteScaledMmToMatMulOp(
   scaleA = tosa::tosaCastTensorToType(rewriter, scaleA, scaleAF32Ty).value();
   scaleB = tosa::tosaCastTensorToType(rewriter, scaleB, scaleBF32Ty).value();
 
-  std::optional<StaticScaledMmScaleShapes> batchedScaleShapes =
-      getStaticScaledMmTensorwiseOrRowwiseBatchedScaleShapes(scaleATy, scaleBTy,
-                                                             m, n);
-  if (!batchedScaleShapes)
-    return rewriter.notifyMatchFailure(
-        op, "aten._scaled_mm expects static FP8 scales to be fp32 "
-            "tensorwise scales or rowwise [M,1]/[1,N] scale layouts");
-
-  SmallVector<int64_t> batchedScaleAShapeVec = batchedScaleShapes->scaleA;
-  SmallVector<int64_t> batchedScaleBShapeVec = batchedScaleShapes->scaleB;
+  SmallVector<int64_t> batchedScaleAShapeVec = batchedScaleShapes.scaleA;
+  SmallVector<int64_t> batchedScaleBShapeVec = batchedScaleShapes.scaleB;
 
   scaleA = reshapeTensor(scaleA, batchedScaleAShapeVec, f32Ty, rewriter, loc);
   scaleB = reshapeTensor(scaleB, batchedScaleBShapeVec, f32Ty, rewriter, loc);
@@ -338,10 +336,13 @@ static LogicalResult rewriteScaledMmToMatMulOp(
     return rewriter.notifyMatchFailure(
         op, "failed to materialize FP8 zero point for matmul");
 
-  auto matmulTy = RankedTensorType::get({1, m, n}, f32Ty);
+  auto matmulTy = RankedTensorType::get({1, m, n}, f16Ty);
   Value matmul = tosa::MatMulOp::create(rewriter, loc, matmulTy, lhs, rhs,
                                         *zeroPointAOr, *zeroPointBOr)
                      .getResult();
+  auto scaledMatmulTy = RankedTensorType::get({1, m, n}, f32Ty);
+  Value matmulF32 =
+      tosa::tosaCastTensorToType(rewriter, matmul, scaledMatmulTy).value();
 
   auto combinedScaleTy = RankedTensorType::get(
       {1, std::max(batchedScaleAShapeVec[1], batchedScaleBShapeVec[1]),
@@ -350,9 +351,8 @@ static LogicalResult rewriteScaledMmToMatMulOp(
   Value combinedScale =
       tosa::createMulOpAndCast(rewriter, op, combinedScaleTy, scaleA, scaleB,
                                /*shift=*/0);
-  Value scaledMatmul =
-      tosa::createMulOpAndCast(rewriter, op, matmulTy, matmul, combinedScale,
-                               /*shift=*/0);
+  Value scaledMatmul = tosa::createMulOpAndCast(
+      rewriter, op, scaledMatmulTy, matmulF32, combinedScale, /*shift=*/0);
 
   auto reshapedTy = RankedTensorType::get(resultTy.getShape(), f32Ty);
   Value result =
@@ -2832,12 +2832,9 @@ public:
   LogicalResult
   matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
                       ConversionPatternRewriter &rewriter) const override {
-    bool useFastAccum = false;
-    if (!matchPattern(op.getUseFastAccum(), m_TorchConstantBool(&useFastAccum)))
-      return rewriter.notifyMatchFailure(
-          op, "aten._scaled_mm requires a constant bool use_fast_accum");
     // TOSA does not expose an equivalent fast-accumulation mode. Lower both
-    // PyTorch modes to the same f32-accumulating TOSA sequence.
+    // PyTorch modes to the same sequence.
+    (void)op.getUseFastAccum();
 
     if (!isa<Torch::NoneType>(op.getScaleResult().getType()))
       return rewriter.notifyMatchFailure(
@@ -2862,9 +2859,10 @@ public:
           "aten._scaled_mm requires tensor operands with ranked result type");
 
     if (!lhsTy.hasStaticShape() || !rhsTy.hasStaticShape() ||
+        !scaleATy.hasStaticShape() || !scaleBTy.hasStaticShape() ||
         !resultTy.hasStaticShape())
       return rewriter.notifyMatchFailure(
-          op, "aten._scaled_mm requires static input/result shapes");
+          op, "aten._scaled_mm requires static input/scale/result shapes");
 
     auto lhsElemTy = lhsTy.getElementType();
     auto rhsElemTy = rhsTy.getElementType();
@@ -2873,6 +2871,10 @@ public:
         !isSupportedScaledMmDataElementType(rhsElemTy))
       return rewriter.notifyMatchFailure(
           op, "aten._scaled_mm only supports FP8 input types");
+
+    if (lhsElemTy != rhsElemTy)
+      return rewriter.notifyMatchFailure(
+          op, "aten._scaled_mm expects matching lhs/rhs FP8 input types");
 
     if (!isSupportedStaticScaledMmScaleElementType(scaleATy.getElementType()) ||
         !isSupportedStaticScaledMmScaleElementType(scaleBTy.getElementType()))
@@ -2902,9 +2904,22 @@ public:
       return rewriter.notifyMatchFailure(
           op, "aten._scaled_mm expects static FP8 result shape [M, N]");
 
-    return rewriteScaledMmToMatMulOp(op, lhs, rhs, scaleA, scaleB, bias, lhsTy,
-                                     rhsTy, scaleATy, scaleBTy, resultTy, m, k,
-                                     n, rewriter, loc);
+    std::optional<StaticScaledMmScaleShapes> batchedScaleShapes =
+        getStaticScaledMmTensorwiseOrRowwiseBatchedScaleShapes(scaleATy,
+                                                               scaleBTy, m, n);
+    if (!batchedScaleShapes)
+      return rewriter.notifyMatchFailure(
+          op, "aten._scaled_mm expects static FP8 scales to be fp32 "
+              "tensorwise scales or rowwise [M,1]/[1,N] scale layouts");
+
+    if (!isValidScaledMmBias(bias, n))
+      return rewriter.notifyMatchFailure(
+          op, "aten._scaled_mm expects bias to be a rank-1 tensor with N "
+              "elements");
+
+    return rewriteScaledMmToMatMulOp(
+        op, lhs, rhs, scaleA, scaleB, bias, lhsTy, rhsTy, scaleATy, scaleBTy,
+        resultTy, *batchedScaleShapes, m, k, n, rewriter, loc);
   }
 };
 

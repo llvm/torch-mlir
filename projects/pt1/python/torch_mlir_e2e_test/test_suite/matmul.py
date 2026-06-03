@@ -106,8 +106,10 @@ def MatmulZeroK_basic(module, tu: TestUtils):
 
 
 class AtenScaledMmPerTensorModule(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, fp8_dtype=torch.float8_e4m3fn, out_dtype=torch.bfloat16):
         super().__init__()
+        self.fp8_dtype = fp8_dtype
+        self.out_dtype = out_dtype
 
     @export
     @annotate_args(
@@ -120,19 +122,40 @@ class AtenScaledMmPerTensorModule(torch.nn.Module):
         ]
     )
     def forward(self, lhs, rhs, scale_lhs, scale_rhs):
-        lhs_fp8 = lhs.to(torch.float8_e4m3fn)
-        rhs_fp8 = rhs.to(torch.float8_e4m3fn)
+        lhs_fp8 = lhs.to(self.fp8_dtype)
+        rhs_fp8 = rhs.to(self.fp8_dtype)
         return torch._scaled_mm(
             lhs_fp8,
             rhs_fp8,
             scale_lhs,
             scale_rhs,
-            out_dtype=torch.bfloat16,
+            out_dtype=self.out_dtype,
         )
 
 
 @register_test_case(module_factory=lambda: AtenScaledMmPerTensorModule())
 def AtenScaledMmPerTensorModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(16, 16), tu.rand(16, 16), tu.rand(), tu.rand())
+
+
+@register_test_case(
+    module_factory=lambda: AtenScaledMmPerTensorModule(out_dtype=torch.float16)
+)
+def AtenScaledMmPerTensorF16Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(16, 16), tu.rand(16, 16), tu.rand(), tu.rand())
+
+
+@register_test_case(
+    module_factory=lambda: AtenScaledMmPerTensorModule(out_dtype=torch.float32)
+)
+def AtenScaledMmPerTensorF32Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(16, 16), tu.rand(16, 16), tu.rand(), tu.rand())
+
+
+@register_test_case(
+    module_factory=lambda: AtenScaledMmPerTensorModule(fp8_dtype=torch.float8_e5m2)
+)
+def AtenScaledMmPerTensorE5M2Module_basic(module, tu: TestUtils):
     module.forward(tu.rand(16, 16), tu.rand(16, 16), tu.rand(), tu.rand())
 
 
