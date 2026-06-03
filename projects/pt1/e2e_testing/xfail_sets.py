@@ -3637,6 +3637,11 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenSymConstrainRangeForSize_basic",
     "AtenSymConstrainRange_basic",
     "Aten_AssertScalar_basic",
+    # The TOSA execution backend cannot currently load the lowered FP8 path.
+    "AtenScaledMmPerTensorE5M2Module_basic",
+    "AtenScaledMmPerTensorF16Module_basic",
+    "AtenScaledMmPerTensorF32Module_basic",
+    "AtenScaledMmPerTensorModule_basic",
     "ScatterAddDynamicModule_basic",
     "UniformModule_basic",
     "UniformStaticShapeModule_basic",
