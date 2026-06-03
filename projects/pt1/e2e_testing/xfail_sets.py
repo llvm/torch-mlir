@@ -3569,9 +3569,6 @@ if torch_version_for_comparison() > version.parse("2.12.0.dev"):
     FX_IMPORTER_STABLEHLO_XFAIL_SET = FX_IMPORTER_STABLEHLO_XFAIL_SET - {
         "ElementwiseClampInt16Module_basic",
     }
-    FX_IMPORTER_TOSA_XFAIL_SET = FX_IMPORTER_TOSA_XFAIL_SET - {
-        "ElementwiseClampInt16Module_basic",
-    }
 
 if torch_version_for_comparison() < version.parse("2.4.0.dev"):
     STABLEHLO_PASS_SET = STABLEHLO_PASS_SET - {
@@ -4079,6 +4076,11 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ElementwiseReluModule_bfloat16",
     "ElementwiseClampInt16Module_basic",  # 'memref<3x5xi16>'
 }
+
+if torch_version_for_comparison() > version.parse("2.12.0.dev"):
+    FX_IMPORTER_TOSA_XFAIL_SET = FX_IMPORTER_TOSA_XFAIL_SET - {
+        "ElementwiseClampInt16Module_basic",
+    }
 
 ONNX_TOSA_CRASHING_SET = {
     "ScatterSrcStaticModule_basic",
