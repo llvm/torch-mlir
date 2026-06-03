@@ -5051,6 +5051,30 @@ func.func @torch.aten._scaled_mm$per_row_scales_use_fast_accum(%arg0: !torch.vte
 
 // -----
 module {
+  func.func @torch.aten._scaled_mm$static_f32_block_scale_rejected(%arg0: !torch.vtensor<[128,256],f8E4M3FN>, %arg1: !torch.vtensor<[256,256],f8E4M3FN>, %arg2: !torch.vtensor<[128,2],f32>, %arg3: !torch.vtensor<[2,2],f32>) -> !torch.vtensor<[128,256],bf16> {
+    %false = torch.constant.bool false
+    %int15 = torch.constant.int 15
+    %none = torch.constant.none
+    // expected-error @below {{failed to legalize operation 'torch.aten._scaled_mm' that was explicitly marked illegal}}
+    %0 = torch.aten._scaled_mm %arg0, %arg1, %arg2, %arg3, %none, %none, %int15, %false : !torch.vtensor<[128,256],f8E4M3FN>, !torch.vtensor<[256,256],f8E4M3FN>, !torch.vtensor<[128,2],f32>, !torch.vtensor<[2,2],f32>, !torch.none, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[128,256],bf16>
+    return %0 : !torch.vtensor<[128,256],bf16>
+  }
+}
+
+// -----
+module {
+  func.func @torch.aten._scaled_mm$static_non_vector_bias_rejected(%arg0: !torch.vtensor<[128,128],f8E4M3FN>, %arg1: !torch.vtensor<[128,128],f8E4M3FN>, %arg2: !torch.vtensor<[],f32>, %arg3: !torch.vtensor<[],f32>, %arg4: !torch.vtensor<[1,128],bf16>) -> !torch.vtensor<[128,128],bf16> {
+    %false = torch.constant.bool false
+    %int15 = torch.constant.int 15
+    %none = torch.constant.none
+    // expected-error @below {{failed to legalize operation 'torch.aten._scaled_mm' that was explicitly marked illegal}}
+    %0 = torch.aten._scaled_mm %arg0, %arg1, %arg2, %arg3, %arg4, %none, %int15, %false : !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[1,128],bf16>, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[128,128],bf16>
+    return %0 : !torch.vtensor<[128,128],bf16>
+  }
+}
+
+// -----
+module {
   func.func @torch.aten._scaled_mm$static_rank1_scale_rejected(%arg0: !torch.vtensor<[128,128],f8E4M3FN>, %arg1: !torch.vtensor<[128,128],f8E4M3FN>, %arg2: !torch.vtensor<[128],f32>, %arg3: !torch.vtensor<[128],f32>) -> !torch.vtensor<[128,128],bf16> {
     %false = torch.constant.bool false
     %int15 = torch.constant.int 15

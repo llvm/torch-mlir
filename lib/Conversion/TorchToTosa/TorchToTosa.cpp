@@ -139,9 +139,9 @@ struct StaticScaledMmScaleShapes {
 };
 
 static std::optional<StaticScaledMmScaleShapes>
-getStaticScaledMmBatchedScaleShapes(RankedTensorType scaleATy,
-                                    RankedTensorType scaleBTy, int64_t m,
-                                    int64_t n) {
+getStaticScaledMmTensorwiseOrRowwiseBatchedScaleShapes(
+    RankedTensorType scaleATy, RankedTensorType scaleBTy, int64_t m,
+    int64_t n) {
   if (!scaleATy.hasStaticShape() || !scaleBTy.hasStaticShape() ||
       !isSupportedStaticScaledMmScaleElementType(scaleATy.getElementType()) ||
       !isSupportedStaticScaledMmScaleElementType(scaleBTy.getElementType()))
@@ -276,7 +276,7 @@ static Value castScaledMmResultToType(Value result, RankedTensorType resultTy,
 }
 
 static FailureOr<Value>
-addBiasToScaledMmAccumulator(Value accumulator, Value bias,
+addBiasToScaledMmAccumulator(Value accumulator, Value bias, int64_t n,
                              ConversionPatternRewriter &rewriter,
                              Location loc) {
   if (isa<Torch::NoneType>(bias.getType()))
@@ -284,12 +284,16 @@ addBiasToScaledMmAccumulator(Value accumulator, Value bias,
   auto biasTy = dyn_cast<RankedTensorType>(bias.getType());
   if (!biasTy)
     return failure();
+  if (!biasTy.hasStaticShape() || biasTy.getRank() != 1 ||
+      biasTy.getDimSize(0) != n)
+    return failure();
+
   auto accumulatorTy = cast<RankedTensorType>(accumulator.getType());
   auto biasAccumulatorTy =
       RankedTensorType::get(biasTy.getShape(), accumulatorTy.getElementType());
   bias = tosa::tosaCastTensorToType(rewriter, bias, biasAccumulatorTy).value();
-  if (mlir::tosa::EqualizeRanks(rewriter, loc, accumulator, bias).failed())
-    return failure();
+  bias = reshapeTensor(bias, {1, n}, accumulatorTy.getElementType(), rewriter,
+                       loc);
   return tosa::AddOp::create(rewriter, loc, accumulator.getType(), accumulator,
                              bias)
       .getResult();
@@ -313,11 +317,12 @@ static LogicalResult rewriteScaledMmToMatMulOp(
   scaleB = tosa::tosaCastTensorToType(rewriter, scaleB, scaleBF32Ty).value();
 
   std::optional<StaticScaledMmScaleShapes> batchedScaleShapes =
-      getStaticScaledMmBatchedScaleShapes(scaleATy, scaleBTy, m, n);
+      getStaticScaledMmTensorwiseOrRowwiseBatchedScaleShapes(scaleATy, scaleBTy,
+                                                            m, n);
   if (!batchedScaleShapes)
     return rewriter.notifyMatchFailure(
         op, "aten._scaled_mm expects static FP8 scales to be fp32 "
-            "tensorwise scales or paired 2D PyTorch scale layouts");
+            "tensorwise scales or rowwise [M,1]/[1,N] scale layouts");
 
   SmallVector<int64_t> batchedScaleAShapeVec = batchedScaleShapes->scaleA;
   SmallVector<int64_t> batchedScaleBShapeVec = batchedScaleShapes->scaleB;
@@ -356,10 +361,11 @@ static LogicalResult rewriteScaledMmToMatMulOp(
           tosa::getTosaConstShape(rewriter, loc, getTensorShape(resultTy)))
           .getResult();
   auto resultWithBiasOr =
-      addBiasToScaledMmAccumulator(result, bias, rewriter, loc);
+      addBiasToScaledMmAccumulator(result, bias, n, rewriter, loc);
   if (failed(resultWithBiasOr))
     return rewriter.notifyMatchFailure(
-        op, "Failed to add bias to aten._scaled_mm accumulator");
+        op, "aten._scaled_mm expects bias to be a rank-1 tensor with N "
+            "elements");
   result = castScaledMmResultToType(*resultWithBiasOr, resultTy, rewriter);
   rewriter.replaceOp(op, {result});
   return success();
