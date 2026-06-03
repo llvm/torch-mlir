@@ -3559,6 +3559,11 @@ if torch_version_for_comparison() > version.parse("2.10.0.dev"):
         "ElementwiseClampInt16Module_basic",
     }
 
+if torch_version_for_comparison() > version.parse("2.12.0.dev"):
+    ONNX_XFAIL_SET = ONNX_XFAIL_SET - {
+        "ElementwiseClampInt16Module_basic",
+    }
+
 if torch_version_for_comparison() < version.parse("2.4.0.dev"):
     STABLEHLO_PASS_SET = STABLEHLO_PASS_SET - {
         "AtenIntMM_basic",
