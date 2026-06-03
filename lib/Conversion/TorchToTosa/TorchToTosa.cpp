@@ -318,7 +318,7 @@ static LogicalResult rewriteScaledMmToMatMulOp(
 
   std::optional<StaticScaledMmScaleShapes> batchedScaleShapes =
       getStaticScaledMmTensorwiseOrRowwiseBatchedScaleShapes(scaleATy, scaleBTy,
-                                                            m, n);
+                                                             m, n);
   if (!batchedScaleShapes)
     return rewriter.notifyMatchFailure(
         op, "aten._scaled_mm expects static FP8 scales to be fp32 "
