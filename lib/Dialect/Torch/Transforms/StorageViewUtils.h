@@ -11,6 +11,7 @@
 
 #include "mlir/IR/Value.h"
 #include "mlir/Support/LogicalResult.h"
+#include "llvm/ADT/ArrayRef.h"
 #include <cstdint>
 
 namespace mlir::torch::Torch {
@@ -33,6 +34,9 @@ struct StorageViewBase {
 /// Returns failure when offset/bounds computation needs dynamic metadata, when
 /// int64 arithmetic overflows, or when the walk reaches an unmodeled view op.
 FailureOr<StorageViewBase> traceViewLikeStorageBase(Value input);
+
+/// Return success if PyTorch dense-view stride computation for `sizes` fits.
+LogicalResult checkDenseViewShape(llvm::ArrayRef<int64_t> sizes);
 
 } // namespace mlir::torch::Torch
 

@@ -159,15 +159,11 @@ FailureOr<int64_t> knownStride(const ViewLayout &view, int64_t dim) {
   return view.strides[dim];
 }
 
-/// Multiply a known stride in place. Dynamic strides stay dynamic.
-LogicalResult multiplyStride(int64_t &stride, int64_t factor) {
+/// Return `stride * factor`. Dynamic strides stay dynamic.
+FailureOr<int64_t> multiplyStride(int64_t stride, int64_t factor) {
   if (stride == kUnknownStride)
-    return success();
-  FailureOr<int64_t> product = checkedMul(stride, factor);
-  if (failed(product))
-    return failure();
-  stride = *product;
-  return success();
+    return kUnknownStride;
+  return checkedMul(stride, factor);
 }
 
 /// Add `index * stride[dim]` to the storage offset.
@@ -236,16 +232,15 @@ FailureOr<int64_t> constantIndex(Value value, int64_t extent, bool allowEnd) {
 }
 
 /// Split one logical dim and derive the strides for the new axes.
-LogicalResult splitDim(ViewLayout &view, FailureOr<SmallVector<int64_t>> shape,
-                       int64_t dim, int64_t splitRank) {
-  if (failed(shape) || splitRank <= 0 || dim + splitRank > llvm::size(*shape))
+LogicalResult splitDim(ViewLayout &view, ArrayRef<int64_t> shape, int64_t dim,
+                       int64_t splitRank) {
+  if (splitRank <= 0 || dim + splitRank > llvm::size(shape))
     return failure();
   FailureOr<int64_t> originalSize = knownSize(view, dim);
   if (failed(originalSize))
     return failure();
 
-  ArrayRef<int64_t> splitSizes =
-      ArrayRef<int64_t>(*shape).slice(dim, splitRank);
+  ArrayRef<int64_t> splitSizes = shape.slice(dim, splitRank);
   if (llvm::is_contained(splitSizes, Torch::kUnknownSize))
     return failure();
   FailureOr<int64_t> splitProduct = checkedProduct(splitSizes);
@@ -263,13 +258,13 @@ LogicalResult splitDim(ViewLayout &view, FailureOr<SmallVector<int64_t>> shape,
       continue;
     if (running != kUnknownStride) {
       FailureOr<int64_t> product =
-          checkedMul(running, std::max<int64_t>((*shape)[dim + i], 1));
+          checkedMul(running, std::max<int64_t>(shape[dim + i], 1));
       if (failed(product))
         return failure();
       running = *product;
     }
   }
-  return view.assign(*shape, std::move(newStrides));
+  return view.assign(SmallVector<int64_t>(shape), std::move(newStrides));
 }
 
 /// Apply one view op to the traced shape/stride/offset state.
@@ -421,9 +416,12 @@ LogicalResult applyViewOp(Operation *op, ViewLayout &view) {
         else if (*start != 0)
           return failure();
 
-        if (failed(addOffsetForDim(view, *dim, *start)) ||
-            failed(multiplyStride(view.strides[*dim], *step)))
+        if (failed(addOffsetForDim(view, *dim, *start)))
           return failure();
+        FailureOr<int64_t> stride = multiplyStride(view.strides[*dim], *step);
+        if (failed(stride))
+          return failure();
+        view.strides[*dim] = *stride;
         view.sizes = *shape;
         return success();
       })
@@ -513,8 +511,11 @@ LogicalResult applyViewOp(Operation *op, ViewLayout &view) {
             *size < 0 || shape->back() != *size || *step <= 0)
           return failure();
         int64_t windowStride = view.strides[*dim];
-        if (failed(multiplyStride(view.strides[*dim], *step)))
+        FailureOr<int64_t> sourceStride =
+            multiplyStride(view.strides[*dim], *step);
+        if (failed(sourceStride))
           return failure();
+        view.strides[*dim] = *sourceStride;
         view.strides.push_back(windowStride);
         view.sizes = *shape;
         return success();
@@ -592,7 +593,7 @@ LogicalResult applyViewOp(Operation *op, ViewLayout &view) {
         FailureOr<SmallVector<int64_t>> shape = resultSizes(op);
         if (failed(dim) || failed(shape))
           return failure();
-        return splitDim(view, shape, *dim,
+        return splitDim(view, *shape, *dim,
                         llvm::size(*shape) - view.rank() + 1);
       })
       .Case<PrimsSplitDimOp>([&](PrimsSplitDimOp op) {
@@ -604,7 +605,7 @@ LogicalResult applyViewOp(Operation *op, ViewLayout &view) {
         if (failed(dim) || failed(shape) || failed(outer) || *outer <= 0 ||
             (*shape)[*dim] != *outer)
           return failure();
-        return splitDim(view, shape, *dim, /*splitRank=*/2);
+        return splitDim(view, *shape, *dim, /*splitRank=*/2);
       })
       .Case<Aten_ReshapeAliasOp>([&](Aten_ReshapeAliasOp op) {
         // _reshape_alias provides explicit size/stride metadata.
@@ -661,6 +662,14 @@ bool isUnsupportedStorageViewOp(Operation *op) {
 
 } // namespace
 
+LogicalResult Torch::checkDenseViewShape(ArrayRef<int64_t> sizes) {
+  for (int64_t size : sizes)
+    if (size < 0 && size != Torch::kUnknownSize)
+      return failure();
+  return succeeded(computeDenseStridesWithUnknowns(sizes)) ? success()
+                                                           : failure();
+}
+
 FailureOr<StorageViewBase> Torch::traceViewLikeStorageBase(Value input) {
   SmallVector<Operation *> viewOps;
   Value base = input;
@@ -692,6 +701,9 @@ FailureOr<StorageViewBase> Torch::traceViewLikeStorageBase(Value input) {
   // dense row-major storage; non-dense layout must come from the view suffix.
   ViewLayout view{SmallVector<int64_t>(type.getSizes()),
                   std::move(*baseStrides)};
+  // Replay the collected view ops from base to input. Each op consumes the
+  // layout at its input and updates `view` to the layout at its result, leaving
+  // `view.offset` as the storage offset seen by `input`.
   for (Operation *op : llvm::reverse(viewOps))
     if (failed(applyViewOp(op, view)))
       return failure();

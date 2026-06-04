@@ -13179,31 +13179,6 @@ public:
 } // namespace
 
 namespace {
-/// Check that a shape can use PyTorch's dense view stride convention.
-///
-/// Empty tensors still get strides. PyTorch computes those strides from inner
-/// to outer dimensions with `max(size, 1)`, so a leading zero does not make the
-/// inner stride math disappear.
-LogicalResult checkDenseViewShape(ArrayRef<int64_t> sizes) {
-  std::optional<int64_t> running = int64_t{1};
-  for (int64_t dim = static_cast<int64_t>(sizes.size()); dim-- > 0;) {
-    int64_t size = sizes[dim];
-    if (size < 0 && size != kUnknownSize)
-      return failure();
-    if (!running || size == kUnknownSize) {
-      running = std::nullopt;
-      continue;
-    }
-    if (dim == 0)
-      continue;
-    FailureOr<int64_t> next = checkedMul(*running, std::max<int64_t>(size, 1));
-    if (failed(next))
-      return failure();
-    running = *next;
-  }
-  return success();
-}
-
 bool hasNonNegativeValues(ArrayRef<int64_t> values) {
   return llvm::all_of(values, [](int64_t value) { return value >= 0; });
 }
@@ -13217,14 +13192,20 @@ bool isLegalForDecomposeComplexOps(Operation *op,
 
 /// Return static numel, zero, or `kUnknownSize` for a Torch tensor shape.
 FailureOr<int64_t> checkedTensorNumelOrUnknown(ArrayRef<int64_t> sizes) {
-  if (!llvm::is_contained(sizes, kUnknownSize))
-    return checkedProduct(sizes);
   if (llvm::is_contained(sizes, 0))
     return int64_t{0};
+  if (!llvm::is_contained(sizes, kUnknownSize))
+    return checkedProduct(sizes);
   return kUnknownSize;
 }
 
-/// Detect view suffixes that can lose storage identity in this pass.
+/// Return true if any op in the traced view suffix may be decomposed by this
+/// pass.
+///
+/// `input` and `base` are expected to come from traceViewLikeStorageBase, so
+/// this does not prove storage identity. It only decides whether to rewrite
+/// as_strided to the traced base before this pass can materialize a view op in
+/// the suffix.
 bool suffixHasIllegalStorageView(Value input, Value base,
                                  const llvm::StringSet<> &legalOpsSet) {
   Value current = input;
