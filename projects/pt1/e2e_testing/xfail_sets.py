@@ -3637,7 +3637,8 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenSymConstrainRangeForSize_basic",
     "AtenSymConstrainRange_basic",
     "Aten_AssertScalar_basic",
-    # The TOSA execution backend cannot currently load the lowered FP8 path.
+    # These import through FX and lower to TOSA, but the TOSA execution backend
+    # cannot currently load FP8 tensor element types in the lowered matmul path.
     "AtenScaledMmPerTensorE5M2Module_basic",
     "AtenScaledMmPerTensorF16Module_basic",
     "AtenScaledMmPerTensorF32Module_basic",

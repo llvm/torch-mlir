@@ -336,6 +336,10 @@ static LogicalResult rewriteScaledMmToMatMulOp(
     return rewriter.notifyMatchFailure(
         op, "failed to materialize FP8 zero point for matmul");
 
+  // TOSA FP8 matmul produces an f16 result, so the f32 scaling epilogue below
+  // is applied after that f16 rounding point. This intentionally models the
+  // closest TOSA-supported behavior, not PyTorch's exact scale-before-output
+  // accumulator semantics.
   auto matmulTy = RankedTensorType::get({1, m, n}, f16Ty);
   Value matmul = tosa::MatMulOp::create(rewriter, loc, matmulTy, lhs, rhs,
                                         *zeroPointAOr, *zeroPointBOr)
@@ -2832,7 +2836,8 @@ public:
   LogicalResult
   matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
                       ConversionPatternRewriter &rewriter) const override {
-    // TOSA does not expose an equivalent fast-accumulation mode. Lower both
+    // TOSA exposes one FP8 matmul behavior and does not provide an equivalent
+    // fast-accumulation knob. Intentionally ignore this operand and lower both
     // PyTorch modes to the same sequence.
     (void)op.getUseFastAccum();
 
