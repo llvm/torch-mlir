@@ -4944,8 +4944,8 @@ module {
 // CHECK:           %[[LHS:.*]] = tosa.reshape %{{.*}} : (tensor<128x128xf8E4M3FN>, !tosa.shape<3>) -> tensor<1x128x128xf8E4M3FN>
 // CHECK:           %[[RHS:.*]] = tosa.reshape %{{.*}} : (tensor<128x128xf8E4M3FN>, !tosa.shape<3>) -> tensor<1x128x128xf8E4M3FN>
 // CHECK-NOT:       (tensor<128x128xf8E4M3FN>) -> tensor<128x128xf32>
-// CHECK:           %[[SCALE_A:.*]] = tosa.reshape %[[SCALE_A_IN]] : (tensor<f32>, !tosa.shape<3>) -> tensor<1x1x1xf32>
-// CHECK:           %[[SCALE_B:.*]] = tosa.reshape %[[SCALE_B_IN]] : (tensor<f32>, !tosa.shape<3>) -> tensor<1x1x1xf32>
+// CHECK:           %[[SCALE_A:.*]] = tosa.reshape %[[SCALE_A_IN]], %{{.*}} : (tensor<f32>, !tosa.shape<3>) -> tensor<1x1x1xf32>
+// CHECK:           %[[SCALE_B:.*]] = tosa.reshape %[[SCALE_B_IN]], %{{.*}} : (tensor<f32>, !tosa.shape<3>) -> tensor<1x1x1xf32>
 // CHECK:           %[[MATMUL:.*]] = tosa.matmul %[[LHS]], %[[RHS]], %{{.*}}, %{{.*}} : (tensor<1x128x128xf8E4M3FN>, tensor<1x128x128xf8E4M3FN>, tensor<1xf8E4M3FN>, tensor<1xf8E4M3FN>) -> tensor<1x128x128xf16>
 // CHECK:           %[[MATMUL_F32:.*]] = tosa.cast %[[MATMUL]] : (tensor<1x128x128xf16>) -> tensor<1x128x128xf32>
 // CHECK:           %[[COMBINED_SCALE:.*]] = tosa.mul %[[SCALE_A]], %[[SCALE_B]], %{{.*}} : (tensor<1x1x1xf32>, tensor<1x1x1xf32>, tensor<1xi8>) -> tensor<1x1x1xf32>
