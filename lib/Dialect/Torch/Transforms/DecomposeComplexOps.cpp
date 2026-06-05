@@ -6823,10 +6823,12 @@ public:
     } else {
       productDimSize = Torch::ConstantIntOp::create(
           rewriter, loc, rewriter.getI64IntegerAttr(1));
-      for (Value dim : dimListElements) {
-        Value dimSize = AtenSizeIntOp::create(rewriter, loc, input, dim);
-        productDimSize =
-            AtenMulIntOp::create(rewriter, loc, productDimSize, dimSize);
+      if (inputRank > 0) {
+        for (Value dim : dimListElements) {
+          Value dimSize = AtenSizeIntOp::create(rewriter, loc, input, dim);
+          productDimSize =
+              AtenMulIntOp::create(rewriter, loc, productDimSize, dimSize);
+        }
       }
     }
     rewriter.replaceOpWithNewOp<AtenDivScalarOp>(op, outputType, sumAlongDims,
