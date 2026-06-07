@@ -242,13 +242,10 @@ rewriteEquationWithEllipsisSlicing(std::string &equation,
   std::string ellipsisToken;
   int usedCount = 0;
   // Iterate over the alphabet to create a new token for ellipsis
-  for (char c = 'a'; c <= 'z'; ++c) {
+  for (char c = 'a'; c <= 'z' && usedCount < maxEllipsisRank; ++c) {
     if (!isTokenUsed(c)) {
       ellipsisToken.push_back(c);
       usedCount++;
-      if (usedCount == maxEllipsisRank) {
-        break;
-      }
     }
   }
 

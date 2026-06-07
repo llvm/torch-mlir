@@ -1136,3 +1136,17 @@ func.func @repeat_broadcasts_static_singleton_dims(%arg0: !torch.vtensor<[1,1,6,
   %0 = torch.aten.repeat %arg0, %repeats : !torch.vtensor<[1,1,6,1,4,4],f32>, !torch.list<int> -> !torch.vtensor<[4,1,6,2500,4,4],f32>
   return %0 : !torch.vtensor<[4,1,6,2500,4,4],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @einsum_zero_rank_ellipsis
+// CHECK-SAME: (%[[ARG0:.*]]: !torch.vtensor<[1,1,2,2,3,3],f32>, %[[ARG1:.*]]: !torch.vtensor<[1,280,2,2,3],f32>)
+// CHECK-NOT: torch.aten.einsum
+// CHECK: return %{{.*}} : !torch.vtensor<[1,280,1,2,2,3],f32>
+func.func @einsum_zero_rank_ellipsis(%arg0: !torch.vtensor<[1,1,2,2,3,3],f32>, %arg1: !torch.vtensor<[1,280,2,2,3],f32>) -> !torch.vtensor<[1,280,1,2,2,3],f32> {
+  %str = torch.constant.str "...bt pide , ...bo pie -> ...bot pid"
+  %none = torch.constant.none
+  %list = torch.prim.ListConstruct %arg0, %arg1 : (!torch.vtensor<[1,1,2,2,3,3],f32>, !torch.vtensor<[1,280,2,2,3],f32>) -> !torch.list<vtensor>
+  %0 = torch.aten.einsum %str, %list, %none : !torch.str, !torch.list<vtensor>, !torch.none -> !torch.vtensor<[1,280,1,2,2,3],f32>
+  return %0 : !torch.vtensor<[1,280,1,2,2,3],f32>
+}
