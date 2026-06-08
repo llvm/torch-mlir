@@ -342,6 +342,27 @@ def AtenMmFloatTypes_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class AtenMmZeroK(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([5, 0], torch.float32, True),
+            ([0, 10], torch.float32, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.ops.aten.mm(a, b)
+
+
+@register_test_case(module_factory=lambda: AtenMmZeroK())
+def AtenMmZeroK_basic(module, tu: TestUtils):
+    module.forward(torch.empty(5, 0), torch.empty(0, 10))
+
+
+# ==============================================================================
+
+
 class AtenMmIntTypes(torch.nn.Module):
     @export
     @annotate_args(
