@@ -126,6 +126,25 @@ enum class ScalarType : int8_t {
 };
 
 //===----------------------------------------------------------------------===//
+// Mirrors PyTorch ScalingType and SwizzleType enum values used by
+// aten._scaled_mm_v2 metadata.
+// https://github.com/pytorch/pytorch/blob/449aa5b695056c4c14c3134909de5ad1a3078cc8/aten/src/ATen/BlasBackend.h#L34-L43
+//===----------------------------------------------------------------------===//
+enum class ScaledMmV2ScalingType : int64_t {
+  TensorWise = 0,
+  RowWise = 1,
+  BlockWise1x16 = 2,
+  BlockWise1x32 = 3,
+  BlockWise1x128 = 4,
+  BlockWise128x128 = 5,
+};
+
+enum class ScaledMmV2SwizzleType : int64_t {
+  NoSwizzle = 0,
+  Swizzle32x4x4 = 1,
+};
+
+//===----------------------------------------------------------------------===//
 // Type promotion related functions and struct definitions are copied from
 // aten/src/ATen/native/TypeProperties.*
 //===----------------------------------------------------------------------===//
