@@ -2492,6 +2492,8 @@ TOSA_PASS_SET = {
     "ReduceSumDimIntListKeepDimFloatModule_basic",
     "ReduceSumDimIntListKeepDimIntModule_basic",
     "ReduceSumDimIntListKeepDimNegativeDimStaticModule_basic",
+    "ReduceSumDimIntListRank0FloatModule_basic",
+    "ReduceSumDimIntListRank0NegativeDimFloatModule_basic",
     "ReduceSumFloatModule_basic",
     "ReduceSumSignedIntModule_basic",
     "ReduceSumUnsignedIntModule_basic",

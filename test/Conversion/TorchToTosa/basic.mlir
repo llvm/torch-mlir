@@ -344,6 +344,25 @@ func.func @test_reduce_sum_scalar_dim$basic(%arg0: !torch.vtensor<[],f32>) -> !t
 
 // -----
 
+// CHECK-LABEL:   func.func @test_reduce_sum_scalar_negative_dim$basic(
+// CHECK-SAME:                                                          %[[INPUT:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
+// CHECK:           %[[INPUT_TENSOR:.*]] = torch_c.to_builtin_tensor %[[INPUT]] : !torch.vtensor<[],f32> -> tensor<f32>
+// CHECK-NOT:       tosa.reduce_sum
+// CHECK:           %[[IDENTITY:.*]] = tosa.identity %[[INPUT_TENSOR]] : (tensor<f32>) -> tensor<f32>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[IDENTITY]] : tensor<f32> -> !torch.vtensor<[],f32>
+// CHECK:           return %[[RESULT]] : !torch.vtensor<[],f32>
+// CHECK:         }
+func.func @test_reduce_sum_scalar_negative_dim$basic(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %int-1 = torch.constant.int -1
+  %dims = torch.prim.ListConstruct %int-1 : (!torch.int) -> !torch.list<int>
+  %0 = torch.aten.sum.dim_IntList %arg0, %dims, %false, %none : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @test_reduce_sum_empty_dims$basic(
 // CHECK-SAME:                                               %[[INPUT_F32:.*]]: !torch.vtensor<[2,3,4],f32>) -> !torch.vtensor<[],f32> {
 // CHECK:           %[[INPUT_F32_TENSOR:.*]] = torch_c.to_builtin_tensor %[[INPUT_F32]] : !torch.vtensor<[2,3,4],f32> -> tensor<2x3x4xf32>

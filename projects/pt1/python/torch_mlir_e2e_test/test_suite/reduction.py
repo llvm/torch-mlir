@@ -463,6 +463,54 @@ def ReduceSumDimIntListFloatModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ReduceSumDimIntListRank0FloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.sum(a, dim=0)
+
+
+@register_test_case(module_factory=lambda: ReduceSumDimIntListRank0FloatModule())
+def ReduceSumDimIntListRank0FloatModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor(3.0, dtype=torch.float32))
+
+
+# ==============================================================================
+
+
+class ReduceSumDimIntListRank0NegativeDimFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.sum(a, dim=-1)
+
+
+@register_test_case(
+    module_factory=lambda: ReduceSumDimIntListRank0NegativeDimFloatModule()
+)
+def ReduceSumDimIntListRank0NegativeDimFloatModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor(3.0, dtype=torch.float32))
+
+
+# ==============================================================================
+
+
 class ReduceSumDimIntListDtypeFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
