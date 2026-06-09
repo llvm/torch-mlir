@@ -1155,3 +1155,22 @@ func.func @mean_dim_scalar(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f
   %0 = torch.aten.mean.dim %arg0, %dims, %keepdim, %dtype : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[],f32>
   return %0 : !torch.vtensor<[],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @mean_dim_scalar_negative_dim
+// CHECK-SAME: (%[[ARG0:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32>
+// CHECK: %[[ONE:.*]] = torch.constant.int 1
+// CHECK-NOT: torch.aten.size.int
+// CHECK: %[[SUM:.*]] = torch.aten.sum.dim_IntList %[[ARG0]]
+// CHECK-NOT: torch.aten.size.int
+// CHECK: %[[DIV:.*]] = torch.aten.div.Scalar %[[SUM]], %[[ONE]]
+// CHECK: return %[[DIV]] : !torch.vtensor<[],f32>
+func.func @mean_dim_scalar_negative_dim(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
+  %dim = torch.constant.int -1
+  %dims = torch.prim.ListConstruct %dim : (!torch.int) -> !torch.list<int>
+  %keepdim = torch.constant.bool false
+  %dtype = torch.constant.none
+  %0 = torch.aten.mean.dim %arg0, %dims, %keepdim, %dtype : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
+}
