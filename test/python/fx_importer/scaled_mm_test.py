@@ -95,7 +95,21 @@ def test_import_scaled_mm_block_scaled_fp4():
 # CHECK-LABEL: test_import_scaled_mm_v2_block_scaled_fp4
 # CHECK: func.func @test_import_scaled_mm_v2_block_scaled_fp4(%arg0: !torch.vtensor<[128,64],f4E2M1FN>, %arg1: !torch.vtensor<[64,128],f4E2M1FN>, %arg2: !torch.vtensor<[512],f8E8M0FNU>, %arg3: !torch.vtensor<[512],f8E8M0FNU>) -> !torch.vtensor<[128,128],bf16>
 # CHECK-NOT: torch.operator
-# CHECK: %[[MM:.+]] = torch.aten._scaled_mm_v2 %arg0, %arg1
+# CHECK: %[[SCALE_A:.*]] = torch.prim.ListConstruct %arg2
+# CHECK: %[[RECIPE_A_VALUE:.*]] = torch.constant.int 3
+# CHECK: %[[RECIPE_A:.*]] = torch.prim.ListConstruct %[[RECIPE_A_VALUE]]
+# CHECK: %[[SWIZZLE_A_VALUE:.*]] = torch.constant.int 1
+# CHECK: %[[SWIZZLE_A:.*]] = torch.prim.ListConstruct %[[SWIZZLE_A_VALUE]]
+# CHECK: %[[SCALE_B:.*]] = torch.prim.ListConstruct %arg3
+# CHECK: %[[RECIPE_B_VALUE:.*]] = torch.constant.int 3
+# CHECK: %[[RECIPE_B:.*]] = torch.prim.ListConstruct %[[RECIPE_B_VALUE]]
+# CHECK: %[[SWIZZLE_B_VALUE:.*]] = torch.constant.int 1
+# CHECK: %[[SWIZZLE_B:.*]] = torch.prim.ListConstruct %[[SWIZZLE_B_VALUE]]
+# CHECK: %[[NONE:.*]] = torch.constant.none
+# CHECK: %[[OUT_DTYPE:.*]] = torch.constant.int 15
+# CHECK: %[[CONTRACTION:.*]] = torch.prim.ListConstruct
+# CHECK: %[[FALSE:.*]] = torch.constant.bool false
+# CHECK: %[[MM:.*]] = torch.aten._scaled_mm_v2 %arg0, %arg1, %[[SCALE_A]], %[[RECIPE_A]], %[[SWIZZLE_A]], %[[SCALE_B]], %[[RECIPE_B]], %[[SWIZZLE_B]], %[[NONE]], %[[OUT_DTYPE]], %[[CONTRACTION]], %[[FALSE]]
 # CHECK: return %[[MM]]
 def test_import_scaled_mm_v2_block_scaled_fp4():
     class Basic(nn.Module):
@@ -133,7 +147,21 @@ def test_import_scaled_mm_v2_block_scaled_fp4():
 # CHECK-LABEL: test_import_scaled_mm_v2_per_tensor_fp4
 # CHECK: func.func @test_import_scaled_mm_v2_per_tensor_fp4(%arg0: !torch.vtensor<[128,64],f4E2M1FN>, %arg1: !torch.vtensor<[64,128],f4E2M1FN>, %arg2: !torch.vtensor<[],f32>, %arg3: !torch.vtensor<[],f32>) -> !torch.vtensor<[128,128],bf16>
 # CHECK-NOT: torch.operator
-# CHECK: %[[MM:.+]] = torch.aten._scaled_mm_v2 %arg0, %arg1
+# CHECK: %[[SCALE_A:.*]] = torch.prim.ListConstruct %arg2
+# CHECK: %[[RECIPE_A_VALUE:.*]] = torch.constant.int 0
+# CHECK: %[[RECIPE_A:.*]] = torch.prim.ListConstruct %[[RECIPE_A_VALUE]]
+# CHECK: %[[SWIZZLE_A_VALUE:.*]] = torch.constant.int 0
+# CHECK: %[[SWIZZLE_A:.*]] = torch.prim.ListConstruct %[[SWIZZLE_A_VALUE]]
+# CHECK: %[[SCALE_B:.*]] = torch.prim.ListConstruct %arg3
+# CHECK: %[[RECIPE_B_VALUE:.*]] = torch.constant.int 0
+# CHECK: %[[RECIPE_B:.*]] = torch.prim.ListConstruct %[[RECIPE_B_VALUE]]
+# CHECK: %[[SWIZZLE_B_VALUE:.*]] = torch.constant.int 0
+# CHECK: %[[SWIZZLE_B:.*]] = torch.prim.ListConstruct %[[SWIZZLE_B_VALUE]]
+# CHECK: %[[NONE:.*]] = torch.constant.none
+# CHECK: %[[OUT_DTYPE:.*]] = torch.constant.int 15
+# CHECK: %[[CONTRACTION:.*]] = torch.prim.ListConstruct
+# CHECK: %[[FALSE:.*]] = torch.constant.bool false
+# CHECK: %[[MM:.*]] = torch.aten._scaled_mm_v2 %arg0, %arg1, %[[SCALE_A]], %[[RECIPE_A]], %[[SWIZZLE_A]], %[[SCALE_B]], %[[RECIPE_B]], %[[SWIZZLE_B]], %[[NONE]], %[[OUT_DTYPE]], %[[CONTRACTION]], %[[FALSE]]
 # CHECK: return %[[MM]]
 def test_import_scaled_mm_v2_per_tensor_fp4():
     class Basic(nn.Module):
@@ -171,7 +199,21 @@ def test_import_scaled_mm_v2_per_tensor_fp4():
 # CHECK-LABEL: test_import_scaled_mm_v2_out_dtype_none_fp4
 # CHECK: func.func @test_import_scaled_mm_v2_out_dtype_none_fp4(%arg0: !torch.vtensor<[128,64],f4E2M1FN>, %arg1: !torch.vtensor<[64,128],f4E2M1FN>, %arg2: !torch.vtensor<[],f32>, %arg3: !torch.vtensor<[],f32>) -> !torch.vtensor<[128,128],f4E2M1FN>
 # CHECK-NOT: torch.operator
-# CHECK: %[[MM:.+]] = torch.aten._scaled_mm_v2 %arg0, %arg1
+# CHECK: %[[SCALE_A:.*]] = torch.prim.ListConstruct %arg2
+# CHECK: %[[RECIPE_A_VALUE:.*]] = torch.constant.int 0
+# CHECK: %[[RECIPE_A:.*]] = torch.prim.ListConstruct %[[RECIPE_A_VALUE]]
+# CHECK: %[[SWIZZLE_A_VALUE:.*]] = torch.constant.int 0
+# CHECK: %[[SWIZZLE_A:.*]] = torch.prim.ListConstruct %[[SWIZZLE_A_VALUE]]
+# CHECK: %[[SCALE_B:.*]] = torch.prim.ListConstruct %arg3
+# CHECK: %[[RECIPE_B_VALUE:.*]] = torch.constant.int 0
+# CHECK: %[[RECIPE_B:.*]] = torch.prim.ListConstruct %[[RECIPE_B_VALUE]]
+# CHECK: %[[SWIZZLE_B_VALUE:.*]] = torch.constant.int 0
+# CHECK: %[[SWIZZLE_B:.*]] = torch.prim.ListConstruct %[[SWIZZLE_B_VALUE]]
+# CHECK: %[[BIAS_NONE:.*]] = torch.constant.none
+# CHECK: %[[OUT_DTYPE_NONE:.*]] = torch.constant.none
+# CHECK: %[[CONTRACTION:.*]] = torch.prim.ListConstruct
+# CHECK: %[[FALSE:.*]] = torch.constant.bool false
+# CHECK: %[[MM:.*]] = torch.aten._scaled_mm_v2 %arg0, %arg1, %[[SCALE_A]], %[[RECIPE_A]], %[[SWIZZLE_A]], %[[SCALE_B]], %[[RECIPE_B]], %[[SWIZZLE_B]], %[[BIAS_NONE]], %[[OUT_DTYPE_NONE]], %[[CONTRACTION]], %[[FALSE]]
 # CHECK: return %[[MM]]
 def test_import_scaled_mm_v2_out_dtype_none_fp4():
     class Basic(nn.Module):

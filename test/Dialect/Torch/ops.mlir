@@ -252,3 +252,122 @@ func.func @torch.hop_flex_attention_disable_gqa(%arg0: !torch.vtensor<[2,4,8,16]
   %output, %logsumexp, %maxscore = torch.hop_flex_attention %arg0, %arg1, %arg2, %float1.0, %false_gqa, %false_gqa {enable_gqa = false} : !torch.vtensor<[2,4,8,16],f32>, !torch.vtensor<[2,4,8,16],f32>, !torch.vtensor<[2,4,8,16],f32>, !torch.float, !torch.bool, !torch.bool -> !torch.vtensor<[2,4,8,16],f32>, !torch.none, !torch.none
   return %output, %logsumexp, %maxscore : !torch.vtensor<[2,4,8,16],f32>, !torch.none, !torch.none
 }
+
+
+// CHECK-LABEL: func.func @torch.aten._scaled_mm_v2$rowwise_rank1_scales(
+// CHECK: torch.aten._scaled_mm_v2
+func.func @torch.aten._scaled_mm_v2$rowwise_rank1_scales(
+    %arg0: !torch.vtensor<[128,64],f4E2M1FN>,
+    %arg1: !torch.vtensor<[64,128],f4E2M1FN>,
+    %arg2: !torch.vtensor<[128],f32>,
+    %arg3: !torch.vtensor<[128],f32>) -> !torch.vtensor<[128,128],bf16> {
+  %scaled_mm_v2_false = torch.constant.bool false
+  %scaled_mm_v2_int0 = torch.constant.int 0
+  %scaled_mm_v2_int1 = torch.constant.int 1
+  %scaled_mm_v2_int15 = torch.constant.int 15
+  %scaled_mm_v2_none = torch.constant.none
+  %scaled_mm_v2_scale_a = torch.prim.ListConstruct %arg2 : (!torch.vtensor<[128],f32>) -> !torch.list<vtensor>
+  %scaled_mm_v2_recipe_a = torch.prim.ListConstruct %scaled_mm_v2_int1 : (!torch.int) -> !torch.list<int>
+  %scaled_mm_v2_swizzle_a = torch.prim.ListConstruct %scaled_mm_v2_int0 : (!torch.int) -> !torch.list<int>
+  %scaled_mm_v2_scale_b = torch.prim.ListConstruct %arg3 : (!torch.vtensor<[128],f32>) -> !torch.list<vtensor>
+  %scaled_mm_v2_recipe_b = torch.prim.ListConstruct %scaled_mm_v2_int1 : (!torch.int) -> !torch.list<int>
+  %scaled_mm_v2_swizzle_b = torch.prim.ListConstruct %scaled_mm_v2_int0 : (!torch.int) -> !torch.list<int>
+  %scaled_mm_v2_contraction_dim = torch.prim.ListConstruct : () -> !torch.list<int>
+  %0 = torch.aten._scaled_mm_v2 %arg0, %arg1, %scaled_mm_v2_scale_a, %scaled_mm_v2_recipe_a, %scaled_mm_v2_swizzle_a, %scaled_mm_v2_scale_b, %scaled_mm_v2_recipe_b, %scaled_mm_v2_swizzle_b, %scaled_mm_v2_none, %scaled_mm_v2_int15, %scaled_mm_v2_contraction_dim, %scaled_mm_v2_false : !torch.vtensor<[128,64],f4E2M1FN>, !torch.vtensor<[64,128],f4E2M1FN>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.none, !torch.int, !torch.list<int>, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}
+
+// CHECK-LABEL: func.func @torch.aten._scaled_mm_v2$blockwise_1x128_1x128_scales(
+// CHECK: torch.aten._scaled_mm_v2
+func.func @torch.aten._scaled_mm_v2$blockwise_1x128_1x128_scales(
+    %arg0: !torch.vtensor<[128,64],f4E2M1FN>,
+    %arg1: !torch.vtensor<[64,128],f4E2M1FN>,
+    %arg2: !torch.vtensor<[128,1],f32>,
+    %arg3: !torch.vtensor<[128,1],f32>) -> !torch.vtensor<[128,128],bf16> {
+  %scaled_mm_v2_false = torch.constant.bool false
+  %scaled_mm_v2_int0 = torch.constant.int 0
+  %scaled_mm_v2_int4 = torch.constant.int 4
+  %scaled_mm_v2_int15 = torch.constant.int 15
+  %scaled_mm_v2_none = torch.constant.none
+  %scaled_mm_v2_scale_a = torch.prim.ListConstruct %arg2 : (!torch.vtensor<[128,1],f32>) -> !torch.list<vtensor>
+  %scaled_mm_v2_recipe_a = torch.prim.ListConstruct %scaled_mm_v2_int4 : (!torch.int) -> !torch.list<int>
+  %scaled_mm_v2_swizzle_a = torch.prim.ListConstruct %scaled_mm_v2_int0 : (!torch.int) -> !torch.list<int>
+  %scaled_mm_v2_scale_b = torch.prim.ListConstruct %arg3 : (!torch.vtensor<[128,1],f32>) -> !torch.list<vtensor>
+  %scaled_mm_v2_recipe_b = torch.prim.ListConstruct %scaled_mm_v2_int4 : (!torch.int) -> !torch.list<int>
+  %scaled_mm_v2_swizzle_b = torch.prim.ListConstruct %scaled_mm_v2_int0 : (!torch.int) -> !torch.list<int>
+  %scaled_mm_v2_contraction_dim = torch.prim.ListConstruct : () -> !torch.list<int>
+  %0 = torch.aten._scaled_mm_v2 %arg0, %arg1, %scaled_mm_v2_scale_a, %scaled_mm_v2_recipe_a, %scaled_mm_v2_swizzle_a, %scaled_mm_v2_scale_b, %scaled_mm_v2_recipe_b, %scaled_mm_v2_swizzle_b, %scaled_mm_v2_none, %scaled_mm_v2_int15, %scaled_mm_v2_contraction_dim, %scaled_mm_v2_false : !torch.vtensor<[128,64],f4E2M1FN>, !torch.vtensor<[64,128],f4E2M1FN>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.none, !torch.int, !torch.list<int>, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}
+
+// CHECK-LABEL: func.func @torch.aten._scaled_mm_v2$blockwise_1x128_128x128_scales(
+// CHECK: torch.aten._scaled_mm_v2
+func.func @torch.aten._scaled_mm_v2$blockwise_1x128_128x128_scales(
+    %arg0: !torch.vtensor<[128,64],f4E2M1FN>,
+    %arg1: !torch.vtensor<[64,128],f4E2M1FN>,
+    %arg2: !torch.vtensor<[128,1],f32>,
+    %arg3: !torch.vtensor<[4,1],f32>) -> !torch.vtensor<[128,128],bf16> {
+  %scaled_mm_v2_false = torch.constant.bool false
+  %scaled_mm_v2_int0 = torch.constant.int 0
+  %scaled_mm_v2_int4 = torch.constant.int 4
+  %scaled_mm_v2_int5 = torch.constant.int 5
+  %scaled_mm_v2_int15 = torch.constant.int 15
+  %scaled_mm_v2_none = torch.constant.none
+  %scaled_mm_v2_scale_a = torch.prim.ListConstruct %arg2 : (!torch.vtensor<[128,1],f32>) -> !torch.list<vtensor>
+  %scaled_mm_v2_recipe_a = torch.prim.ListConstruct %scaled_mm_v2_int4 : (!torch.int) -> !torch.list<int>
+  %scaled_mm_v2_swizzle_a = torch.prim.ListConstruct %scaled_mm_v2_int0 : (!torch.int) -> !torch.list<int>
+  %scaled_mm_v2_scale_b = torch.prim.ListConstruct %arg3 : (!torch.vtensor<[4,1],f32>) -> !torch.list<vtensor>
+  %scaled_mm_v2_recipe_b = torch.prim.ListConstruct %scaled_mm_v2_int5 : (!torch.int) -> !torch.list<int>
+  %scaled_mm_v2_swizzle_b = torch.prim.ListConstruct %scaled_mm_v2_int0 : (!torch.int) -> !torch.list<int>
+  %scaled_mm_v2_contraction_dim = torch.prim.ListConstruct : () -> !torch.list<int>
+  %0 = torch.aten._scaled_mm_v2 %arg0, %arg1, %scaled_mm_v2_scale_a, %scaled_mm_v2_recipe_a, %scaled_mm_v2_swizzle_a, %scaled_mm_v2_scale_b, %scaled_mm_v2_recipe_b, %scaled_mm_v2_swizzle_b, %scaled_mm_v2_none, %scaled_mm_v2_int15, %scaled_mm_v2_contraction_dim, %scaled_mm_v2_false : !torch.vtensor<[128,64],f4E2M1FN>, !torch.vtensor<[64,128],f4E2M1FN>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.none, !torch.int, !torch.list<int>, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}
+
+// CHECK-LABEL: func.func @torch.aten._scaled_mm_v2$blockwise_128x128_1x128_scales(
+// CHECK: torch.aten._scaled_mm_v2
+func.func @torch.aten._scaled_mm_v2$blockwise_128x128_1x128_scales(
+    %arg0: !torch.vtensor<[128,64],f4E2M1FN>,
+    %arg1: !torch.vtensor<[64,128],f4E2M1FN>,
+    %arg2: !torch.vtensor<[4,1],f32>,
+    %arg3: !torch.vtensor<[128,1],f32>) -> !torch.vtensor<[128,128],bf16> {
+  %scaled_mm_v2_false = torch.constant.bool false
+  %scaled_mm_v2_int0 = torch.constant.int 0
+  %scaled_mm_v2_int4 = torch.constant.int 4
+  %scaled_mm_v2_int5 = torch.constant.int 5
+  %scaled_mm_v2_int15 = torch.constant.int 15
+  %scaled_mm_v2_none = torch.constant.none
+  %scaled_mm_v2_scale_a = torch.prim.ListConstruct %arg2 : (!torch.vtensor<[4,1],f32>) -> !torch.list<vtensor>
+  %scaled_mm_v2_recipe_a = torch.prim.ListConstruct %scaled_mm_v2_int5 : (!torch.int) -> !torch.list<int>
+  %scaled_mm_v2_swizzle_a = torch.prim.ListConstruct %scaled_mm_v2_int0 : (!torch.int) -> !torch.list<int>
+  %scaled_mm_v2_scale_b = torch.prim.ListConstruct %arg3 : (!torch.vtensor<[128,1],f32>) -> !torch.list<vtensor>
+  %scaled_mm_v2_recipe_b = torch.prim.ListConstruct %scaled_mm_v2_int4 : (!torch.int) -> !torch.list<int>
+  %scaled_mm_v2_swizzle_b = torch.prim.ListConstruct %scaled_mm_v2_int0 : (!torch.int) -> !torch.list<int>
+  %scaled_mm_v2_contraction_dim = torch.prim.ListConstruct : () -> !torch.list<int>
+  %0 = torch.aten._scaled_mm_v2 %arg0, %arg1, %scaled_mm_v2_scale_a, %scaled_mm_v2_recipe_a, %scaled_mm_v2_swizzle_a, %scaled_mm_v2_scale_b, %scaled_mm_v2_recipe_b, %scaled_mm_v2_swizzle_b, %scaled_mm_v2_none, %scaled_mm_v2_int15, %scaled_mm_v2_contraction_dim, %scaled_mm_v2_false : !torch.vtensor<[128,64],f4E2M1FN>, !torch.vtensor<[64,128],f4E2M1FN>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.none, !torch.int, !torch.list<int>, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}
+
+
+// CHECK-LABEL: func.func @torch.aten._scaled_mm_v2$mxfp4_blockwise_packed_k128_scales(
+// CHECK: torch.aten._scaled_mm_v2
+func.func @torch.aten._scaled_mm_v2$mxfp4_blockwise_packed_k128_scales(
+    %arg0: !torch.vtensor<[128,128],f4E2M1FN>,
+    %arg1: !torch.vtensor<[128,128],f4E2M1FN>,
+    %arg2: !torch.vtensor<[512],f8E8M0FNU>,
+    %arg3: !torch.vtensor<[512],f8E8M0FNU>) -> !torch.vtensor<[128,128],bf16> {
+  %scaled_mm_v2_false = torch.constant.bool false
+  %scaled_mm_v2_int1 = torch.constant.int 1
+  %scaled_mm_v2_int3 = torch.constant.int 3
+  %scaled_mm_v2_int15 = torch.constant.int 15
+  %scaled_mm_v2_none = torch.constant.none
+  %scaled_mm_v2_scale_a = torch.prim.ListConstruct %arg2 : (!torch.vtensor<[512],f8E8M0FNU>) -> !torch.list<vtensor>
+  %scaled_mm_v2_recipe_a = torch.prim.ListConstruct %scaled_mm_v2_int3 : (!torch.int) -> !torch.list<int>
+  %scaled_mm_v2_swizzle_a = torch.prim.ListConstruct %scaled_mm_v2_int1 : (!torch.int) -> !torch.list<int>
+  %scaled_mm_v2_scale_b = torch.prim.ListConstruct %arg3 : (!torch.vtensor<[512],f8E8M0FNU>) -> !torch.list<vtensor>
+  %scaled_mm_v2_recipe_b = torch.prim.ListConstruct %scaled_mm_v2_int3 : (!torch.int) -> !torch.list<int>
+  %scaled_mm_v2_swizzle_b = torch.prim.ListConstruct %scaled_mm_v2_int1 : (!torch.int) -> !torch.list<int>
+  %scaled_mm_v2_contraction_dim = torch.prim.ListConstruct : () -> !torch.list<int>
+  %0 = torch.aten._scaled_mm_v2 %arg0, %arg1, %scaled_mm_v2_scale_a, %scaled_mm_v2_recipe_a, %scaled_mm_v2_swizzle_a, %scaled_mm_v2_scale_b, %scaled_mm_v2_recipe_b, %scaled_mm_v2_swizzle_b, %scaled_mm_v2_none, %scaled_mm_v2_int15, %scaled_mm_v2_contraction_dim, %scaled_mm_v2_false : !torch.vtensor<[128,128],f4E2M1FN>, !torch.vtensor<[128,128],f4E2M1FN>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.none, !torch.int, !torch.list<int>, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}
