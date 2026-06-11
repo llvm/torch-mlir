@@ -2,60 +2,22 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-module(
-    name = "torch-mlir-overlay",
-)
+module(name = "torch-mlir-overlay")
 
-bazel_dep(
-    name = "bazel_skylib",
-    version = "1.8.2",
-)
-bazel_dep(
-    name = "platforms",
-    version = "1.0.0",
-)
-bazel_dep(
-    name = "rules_cc",
-    version = "0.2.18",
-)
-bazel_dep(
-    name = "rules_python",
-    version = "1.7.0",
-)
-bazel_dep(
-    name = "rules_shell",
-    version = "0.6.1",
-)
+bazel_dep(name = "bazel_skylib", version = "1.8.2")
+bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "rules_cc", version = "0.2.18")
+bazel_dep(name = "rules_python", version = "1.7.0")
+bazel_dep(name = "rules_shell", version = "0.6.1")
 
-bazel_dep(
-    name = "buildifier_prebuilt",
-    version = "8.5.1.2",
-    dev_dependency = True,
-)
-
-bazel_dep(name = "llvm", version = "0.7.3")
-
-register_toolchains("@llvm//toolchain:all")
+bazel_dep(name = "buildifier_prebuilt", version = "8.5.1.2", dev_dependency = True)
 
 # For LLVM
-# bazel_dep(
-#     name = "zlib-ng",
-#     version = "2.3.3",
-#     repo_name = "llvm_zlib"
-# )
-
-# bazel_dep(
-#     name = "zstd",
-#     version = "1.5.7",
-#     repo_name = "llvm_zstd"
-# )
+bazel_dep(name = "zlib-ng", version = "2.3.3", repo_name = "llvm_zlib")
+bazel_dep(name = "zstd", version = "1.5.7", repo_name = "llvm_zstd")
 
 # For macOS
-bazel_dep(
-    name = "apple_support",
-    version = "2.5.4",
-    repo_name = "build_bazel_apple_support",
-)
+bazel_dep(name = "apple_support", version = "2.5.4", repo_name = "build_bazel_apple_support")
 
 torch_mlir_repos_extension = use_extension(":extensions.bzl", "torch_mlir_repos_extension")
 use_repo(
