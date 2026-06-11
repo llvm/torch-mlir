@@ -4878,6 +4878,63 @@ func.func @torch.aten.mm$bf16(%arg0: !torch.vtensor<[1,22],bf16>, %arg1: !torch.
 }
 
 // -----
+// CHECK-LABEL:   func.func @torch.aten.mm$zero_k_f32(
+// CHECK-SAME:      %[[LHS:.*]]: !torch.vtensor<[5,0],f32>,
+// CHECK-SAME:      %[[RHS:.*]]: !torch.vtensor<[0,10],f32>) -> !torch.vtensor<[5,10],f32> {
+// CHECK-NOT:       tosa.matmul
+// CHECK:           %[[ZERO:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<5x10xf32>}> : () -> tensor<5x10xf32>
+// CHECK:           %[[RES:.*]] = torch_c.from_builtin_tensor %[[ZERO]] : tensor<5x10xf32> -> !torch.vtensor<[5,10],f32>
+// CHECK:           return %[[RES]]
+func.func @torch.aten.mm$zero_k_f32(%arg0: !torch.vtensor<[5,0],f32>, %arg1: !torch.vtensor<[0,10],f32>) -> !torch.vtensor<[5,10],f32> {
+  %0 = torch.aten.mm %arg0, %arg1 : !torch.vtensor<[5,0],f32>, !torch.vtensor<[0,10],f32> -> !torch.vtensor<[5,10],f32>
+  return %0 : !torch.vtensor<[5,10],f32>
+}
+
+// -----
+// CHECK-LABEL:   func.func @torch.aten.matmul$zero_k_f32(
+// CHECK-SAME:      %[[LHS:.*]]: !torch.vtensor<[5,0],f32>,
+// CHECK-SAME:      %[[RHS:.*]]: !torch.vtensor<[0,10],f32>) -> !torch.vtensor<[5,10],f32> {
+// CHECK-NOT:       tosa.matmul
+// CHECK:           %[[ZERO:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<5x10xf32>}> : () -> tensor<5x10xf32>
+// CHECK:           %[[RES:.*]] = torch_c.from_builtin_tensor %[[ZERO]] : tensor<5x10xf32> -> !torch.vtensor<[5,10],f32>
+// CHECK:           return %[[RES]]
+func.func @torch.aten.matmul$zero_k_f32(%arg0: !torch.vtensor<[5,0],f32>, %arg1: !torch.vtensor<[0,10],f32>) -> !torch.vtensor<[5,10],f32> {
+  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[5,0],f32>, !torch.vtensor<[0,10],f32> -> !torch.vtensor<[5,10],f32>
+  return %0 : !torch.vtensor<[5,10],f32>
+}
+
+// -----
+// CHECK-LABEL:   func.func @torch.aten.bmm$zero_k_f32(
+// CHECK-SAME:      %[[LHS:.*]]: !torch.vtensor<[2,5,0],f32>,
+// CHECK-SAME:      %[[RHS:.*]]: !torch.vtensor<[2,0,10],f32>) -> !torch.vtensor<[2,5,10],f32> {
+// CHECK-NOT:       tosa.matmul
+// CHECK:           %[[ZERO:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<2x5x10xf32>}> : () -> tensor<2x5x10xf32>
+// CHECK:           %[[RES:.*]] = torch_c.from_builtin_tensor %[[ZERO]] : tensor<2x5x10xf32> -> !torch.vtensor<[2,5,10],f32>
+// CHECK:           return %[[RES]]
+func.func @torch.aten.bmm$zero_k_f32(%arg0: !torch.vtensor<[2,5,0],f32>, %arg1: !torch.vtensor<[2,0,10],f32>) -> !torch.vtensor<[2,5,10],f32> {
+  %0 = torch.aten.bmm %arg0, %arg1 : !torch.vtensor<[2,5,0],f32>, !torch.vtensor<[2,0,10],f32> -> !torch.vtensor<[2,5,10],f32>
+  return %0 : !torch.vtensor<[2,5,10],f32>
+}
+
+// -----
+module {
+  func.func @torch.aten.mm$zero_output_rejected(%arg0: !torch.vtensor<[0,5],f32>, %arg1: !torch.vtensor<[5,10],f32>) -> !torch.vtensor<[0,10],f32> {
+    // expected-error @below {{failed to legalize operation 'torch.aten.mm' that was explicitly marked illegal}}
+    %0 = torch.aten.mm %arg0, %arg1 : !torch.vtensor<[0,5],f32>, !torch.vtensor<[5,10],f32> -> !torch.vtensor<[0,10],f32>
+    return %0 : !torch.vtensor<[0,10],f32>
+  }
+}
+
+// -----
+module {
+  func.func @torch.aten.mm$zero_k_dynamic_result_rejected(%arg0: !torch.vtensor<[?,0],f32>, %arg1: !torch.vtensor<[0,10],f32>) -> !torch.vtensor<[?,10],f32> {
+    // expected-error @below {{failed to legalize operation 'torch.aten.mm' that was explicitly marked illegal}}
+    %0 = torch.aten.mm %arg0, %arg1 : !torch.vtensor<[?,0],f32>, !torch.vtensor<[0,10],f32> -> !torch.vtensor<[?,10],f32>
+    return %0 : !torch.vtensor<[?,10],f32>
+  }
+}
+
+// -----
 // CHECK-LABEL:   func.func @torch.aten.matmul$broadcast(
 // CHECK-SAME:      %[[INP:.*]]: !torch.vtensor<[10,3,4],f32>,
 // CHECK-SAME:      %[[WTS:.*]]: !torch.vtensor<[4],f32>) -> !torch.vtensor<[10,3],f32> {

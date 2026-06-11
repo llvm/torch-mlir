@@ -278,11 +278,16 @@ public:
   LogicalResult
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
+    const TypeConverter *typeConverter = this->getTypeConverter();
+    bool canHandleZeroDimInputOperands =
+        canHandleZeroDimInputs(op, adaptor, typeConverter);
+
     // Pre-check: all tensor operands and outputs must have no zero-sized
     // dimensions.
     for (auto v : adaptor.getOperands()) {
       auto rankedInputType = dyn_cast<RankedTensorType>(v.getType());
-      if (rankedInputType && mlir::tosa::typeHasZeroDim(rankedInputType)) {
+      if (rankedInputType && mlir::tosa::typeHasZeroDim(rankedInputType) &&
+          !canHandleZeroDimInputOperands) {
         return rewriter.notifyMatchFailure(
             op,
             "TOSA lowering does not support input tensors with a zero-sized "
@@ -292,7 +297,6 @@ public:
 
     // not all adaptors have results, instead get the result from the op
     // directly
-    const TypeConverter *typeConverter = this->getTypeConverter();
     for (auto res : op->getResults()) {
       auto rankedOutputType =
           dyn_cast<RankedTensorType>(typeConverter->convertType(res.getType()));
@@ -307,6 +311,12 @@ public:
   }
 
 protected:
+  virtual bool
+  canHandleZeroDimInputs(AtenOpT op, OpAdaptor adaptor,
+                         const TypeConverter *typeConverter) const {
+    return false;
+  }
+
   virtual LogicalResult
   matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
                       ConversionPatternRewriter &rewriter) const = 0;
@@ -1795,6 +1805,36 @@ public:
         op,
         "Unimplemented matrix multiplication variant input parsing function");
   }
+
+  bool
+  canHandleZeroDimInputs(AtenOpT op, OpAdaptor adaptor,
+                         const TypeConverter *typeConverter) const override {
+    if constexpr (!std::is_same_v<AtenOpT, AtenMatmulOp> &&
+                  !std::is_same_v<AtenOpT, AtenMmOp> &&
+                  !std::is_same_v<AtenOpT, AtenBmmOp>) {
+      return false;
+    } else {
+      auto lhs = adaptor.getSelf();
+      Value rhs;
+      if constexpr (std::is_same_v<AtenOpT, AtenMatmulOp>)
+        rhs = adaptor.getOther();
+      else
+        rhs = adaptor.getMat2();
+
+      auto lhsTy = dyn_cast<RankedTensorType>(lhs.getType());
+      auto rhsTy = dyn_cast<RankedTensorType>(rhs.getType());
+      auto resultTy =
+          dyn_cast<RankedTensorType>(typeConverter->convertType(op.getType()));
+      if (!lhsTy || !rhsTy || !resultTy)
+        return false;
+      if (!resultTy.hasStaticShape())
+        return false;
+      if (mlir::tosa::typeHasZeroDim(resultTy))
+        return false;
+      return hasStaticZeroContraction(lhsTy, rhsTy);
+    }
+  }
+
   LogicalResult performMatmul(AtenOpT op, OpAdaptor adaptor,
                               ConversionPatternRewriter &rewriter, Value &lhs,
                               Value &rhs, Value &lhsZp, Value &rhsZp,
@@ -1815,6 +1855,20 @@ public:
     if (lhsElemTy != rhsElemTy)
       return rewriter.notifyMatchFailure(op,
                                          "Matmul: input datatypes mismatched");
+
+    auto resultTy = dyn_cast<RankedTensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
+    if (resultTy && resultTy.hasStaticShape() &&
+        !mlir::tosa::typeHasZeroDim(resultTy) &&
+        hasStaticZeroContraction(lhsTy, rhsTy)) {
+      auto zeroOutput = tosa::getZerosLikeTensor(rewriter, op, resultTy);
+      if (!zeroOutput)
+        return rewriter.notifyMatchFailure(
+            op, "failed to materialize zero-contraction matmul result");
+      output = *zeroOutput;
+      return success();
+    }
 
     if (!lhsZp) {
       // Initialize zero constant values as zero-points, if the op operands
@@ -2352,6 +2406,22 @@ public:
 
     return success();
   }
+
+private:
+  static bool hasStaticZeroContraction(RankedTensorType lhsTy,
+                                       RankedTensorType rhsTy) {
+    auto lhsShape = makeShapeTorchCompatible(lhsTy.getShape());
+    auto rhsShape = makeShapeTorchCompatible(rhsTy.getShape());
+    if (lhsShape.empty() || rhsShape.empty())
+      return false;
+
+    int64_t lhsK = lhsShape.back();
+    int64_t rhsK =
+        rhsShape.size() == 1 ? rhsShape.back() : rhsShape[rhsShape.size() - 2];
+    return lhsK == 0 && rhsK == 0;
+  }
+
+public:
   // The default version just reads two inputs, computes output and returns it.
   // Other versions may add a bias, apply GEMM-style alpha/beta scaling etc.
   virtual LogicalResult

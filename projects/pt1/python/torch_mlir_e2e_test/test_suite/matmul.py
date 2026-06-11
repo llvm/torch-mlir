@@ -84,6 +84,30 @@ def Matmul_2d(module, tu: TestUtils):
 # ==============================================================================
 
 
+class MatmulZeroK(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([5, 0], torch.float32, True),
+            ([0, 10], torch.float32, True),
+        ]
+    )
+    def forward(self, lhs, rhs):
+        return torch.matmul(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: MatmulZeroK())
+def MatmulZeroK_basic(module, tu: TestUtils):
+    module.forward(torch.empty(5, 0), torch.empty(0, 10))
+
+
+# ==============================================================================
+
+
 class MatmulVecMat(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -342,6 +366,48 @@ def AtenMmFloatTypes_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class AtenMmZeroK(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([5, 0], torch.float32, True),
+            ([0, 10], torch.float32, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.ops.aten.mm(a, b)
+
+
+@register_test_case(module_factory=lambda: AtenMmZeroK())
+def AtenMmZeroK_basic(module, tu: TestUtils):
+    module.forward(torch.empty(5, 0), torch.empty(0, 10))
+
+
+# ==============================================================================
+
+
+class AtenBmmZeroK(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 5, 0], torch.float32, True),
+            ([2, 0, 10], torch.float32, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.ops.aten.bmm(a, b)
+
+
+@register_test_case(module_factory=lambda: AtenBmmZeroK())
+def AtenBmmZeroK_basic(module, tu: TestUtils):
+    module.forward(torch.empty(2, 5, 0), torch.empty(2, 0, 10))
+
+
+# ==============================================================================
+
+
 class AtenMmIntTypes(torch.nn.Module):
     @export
     @annotate_args(
@@ -381,6 +447,30 @@ def AtenMmInt8Types_basic(module, tu: TestUtils):
     module.forward(
         tu.randint(16, 4, high=100).to(torch.int8),
         tu.randint(4, 16, high=100).to(torch.int8),
+    )
+
+
+# ==============================================================================
+
+
+class AtenMmInt8ZeroK(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 0], torch.int8, True),
+            ([0, 3], torch.int8, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.ops.aten.mm(a, b)
+
+
+@register_test_case(module_factory=lambda: AtenMmInt8ZeroK())
+def AtenMmInt8ZeroK_basic(module, tu: TestUtils):
+    module.forward(
+        torch.empty(3, 0, dtype=torch.int8),
+        torch.empty(0, 3, dtype=torch.int8),
     )
 
 
