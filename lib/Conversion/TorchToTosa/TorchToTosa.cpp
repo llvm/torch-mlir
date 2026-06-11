@@ -1827,6 +1827,8 @@ public:
           dyn_cast<RankedTensorType>(typeConverter->convertType(op.getType()));
       if (!lhsTy || !rhsTy || !resultTy)
         return false;
+      if (!resultTy.hasStaticShape())
+        return false;
       if (mlir::tosa::typeHasZeroDim(resultTy))
         return false;
       return hasStaticZeroContraction(lhsTy, rhsTy);
@@ -1857,7 +1859,8 @@ public:
     auto resultTy = dyn_cast<RankedTensorType>(
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
             op.getType()));
-    if (resultTy && !mlir::tosa::typeHasZeroDim(resultTy) &&
+    if (resultTy && resultTy.hasStaticShape() &&
+        !mlir::tosa::typeHasZeroDim(resultTy) &&
         hasStaticZeroContraction(lhsTy, rhsTy)) {
       auto zeroOutput = tosa::getZerosLikeTensor(rewriter, op, resultTy);
       if (!zeroOutput)
