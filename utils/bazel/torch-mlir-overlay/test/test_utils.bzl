@@ -49,7 +49,7 @@ def lit_test(
         name = name,
         srcs = [Label("@llvm-project//llvm:lit")],
         main = Label("@llvm-project//llvm:utils/lit/lit.py"),
-        args = args + ["-v"] + ["../$(rlocationpath %s)" % src for src in srcs],
+        args = args + ["-v"] + ["$(rootpath %s)" % src for src in srcs],
         data = data + srcs,
         legacy_create_init = False,
         deps = deps + [Label("@llvm-project//llvm:lit")],
