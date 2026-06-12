@@ -106,6 +106,63 @@ static SmallVector<int64_t> permuteShape(ArrayRef<int64_t> originalShape,
   return result;
 }
 
+static bool isSupportedScaledMmDataElementType(Type type) {
+  return isa<Float8E4M3FNType, Float8E5M2Type>(type);
+}
+
+static bool isSupportedStaticScaledMmScaleElementType(Type type) {
+  return type.isF32();
+}
+
+static bool isSupportedStaticScaledMmResultElementType(Type type) {
+  return type.isF32() || type.isF16() || type.isBF16();
+}
+
+static SmallVector<int64_t> getTensorShape(RankedTensorType tensorTy) {
+  return SmallVector<int64_t>(tensorTy.getShape().begin(),
+                              tensorTy.getShape().end());
+}
+
+static Value reshapeTensor(Value input, ArrayRef<int64_t> shape, Type elementTy,
+                           ConversionPatternRewriter &rewriter, Location loc) {
+  auto resultTy =
+      RankedTensorType::get(makeShapeLLVMCompatible(shape), elementTy);
+  return tosa::ReshapeOp::create(rewriter, loc, resultTy, input,
+                                 tosa::getTosaConstShape(rewriter, loc, shape))
+      .getResult();
+}
+
+struct StaticScaledMmScaleShapes {
+  SmallVector<int64_t> scaleA;
+  SmallVector<int64_t> scaleB;
+};
+
+static std::optional<StaticScaledMmScaleShapes>
+getStaticScaledMmTensorwiseOrRowwiseBatchedScaleShapes(
+    RankedTensorType scaleATy, RankedTensorType scaleBTy, int64_t m,
+    int64_t n) {
+  if (!scaleATy.hasStaticShape() || !scaleBTy.hasStaticShape() ||
+      !isSupportedStaticScaledMmScaleElementType(scaleATy.getElementType()) ||
+      !isSupportedStaticScaledMmScaleElementType(scaleBTy.getElementType()))
+    return std::nullopt;
+
+  if (scaleATy.getNumElements() == 1 && scaleBTy.getNumElements() == 1)
+    return StaticScaledMmScaleShapes{{1, 1, 1}, {1, 1, 1}};
+
+  if (scaleATy.getRank() != 2 || scaleBTy.getRank() != 2)
+    return std::nullopt;
+
+  int64_t scaleARows = scaleATy.getDimSize(0);
+  int64_t scaleACols = scaleATy.getDimSize(1);
+  int64_t scaleBRows = scaleBTy.getDimSize(0);
+  int64_t scaleBCols = scaleBTy.getDimSize(1);
+
+  if (scaleARows == m && scaleACols == 1 && scaleBRows == 1 && scaleBCols == n)
+    return StaticScaledMmScaleShapes{{1, m, 1}, {1, 1, n}};
+
+  return std::nullopt;
+}
+
 struct ZeroInsertionResult {
   Value value;
   bool trimmedTail;
@@ -208,6 +265,114 @@ insertZerosAlongAxis(Value input, int axis, int64_t stride,
   }
 
   return ZeroInsertionResult{result, trimmedTail};
+}
+
+static Value castScaledMmResultToType(Value result, RankedTensorType resultTy,
+                                      ConversionPatternRewriter &rewriter) {
+  if (result.getType() == resultTy)
+    return result;
+  return tosa::tosaCastTensorToType(rewriter, result, resultTy).value();
+}
+
+static bool isValidScaledMmBias(Value bias, int64_t n) {
+  if (isa<Torch::NoneType>(bias.getType()))
+    return true;
+  auto biasTy = dyn_cast<RankedTensorType>(bias.getType());
+  return biasTy && biasTy.hasStaticShape() && biasTy.getRank() == 1 &&
+         biasTy.getDimSize(0) == n;
+}
+
+static FailureOr<Value>
+addBiasToScaledMmAccumulator(Value accumulator, Value bias, int64_t n,
+                             ConversionPatternRewriter &rewriter,
+                             Location loc) {
+  if (!isValidScaledMmBias(bias, n))
+    return failure();
+  if (isa<Torch::NoneType>(bias.getType()))
+    return accumulator;
+  auto biasTy = cast<RankedTensorType>(bias.getType());
+
+  auto accumulatorTy = cast<RankedTensorType>(accumulator.getType());
+  auto biasAccumulatorTy =
+      RankedTensorType::get(biasTy.getShape(), accumulatorTy.getElementType());
+  bias = tosa::tosaCastTensorToType(rewriter, bias, biasAccumulatorTy).value();
+  bias = reshapeTensor(bias, {1, n}, accumulatorTy.getElementType(), rewriter,
+                       loc);
+  return tosa::AddOp::create(rewriter, loc, accumulator.getType(), accumulator,
+                             bias)
+      .getResult();
+}
+
+static LogicalResult rewriteScaledMmToMatMulOp(
+    Operation *op, Value lhs, Value rhs, Value scaleA, Value scaleB, Value bias,
+    RankedTensorType lhsTy, RankedTensorType rhsTy, RankedTensorType scaleATy,
+    RankedTensorType scaleBTy, RankedTensorType resultTy,
+    const StaticScaledMmScaleShapes &batchedScaleShapes, int64_t m, int64_t k,
+    int64_t n, ConversionPatternRewriter &rewriter, Location loc) {
+  auto f32Ty = rewriter.getF32Type();
+  auto f16Ty = rewriter.getF16Type();
+
+  lhs = reshapeTensor(lhs, {1, m, k}, lhsTy.getElementType(), rewriter, loc);
+  rhs = reshapeTensor(rhs, {1, k, n}, rhsTy.getElementType(), rewriter, loc);
+
+  auto scaleAF32Ty = RankedTensorType::get(
+      makeShapeLLVMCompatible(scaleATy.getShape()), f32Ty);
+  auto scaleBF32Ty = RankedTensorType::get(
+      makeShapeLLVMCompatible(scaleBTy.getShape()), f32Ty);
+  scaleA = tosa::tosaCastTensorToType(rewriter, scaleA, scaleAF32Ty).value();
+  scaleB = tosa::tosaCastTensorToType(rewriter, scaleB, scaleBF32Ty).value();
+
+  SmallVector<int64_t> batchedScaleAShapeVec = batchedScaleShapes.scaleA;
+  SmallVector<int64_t> batchedScaleBShapeVec = batchedScaleShapes.scaleB;
+
+  scaleA = reshapeTensor(scaleA, batchedScaleAShapeVec, f32Ty, rewriter, loc);
+  scaleB = reshapeTensor(scaleB, batchedScaleBShapeVec, f32Ty, rewriter, loc);
+
+  auto zeroPointAOr =
+      tosa::createZeroPointTensor(rewriter, loc, lhsTy.getElementType(), 0);
+  auto zeroPointBOr =
+      tosa::createZeroPointTensor(rewriter, loc, rhsTy.getElementType(), 0);
+  if (!zeroPointAOr || !zeroPointBOr)
+    return rewriter.notifyMatchFailure(
+        op, "failed to materialize FP8 zero point for matmul");
+
+  // TOSA FP8 matmul produces an f16 result, so the f32 scaling epilogue below
+  // is applied after that f16 rounding point. This intentionally models the
+  // closest TOSA-supported behavior, not PyTorch's exact scale-before-output
+  // accumulator semantics.
+  auto matmulTy = RankedTensorType::get({1, m, n}, f16Ty);
+  Value matmul = tosa::MatMulOp::create(rewriter, loc, matmulTy, lhs, rhs,
+                                        *zeroPointAOr, *zeroPointBOr)
+                     .getResult();
+  auto scaledMatmulTy = RankedTensorType::get({1, m, n}, f32Ty);
+  Value matmulF32 =
+      tosa::tosaCastTensorToType(rewriter, matmul, scaledMatmulTy).value();
+
+  auto combinedScaleTy = RankedTensorType::get(
+      {1, std::max(batchedScaleAShapeVec[1], batchedScaleBShapeVec[1]),
+       std::max(batchedScaleAShapeVec[2], batchedScaleBShapeVec[2])},
+      f32Ty);
+  Value combinedScale =
+      tosa::createMulOpAndCast(rewriter, op, combinedScaleTy, scaleA, scaleB,
+                               /*shift=*/0);
+  Value scaledMatmul = tosa::createMulOpAndCast(
+      rewriter, op, scaledMatmulTy, matmulF32, combinedScale, /*shift=*/0);
+
+  auto reshapedTy = RankedTensorType::get(resultTy.getShape(), f32Ty);
+  Value result =
+      tosa::ReshapeOp::create(
+          rewriter, loc, reshapedTy, scaledMatmul,
+          tosa::getTosaConstShape(rewriter, loc, getTensorShape(resultTy)))
+          .getResult();
+  auto resultWithBiasOr =
+      addBiasToScaledMmAccumulator(result, bias, n, rewriter, loc);
+  if (failed(resultWithBiasOr))
+    return rewriter.notifyMatchFailure(
+        op, "aten._scaled_mm expects bias to be a rank-1 tensor with N "
+            "elements");
+  result = castScaledMmResultToType(*resultWithBiasOr, resultTy, rewriter);
+  rewriter.replaceOp(op, {result});
+  return success();
 }
 
 static LogicalResult
@@ -2659,6 +2824,107 @@ public:
     rewriter.replaceOp(op, {matmulPlusBias});
 
     return success();
+  }
+};
+
+template <typename AtenOpT>
+class ConvertAtenScaledMmOp : public TorchToTosaOpConversionPattern<AtenOpT> {
+public:
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+
+  LogicalResult
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
+    // TOSA exposes one FP8 matmul behavior and does not provide an equivalent
+    // fast-accumulation knob. Intentionally ignore this operand and lower both
+    // PyTorch modes to the same sequence.
+    (void)op.getUseFastAccum();
+
+    if (!isa<Torch::NoneType>(op.getScaleResult().getType()))
+      return rewriter.notifyMatchFailure(
+          op, "aten._scaled_mm with scale_result is not supported");
+
+    Value lhs = adaptor.getSelf();
+    Value rhs = adaptor.getMat2();
+    Value scaleA = adaptor.getScaleA();
+    Value scaleB = adaptor.getScaleB();
+    Value bias = adaptor.getBias();
+
+    auto lhsTy = dyn_cast<RankedTensorType>(lhs.getType());
+    auto rhsTy = dyn_cast<RankedTensorType>(rhs.getType());
+    auto scaleATy = dyn_cast<RankedTensorType>(scaleA.getType());
+    auto scaleBTy = dyn_cast<RankedTensorType>(scaleB.getType());
+    auto resultTy = dyn_cast<RankedTensorType>(
+        this->getTypeConverter()->convertType(op.getType()));
+
+    if (!lhsTy || !rhsTy || !scaleATy || !scaleBTy || !resultTy)
+      return rewriter.notifyMatchFailure(
+          op,
+          "aten._scaled_mm requires tensor operands with ranked result type");
+
+    if (!lhsTy.hasStaticShape() || !rhsTy.hasStaticShape() ||
+        !scaleATy.hasStaticShape() || !scaleBTy.hasStaticShape() ||
+        !resultTy.hasStaticShape())
+      return rewriter.notifyMatchFailure(
+          op, "aten._scaled_mm requires static input/scale/result shapes");
+
+    auto lhsElemTy = lhsTy.getElementType();
+    auto rhsElemTy = rhsTy.getElementType();
+
+    if (!isSupportedScaledMmDataElementType(lhsElemTy) ||
+        !isSupportedScaledMmDataElementType(rhsElemTy))
+      return rewriter.notifyMatchFailure(
+          op, "aten._scaled_mm only supports FP8 input types");
+
+    if (lhsElemTy != rhsElemTy)
+      return rewriter.notifyMatchFailure(
+          op, "aten._scaled_mm expects matching lhs/rhs FP8 input types");
+
+    if (!isSupportedStaticScaledMmScaleElementType(scaleATy.getElementType()) ||
+        !isSupportedStaticScaledMmScaleElementType(scaleBTy.getElementType()))
+      return rewriter.notifyMatchFailure(
+          op, "aten._scaled_mm expects fp32 static FP8 scales");
+
+    if (!isSupportedStaticScaledMmResultElementType(resultTy.getElementType()))
+      return rewriter.notifyMatchFailure(
+          op, "aten._scaled_mm expects f32, f16 or bf16 result type for "
+              "static FP8 scales");
+
+    Location loc = op.getLoc();
+
+    if (lhsTy.getRank() != 2 || rhsTy.getRank() != 2 || resultTy.getRank() != 2)
+      return rewriter.notifyMatchFailure(
+          op, "aten._scaled_mm expects rank-2 input and result tensors for "
+              "static FP8 scales");
+
+    int64_t m = lhsTy.getShape()[0];
+    int64_t k = lhsTy.getShape()[1];
+    int64_t rhsK = rhsTy.getShape()[0];
+    int64_t n = rhsTy.getShape()[1];
+    if (k != rhsK)
+      return rewriter.notifyMatchFailure(
+          op, "aten._scaled_mm requires inner dimensions of lhs/rhs to match");
+    if (resultTy.getShape()[0] != m || resultTy.getShape()[1] != n)
+      return rewriter.notifyMatchFailure(
+          op, "aten._scaled_mm expects static FP8 result shape [M, N]");
+
+    std::optional<StaticScaledMmScaleShapes> batchedScaleShapes =
+        getStaticScaledMmTensorwiseOrRowwiseBatchedScaleShapes(scaleATy,
+                                                               scaleBTy, m, n);
+    if (!batchedScaleShapes)
+      return rewriter.notifyMatchFailure(
+          op, "aten._scaled_mm expects static FP8 scales to be fp32 "
+              "tensorwise scales or rowwise [M,1]/[1,N] scale layouts");
+
+    if (!isValidScaledMmBias(bias, n))
+      return rewriter.notifyMatchFailure(
+          op, "aten._scaled_mm expects bias to be a rank-1 tensor with N "
+              "elements");
+
+    return rewriteScaledMmToMatMulOp(
+        op, lhs, rhs, scaleA, scaleB, bias, lhsTy, rhsTy, scaleATy, scaleBTy,
+        resultTy, *batchedScaleShapes, m, k, n, rewriter, loc);
   }
 };
 
@@ -11005,6 +11271,10 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
       AtenOp::getOperationName(), typeConverter, context);
   INSERT_LINEAR_ATENOP_PATTERN(AtenLinearOp);
 #undef INSERT_LINEAR_ATENOP_PATTERN
+
+  illegalOps.insert(Aten_ScaledMmOp::getOperationName());
+  patterns.addWithLabel<ConvertAtenScaledMmOp<Aten_ScaledMmOp>>(
+      Aten_ScaledMmOp::getOperationName(), typeConverter, context);
 
 #define INSERT_ADAPTIVE_POOLING_ATENOP_PATTERN(AtenOp, TosaOpT)                \
   illegalOps.insert(AtenOp::getOperationName());                               \
