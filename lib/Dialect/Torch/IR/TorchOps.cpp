@@ -6576,6 +6576,7 @@ static FailureOr<SmallVector<int64_t>> getConstantIntList(Value value) {
 
 static constexpr int64_t kScaledMmV2TensorWise = 0;
 static constexpr int64_t kScaledMmV2RowWise = 1;
+static constexpr int64_t kScaledMmV2BlockWise1x16 = 2;
 static constexpr int64_t kScaledMmV2BlockWise1x32 = 3;
 static constexpr int64_t kScaledMmV2BlockWise1x128 = 4;
 static constexpr int64_t kScaledMmV2BlockWise128x128 = 5;
@@ -6587,6 +6588,10 @@ static bool isScaledMmV2TensorwiseRecipe(int64_t recipe) {
 
 static bool isScaledMmV2RowwiseRecipe(int64_t recipe) {
   return recipe == kScaledMmV2RowWise;
+}
+
+static bool isScaledMmV2NvBlockwiseRecipe(int64_t recipe) {
+  return recipe == kScaledMmV2BlockWise1x16;
 }
 
 static bool isScaledMmV2MxBlockwiseRecipe(int64_t recipe) {
@@ -6612,6 +6617,225 @@ LogicalResult Aten_ScaledMmV2Op::verify() {
     return emitOpError("expected mat2 to have an FP8 or FP4 dtype, but got ")
            << mat2Type.getDtype();
 
+  bool hasStaticMetadata = getScaleA().getDefiningOp<PrimListConstructOp>() &&
+                           getScaleB().getDefiningOp<PrimListConstructOp>() &&
+                           getRecipeA().getDefiningOp<PrimListConstructOp>() &&
+                           getRecipeB().getDefiningOp<PrimListConstructOp>() &&
+                           getSwizzleA().getDefiningOp<PrimListConstructOp>() &&
+                           getSwizzleB().getDefiningOp<PrimListConstructOp>();
+
+  bool isTensorwise = false;
+  bool isRowwise = false;
+  bool isNvSingleLevel = false;
+  bool isNvTwoLevel = false;
+  bool isMxBlockwise = false;
+  bool isBlockwise1x1281x128 = false;
+  bool isBlockwise1x128128x128 = false;
+  bool isBlockwise128x1281x128 = false;
+
+  bool firstScaleHasDtypes = false;
+  bool firstScaleHasSizes = false;
+  Type scaleADtype;
+  Type scaleBDtype;
+  ArrayRef<int64_t> scaleAShape;
+  ArrayRef<int64_t> scaleBShape;
+  int64_t scaleANumel = kUnknownSize;
+  int64_t scaleBNumel = kUnknownSize;
+
+  if (hasStaticMetadata) {
+    FailureOr<SmallVector<BaseTensorType>> scaleATypes =
+        getTensorTypesFromList(getScaleA());
+    FailureOr<SmallVector<BaseTensorType>> scaleBTypes =
+        getTensorTypesFromList(getScaleB());
+    FailureOr<SmallVector<int64_t>> recipeAValues =
+        getConstantIntList(getRecipeA());
+    FailureOr<SmallVector<int64_t>> recipeBValues =
+        getConstantIntList(getRecipeB());
+    FailureOr<SmallVector<int64_t>> swizzleAValues =
+        getConstantIntList(getSwizzleA());
+    FailureOr<SmallVector<int64_t>> swizzleBValues =
+        getConstantIntList(getSwizzleB());
+    if (failed(scaleATypes))
+      return emitOpError(
+          "expected scale_a to be a statically constructed tensor list");
+    if (failed(scaleBTypes))
+      return emitOpError(
+          "expected scale_b to be a statically constructed tensor list");
+    if (failed(recipeAValues))
+      return emitOpError(
+          "expected recipe_a to be a statically constructed int list");
+    if (failed(recipeBValues))
+      return emitOpError(
+          "expected recipe_b to be a statically constructed int list");
+    if (failed(swizzleAValues))
+      return emitOpError(
+          "expected swizzle_a to be a statically constructed int list");
+    if (failed(swizzleBValues))
+      return emitOpError(
+          "expected swizzle_b to be a statically constructed int list");
+
+    SmallVector<BaseTensorType> scaleATypesStorage = *scaleATypes;
+    SmallVector<BaseTensorType> scaleBTypesStorage = *scaleBTypes;
+    SmallVector<int64_t> recipeAValuesStorage = *recipeAValues;
+    SmallVector<int64_t> recipeBValuesStorage = *recipeBValues;
+    SmallVector<int64_t> swizzleAValuesStorage = *swizzleAValues;
+    SmallVector<int64_t> swizzleBValuesStorage = *swizzleBValues;
+
+    if (scaleATypesStorage.size() != recipeAValuesStorage.size())
+      return emitOpError(
+          "expected scale_a and recipe_a lists to have the same length");
+    if (scaleBTypesStorage.size() != recipeBValuesStorage.size())
+      return emitOpError(
+          "expected scale_b and recipe_b lists to have the same length");
+    if (scaleATypesStorage.empty() || scaleBTypesStorage.empty() ||
+        recipeAValuesStorage.empty() || recipeBValuesStorage.empty())
+      return emitOpError(
+          "expected scale_a, recipe_a, scale_b and recipe_b lists to be "
+          "non-empty");
+    if (scaleATypesStorage.size() > 2 || scaleBTypesStorage.size() > 2 ||
+        recipeAValuesStorage.size() > 2 || recipeBValuesStorage.size() > 2)
+      return emitOpError(
+          "expected scale_a, recipe_a, scale_b and recipe_b lists to have at "
+          "most two elements");
+
+    isTensorwise = recipeAValuesStorage.size() == 1 &&
+                   recipeBValuesStorage.size() == 1 &&
+                   isScaledMmV2TensorwiseRecipe(recipeAValuesStorage[0]) &&
+                   isScaledMmV2TensorwiseRecipe(recipeBValuesStorage[0]);
+    isRowwise = recipeAValuesStorage.size() == 1 &&
+                recipeBValuesStorage.size() == 1 &&
+                isScaledMmV2RowwiseRecipe(recipeAValuesStorage[0]) &&
+                isScaledMmV2RowwiseRecipe(recipeBValuesStorage[0]);
+    isNvSingleLevel = recipeAValuesStorage.size() == 1 &&
+                      recipeBValuesStorage.size() == 1 &&
+                      isScaledMmV2NvBlockwiseRecipe(recipeAValuesStorage[0]) &&
+                      isScaledMmV2NvBlockwiseRecipe(recipeBValuesStorage[0]);
+    isNvTwoLevel = recipeAValuesStorage.size() == 2 &&
+                   recipeBValuesStorage.size() == 2 &&
+                   isScaledMmV2NvBlockwiseRecipe(recipeAValuesStorage[0]) &&
+                   isScaledMmV2NvBlockwiseRecipe(recipeBValuesStorage[0]) &&
+                   isScaledMmV2TensorwiseRecipe(recipeAValuesStorage[1]) &&
+                   isScaledMmV2TensorwiseRecipe(recipeBValuesStorage[1]);
+    isMxBlockwise = recipeAValuesStorage.size() == 1 &&
+                    recipeBValuesStorage.size() == 1 &&
+                    isScaledMmV2MxBlockwiseRecipe(recipeAValuesStorage[0]) &&
+                    isScaledMmV2MxBlockwiseRecipe(recipeBValuesStorage[0]);
+    isBlockwise1x1281x128 =
+        recipeAValuesStorage.size() == 1 && recipeBValuesStorage.size() == 1 &&
+        isScaledMmV2Blockwise1x128Recipe(recipeAValuesStorage[0]) &&
+        isScaledMmV2Blockwise1x128Recipe(recipeBValuesStorage[0]);
+    isBlockwise1x128128x128 =
+        recipeAValuesStorage.size() == 1 && recipeBValuesStorage.size() == 1 &&
+        isScaledMmV2Blockwise1x128Recipe(recipeAValuesStorage[0]) &&
+        isScaledMmV2Blockwise128x128Recipe(recipeBValuesStorage[0]);
+    isBlockwise128x1281x128 =
+        recipeAValuesStorage.size() == 1 && recipeBValuesStorage.size() == 1 &&
+        isScaledMmV2Blockwise128x128Recipe(recipeAValuesStorage[0]) &&
+        isScaledMmV2Blockwise1x128Recipe(recipeBValuesStorage[0]);
+
+    if (isNvSingleLevel || isNvTwoLevel || isMxBlockwise) {
+      if (swizzleAValuesStorage.empty() || swizzleBValuesStorage.empty())
+        return emitOpError(
+            "expected swizzle_a and swizzle_b to have entries for blockwise "
+            "scaling");
+      if (swizzleAValuesStorage[0] != kScaledMmV2Swizzle32x4x4 ||
+          swizzleBValuesStorage[0] != kScaledMmV2Swizzle32x4x4)
+        return emitOpError("expected blockwise swizzle_a and swizzle_b to be "
+                           "SWIZZLE_32_4_4");
+    }
+
+    if (!isTensorwise && !isRowwise && !isNvSingleLevel && !isNvTwoLevel &&
+        !isMxBlockwise && !isBlockwise1x1281x128 && !isBlockwise1x128128x128 &&
+        !isBlockwise128x1281x128)
+      return emitOpError(
+          "invalid scaling configuration for recipe_a and recipe_b");
+
+    BaseTensorType scaleAType = scaleATypesStorage[0];
+    BaseTensorType scaleBType = scaleBTypesStorage[0];
+    firstScaleHasDtypes = scaleAType.hasDtype() && scaleBType.hasDtype();
+    if (firstScaleHasDtypes) {
+      scaleADtype = scaleAType.getDtype();
+      scaleBDtype = scaleBType.getDtype();
+    }
+    firstScaleHasSizes = scaleAType.hasSizes() && scaleBType.hasSizes();
+    if (firstScaleHasSizes) {
+      scaleAShape = scaleAType.getSizes();
+      scaleBShape = scaleBType.getSizes();
+      scaleANumel = getNumel(scaleAShape);
+      scaleBNumel = getNumel(scaleBShape);
+    }
+
+    if (isTensorwise) {
+      if (firstScaleHasDtypes &&
+          (!isScaledMmTensorwiseOrRowwiseScaleDtype(scaleADtype) ||
+           !isScaledMmTensorwiseOrRowwiseScaleDtype(scaleBDtype)))
+        return emitOpError(
+            "expected tensorwise scale_a and scale_b to have f32 dtype");
+      if (firstScaleHasSizes && scaleANumel != kUnknownSize &&
+          scaleBNumel != kUnknownSize && (scaleANumel != 1 || scaleBNumel != 1))
+        return emitOpError("expected scale_a and scale_b to both be scalar for "
+                           "tensorwise scaling");
+    }
+
+    if (isRowwise && firstScaleHasDtypes &&
+        (!isScaledMmTensorwiseOrRowwiseScaleDtype(scaleADtype) ||
+         !isScaledMmTensorwiseOrRowwiseScaleDtype(scaleBDtype)))
+      return emitOpError(
+          "expected rowwise scale_a and scale_b to have f32 dtype");
+
+    if ((isNvSingleLevel || isNvTwoLevel) && firstScaleHasDtypes &&
+        (!isa<Float8E4M3FNType>(scaleADtype) ||
+         !isa<Float8E4M3FNType>(scaleBDtype)))
+      return emitOpError(
+          "expected NV blockwise scale_a and scale_b to have f8E4M3FN dtype");
+
+    if (isNvTwoLevel) {
+      BaseTensorType tensorwiseScaleAType = scaleATypesStorage[1];
+      BaseTensorType tensorwiseScaleBType = scaleBTypesStorage[1];
+      if (tensorwiseScaleAType.hasDtype() && tensorwiseScaleBType.hasDtype()) {
+        Type tensorwiseScaleADtype = tensorwiseScaleAType.getDtype();
+        Type tensorwiseScaleBDtype = tensorwiseScaleBType.getDtype();
+        if (!isScaledMmTensorwiseOrRowwiseScaleDtype(tensorwiseScaleADtype) ||
+            !isScaledMmTensorwiseOrRowwiseScaleDtype(tensorwiseScaleBDtype))
+          return emitOpError("expected two-level NV tensorwise scale_a and "
+                             "scale_b to have f32 dtype");
+      }
+      if (tensorwiseScaleAType.hasSizes() && tensorwiseScaleBType.hasSizes()) {
+        int64_t tensorwiseScaleANumel =
+            getNumel(tensorwiseScaleAType.getSizes());
+        int64_t tensorwiseScaleBNumel =
+            getNumel(tensorwiseScaleBType.getSizes());
+        if (tensorwiseScaleANumel != kUnknownSize &&
+            tensorwiseScaleBNumel != kUnknownSize &&
+            (tensorwiseScaleANumel != 1 || tensorwiseScaleBNumel != 1))
+          return emitOpError("expected two-level NV tensorwise scale_a and "
+                             "scale_b to both be scalar");
+      }
+    }
+
+    if ((isBlockwise1x1281x128 || isBlockwise1x128128x128 ||
+         isBlockwise128x1281x128) &&
+        firstScaleHasDtypes &&
+        (!isScaledMmTensorwiseOrRowwiseScaleDtype(scaleADtype) ||
+         !isScaledMmTensorwiseOrRowwiseScaleDtype(scaleBDtype)))
+      return emitOpError(
+          "expected f32 blockwise scale_a and scale_b to have f32 dtype");
+
+    if ((isBlockwise1x1281x128 || isBlockwise1x128128x128 ||
+         isBlockwise128x1281x128) &&
+        firstScaleHasSizes &&
+        (scaleAShape.size() != 2 || scaleBShape.size() != 2))
+      return emitOpError("expected f32 blockwise scale_a and scale_b to be "
+                         "rank 2, but got ranks ")
+             << scaleAShape.size() << " and " << scaleBShape.size();
+
+    if (isMxBlockwise && firstScaleHasDtypes &&
+        (!isa<Float8E8M0FNUType>(scaleADtype) ||
+         !isa<Float8E8M0FNUType>(scaleBDtype)))
+      return emitOpError(
+          "expected MX blockwise scale_a and scale_b to have f8E8M0FNU dtype");
+  }
+
   if (!selfType.hasSizes() || !mat2Type.hasSizes())
     return success();
 
@@ -6632,10 +6856,12 @@ LogicalResult Aten_ScaledMmV2Op::verify() {
       mat2Type.hasDtype() && isa<Float4E2M1FNType>(mat2Type.getDtype());
   int64_t logicalK = k;
   int64_t mat2LogicalK = mat2K;
-  if (k != kUnknownSize && selfIsFp4)
-    logicalK = k * 2;
-  if (mat2K != kUnknownSize && mat2IsFp4)
-    mat2LogicalK = mat2K * 2;
+  if (selfIsFp4 && mat2IsFp4) {
+    if (k != kUnknownSize)
+      logicalK = k * 2;
+    if (mat2K != kUnknownSize)
+      mat2LogicalK = mat2K * 2;
+  }
 
   if (logicalK != kUnknownSize && mat2LogicalK != kUnknownSize &&
       logicalK != mat2LogicalK)
@@ -6655,136 +6881,16 @@ LogicalResult Aten_ScaledMmV2Op::verify() {
                        "divisible by 16, but got ")
            << n;
 
-  if (!getScaleA().getDefiningOp<PrimListConstructOp>() ||
-      !getScaleB().getDefiningOp<PrimListConstructOp>() ||
-      !getRecipeA().getDefiningOp<PrimListConstructOp>() ||
-      !getRecipeB().getDefiningOp<PrimListConstructOp>() ||
-      !getSwizzleA().getDefiningOp<PrimListConstructOp>() ||
-      !getSwizzleB().getDefiningOp<PrimListConstructOp>())
+  if (!hasStaticMetadata || isTensorwise)
     return success();
-
-  FailureOr<SmallVector<BaseTensorType>> scaleATypes =
-      getTensorTypesFromList(getScaleA());
-  FailureOr<SmallVector<BaseTensorType>> scaleBTypes =
-      getTensorTypesFromList(getScaleB());
-  FailureOr<SmallVector<int64_t>> recipeAValues =
-      getConstantIntList(getRecipeA());
-  FailureOr<SmallVector<int64_t>> recipeBValues =
-      getConstantIntList(getRecipeB());
-  FailureOr<SmallVector<int64_t>> swizzleAValues =
-      getConstantIntList(getSwizzleA());
-  FailureOr<SmallVector<int64_t>> swizzleBValues =
-      getConstantIntList(getSwizzleB());
-  if (failed(scaleATypes))
-    return emitOpError(
-        "expected scale_a to be a statically constructed tensor list");
-  if (failed(scaleBTypes))
-    return emitOpError(
-        "expected scale_b to be a statically constructed tensor list");
-  if (failed(recipeAValues))
-    return emitOpError(
-        "expected recipe_a to be a statically constructed int list");
-  if (failed(recipeBValues))
-    return emitOpError(
-        "expected recipe_b to be a statically constructed int list");
-  if (failed(swizzleAValues))
-    return emitOpError(
-        "expected swizzle_a to be a statically constructed int list");
-  if (failed(swizzleBValues))
-    return emitOpError(
-        "expected swizzle_b to be a statically constructed int list");
-
-  if (scaleATypes->size() != recipeAValues->size())
-    return emitOpError(
-        "expected scale_a and recipe_a lists to have the same length");
-  if (scaleBTypes->size() != recipeBValues->size())
-    return emitOpError(
-        "expected scale_b and recipe_b lists to have the same length");
-  if (scaleATypes->size() != 1 || scaleBTypes->size() != 1 ||
-      recipeAValues->size() != 1 || recipeBValues->size() != 1)
-    return emitOpError(
-        "expected scale_a, recipe_a, scale_b and recipe_b lists to have one "
-        "element; two-level NV scaling is not supported");
-
-  bool isTensorwise = recipeAValues->size() == 1 &&
-                      recipeBValues->size() == 1 &&
-                      isScaledMmV2TensorwiseRecipe((*recipeAValues)[0]) &&
-                      isScaledMmV2TensorwiseRecipe((*recipeBValues)[0]);
-  bool isRowwise = recipeAValues->size() == 1 && recipeBValues->size() == 1 &&
-                   isScaledMmV2RowwiseRecipe((*recipeAValues)[0]) &&
-                   isScaledMmV2RowwiseRecipe((*recipeBValues)[0]);
-  bool isMxBlockwise = recipeAValues->size() == 1 &&
-                       recipeBValues->size() == 1 &&
-                       isScaledMmV2MxBlockwiseRecipe((*recipeAValues)[0]) &&
-                       isScaledMmV2MxBlockwiseRecipe((*recipeBValues)[0]);
-  bool isBlockwise1x1281x128 =
-      recipeAValues->size() == 1 && recipeBValues->size() == 1 &&
-      isScaledMmV2Blockwise1x128Recipe((*recipeAValues)[0]) &&
-      isScaledMmV2Blockwise1x128Recipe((*recipeBValues)[0]);
-  bool isBlockwise1x128128x128 =
-      recipeAValues->size() == 1 && recipeBValues->size() == 1 &&
-      isScaledMmV2Blockwise1x128Recipe((*recipeAValues)[0]) &&
-      isScaledMmV2Blockwise128x128Recipe((*recipeBValues)[0]);
-  bool isBlockwise128x1281x128 =
-      recipeAValues->size() == 1 && recipeBValues->size() == 1 &&
-      isScaledMmV2Blockwise128x128Recipe((*recipeAValues)[0]) &&
-      isScaledMmV2Blockwise1x128Recipe((*recipeBValues)[0]);
-
-  if (isMxBlockwise) {
-    if (swizzleAValues->empty() || swizzleBValues->empty())
-      return emitOpError(
-          "expected swizzle_a and swizzle_b to have entries for blockwise "
-          "scaling");
-    if ((*swizzleAValues)[0] != kScaledMmV2Swizzle32x4x4 ||
-        (*swizzleBValues)[0] != kScaledMmV2Swizzle32x4x4)
-      return emitOpError("expected blockwise swizzle_a and swizzle_b to be "
-                         "SWIZZLE_32_4_4");
-  }
-
-  if (!isTensorwise && !isRowwise && !isMxBlockwise && !isBlockwise1x1281x128 &&
-      !isBlockwise1x128128x128 && !isBlockwise128x1281x128)
-    return emitOpError(
-        "invalid scaling configuration for recipe_a and recipe_b");
 
   if (!selfType.areAllSizesKnown() || !mat2Type.areAllSizesKnown())
     return success();
-  for (BaseTensorType scaleType : *scaleATypes) {
-    if (!scaleType.hasDtype() || !scaleType.hasSizes())
-      return success();
-  }
-  for (BaseTensorType scaleType : *scaleBTypes) {
-    if (!scaleType.hasDtype() || !scaleType.hasSizes())
-      return success();
-  }
-
-  BaseTensorType scaleAType = (*scaleATypes)[0];
-  BaseTensorType scaleBType = (*scaleBTypes)[0];
-  Type scaleADtype = scaleAType.getDtype();
-  Type scaleBDtype = scaleBType.getDtype();
-  ArrayRef<int64_t> scaleAShape = scaleAType.getSizes();
-  ArrayRef<int64_t> scaleBShape = scaleBType.getSizes();
-
-  int64_t scaleANumel = getNumel(scaleAShape);
-  int64_t scaleBNumel = getNumel(scaleBShape);
-  if (scaleANumel == kUnknownSize || scaleBNumel == kUnknownSize)
+  if (!firstScaleHasSizes || scaleANumel == kUnknownSize ||
+      scaleBNumel == kUnknownSize)
     return success();
-
-  if (isTensorwise) {
-    if (scaleANumel != 1 || scaleBNumel != 1)
-      return emitOpError("expected scale_a and scale_b to both be scalar for "
-                         "tensorwise scaling");
-    if (!isScaledMmTensorwiseOrRowwiseScaleDtype(scaleADtype) ||
-        !isScaledMmTensorwiseOrRowwiseScaleDtype(scaleBDtype))
-      return emitOpError(
-          "expected tensorwise scale_a and scale_b to have f32 dtype");
-    return success();
-  }
 
   if (isRowwise) {
-    if (!isScaledMmTensorwiseOrRowwiseScaleDtype(scaleADtype) ||
-        !isScaledMmTensorwiseOrRowwiseScaleDtype(scaleBDtype))
-      return emitOpError(
-          "expected rowwise scale_a and scale_b to have f32 dtype");
     if (scaleAShape.empty() || scaleAShape[0] != m || scaleANumel != m ||
         scaleBNumel != n)
       return emitOpError("invalid rowwise scaling configuration: expected "
@@ -6794,21 +6900,29 @@ LogicalResult Aten_ScaledMmV2Op::verify() {
     return success();
   }
 
+  if (isNvSingleLevel || isNvTwoLevel) {
+    int64_t blockSizeMN = 128;
+    int64_t blockSizeK = 16;
+    int64_t numKBlocks = llvm::divideCeil(logicalK, blockSizeK);
+    int64_t paddedNumKBlocks = llvm::divideCeil(numKBlocks, int64_t{4}) * 4;
+    int64_t expectedScaleANumel =
+        blockSizeMN * llvm::divideCeil(m, blockSizeMN) * paddedNumKBlocks;
+    int64_t expectedScaleBNumel =
+        blockSizeMN * llvm::divideCeil(n, blockSizeMN) * paddedNumKBlocks;
+    if (scaleANumel != expectedScaleANumel ||
+        scaleBNumel != expectedScaleBNumel)
+      return emitOpError("invalid NV blockwise scaling configuration: expected "
+                         "scale_a to have ")
+             << expectedScaleANumel << " elements and scale_b to have "
+             << expectedScaleBNumel << " elements, but got " << scaleANumel
+             << " and " << scaleBNumel;
+    return success();
+  }
+
   if (isBlockwise1x1281x128 || isBlockwise1x128128x128 ||
       isBlockwise128x1281x128) {
-    if (!isScaledMmTensorwiseOrRowwiseScaleDtype(scaleADtype) ||
-        !isScaledMmTensorwiseOrRowwiseScaleDtype(scaleBDtype))
-      return emitOpError(
-          "expected f32 blockwise scale_a and scale_b to have f32 dtype");
-    if (scaleAShape.size() != 2 || scaleBShape.size() != 2)
-      return emitOpError("expected f32 blockwise scale_a and scale_b to be "
-                         "rank 2, but got ranks ")
-             << scaleAShape.size() << " and " << scaleBShape.size();
-
     int64_t kBlocks128 = logicalK / 128;
-    int64_t paddedKBlocks128 =
-        llvm::divideCeil(llvm::divideCeil(logicalK, int64_t{128}), int64_t{4}) *
-        4;
+    int64_t paddedKBlocks128 = llvm::divideCeil(kBlocks128, int64_t{4}) * 4;
     int64_t mBlocks128 = m / 128;
     int64_t nBlocks128 = n / 128;
 
@@ -6840,11 +6954,6 @@ LogicalResult Aten_ScaledMmV2Op::verify() {
              << "] and scale_b shape [" << n << ", " << kBlocks128 << "]";
     return success();
   }
-
-  if (!isa<Float8E8M0FNUType>(scaleADtype) ||
-      !isa<Float8E8M0FNUType>(scaleBDtype))
-    return emitOpError(
-        "expected MX blockwise scale_a and scale_b to have f8E8M0FNU dtype");
 
   int64_t blockSizeMN = 128;
   int64_t blockSizeK = 32;

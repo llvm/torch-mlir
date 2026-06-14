@@ -575,34 +575,34 @@ func.func @torch.aten._scaled_mm_v2$invalid_empty_scale_recipe_lists(
   %recipe_b = torch.prim.ListConstruct : () -> !torch.list<int>
   %swizzle_b = torch.prim.ListConstruct : () -> !torch.list<int>
   %contraction_dim = torch.prim.ListConstruct : () -> !torch.list<int>
-  // expected-error @+1 {{expected scale_a, recipe_a, scale_b and recipe_b lists to have one element; two-level NV scaling is not supported}}
+  // expected-error @+1 {{expected scale_a, recipe_a, scale_b and recipe_b lists to be non-empty}}
   %0 = torch.aten._scaled_mm_v2 %arg0, %arg1, %scale_a, %recipe_a, %swizzle_a, %scale_b, %recipe_b, %swizzle_b, %none, %int15, %contraction_dim, %false : !torch.vtensor<[128,64],f4E2M1FN>, !torch.vtensor<[64,128],f4E2M1FN>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.none, !torch.int, !torch.list<int>, !torch.bool -> !torch.vtensor<[128,128],bf16>
   return %0 : !torch.vtensor<[128,128],bf16>
 }
 
 // -----
 
-func.func @torch.aten._scaled_mm_v2$invalid_two_level_nv_recipe(
+func.func @torch.aten._scaled_mm_v2$invalid_two_level_nv_tensorwise_scale_numel(
     %arg0: !torch.vtensor<[128,128],f8E4M3FN>,
     %arg1: !torch.vtensor<[128,128],f8E4M3FN>,
     %arg2: !torch.vtensor<[1024],f8E4M3FN>,
-    %arg3: !torch.vtensor<[],f32>,
+    %arg3: !torch.vtensor<[2],f32>,
     %arg4: !torch.vtensor<[1024],f8E4M3FN>,
-    %arg5: !torch.vtensor<[],f32>) -> !torch.vtensor<[128,128],bf16> {
+    %arg5: !torch.vtensor<[2],f32>) -> !torch.vtensor<[128,128],bf16> {
   %false = torch.constant.bool false
   %int0 = torch.constant.int 0
   %int1 = torch.constant.int 1
   %int2 = torch.constant.int 2
   %int15 = torch.constant.int 15
   %none = torch.constant.none
-  %scale_a = torch.prim.ListConstruct %arg2, %arg3 : (!torch.vtensor<[1024],f8E4M3FN>, !torch.vtensor<[],f32>) -> !torch.list<vtensor>
+  %scale_a = torch.prim.ListConstruct %arg2, %arg3 : (!torch.vtensor<[1024],f8E4M3FN>, !torch.vtensor<[2],f32>) -> !torch.list<vtensor>
   %recipe_a = torch.prim.ListConstruct %int2, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
   %swizzle_a = torch.prim.ListConstruct %int1, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
-  %scale_b = torch.prim.ListConstruct %arg4, %arg5 : (!torch.vtensor<[1024],f8E4M3FN>, !torch.vtensor<[],f32>) -> !torch.list<vtensor>
+  %scale_b = torch.prim.ListConstruct %arg4, %arg5 : (!torch.vtensor<[1024],f8E4M3FN>, !torch.vtensor<[2],f32>) -> !torch.list<vtensor>
   %recipe_b = torch.prim.ListConstruct %int2, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
   %swizzle_b = torch.prim.ListConstruct %int1, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
   %contraction_dim = torch.prim.ListConstruct : () -> !torch.list<int>
-  // expected-error @+1 {{expected scale_a, recipe_a, scale_b and recipe_b lists to have one element; two-level NV scaling is not supported}}
+  // expected-error @+1 {{expected two-level NV tensorwise scale_a and scale_b to both be scalar}}
   %0 = torch.aten._scaled_mm_v2 %arg0, %arg1, %scale_a, %recipe_a, %swizzle_a, %scale_b, %recipe_b, %swizzle_b, %none, %int15, %contraction_dim, %false : !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[128,128],f8E4M3FN>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.none, !torch.int, !torch.list<int>, !torch.bool -> !torch.vtensor<[128,128],bf16>
   return %0 : !torch.vtensor<[128,128],bf16>
 }
