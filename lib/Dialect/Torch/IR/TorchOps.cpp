@@ -6381,6 +6381,10 @@ LogicalResult Aten_ScaledMmOp::verify() {
     return emitOpError("expected mat2 to have an FP8 or FP4 dtype, but got ")
            << mat2Type.getDtype();
 
+  if (resultType.hasSizes() && resultType.getSizes().size() != 2)
+    return emitOpError("expected result to be rank 2, but got rank ")
+           << resultType.getSizes().size();
+
   if (!selfType.hasSizes() || !mat2Type.hasSizes())
     return success();
 
@@ -6394,6 +6398,20 @@ LogicalResult Aten_ScaledMmOp::verify() {
   int64_t k = selfShape[1];
   int64_t mat2K = mat2Shape[0];
   int64_t n = mat2Shape[1];
+
+  if (resultType.hasSizes()) {
+    ArrayRef<int64_t> resultShape = resultType.getSizes();
+    if (m != kUnknownSize && resultShape[0] != kUnknownSize &&
+        resultShape[0] != m)
+      return emitOpError("expected result first dimension to match self first "
+                         "dimension, but got ")
+             << resultShape[0] << " and " << m;
+    if (n != kUnknownSize && resultShape[1] != kUnknownSize &&
+        resultShape[1] != n)
+      return emitOpError("expected result second dimension to match mat2 "
+                         "second dimension, but got ")
+             << resultShape[1] << " and " << n;
+  }
 
   if (k != kUnknownSize && mat2K != kUnknownSize && k != mat2K)
     return emitOpError("expected self and mat2 contracting dimensions to "

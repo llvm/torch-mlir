@@ -296,11 +296,121 @@ addBiasToScaledMmAccumulator(Value accumulator, Value bias, int64_t n,
   auto biasAccumulatorTy =
       RankedTensorType::get(biasTy.getShape(), accumulatorTy.getElementType());
   bias = tosa::tosaCastTensorToType(rewriter, bias, biasAccumulatorTy).value();
-  bias = reshapeTensor(bias, {1, n}, accumulatorTy.getElementType(), rewriter,
-                       loc);
+  SmallVector<int64_t> biasShape(accumulatorTy.getRank(), 1);
+  biasShape.back() = n;
+  bias = reshapeTensor(bias, biasShape, accumulatorTy.getElementType(),
+                       rewriter, loc);
   return tosa::AddOp::create(rewriter, loc, accumulator.getType(), accumulator,
                              bias)
       .getResult();
+}
+
+static FailureOr<Value>
+getRank3StaticScaledMmLhsSourceForTosa(Value input, RankedTensorType inputTy,
+                                       int64_t m, int64_t k) {
+  if (!inputTy.hasStaticShape() || inputTy.getRank() != 2 ||
+      inputTy.getDimSize(0) != m || inputTy.getDimSize(1) != k ||
+      !isSupportedScaledMmDataElementType(inputTy.getElementType()))
+    return failure();
+
+  auto reshapeOp = input.getDefiningOp<tosa::ReshapeOp>();
+  if (!reshapeOp)
+    return failure();
+
+  auto sourceTy = dyn_cast<RankedTensorType>(reshapeOp.getInput1().getType());
+  if (!sourceTy || !sourceTy.hasStaticShape() || sourceTy.getRank() != 3 ||
+      sourceTy.getDimSize(0) != 1 || sourceTy.getDimSize(1) != m ||
+      sourceTy.getDimSize(2) != k ||
+      sourceTy.getElementType() != inputTy.getElementType())
+    return failure();
+
+  return reshapeOp.getInput1();
+}
+
+static FailureOr<Value> getRank3StaticScaledMmTransposedRhsForTosa(
+    Value rhs, RankedTensorType rhsTy, int64_t k, int64_t n,
+    ConversionPatternRewriter &rewriter, Location loc) {
+  // Recognize RHS data stored as [1, N, K], reshaped to [N, K] and
+  // transposed to the [K, N] RHS expected by aten._scaled_mm. TOSA matmul
+  // still needs RHS [1, K, N], so keep only a rank-3 transpose.
+  if (!rhsTy.hasStaticShape() || rhsTy.getRank() != 2 ||
+      rhsTy.getDimSize(0) != k || rhsTy.getDimSize(1) != n ||
+      !isSupportedScaledMmDataElementType(rhsTy.getElementType()))
+    return failure();
+
+  auto transposeOp = rhs.getDefiningOp<tosa::TransposeOp>();
+  if (!transposeOp)
+    return failure();
+  const llvm::ArrayRef<int32_t> perms = transposeOp.getPerms();
+  if (perms.size() != 2 || perms[0] != 1 || perms[1] != 0)
+    return failure();
+
+  auto rhs2dTy = dyn_cast<RankedTensorType>(transposeOp.getInput1().getType());
+  if (!rhs2dTy || !rhs2dTy.hasStaticShape() || rhs2dTy.getRank() != 2 ||
+      rhs2dTy.getDimSize(0) != n || rhs2dTy.getDimSize(1) != k ||
+      rhs2dTy.getElementType() != rhsTy.getElementType())
+    return failure();
+
+  auto reshapeOp = transposeOp.getInput1().getDefiningOp<tosa::ReshapeOp>();
+  if (!reshapeOp)
+    return failure();
+
+  auto sourceTy = dyn_cast<RankedTensorType>(reshapeOp.getInput1().getType());
+  if (!sourceTy || !sourceTy.hasStaticShape() || sourceTy.getRank() != 3 ||
+      sourceTy.getDimSize(0) != 1 || sourceTy.getDimSize(1) != n ||
+      sourceTy.getDimSize(2) != k ||
+      sourceTy.getElementType() != rhsTy.getElementType())
+    return failure();
+
+  auto tosaRhsTy = RankedTensorType::get({1, k, n}, rhsTy.getElementType());
+  return tosa::TransposeOp::create(rewriter, loc, tosaRhsTy,
+                                   reshapeOp.getInput1(),
+                                   rewriter.getDenseI32ArrayAttr({0, 2, 1}))
+      .getResult();
+}
+
+static bool isRank3ScaledMmResultShape(ArrayRef<int64_t> shape, int64_t m,
+                                       int64_t n) {
+  return shape.size() == 3 && shape[0] == 1 && shape[1] == m && shape[2] == n;
+}
+
+static bool hasRank3ScaledMmResultType(Operation *op, int64_t m, int64_t n) {
+  if (op->getNumResults() != 1)
+    return false;
+  auto resultTy = dyn_cast<RankedTensorType>(op->getResult(0).getType());
+  return resultTy && resultTy.hasStaticShape() &&
+         isRank3ScaledMmResultShape(resultTy.getShape(), m, n);
+}
+
+static Operation *getRank3ScaledMmResultReshapeUser(Operation *op, int64_t m,
+                                                    int64_t n) {
+  if (!op->getResult(0).hasOneUse())
+    return nullptr;
+
+  Operation *user = *op->getResult(0).user_begin();
+  if (auto reshapeOp = dyn_cast<AtenReshapeOp>(user)) {
+    SmallVector<int64_t> shape;
+    if (matchPattern(reshapeOp.getShape(), m_TorchListOfConstantInts(shape)) &&
+        isRank3ScaledMmResultShape(shape, m, n))
+      return user;
+  }
+  if (auto viewOp = dyn_cast<AtenViewOp>(user)) {
+    SmallVector<int64_t> shape;
+    if (matchPattern(viewOp.getSize(), m_TorchListOfConstantInts(shape)) &&
+        isRank3ScaledMmResultShape(shape, m, n))
+      return user;
+  }
+  if (isa<tosa::ReshapeOp>(user) && hasRank3ScaledMmResultType(user, m, n))
+    return user;
+
+  return nullptr;
+}
+
+static void eraseIfUnused(Operation *op, ConversionPatternRewriter &rewriter) {
+  if (!op || !op->use_empty())
+    return;
+
+  rewriter.eraseOp(op);
 }
 
 static LogicalResult rewriteScaledMmToMatMulOp(
@@ -311,9 +421,29 @@ static LogicalResult rewriteScaledMmToMatMulOp(
     int64_t n, ConversionPatternRewriter &rewriter, Location loc) {
   auto f32Ty = rewriter.getF32Type();
   auto f16Ty = rewriter.getF16Type();
+  SmallVector<Operation *> peeledInputProducers;
 
-  lhs = reshapeTensor(lhs, {1, m, k}, lhsTy.getElementType(), rewriter, loc);
-  rhs = reshapeTensor(rhs, {1, k, n}, rhsTy.getElementType(), rewriter, loc);
+  if (auto rank3Lhs = getRank3StaticScaledMmLhsSourceForTosa(lhs, lhsTy, m, k);
+      succeeded(rank3Lhs)) {
+    if (Operation *producer = lhs.getDefiningOp())
+      peeledInputProducers.push_back(producer);
+    lhs = *rank3Lhs;
+  } else {
+    lhs = reshapeTensor(lhs, {1, m, k}, lhsTy.getElementType(), rewriter, loc);
+  }
+
+  if (auto rank3Rhs = getRank3StaticScaledMmTransposedRhsForTosa(
+          rhs, rhsTy, k, n, rewriter, loc);
+      succeeded(rank3Rhs)) {
+    if (auto transposeOp = rhs.getDefiningOp<tosa::TransposeOp>())
+      if (Operation *reshapeProducer = transposeOp.getInput1().getDefiningOp())
+        peeledInputProducers.push_back(reshapeProducer);
+    if (Operation *producer = rhs.getDefiningOp())
+      peeledInputProducers.push_back(producer);
+    rhs = *rank3Rhs;
+  } else {
+    rhs = reshapeTensor(rhs, {1, k, n}, rhsTy.getElementType(), rewriter, loc);
+  }
 
   auto scaleAF32Ty = RankedTensorType::get(
       makeShapeLLVMCompatible(scaleATy.getShape()), f32Ty);
@@ -358,20 +488,40 @@ static LogicalResult rewriteScaledMmToMatMulOp(
   Value scaledMatmul = tosa::createMulOpAndCast(
       rewriter, op, scaledMatmulTy, matmulF32, combinedScale, /*shift=*/0);
 
-  auto reshapedTy = RankedTensorType::get(resultTy.getShape(), f32Ty);
-  Value result =
-      tosa::ReshapeOp::create(
-          rewriter, loc, reshapedTy, scaledMatmul,
-          tosa::getTosaConstShape(rewriter, loc, getTensorShape(resultTy)))
-          .getResult();
+  Operation *rank3ResultUser = getRank3ScaledMmResultReshapeUser(op, m, n);
+
+  Value result = scaledMatmul;
+  if (!rank3ResultUser) {
+    auto reshapedTy = RankedTensorType::get(resultTy.getShape(), f32Ty);
+    result =
+        tosa::ReshapeOp::create(
+            rewriter, loc, reshapedTy, scaledMatmul,
+            tosa::getTosaConstShape(rewriter, loc, getTensorShape(resultTy)))
+            .getResult();
+  }
   auto resultWithBiasOr =
       addBiasToScaledMmAccumulator(result, bias, n, rewriter, loc);
   if (failed(resultWithBiasOr))
     return rewriter.notifyMatchFailure(
         op, "aten._scaled_mm expects bias to be a rank-1 tensor with N "
             "elements");
-  result = castScaledMmResultToType(*resultWithBiasOr, resultTy, rewriter);
+  RankedTensorType finalResultTy =
+      rank3ResultUser
+          ? RankedTensorType::get({1, m, n}, resultTy.getElementType())
+          : resultTy;
+  result = castScaledMmResultToType(*resultWithBiasOr, finalResultTy, rewriter);
+
+  if (rank3ResultUser) {
+    rewriter.replaceOp(rank3ResultUser, {result});
+    rewriter.eraseOp(op);
+    for (Operation *producer : llvm::reverse(peeledInputProducers))
+      eraseIfUnused(producer, rewriter);
+    return success();
+  }
+
   rewriter.replaceOp(op, {result});
+  for (Operation *producer : llvm::reverse(peeledInputProducers))
+    eraseIfUnused(producer, rewriter);
   return success();
 }
 

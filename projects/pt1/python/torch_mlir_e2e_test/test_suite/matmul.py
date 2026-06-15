@@ -162,6 +162,43 @@ def AtenScaledMmPerTensorE5M2Module_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class AtenScaledMmPerTensorRank3TransposedRhsModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 3, 16], torch.float32, True),
+            ([1, 32, 16], torch.float32, True),
+            ([], torch.float32, True),
+            ([], torch.float32, True),
+        ]
+    )
+    def forward(self, lhs, rhs, scale_lhs, scale_rhs):
+        lhs_fp8 = lhs.to(torch.float8_e4m3fn).reshape(3, 16)
+        rhs_fp8 = rhs.to(torch.float8_e4m3fn).reshape(32, 16).t()
+        result = torch._scaled_mm(
+            lhs_fp8,
+            rhs_fp8,
+            scale_lhs,
+            scale_rhs,
+            out_dtype=torch.bfloat16,
+        )
+        return result.reshape(1, 3, 32)
+
+
+@register_test_case(
+    module_factory=lambda: AtenScaledMmPerTensorRank3TransposedRhsModule()
+)
+def AtenScaledMmPerTensorRank3TransposedRhsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 3, 16), tu.rand(1, 32, 16), tu.rand(), tu.rand())
+
+
+# ==============================================================================
+
+
 class MatmulVecMat(torch.nn.Module):
     def __init__(self):
         super().__init__()

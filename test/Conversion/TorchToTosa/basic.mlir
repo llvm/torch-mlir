@@ -4965,6 +4965,151 @@ func.func @torch.aten._scaled_mm$per_tensor(%arg0: !torch.vtensor<[128,128],f8E4
 }
 
 // -----
+module {
+  func.func @torch.aten._scaled_mm$per_tensor_rank3_inputs_rejected(%arg0: !torch.vtensor<[1,128,128],f8E4M3FN>, %arg1: !torch.vtensor<[1,128,128],f8E4M3FN>, %arg2: !torch.vtensor<[],f32>, %arg3: !torch.vtensor<[],f32>) -> !torch.vtensor<[1,128,128],bf16> {
+    %false = torch.constant.bool false
+    %int15 = torch.constant.int 15
+    %none = torch.constant.none
+    // expected-error @below {{expected result to be rank 2, but got rank 3}}
+    %0 = torch.aten._scaled_mm %arg0, %arg1, %arg2, %arg3, %none, %none, %int15, %false : !torch.vtensor<[1,128,128],f8E4M3FN>, !torch.vtensor<[1,128,128],f8E4M3FN>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.none, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[1,128,128],bf16>
+    return %0 : !torch.vtensor<[1,128,128],bf16>
+  }
+}
+
+// -----
+module {
+  func.func @torch.aten._scaled_mm$per_tensor_rank3_result_rejected(%arg0: !torch.vtensor<[128,128],f8E4M3FN>, %arg1: !torch.vtensor<[128,128],f8E4M3FN>, %arg2: !torch.vtensor<[],f32>, %arg3: !torch.vtensor<[],f32>) -> !torch.vtensor<[1,128,128],bf16> {
+    %false = torch.constant.bool false
+    %int15 = torch.constant.int 15
+    %none = torch.constant.none
+    // expected-error @below {{expected result to be rank 2, but got rank 3}}
+    %0 = torch.aten._scaled_mm %arg0, %arg1, %arg2, %arg3, %none, %none, %int15, %false : !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.none, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[1,128,128],bf16>
+    return %0 : !torch.vtensor<[1,128,128],bf16>
+  }
+}
+
+// -----
+module {
+  func.func @torch.aten._scaled_mm$per_tensor_unranked_inputs_rank3_result_rejected(%arg0: !torch.vtensor<*,f8E4M3FN>, %arg1: !torch.vtensor<*,f8E4M3FN>, %arg2: !torch.vtensor<[],f32>, %arg3: !torch.vtensor<[],f32>) -> !torch.vtensor<[1,128,128],bf16> {
+    %false = torch.constant.bool false
+    %int15 = torch.constant.int 15
+    %none = torch.constant.none
+    // expected-error @below {{expected result to be rank 2, but got rank 3}}
+    %0 = torch.aten._scaled_mm %arg0, %arg1, %arg2, %arg3, %none, %none, %int15, %false : !torch.vtensor<*,f8E4M3FN>, !torch.vtensor<*,f8E4M3FN>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.none, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[1,128,128],bf16>
+    return %0 : !torch.vtensor<[1,128,128],bf16>
+  }
+}
+
+// -----
+// CHECK-LABEL:   func.func @torch.aten._scaled_mm$per_tensor_rank3_transposed_rhs_pattern(
+// CHECK-SAME:      %arg0: !torch.vtensor<[1,3,16],f8E4M3FN>, %arg1: !torch.vtensor<[1,32,16],f8E4M3FN>, %arg2: !torch.vtensor<[],f32>, %arg3: !torch.vtensor<[],f32>) -> !torch.vtensor<[1,3,32],bf16> {
+// CHECK-DAG:       %[[LHS:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[1,3,16],f8E4M3FN> -> tensor<1x3x16xf8E4M3FN>
+// CHECK-DAG:       %[[RHS_SOURCE:.*]] = torch_c.to_builtin_tensor %arg1 : !torch.vtensor<[1,32,16],f8E4M3FN> -> tensor<1x32x16xf8E4M3FN>
+// CHECK:           %[[RHS:.*]] = tosa.transpose %[[RHS_SOURCE]] {perms = array<i32: 0, 2, 1>} : (tensor<1x32x16xf8E4M3FN>) -> tensor<1x16x32xf8E4M3FN>
+// CHECK:           %[[MATMUL:.*]] = tosa.matmul %[[LHS]], %[[RHS]], %{{.*}}, %{{.*}} : (tensor<1x3x16xf8E4M3FN>, tensor<1x16x32xf8E4M3FN>, tensor<1xf8E4M3FN>, tensor<1xf8E4M3FN>) -> tensor<1x3x32xf16>
+// CHECK:           %[[MATMUL_F32:.*]] = tosa.cast %[[MATMUL]] : (tensor<1x3x32xf16>) -> tensor<1x3x32xf32>
+// CHECK:           %[[SCALED:.*]] = tosa.mul %[[MATMUL_F32]], %{{.*}}, %{{.*}} : (tensor<1x3x32xf32>, tensor<1x1x1xf32>, tensor<1xi8>) -> tensor<1x3x32xf32>
+// CHECK-NOT:       tosa.reshape %[[SCALED]]
+// CHECK:           %[[CAST:.*]] = tosa.cast %[[SCALED]] : (tensor<1x3x32xf32>) -> tensor<1x3x32xbf16>
+// CHECK:           torch_c.from_builtin_tensor %[[CAST]] : tensor<1x3x32xbf16> -> !torch.vtensor<[1,3,32],bf16>
+// CHECK-NOT:       torch.aten._scaled_mm
+func.func @torch.aten._scaled_mm$per_tensor_rank3_transposed_rhs_pattern(%arg0: !torch.vtensor<[1,3,16],f8E4M3FN>, %arg1: !torch.vtensor<[1,32,16],f8E4M3FN>, %arg2: !torch.vtensor<[],f32>, %arg3: !torch.vtensor<[],f32>) -> !torch.vtensor<[1,3,32],bf16> {
+  %false = torch.constant.bool false
+  %int15 = torch.constant.int 15
+  %int32 = torch.constant.int 32
+  %int16 = torch.constant.int 16
+  %int3 = torch.constant.int 3
+  %int1 = torch.constant.int 1
+  %none = torch.constant.none
+  %lhs_shape = torch.prim.ListConstruct %int3, %int16 : (!torch.int, !torch.int) -> !torch.list<int>
+  %lhs = torch.aten.reshape %arg0, %lhs_shape : !torch.vtensor<[1,3,16],f8E4M3FN>, !torch.list<int> -> !torch.vtensor<[3,16],f8E4M3FN>
+  %rhs_shape = torch.prim.ListConstruct %int32, %int16 : (!torch.int, !torch.int) -> !torch.list<int>
+  %rhs_2d = torch.aten.reshape %arg1, %rhs_shape : !torch.vtensor<[1,32,16],f8E4M3FN>, !torch.list<int> -> !torch.vtensor<[32,16],f8E4M3FN>
+  %int0 = torch.constant.int 0
+  %perms = torch.prim.ListConstruct %int1, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %rhs = torch.aten.permute %rhs_2d, %perms : !torch.vtensor<[32,16],f8E4M3FN>, !torch.list<int> -> !torch.vtensor<[16,32],f8E4M3FN>
+  %0 = torch.aten._scaled_mm %lhs, %rhs, %arg2, %arg3, %none, %none, %int15, %false : !torch.vtensor<[3,16],f8E4M3FN>, !torch.vtensor<[16,32],f8E4M3FN>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.none, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[3,32],bf16>
+  %out_shape = torch.prim.ListConstruct %int1, %int3, %int32 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %out = torch.aten.reshape %0, %out_shape : !torch.vtensor<[3,32],bf16>, !torch.list<int> -> !torch.vtensor<[1,3,32],bf16>
+  return %out : !torch.vtensor<[1,3,32],bf16>
+}
+
+// -----
+// CHECK-LABEL:   func.func @torch.aten._scaled_mm$per_tensor_rank3_transposed_rhs_pattern_bias(
+// CHECK-SAME:      %arg0: !torch.vtensor<[1,3,16],f8E4M3FN>, %arg1: !torch.vtensor<[1,32,16],f8E4M3FN>, %arg2: !torch.vtensor<[],f32>, %arg3: !torch.vtensor<[],f32>, %arg4: !torch.vtensor<[32],bf16>) -> !torch.vtensor<[1,3,32],bf16> {
+// CHECK-DAG:       %[[LHS:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[1,3,16],f8E4M3FN> -> tensor<1x3x16xf8E4M3FN>
+// CHECK-DAG:       %[[RHS_SOURCE:.*]] = torch_c.to_builtin_tensor %arg1 : !torch.vtensor<[1,32,16],f8E4M3FN> -> tensor<1x32x16xf8E4M3FN>
+// CHECK-DAG:       %[[BIAS:.*]] = torch_c.to_builtin_tensor %arg4 : !torch.vtensor<[32],bf16> -> tensor<32xbf16>
+// CHECK:           %[[RHS:.*]] = tosa.transpose %[[RHS_SOURCE]] {perms = array<i32: 0, 2, 1>} : (tensor<1x32x16xf8E4M3FN>) -> tensor<1x16x32xf8E4M3FN>
+// CHECK:           %[[MATMUL:.*]] = tosa.matmul %[[LHS]], %[[RHS]], %{{.*}}, %{{.*}} : (tensor<1x3x16xf8E4M3FN>, tensor<1x16x32xf8E4M3FN>, tensor<1xf8E4M3FN>, tensor<1xf8E4M3FN>) -> tensor<1x3x32xf16>
+// CHECK:           %[[MATMUL_F32:.*]] = tosa.cast %[[MATMUL]] : (tensor<1x3x32xf16>) -> tensor<1x3x32xf32>
+// CHECK:           %[[SCALED:.*]] = tosa.mul %[[MATMUL_F32]], %{{.*}}, %{{.*}} : (tensor<1x3x32xf32>, tensor<1x1x1xf32>, tensor<1xi8>) -> tensor<1x3x32xf32>
+// CHECK-NOT:       tosa.reshape %[[SCALED]]
+// CHECK:           %[[BIAS_F32:.*]] = tosa.cast %[[BIAS]] : (tensor<32xbf16>) -> tensor<32xf32>
+// CHECK:           %[[BIAS_RESHAPED:.*]] = tosa.reshape %[[BIAS_F32]], %{{.*}} : (tensor<32xf32>, !tosa.shape<3>) -> tensor<1x1x32xf32>
+// CHECK:           %[[WITH_BIAS:.*]] = tosa.add %[[SCALED]], %[[BIAS_RESHAPED]] : (tensor<1x3x32xf32>, tensor<1x1x32xf32>) -> tensor<1x3x32xf32>
+// CHECK:           %[[CAST:.*]] = tosa.cast %[[WITH_BIAS]] : (tensor<1x3x32xf32>) -> tensor<1x3x32xbf16>
+// CHECK:           torch_c.from_builtin_tensor %[[CAST]] : tensor<1x3x32xbf16> -> !torch.vtensor<[1,3,32],bf16>
+// CHECK-NOT:       torch.aten._scaled_mm
+func.func @torch.aten._scaled_mm$per_tensor_rank3_transposed_rhs_pattern_bias(%arg0: !torch.vtensor<[1,3,16],f8E4M3FN>, %arg1: !torch.vtensor<[1,32,16],f8E4M3FN>, %arg2: !torch.vtensor<[],f32>, %arg3: !torch.vtensor<[],f32>, %arg4: !torch.vtensor<[32],bf16>) -> !torch.vtensor<[1,3,32],bf16> {
+  %false = torch.constant.bool false
+  %int15 = torch.constant.int 15
+  %int32 = torch.constant.int 32
+  %int16 = torch.constant.int 16
+  %int3 = torch.constant.int 3
+  %int1 = torch.constant.int 1
+  %none = torch.constant.none
+  %lhs_shape = torch.prim.ListConstruct %int3, %int16 : (!torch.int, !torch.int) -> !torch.list<int>
+  %lhs = torch.aten.reshape %arg0, %lhs_shape : !torch.vtensor<[1,3,16],f8E4M3FN>, !torch.list<int> -> !torch.vtensor<[3,16],f8E4M3FN>
+  %rhs_shape = torch.prim.ListConstruct %int32, %int16 : (!torch.int, !torch.int) -> !torch.list<int>
+  %rhs_2d = torch.aten.reshape %arg1, %rhs_shape : !torch.vtensor<[1,32,16],f8E4M3FN>, !torch.list<int> -> !torch.vtensor<[32,16],f8E4M3FN>
+  %int0 = torch.constant.int 0
+  %perms = torch.prim.ListConstruct %int1, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %rhs = torch.aten.permute %rhs_2d, %perms : !torch.vtensor<[32,16],f8E4M3FN>, !torch.list<int> -> !torch.vtensor<[16,32],f8E4M3FN>
+  %0 = torch.aten._scaled_mm %lhs, %rhs, %arg2, %arg3, %arg4, %none, %int15, %false : !torch.vtensor<[3,16],f8E4M3FN>, !torch.vtensor<[16,32],f8E4M3FN>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[32],bf16>, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[3,32],bf16>
+  %out_shape = torch.prim.ListConstruct %int1, %int3, %int32 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %out = torch.aten.reshape %0, %out_shape : !torch.vtensor<[3,32],bf16>, !torch.list<int> -> !torch.vtensor<[1,3,32],bf16>
+  return %out : !torch.vtensor<[1,3,32],bf16>
+}
+
+// -----
+// CHECK-LABEL:   func.func @torch.aten._scaled_mm$per_row_rank3_transposed_rhs_view_pattern(
+// CHECK-SAME:      %arg0: !torch.vtensor<[1,3,16],f8E4M3FN>, %arg1: !torch.vtensor<[1,32,16],f8E4M3FN>, %arg2: !torch.vtensor<[3,1],f32>, %arg3: !torch.vtensor<[1,32],f32>) -> !torch.vtensor<[1,3,32],bf16> {
+// CHECK-DAG:       %[[LHS:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[1,3,16],f8E4M3FN> -> tensor<1x3x16xf8E4M3FN>
+// CHECK-DAG:       %[[RHS_SOURCE:.*]] = torch_c.to_builtin_tensor %arg1 : !torch.vtensor<[1,32,16],f8E4M3FN> -> tensor<1x32x16xf8E4M3FN>
+// CHECK:           %[[RHS:.*]] = tosa.transpose %[[RHS_SOURCE]] {perms = array<i32: 0, 2, 1>} : (tensor<1x32x16xf8E4M3FN>) -> tensor<1x16x32xf8E4M3FN>
+// CHECK:           %[[LHS_SCALE:.*]] = tosa.reshape %{{.*}} : (tensor<3x1xf32>, !tosa.shape<3>) -> tensor<1x3x1xf32>
+// CHECK:           %[[RHS_SCALE:.*]] = tosa.reshape %{{.*}} : (tensor<1x32xf32>, !tosa.shape<3>) -> tensor<1x1x32xf32>
+// CHECK:           %[[MATMUL:.*]] = tosa.matmul %[[LHS]], %[[RHS]], %{{.*}}, %{{.*}} : (tensor<1x3x16xf8E4M3FN>, tensor<1x16x32xf8E4M3FN>, tensor<1xf8E4M3FN>, tensor<1xf8E4M3FN>) -> tensor<1x3x32xf16>
+// CHECK:           %[[MATMUL_F32:.*]] = tosa.cast %[[MATMUL]] : (tensor<1x3x32xf16>) -> tensor<1x3x32xf32>
+// CHECK:           %[[COMBINED_SCALE:.*]] = tosa.mul %[[LHS_SCALE]], %[[RHS_SCALE]], %{{.*}} : (tensor<1x3x1xf32>, tensor<1x1x32xf32>, tensor<1xi8>) -> tensor<1x3x32xf32>
+// CHECK:           %[[SCALED:.*]] = tosa.mul %[[MATMUL_F32]], %[[COMBINED_SCALE]], %{{.*}} : (tensor<1x3x32xf32>, tensor<1x3x32xf32>, tensor<1xi8>) -> tensor<1x3x32xf32>
+// CHECK-NOT:       tosa.reshape %[[SCALED]]
+// CHECK:           %[[CAST:.*]] = tosa.cast %[[SCALED]] : (tensor<1x3x32xf32>) -> tensor<1x3x32xbf16>
+// CHECK:           torch_c.from_builtin_tensor %[[CAST]] : tensor<1x3x32xbf16> -> !torch.vtensor<[1,3,32],bf16>
+// CHECK-NOT:       torch.aten._scaled_mm
+func.func @torch.aten._scaled_mm$per_row_rank3_transposed_rhs_view_pattern(%arg0: !torch.vtensor<[1,3,16],f8E4M3FN>, %arg1: !torch.vtensor<[1,32,16],f8E4M3FN>, %arg2: !torch.vtensor<[3,1],f32>, %arg3: !torch.vtensor<[1,32],f32>) -> !torch.vtensor<[1,3,32],bf16> {
+  %false = torch.constant.bool false
+  %int15 = torch.constant.int 15
+  %int32 = torch.constant.int 32
+  %int16 = torch.constant.int 16
+  %int3 = torch.constant.int 3
+  %int1 = torch.constant.int 1
+  %none = torch.constant.none
+  %lhs_shape = torch.prim.ListConstruct %int3, %int16 : (!torch.int, !torch.int) -> !torch.list<int>
+  %lhs = torch.aten.reshape %arg0, %lhs_shape : !torch.vtensor<[1,3,16],f8E4M3FN>, !torch.list<int> -> !torch.vtensor<[3,16],f8E4M3FN>
+  %rhs_shape = torch.prim.ListConstruct %int32, %int16 : (!torch.int, !torch.int) -> !torch.list<int>
+  %rhs_2d = torch.aten.reshape %arg1, %rhs_shape : !torch.vtensor<[1,32,16],f8E4M3FN>, !torch.list<int> -> !torch.vtensor<[32,16],f8E4M3FN>
+  %int0 = torch.constant.int 0
+  %perms = torch.prim.ListConstruct %int1, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %rhs = torch.aten.permute %rhs_2d, %perms : !torch.vtensor<[32,16],f8E4M3FN>, !torch.list<int> -> !torch.vtensor<[16,32],f8E4M3FN>
+  %0 = torch.aten._scaled_mm %lhs, %rhs, %arg2, %arg3, %none, %none, %int15, %false : !torch.vtensor<[3,16],f8E4M3FN>, !torch.vtensor<[16,32],f8E4M3FN>, !torch.vtensor<[3,1],f32>, !torch.vtensor<[1,32],f32>, !torch.none, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[3,32],bf16>
+  %out_shape = torch.prim.ListConstruct %int1, %int3, %int32 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %out = torch.aten.view %0, %out_shape : !torch.vtensor<[3,32],bf16>, !torch.list<int> -> !torch.vtensor<[1,3,32],bf16>
+  return %out : !torch.vtensor<[1,3,32],bf16>
+}
+
+// -----
 // CHECK-LABEL:   func.func @torch.aten._scaled_mm$per_tensor_use_fast_accum(
 // CHECK:           tosa.matmul
 // CHECK-SAME:      (tensor<1x128x128xf8E4M3FN>, tensor<1x128x128xf8E4M3FN>, tensor<1xf8E4M3FN>, tensor<1xf8E4M3FN>) -> tensor<1x128x128xf16>
@@ -5193,7 +5338,7 @@ module {
     %false = torch.constant.bool false
     %int15 = torch.constant.int 15
     %none = torch.constant.none
-    // expected-error @below {{failed to legalize operation 'torch.aten._scaled_mm' that was explicitly marked illegal}}
+    // expected-error @below {{expected result second dimension to match mat2 second dimension, but got 127 and 128}}
     %0 = torch.aten._scaled_mm %arg0, %arg1, %arg2, %arg3, %none, %none, %int15, %false : !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.none, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[128,127],bf16>
     return %0 : !torch.vtensor<[128,127],bf16>
   }
