@@ -72,6 +72,29 @@ func.func @torch.aten.matmul$dot_f16(%arg0: !torch.vtensor<[4],f16>, %arg1: !tor
 
 // -----
 
+// CHECK-LABEL: func.func @torch.aten.matmul$dot_rank1_f16
+// CHECK:      %[[ZERO:.+]] = arith.constant 0.000000e+00 : f32
+// CHECK:      linalg.dot ins(%{{.*}}, %{{.*}} : tensor<4xf16>, tensor<4xf16>) outs(%{{.*}} : tensor<f32>) -> tensor<f32>
+// CHECK:      arith.truncf %{{.*}} : f32 to f16
+// CHECK:      tensor.expand_shape %{{.*}} [] output_shape [1] : tensor<f16> into tensor<1xf16>
+func.func @torch.aten.matmul$dot_rank1_f16(%arg0: !torch.vtensor<[4],f16>, %arg1: !torch.vtensor<[4],f16>) -> !torch.vtensor<[1],f16> {
+  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[4],f16>, !torch.vtensor<[4],f16> -> !torch.vtensor<[1],f16>
+  return %0 : !torch.vtensor<[1],f16>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.matmul$dot_rank1_dynamic_f16
+// CHECK:      linalg.dot ins(%{{.*}}, %{{.*}} : tensor<4xf16>, tensor<4xf16>) outs(%{{.*}} : tensor<f32>) -> tensor<f32>
+// CHECK:      %[[EXPANDED:.+]] = tensor.expand_shape %{{.*}} [] output_shape [1] : tensor<f16> into tensor<1xf16>
+// CHECK:      tensor.cast %[[EXPANDED]] : tensor<1xf16> to tensor<?xf16>
+func.func @torch.aten.matmul$dot_rank1_dynamic_f16(%arg0: !torch.vtensor<[4],f16>, %arg1: !torch.vtensor<[4],f16>) -> !torch.vtensor<[?],f16> {
+  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[4],f16>, !torch.vtensor<[4],f16> -> !torch.vtensor<[?],f16>
+  return %0 : !torch.vtensor<[?],f16>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @torch.aten.matmul$vecmat_f16
 // CHECK:      %[[ZERO:.+]] = arith.constant 0.000000e+00 : f32
 // CHECK:      linalg.vecmat ins(%{{.*}}, %{{.*}} : tensor<4xf16>, tensor<4x8xf16>) outs(%{{.*}} : tensor<8xf32>) -> tensor<8xf32>

@@ -380,6 +380,13 @@ public:
         dotProd = torch_to_linalg::convertTensorToElementType(
             rewriter, loc, dotProd, resultElementType);
       }
+      // reconcile the rank-0 dot result with a declared rank-1 result type
+      if (resultType.getRank() == 1) {
+        SmallVector<ReassociationIndices> reassociation;
+        auto unsqueezeType = RankedTensorType::get({1}, resultElementType);
+        dotProd = tensor::ExpandShapeOp::create(rewriter, loc, unsqueezeType,
+                                                dotProd, reassociation);
+      }
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, dotProd);
       return success();
     }
