@@ -301,6 +301,50 @@ func.func @test_reduce_mean_dim$basic(%arg0: !torch.vtensor<[3,4,5,6],f32>) -> !
 
 // -----
 
+// CHECK-LABEL:   func.func @test_reduce_mean_scalar_dim(
+// CHECK-SAME:                                              %[[INPUT:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
+// CHECK:           %[[INPUT_TENSOR:.*]] = torch_c.to_builtin_tensor %[[INPUT]] : !torch.vtensor<[],f32> -> tensor<f32>
+// CHECK-NOT:       tosa.reduce_sum
+// CHECK:           %[[IDENTITY:.*]] = tosa.identity %[[INPUT_TENSOR]] : (tensor<f32>) -> tensor<f32>
+// CHECK:           %[[ONE:.*]] = "tosa.const"() <{values = dense<1.000000e+00> : tensor<f32>}> : () -> tensor<f32>
+// CHECK:           %[[SCALE:.*]] = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
+// CHECK:           %[[MUL:.*]] = tosa.mul %[[IDENTITY]], %[[ONE]], %[[SCALE]] : (tensor<f32>, tensor<f32>, tensor<1xi8>) -> tensor<f32>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[MUL]] : tensor<f32> -> !torch.vtensor<[],f32>
+// CHECK:           return %[[RESULT]] : !torch.vtensor<[],f32>
+// CHECK:         }
+func.func @test_reduce_mean_scalar_dim(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
+  %dim0 = torch.constant.int 0
+  %reducedims = torch.prim.ListConstruct %dim0 : (!torch.int) -> !torch.list<int>
+  %keepdims = torch.constant.bool false
+  %dtype = torch.constant.none
+  %0 = torch.aten.mean.dim %arg0, %reducedims, %keepdims, %dtype : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @test_reduce_mean_scalar_negative_dim(
+// CHECK-SAME:                                                       %[[INPUT:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
+// CHECK:           %[[INPUT_TENSOR:.*]] = torch_c.to_builtin_tensor %[[INPUT]] : !torch.vtensor<[],f32> -> tensor<f32>
+// CHECK-NOT:       tosa.reduce_sum
+// CHECK:           %[[IDENTITY:.*]] = tosa.identity %[[INPUT_TENSOR]] : (tensor<f32>) -> tensor<f32>
+// CHECK:           %[[ONE:.*]] = "tosa.const"() <{values = dense<1.000000e+00> : tensor<f32>}> : () -> tensor<f32>
+// CHECK:           %[[SCALE:.*]] = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
+// CHECK:           %[[MUL:.*]] = tosa.mul %[[IDENTITY]], %[[ONE]], %[[SCALE]] : (tensor<f32>, tensor<f32>, tensor<1xi8>) -> tensor<f32>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[MUL]] : tensor<f32> -> !torch.vtensor<[],f32>
+// CHECK:           return %[[RESULT]] : !torch.vtensor<[],f32>
+// CHECK:         }
+func.func @test_reduce_mean_scalar_negative_dim(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
+  %dim = torch.constant.int -1
+  %reducedims = torch.prim.ListConstruct %dim : (!torch.int) -> !torch.list<int>
+  %keepdims = torch.constant.bool false
+  %dtype = torch.constant.none
+  %0 = torch.aten.mean.dim %arg0, %reducedims, %keepdims, %dtype : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @test_reduce_sum_dims$basic(
 // CHECK-SAME:                                          %[[VAL_0:.*]]: !torch.vtensor<[3,4,5,6],f32>) -> !torch.vtensor<[4,5,6],f32> {
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[3,4,5,6],f32> -> tensor<3x4x5x6xf32>
@@ -439,6 +483,56 @@ func.func @test_linalg_vector_norm$basic(%arg0: !torch.vtensor<[3,151,64],f32>) 
   %1 = torch.prim.ListConstruct %int-1 : (!torch.int) -> !torch.list<int>
   %2 = torch.aten.linalg_vector_norm %arg0, %float2.000000e00, %1, %true, %none : !torch.vtensor<[3,151,64],f32>, !torch.float, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[3,151,1],f32>
   return %2 : !torch.vtensor<[3,151,1],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @test_linalg_vector_norm_scalar_dim(
+// CHECK-SAME:                                                     %[[INPUT:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
+// CHECK:           %[[INPUT_TENSOR:.*]] = torch_c.to_builtin_tensor %[[INPUT]] : !torch.vtensor<[],f32> -> tensor<f32>
+// CHECK:           %[[ORD:.*]] = "tosa.const"() <{values = dense<3.000000e+00> : tensor<f32>}> : () -> tensor<f32>
+// CHECK:           %[[ABS:.*]] = tosa.abs %[[INPUT_TENSOR]] : (tensor<f32>) -> tensor<f32>
+// CHECK:           %[[POW:.*]] = tosa.pow %[[ABS]], %[[ORD]] : (tensor<f32>, tensor<f32>) -> tensor<f32>
+// CHECK-NOT:       tosa.reduce_sum
+// CHECK:           %[[IDENTITY:.*]] = tosa.identity %[[POW]] : (tensor<f32>) -> tensor<f32>
+// CHECK:           %[[RECIPROCAL:.*]] = tosa.reciprocal %[[ORD]] : (tensor<f32>) -> tensor<f32>
+// CHECK:           %[[RESULT_TENSOR:.*]] = tosa.pow %[[IDENTITY]], %[[RECIPROCAL]] : (tensor<f32>, tensor<f32>) -> tensor<f32>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[RESULT_TENSOR]] : tensor<f32> -> !torch.vtensor<[],f32>
+// CHECK:           return %[[RESULT]] : !torch.vtensor<[],f32>
+// CHECK:         }
+func.func @test_linalg_vector_norm_scalar_dim(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
+  %ord = torch.constant.float 3.000000e+00
+  %dim = torch.constant.int 0
+  %keepdims = torch.constant.bool false
+  %dtype = torch.constant.none
+  %dims = torch.prim.ListConstruct %dim : (!torch.int) -> !torch.list<int>
+  %0 = torch.aten.linalg_vector_norm %arg0, %ord, %dims, %keepdims, %dtype : !torch.vtensor<[],f32>, !torch.float, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @test_linalg_vector_norm_scalar_negative_dim(
+// CHECK-SAME:                                                            %[[INPUT:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
+// CHECK:           %[[INPUT_TENSOR:.*]] = torch_c.to_builtin_tensor %[[INPUT]] : !torch.vtensor<[],f32> -> tensor<f32>
+// CHECK:           %[[ORD:.*]] = "tosa.const"() <{values = dense<3.000000e+00> : tensor<f32>}> : () -> tensor<f32>
+// CHECK:           %[[ABS:.*]] = tosa.abs %[[INPUT_TENSOR]] : (tensor<f32>) -> tensor<f32>
+// CHECK:           %[[POW:.*]] = tosa.pow %[[ABS]], %[[ORD]] : (tensor<f32>, tensor<f32>) -> tensor<f32>
+// CHECK-NOT:       tosa.reduce_sum
+// CHECK:           %[[IDENTITY:.*]] = tosa.identity %[[POW]] : (tensor<f32>) -> tensor<f32>
+// CHECK:           %[[RECIPROCAL:.*]] = tosa.reciprocal %[[ORD]] : (tensor<f32>) -> tensor<f32>
+// CHECK:           %[[RESULT_TENSOR:.*]] = tosa.pow %[[IDENTITY]], %[[RECIPROCAL]] : (tensor<f32>, tensor<f32>) -> tensor<f32>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[RESULT_TENSOR]] : tensor<f32> -> !torch.vtensor<[],f32>
+// CHECK:           return %[[RESULT]] : !torch.vtensor<[],f32>
+// CHECK:         }
+func.func @test_linalg_vector_norm_scalar_negative_dim(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
+  %ord = torch.constant.float 3.000000e+00
+  %dim = torch.constant.int -1
+  %keepdims = torch.constant.bool false
+  %dtype = torch.constant.none
+  %dims = torch.prim.ListConstruct %dim : (!torch.int) -> !torch.list<int>
+  %0 = torch.aten.linalg_vector_norm %arg0, %ord, %dims, %keepdims, %dtype : !torch.vtensor<[],f32>, !torch.float, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
 }
 
 // -----
