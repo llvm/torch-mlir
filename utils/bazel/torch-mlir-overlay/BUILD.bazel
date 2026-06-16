@@ -2,6 +2,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+load("@llvm-project//mlir:build_defs.bzl", "mlir_c_api_cc_library")
 load("@llvm-project//mlir:tblgen.bzl", "gentbl_cc_library", "td_library")
 
 package(
@@ -919,4 +920,28 @@ cc_binary(
         "@llvm-project//mlir:AllPassesAndDialects",
         "@llvm-project//mlir:MlirOptLib",
     ],
+)
+
+# C API bindings
+mlir_c_api_cc_library(
+    name = "CAPITorchRegisterEverything",
+    srcs = ["lib/CAPI/Registration.cpp"],
+    hdrs = ["include/torch-mlir-c/Registration.h"],
+    capi_deps = ["@llvm-project//mlir:CAPIIR"],
+    deps = [
+        ":TorchMLIRInitAll",
+        "@llvm-project//mlir:AllPassesAndDialects",
+    ],
+)
+
+mlir_c_api_cc_library(
+    name = "CAPITorch",
+    srcs = ["lib/CAPI/Dialects.cpp"],
+    hdrs = ["include/torch-mlir-c/Dialects.h"],
+    capi_deps = ["@llvm-project//mlir:CAPIIR"],
+    deps = [":TorchMLIRTorchDialect"],
+)
+
+exports_files(
+    ["include/torch-mlir-c/Registration.h"],
 )

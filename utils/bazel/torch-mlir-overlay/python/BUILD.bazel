@@ -1,0 +1,131 @@
+load("@llvm-project//mlir:tblgen.bzl", "gentbl_filegroup")
+load(":fileutils.bzl", "copy_into_directory")
+
+package(default_visibility = ["//visibility:public"])
+
+gentbl_filegroup(
+    name = "TorchOpsPyGen",
+    includes = ["include"],
+    tbl_outs = [
+        (
+            [
+                "-gen-python-op-bindings",
+                "-bind-dialect=torch",
+            ],
+            "torch_mlir/dialects/_torch_ops_gen.py",
+        ),
+    ],
+    tblgen = "@llvm-project//mlir:mlir-tblgen",
+    td_file = "torch_mlir/dialects/TorchBinding.td",
+    deps = [
+        "//:MLIRTorchOpsIncGenTdFiles",
+        "@llvm-project//mlir:AttrTdFiles",
+        "@llvm-project//mlir:BuiltinDialectTdFiles",
+    ],
+)
+
+# These flags are needed for pybind11 to work.
+PYBIND11_COPTS = [
+    "-fexceptions",
+    "-frtti",
+]
+
+PYBIND11_FEATURES = [
+    # Cannot use header_modules (parse_headers feature fails).
+    "-use_header_modules",
+]
+
+MLIR_SOS = [
+    "@llvm-project//mlir:_mlir.so",
+]
+
+# pybind11 extension module
+cc_binary(
+    name = "_torchMlir.so",
+    srcs = [
+        "TorchMLIRModule.cpp",
+        "//:include/torch-mlir-c/Registration.h",
+    ] + MLIR_SOS,
+    copts = PYBIND11_COPTS,
+    features = PYBIND11_FEATURES,
+    linkopts = ["-Wl,-rpath,$ORIGIN"],
+    linkshared = 1,
+    linkstatic = 0,
+    deps = [
+        "//:CAPITorch",
+        "//:CAPITorchRegisterEverything",
+        "@llvm-project//mlir:CAPIIR",
+        "@llvm-project//mlir:MLIRBindingsPythonHeaders",
+    ],
+)
+
+cc_binary(
+    name = "_mlirRegisterEverything.so",
+    srcs = [
+        ":_torchMlir.so",
+        "@llvm-project//mlir:lib/Bindings/Python/RegisterEverything.cpp",
+    ] + MLIR_SOS,
+    copts = PYBIND11_COPTS,
+    features = PYBIND11_FEATURES,
+    linkopts = ["-Wl,-rpath,$ORIGIN"],
+    linkshared = 1,
+    linkstatic = 0,
+    deps = [
+        "@llvm-project//mlir:CAPIRegisterEverything",
+        "@llvm-project//mlir:MLIRBindingsPythonHeaders",
+        "@nanobind",
+    ],
+)
+
+filegroup(
+    name = "TorchOpsPyFiles",
+    srcs = [
+        ":TorchOpsPyGen",
+    ],
+)
+
+filegroup(
+    name = "TorchPyFiles",
+    srcs = glob(["**/*.py"]),
+)
+
+py_library(
+    name = "torch-mlir",
+    srcs = [
+        ":TorchOpsPyFiles",
+        ":TorchPyFiles",
+        ":mlir-python-files",
+    ],
+    data = [
+        ":mlir-shared-objects",
+    ],
+    imports = [
+        ".",
+    ],
+    deps = [
+        "@rules_python//python/cc:current_py_cc_libs",
+    ],
+)
+
+copy_into_directory(
+    name = "mlir-python-files",
+    srcs = {
+        "@llvm-project//mlir/python:MlirLibsPyFiles": "torch_mlir/_mlir_libs",
+        "@llvm-project//mlir/python:IRPyFiles": "torch_mlir",
+        "@llvm-project//mlir/python:FuncPyFiles": "torch_mlir/dialects",
+        "@llvm-project//mlir/python:DialectCorePyFiles": "torch_mlir/dialects",
+        "@llvm-project//mlir/python:PassManagerPyFiles": "torch_mlir",
+        "@llvm-project//mlir/python:BuiltinOpsPyFiles": "torch_mlir/dialects",
+    },
+)
+
+copy_into_directory(
+    name = "mlir-shared-objects",
+    srcs = {
+        so: "torch_mlir/_mlir_libs"
+        for so in MLIR_SOS + [
+            ":_torchMlir.so",
+            "_mlirRegisterEverything.so",
+        ]
+    },
+)
