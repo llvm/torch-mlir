@@ -466,6 +466,68 @@ def ElementwiseAtenWhereSelfModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseAtenWhereSelfDifferentDtypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 5, 5], torch.bool, True),
+            ([1, 12, 5, 5], torch.int64, True),
+            ([1, 12, 5, 5], torch.int32, True),
+        ]
+    )
+    def forward(self, a, b, c):
+        return torch.ops.aten.where(a, b, c)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseAtenWhereSelfDifferentDtypeModule()
+)
+def ElementwiseAtenWhereSelfDifferentDtypeModule_basic(module, tu: TestUtils):
+    module.forward(
+        torch.zeros(1, 1, 5, 5, dtype=torch.bool),
+        tu.randint(1, 12, 5, 5, dtype=torch.int64),
+        tu.randint(1, 12, 5, 5, dtype=torch.int32),
+    )
+
+
+# ==============================================================================
+
+
+class ElementwiseAtenWhereSelfDifferentDtypeAndRankModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 5, 5], torch.bool, True),
+            ([], torch.int64, True),
+            ([1, 12, 5, 5], torch.int32, True),
+        ]
+    )
+    def forward(self, a, b, c):
+        return torch.ops.aten.where(a, b, c)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseAtenWhereSelfDifferentDtypeAndRankModule()
+)
+def ElementwiseAtenWhereSelfDifferentDtypeAndRankModule_basic(module, tu: TestUtils):
+    module.forward(
+        torch.zeros(1, 1, 5, 5, dtype=torch.bool),
+        tu.randint(),
+        tu.randint(1, 12, 5, 5, dtype=torch.int32),
+    )
+
+
+# ==============================================================================
+
+
 class ElementwiseWhereSelfModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

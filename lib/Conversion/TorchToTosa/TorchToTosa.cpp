@@ -6249,14 +6249,39 @@ LogicalResult ConvertAtenOp<AtenWhereSelfOp>::matchAndRewriteImpl(
 
   auto outType =
       dyn_cast<TensorType>(getTypeConverter()->convertType(op.getType()));
+  if (!outType)
+    return rewriter.notifyMatchFailure(op, "expected tensor result type");
 
-  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), cond, self).failed() ||
-      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), cond, other).failed() ||
-      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, other).failed())
+  auto outElemTy = outType.getElementType();
+  Value selfCast = self;
+  Value otherCast = other;
+
+  if (selfType.getElementType() != outElemTy) {
+    auto maybeCast =
+        tosa::tosaCastTensorToType(rewriter, self, selfType.clone(outElemTy));
+    if (!maybeCast)
+      return rewriter.notifyMatchFailure(op, "failed to cast tensor to dtype");
+    selfCast = *maybeCast;
+  }
+  if (otherType.getElementType() != outElemTy) {
+    auto maybeCast =
+        tosa::tosaCastTensorToType(rewriter, other, otherType.clone(outElemTy));
+    if (!maybeCast)
+      return rewriter.notifyMatchFailure(op, "failed to cast tensor to dtype");
+    otherCast = *maybeCast;
+  }
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), cond, selfCast)
+          .failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), cond, otherCast)
+          .failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), selfCast, otherCast)
+          .failed())
     return rewriter.notifyMatchFailure(
         op, "Failed to equalize ranks among operands and result");
 
-  rewriter.replaceOpWithNewOp<tosa::SelectOp>(op, outType, cond, self, other);
+  rewriter.replaceOpWithNewOp<tosa::SelectOp>(op, outType, cond, selfCast,
+                                              otherCast);
 
   return success();
 }
