@@ -367,3 +367,82 @@ class AtenAsStridedAfterViewModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenAsStridedAfterViewModule())
 def AtenAsStridedAfterViewModule_basic(module, tu: TestUtils):
     module.forward(torch.arange(24, dtype=torch.float32).reshape(2, 3, 4))
+
+
+class AtenAsStridedAfterSliceStepModule(torch.nn.Module):
+    @export
+    @annotate_args([None, ([3, 4], torch.float32, True)])
+    def forward(self, x):
+        view = torch.ops.aten.slice.Tensor(x, 1, 0, 4, 2)
+        return torch.ops.aten.as_strided.default(view, size=(3, 2), stride=(4, 2))
+
+
+@register_test_case(module_factory=lambda: AtenAsStridedAfterSliceStepModule())
+def AtenAsStridedAfterSliceStepModule_basic(module, tu: TestUtils):
+    module.forward(torch.arange(12, dtype=torch.float32).reshape(3, 4))
+
+
+class AtenAsStridedAfterContiguousModule(torch.nn.Module):
+    @export
+    @annotate_args([None, ([3, 4], torch.float32, True)])
+    def forward(self, x):
+        view = torch.ops.aten.transpose.int(x, 0, 1)
+        view = torch.ops.aten.contiguous.default(view)
+        return torch.ops.aten.as_strided.default(
+            view, size=(2, 2), stride=(3, 1), storage_offset=0
+        )
+
+
+@register_test_case(module_factory=lambda: AtenAsStridedAfterContiguousModule())
+def AtenAsStridedAfterContiguousModule_basic(module, tu: TestUtils):
+    module.forward(torch.arange(12, dtype=torch.float32).reshape(3, 4))
+
+
+class AtenAsStridedChannelsLastInputModule(torch.nn.Module):
+    @export
+    @annotate_args([None, ([1, 3, 4, 5], torch.float32, True)])
+    def forward(self, x):
+        x = torch.ops.aten.contiguous.default(x, memory_format=torch.channels_last)
+        return torch.ops.aten.as_strided.default(
+            x, size=(1, 4, 5, 3), stride=(60, 15, 3, 1), storage_offset=0
+        )
+
+
+@register_test_case(module_factory=lambda: AtenAsStridedChannelsLastInputModule())
+def AtenAsStridedChannelsLastInputModule_basic(module, tu: TestUtils):
+    module.forward(torch.arange(60, dtype=torch.float32).reshape(1, 3, 4, 5))
+
+
+class AtenAsStridedChannelsLastParameterModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        weight = torch.arange(60, dtype=torch.float32).reshape(1, 3, 4, 5)
+        weight = weight.contiguous(memory_format=torch.channels_last)
+        self.weight = torch.nn.Parameter(weight, requires_grad=False)
+
+    @export
+    @annotate_args([None])
+    def forward(self):
+        return torch.ops.aten.as_strided.default(
+            self.weight, size=(1, 4, 5, 3), stride=(60, 15, 3, 1), storage_offset=0
+        )
+
+
+@register_test_case(module_factory=lambda: AtenAsStridedChannelsLastParameterModule())
+def AtenAsStridedChannelsLastParameterModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+class AtenAsStridedAfterToChannelsLastModule(torch.nn.Module):
+    @export
+    @annotate_args([None, ([1, 3, 4, 5], torch.float32, True)])
+    def forward(self, x):
+        x = x.to(memory_format=torch.channels_last)
+        return torch.ops.aten.as_strided.default(
+            x, size=(1, 4, 5, 3), stride=(60, 15, 3, 1), storage_offset=0
+        )
+
+
+@register_test_case(module_factory=lambda: AtenAsStridedAfterToChannelsLastModule())
+def AtenAsStridedAfterToChannelsLastModule_basic(module, tu: TestUtils):
+    module.forward(torch.arange(60, dtype=torch.float32).reshape(1, 3, 4, 5))

@@ -624,12 +624,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenComplexImagModule_basic",
     "AtenComplexRealModule_basic",
     "AtenComplexViewModule_basic",
-    # Dead original diagonal remains after as_strided storage-base lowering; the
-    # StableHLO pipeline rejects the leftover torch.constant.int operands.
-    "AtenAsStridedAfterDiagonalModule_basic",
-    # Dead original unfold remains after as_strided storage-base lowering; the
-    # StableHLO pipeline rejects the leftover torch.constant.int operands.
-    "AtenAsStridedAfterUnfoldModule_basic",
     "AtenDiagEmbedDefaultDiag_basic",
     "AtenDiagEmbedDimDiag_basic",
     "AtenDiagEmbedNegOffsetDiag_basic",
@@ -695,8 +689,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ChannelShuffleTrailingOnes_basic",
     "ChannelShuffleDynamicDims_basic",
     "ConstantBoolParameterModule_basic",
-    "ConstantInt32ParameterModule_basic",
-    "ConstantInt64ParameterModule_basic",
     "ContainsIntList_False",
     "ContainsIntList_True",
     "Conv2dFP16NoBiasModule_basic",
@@ -2824,6 +2816,11 @@ ONNX_XFAIL_SET = {
     "AtenAsStridedAfterPermuteModule_basic",
     # ONNX _reshape_alias path creates an invalid 24-to-1 reshape/collapse.
     "AtenAsStridedAfterReshapeAliasModule_basic",
+    # ONNX export lowers channels-last as_strided to flatten/gather over the
+    # logical NCHW tensor, losing channels-last storage order.
+    "AtenAsStridedAfterToChannelsLastModule_basic",
+    "AtenAsStridedChannelsLastInputModule_basic",
+    "AtenAsStridedChannelsLastParameterModule_basic",
     # ONNX export applies explicit offset to the slice, not to base storage.
     "AtenAsStridedAfterSliceWithExplicitOffsetModule_basic",
     # ONNX transpose materializes t() before gather, so indexing uses new storage.
@@ -3654,6 +3651,8 @@ ONNX_CRASHING_SET = LINALG_CRASHING_SET | {
     "AtenAsStridedAfterNarrowModule_basic",
     # ONNX-imported select/as_strided hits SIGABRT before report_results runs.
     "AtenAsStridedAfterSelectModule_basic",
+    # ONNX-imported stepped slice/as_strided hits SIGABRT before report_results runs.
+    "AtenAsStridedAfterSliceStepModule_basic",
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
     "ElementwisePreluModule_basic",
