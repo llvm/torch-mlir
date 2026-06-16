@@ -16,7 +16,6 @@
 #include "torch-mlir/Conversion/TorchToArith/TorchToArith.h"
 #include "torch-mlir/Conversion/TorchToLinalg/TorchToLinalg.h"
 #include "torch-mlir/Conversion/TorchToSCF/TorchToSCF.h"
-#include "torch-mlir/Conversion/TorchToTMTensor/TorchToTMTensor.h"
 #include "torch-mlir/Conversion/TorchToTensor/TorchToTensor.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 
@@ -81,9 +80,6 @@ void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
   // We do this first as it tends to involve pattern-matching against constants,
   // (e.g. dimensions which must be constant in a ranked programming model)
   // and those constants get somewhat obscured by TorchToArith.
-  pm.addNestedPass<func::FuncOp>(
-      createConvertTorchToTMTensorPass(options.allowNonFinites));
-  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   pm.addNestedPass<func::FuncOp>(
       createConvertTorchToLinalgPass(options.allowNonFinites));
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());

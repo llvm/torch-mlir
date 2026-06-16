@@ -14,6 +14,7 @@
 #include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
@@ -27,6 +28,96 @@ using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
 namespace {
+enum class CumReductionKind { Sum, Prod };
+
+static Value buildCumulativeScanLoopNest(
+    OpBuilder &builder, Location loc, Value input, Type elementType,
+    ValueRange upperBounds, int64_t scanDim, CumReductionKind reductionKind,
+    ArrayRef<int64_t> loopOrder, SmallVectorImpl<Value> &ivByDim, int64_t depth,
+    Value outputTensor) {
+  Value c0 = arith::ConstantIndexOp::create(builder, loc, 0);
+  Value c1 = arith::ConstantIndexOp::create(builder, loc, 1);
+
+  if (depth == static_cast<int64_t>(loopOrder.size())) {
+    Value inputElem = tensor::ExtractOp::create(builder, loc, input, ivByDim);
+    Value scanIv = ivByDim[scanDim];
+    Value isFirstIndex = arith::CmpIOp::create(
+        builder, loc, arith::CmpIPredicate::eq, scanIv, c0);
+
+    SmallVector<Value> prevIndices(ivByDim.begin(), ivByDim.end());
+    prevIndices[scanDim] = arith::SubIOp::create(builder, loc, scanIv, c1);
+    Value prevElem =
+        tensor::ExtractOp::create(builder, loc, outputTensor, prevIndices);
+
+    Value scannedElem;
+    switch (reductionKind) {
+    case CumReductionKind::Sum:
+      scannedElem =
+          isa<mlir::FloatType>(elementType)
+              ? Value(arith::AddFOp::create(builder, loc, prevElem, inputElem)
+                          .getResult())
+              : Value(arith::AddIOp::create(builder, loc, prevElem, inputElem)
+                          .getResult());
+      break;
+    case CumReductionKind::Prod:
+      scannedElem =
+          isa<mlir::FloatType>(elementType)
+              ? Value(arith::MulFOp::create(builder, loc, prevElem, inputElem)
+                          .getResult())
+              : Value(arith::MulIOp::create(builder, loc, prevElem, inputElem)
+                          .getResult());
+      break;
+    }
+
+    Value currentElem = arith::SelectOp::create(builder, loc, isFirstIndex,
+                                                inputElem, scannedElem)
+                            .getResult();
+    return tensor::InsertOp::create(builder, loc, currentElem, outputTensor,
+                                    ivByDim)
+        .getResult();
+  }
+
+  int64_t dim = loopOrder[depth];
+  auto forOp = scf::ForOp::create(
+      builder, loc, c0, upperBounds[dim], c1, ValueRange{outputTensor},
+      [&](OpBuilder &nestedBuilder, Location nestedLoc, Value iv,
+          ValueRange iterArgs) {
+        ivByDim[dim] = iv;
+        Value updatedTensor = buildCumulativeScanLoopNest(
+            nestedBuilder, nestedLoc, input, elementType, upperBounds, scanDim,
+            reductionKind, loopOrder, ivByDim, depth + 1, iterArgs[0]);
+        scf::YieldOp::create(nestedBuilder, nestedLoc, updatedTensor);
+      });
+  return forOp.getResult(0);
+}
+
+static FailureOr<Value> createCumulativeScanWithForLoops(
+    ConversionPatternRewriter &rewriter, Location loc, Value input,
+    Value initOutput, int64_t scanDim, CumReductionKind reductionKind) {
+  auto inputType = cast<RankedTensorType>(input.getType());
+  int64_t rank = inputType.getRank();
+  Type elementType = inputType.getElementType();
+  if (!isa<mlir::FloatType, mlir::IntegerType>(elementType))
+    return rewriter.notifyMatchFailure(
+        loc, "cumsum/cumprod requires floating-point or integer element type");
+
+  SmallVector<int64_t> loopOrder;
+  loopOrder.reserve(rank);
+  loopOrder.push_back(scanDim);
+  for (int64_t d = 0; d < rank; ++d)
+    if (d != scanDim)
+      loopOrder.push_back(d);
+
+  SmallVector<Value> upperBounds(rank);
+  for (int64_t d = 0; d < rank; ++d)
+    upperBounds[d] = tensor::DimOp::create(rewriter, loc, input, d);
+
+  SmallVector<Value> ivByDim(rank);
+  return buildCumulativeScanLoopNest(
+      rewriter, loc, input, elementType, upperBounds, scanDim, reductionKind,
+      loopOrder, ivByDim, /*depth=*/0, initOutput);
+}
+
 // Aten max.dim (min.dim) lowering represents the MaxDimOp (MinDimOp) as an
 // linalg.indexed_generic op, producing two output buffers.
 //
@@ -812,6 +903,103 @@ public:
 };
 } // namespace
 
+namespace {
+template <typename OpTy, CumReductionKind reductionKind>
+class ConvertAtenCumReductionOp : public OpConversionPattern<OpTy> {
+public:
+  using OpConversionPattern<OpTy>::OpConversionPattern;
+  using OpAdaptor = typename OpTy::Adaptor;
+
+  LogicalResult
+  matchAndRewrite(OpTy op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = adaptor.getSelf();
+    auto resultType = cast<RankedTensorType>(
+        this->getTypeConverter()->convertType(op->getResult(0).getType()));
+    Type elementType = resultType.getElementType();
+    Type inputElementType =
+        cast<RankedTensorType>(input.getType()).getElementType();
+
+    if constexpr (std::is_same_v<OpTy, AtenCumsumOp>) {
+      Value dtype = op.getDtype();
+      if (!isa<Torch::NoneType>(dtype.getType())) {
+        int64_t dtypeInt;
+        if (!matchPattern(dtype, m_TorchConstantInt(&dtypeInt)))
+          return rewriter.notifyMatchFailure(
+              op, "unimplemented: only constant int dtype value is supported");
+        FailureOr<Type> resDtype = getTypeForScalarType(
+            op->getContext(), (torch_upstream::ScalarType)dtypeInt);
+        if (failed(resDtype))
+          return rewriter.notifyMatchFailure(
+              op, "unsupported: dtype not defined for the given dtype int "
+                  "value");
+        Value torchInput =
+            convertTensorToDtype(rewriter, loc, op.getSelf(), resDtype.value());
+        input = this->getTypeConverter()->materializeTargetConversion(
+            rewriter, loc,
+            this->getTypeConverter()->convertType(torchInput.getType()),
+            torchInput);
+      } else if (elementType != inputElementType &&
+                 isa<IntegerType>(elementType) &&
+                 isa<IntegerType>(inputElementType)) {
+        Value torchInput = convertTensorToDtype(
+            rewriter, loc, op.getSelf(),
+            rewriter.getIntegerType(64, IntegerType::Signed));
+        input = this->getTypeConverter()->materializeTargetConversion(
+            rewriter, loc,
+            this->getTypeConverter()->convertType(torchInput.getType()),
+            torchInput);
+      }
+    } else {
+      // aten.cumprod only supports dtype=None in this lowering.
+      Value dtype = op.getDtype();
+      if (!isa<Torch::NoneType>(dtype.getType()))
+        return rewriter.notifyMatchFailure(
+            op, "unsupported: dtype argument not supported");
+      if (elementType != inputElementType) {
+        Value torchInput = convertTensorToDtype(
+            rewriter, loc, op.getSelf(),
+            rewriter.getIntegerType(64, IntegerType::Signed));
+        input = this->getTypeConverter()->materializeTargetConversion(
+            rewriter, loc,
+            this->getTypeConverter()->convertType(torchInput.getType()),
+            torchInput);
+      }
+    }
+
+    int64_t rank = resultType.getRank();
+    int64_t dim;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only constant dim value is supported");
+    dim = toPositiveDim(dim, rank);
+    if (!isValidDim(dim, rank))
+      return rewriter.notifyMatchFailure(op, "invalid dim");
+
+    SmallVector<Value> sizes = getTensorSizes(rewriter, loc, input);
+    Value initOutput;
+    switch (reductionKind) {
+    case CumReductionKind::Sum:
+      initOutput = createZeroInitTensor(rewriter, loc, sizes, elementType);
+      break;
+    case CumReductionKind::Prod:
+      initOutput = createOneInitTensor(rewriter, loc, sizes, elementType);
+      break;
+    }
+    initOutput = tensor::CastOp::create(rewriter, loc, resultType, initOutput);
+
+    FailureOr<Value> scanResult = createCumulativeScanWithForLoops(
+        rewriter, loc, input, initOutput, dim, reductionKind);
+    if (failed(scanResult))
+      return failure();
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, *scanResult);
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::populateReductionPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target, bool allowNonFinites) {
@@ -837,5 +1025,12 @@ void mlir::torch::torch_to_linalg::populateReductionPatternsAndLegality(
   target.addIllegalOp<AtenNormScalarOp>();
   target.addIllegalOp<AtenLinalgVectorNormOp>();
   target.addIllegalOp<AtenFrobeniusNormDimOp>();
+  target.addIllegalOp<AtenCumsumOp>();
+  target.addIllegalOp<AtenCumprodOp>();
+  patterns.add<ConvertAtenCumReductionOp<AtenCumsumOp, CumReductionKind::Sum>>(
+      typeConverter, context);
+  patterns
+      .add<ConvertAtenCumReductionOp<AtenCumprodOp, CumReductionKind::Prod>>(
+          typeConverter, context);
   patterns.add<ConvertReductionOp>(typeConverter, context, allowNonFinites);
 }

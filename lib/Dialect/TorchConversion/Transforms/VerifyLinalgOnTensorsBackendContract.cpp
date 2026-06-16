@@ -19,7 +19,6 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "torch-mlir-dialects/Dialect/TMTensor/IR/TMTensorDialect.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h"
 
@@ -28,7 +27,6 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::TorchConversion;
-using namespace TMTensor;
 namespace mlir::torch::TorchConversion {
 
 #define GEN_PASS_DEF_VERIFYLINALGONTENSORSBACKENDCONTRACT
@@ -84,7 +82,6 @@ class VerifyLinalgOnTensorsBackendContractPass
     target.addDynamicallyLegalDialect<tensor::TensorDialect>(opHasLegalTypes);
     target.addDynamicallyLegalDialect<affine::AffineDialect>(opHasLegalTypes);
     target.addDynamicallyLegalDialect<cf::ControlFlowDialect>(opHasLegalTypes);
-    target.addDynamicallyLegalDialect<TMTensorDialect>(opHasLegalTypes);
     target.addDynamicallyLegalDialect<scf::SCFDialect>(opHasLegalTypes);
     target.addDynamicallyLegalDialect<ml_program::MLProgramDialect>(
         opHasLegalTypes);

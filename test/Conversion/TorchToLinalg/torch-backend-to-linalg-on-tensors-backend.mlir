@@ -33,3 +33,17 @@ func.func @torch.aten.max.dim$basic(%arg0: tensor<3x2x3xf32>) -> tensor<3x2x1xf3
   %1 = torch_c.to_builtin_tensor %values : !torch.vtensor<[3,2,1],f32> -> tensor<3x2x1xf32>
   return %1 : tensor<3x2x1xf32>
 }
+
+// -----
+// CHECK-LABEL: func.func @torch.aten.cumsum.basic
+// CHECK-NOT: tm_tensor.
+// CHECK: scf.for
+// CHECK: arith.addf
+func.func @torch.aten.cumsum.basic(%arg0: tensor<2x3xf32>) -> tensor<2x3xf32> {
+  %0 = torch_c.from_builtin_tensor %arg0 : tensor<2x3xf32> -> !torch.vtensor<[2,3],f32>
+  %dim = torch.constant.int 1
+  %none = torch.constant.none
+  %1 = torch.aten.cumsum %0, %dim, %none : !torch.vtensor<[2,3],f32>, !torch.int, !torch.none -> !torch.vtensor<[2,3],f32>
+  %2 = torch_c.to_builtin_tensor %1 : !torch.vtensor<[2,3],f32> -> tensor<2x3xf32>
+  return %2 : tensor<2x3xf32>
+}
