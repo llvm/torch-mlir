@@ -10,8 +10,8 @@
 # (this includes down into lower parts of the stack, where a side table
 # might be used to keep more elaborate sets of testing configurations).
 
-from torch_mlir_e2e_test.test_suite import COMMON_TORCH_MLIR_LOWERING_XFAILS
 from torch_mlir._version import torch_version_for_comparison, version
+from torch_mlir_e2e_test.test_suite import COMMON_TORCH_MLIR_LOWERING_XFAILS
 
 print(f"TORCH_VERSION_FOR_COMPARISON =", torch_version_for_comparison())
 
@@ -1132,6 +1132,9 @@ STABLEHLO_PASS_SET = {
     "AvgPool2dStaticModule_basic",
     "AvgPool2dCountIncludePadFalseStaticModule_basic",
     "AvgPool3dStaticModule_basic",
+    "AtenOuterInt_basic",
+    "AtenOuterFloat_basic",
+    "AtenOuterF32F64_basic",
     "BaddbmmBroadcast1DInputModule_basic",
     "BaddbmmBroadcast2DInputModule_basic",
     "BaddbmmStaticModule_basic",
@@ -2619,7 +2622,8 @@ LTC_CRASHING_SET = {
 }
 
 LTC_XFAIL_SET = {
-    "TorchPrimLoopForLikeTensorArgModule_basic" "CollapseAllDimensionsModule_basic",
+    "TorchPrimLoopForLikeTensorArgModule_basic",
+    "CollapseAllDimensionsModule_basic",
     "TorchPrimLoopWhileLikeHOPModule_basic",
     "CollapseRank1DynamicModule_basic",
     "CollapseStaticModule_basic",
@@ -2916,6 +2920,7 @@ ONNX_XFAIL_SET = {
     "AtenScaledMmPerTensorF16Module_basic",
     "AtenScaledMmPerTensorF32Module_basic",
     "AtenScaledMmPerTensorModule_basic",
+    "AtenOuterF32F64_basic",
     "AtenPolarFloatModule_basic",
     "AtenPolarDoubleModule_basic",
     "AtenRealView128Module_basic",
@@ -4342,6 +4347,9 @@ ONNX_TOSA_XFAIL_SET = {
     "AtenTriuWithNegDiagonalModule_basic",
     "AtenTriuWithPosDiagonalModule_basic",
     "Aten_EmbeddingBagExample_basic",
+    "AtenOuterInt_basic",
+    "AtenOuterFloat_basic",
+    "AtenOuterF32F64_basic",
     "AvgPool1dFloatModule_basic",
     "AvgPool1dIntModule_basic",
     "AvgPool1dStaticModule_basic",
