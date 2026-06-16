@@ -6383,6 +6383,34 @@ def aten〇unfold〡dtype(self_rank_dtype: Tuple[int, int], dimension: int, size
 
 
 # ==============================================================================
+# PT2E quantization ops (quantized_decomposed namespace)
+# These ops appear in PT2E-exported graphs as first-class dialect ops.
+# They are NOT in the PyTorch JIT registry so must use @not_present_in_registry.
+# ==============================================================================
+
+@not_present_in_registry
+def quantized_decomposed〇quantize_per_tensor〡shape(input: List[int], scale: float, zero_point: int, quant_min: int, quant_max: int, dtype: int) -> List[int]:
+    return upstream_shape_functions.unary(input)
+
+@not_present_in_registry
+def quantized_decomposed〇quantize_per_tensor〡dtype(input_rank_dtype: Tuple[int, int], scale: float, zero_point: int, quant_min: int, quant_max: int, dtype: int) -> int:
+    # The output dtype is the integer type encoded by the `dtype` arg
+    # (e.g. torch.int8 = 2, torch.uint8 = 0).  Return it directly so that
+    # dtype-refinement propagates the correct integer element type.
+    return dtype
+
+@not_present_in_registry
+def quantized_decomposed〇dequantize_per_tensor〡shape(input: List[int], scale: float, zero_point: int, quant_min: int, quant_max: int, dtype: int, out_dtype: Optional[int]) -> List[int]:
+    return upstream_shape_functions.unary(input)
+
+@not_present_in_registry
+def quantized_decomposed〇dequantize_per_tensor〡dtype(input_rank_dtype: Tuple[int, int], scale: float, zero_point: int, quant_min: int, quant_max: int, dtype: int, out_dtype: Optional[int]) -> int:
+    # If out_dtype is specified, use it; otherwise default to float32.
+    if out_dtype is not None:
+        return out_dtype
+    return torch.float32
+
+# ==============================================================================
 # Main
 # ==============================================================================
 
