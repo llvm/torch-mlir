@@ -628,6 +628,101 @@ APFloat getFloatInf(mlir::FloatType fpType, bool negative,
              : APFloat::getLargest(fpType.getFloatSemantics(), negative);
 }
 
+FailureOr<QDQMatmulChain> matchQDQMatmulChain(Operation *mmOp, Value lhsTorch,
+                                              Value rhsTorch,
+                                              Value resultTorch) {
+  // mm result must feed a single quantize_per_tensor with constant qparams.
+  if (!resultTorch.hasOneUse())
+    return failure();
+  auto qOp = dyn_cast<QuantizedDecomposedQuantizePerTensorOp>(
+      *resultTorch.getUsers().begin());
+  if (!qOp)
+    return failure();
+  QDQMatmulChain chain;
+  chain.qOp = qOp;
+  if (!matchPattern(qOp.getScale(), m_TorchConstantFloat(&chain.outScale)) ||
+      !matchPattern(qOp.getZeroPoint(), m_TorchConstantInt(&chain.outZp)) ||
+      !matchPattern(qOp.getQuantMin(), m_TorchConstantInt(&chain.outQmin)) ||
+      !matchPattern(qOp.getQuantMax(), m_TorchConstantInt(&chain.outQmax)))
+    return failure();
+
+  // Both mm inputs must be dequantize_per_tensor with constant qparams.
+  chain.lhsDq =
+      lhsTorch.getDefiningOp<QuantizedDecomposedDequantizePerTensorOp>();
+  chain.rhsDq =
+      rhsTorch.getDefiningOp<QuantizedDecomposedDequantizePerTensorOp>();
+  if (!chain.lhsDq || !chain.rhsDq)
+    return failure();
+  if (!matchPattern(chain.lhsDq.getScale(),
+                    m_TorchConstantFloat(&chain.lhsScale)) ||
+      !matchPattern(chain.lhsDq.getZeroPoint(),
+                    m_TorchConstantInt(&chain.lhsZp)) ||
+      !matchPattern(chain.rhsDq.getScale(),
+                    m_TorchConstantFloat(&chain.rhsScale)) ||
+      !matchPattern(chain.rhsDq.getZeroPoint(),
+                    m_TorchConstantInt(&chain.rhsZp)))
+    return failure();
+
+  // For AtenMatmulOp with both ranks > 2, bail if there are multiple dynamic
+  // batch dims — the fusion cannot lower this case.
+  if (isa<AtenMatmulOp>(mmOp)) {
+    auto lhsTy = dyn_cast<ValueTensorType>(lhsTorch.getType());
+    auto rhsTy = dyn_cast<ValueTensorType>(rhsTorch.getType());
+    if (lhsTy && rhsTy && lhsTy.hasSizes() && rhsTy.hasSizes()) {
+      ArrayRef<int64_t> lhsShape = lhsTy.getSizes();
+      ArrayRef<int64_t> rhsShape = rhsTy.getSizes();
+      if (lhsShape.size() > 2 && rhsShape.size() > 2) {
+        auto resultTy = dyn_cast<ValueTensorType>(resultTorch.getType());
+        if (resultTy && resultTy.hasSizes()) {
+          ArrayRef<int64_t> resultShape = resultTy.getSizes();
+          SmallVector<int64_t> batchDims(resultShape.begin(),
+                                         resultShape.end() - 2);
+          if (llvm::count(batchDims, kUnknownSize) > 1)
+            return failure();
+        }
+      }
+    }
+  }
+
+  return chain;
+}
+
+bool feedsFusableQDQMatmul(QuantizedDecomposedDequantizePerTensorOp dqOp) {
+  // dqOp's only non-cast user must be the matmul of a fusable chain.
+  // Skip unrealized_conversion_cast users: addDynamicallyLegalOp re-queries
+  // legality after neighboring patterns fire, by which time the framework
+  // may have inserted target materializations on dqOp's result.
+  // Iterating users (not uses) folds the shared-operand case (lhsDq == rhsDq)
+  // into a single uniqueUser.
+  Operation *uniqueUser = nullptr;
+  for (Operation *user : dqOp.getResult().getUsers()) {
+    if (isa<UnrealizedConversionCastOp>(user))
+      continue;
+    if (uniqueUser && user != uniqueUser)
+      return false;
+    uniqueUser = user;
+  }
+  if (!uniqueUser)
+    return false;
+  Value mmLhs, mmRhs, mmResult;
+  if (auto mm = dyn_cast<AtenMmOp>(uniqueUser)) {
+    mmLhs = mm.getSelf();
+    mmRhs = mm.getMat2();
+    mmResult = mm.getResult();
+  } else if (auto mm = dyn_cast<AtenMatmulOp>(uniqueUser)) {
+    mmLhs = mm.getSelf();
+    mmRhs = mm.getOther();
+    mmResult = mm.getResult();
+  } else if (auto mm = dyn_cast<AtenBmmOp>(uniqueUser)) {
+    mmLhs = mm.getSelf();
+    mmRhs = mm.getMat2();
+    mmResult = mm.getResult();
+  } else {
+    return false;
+  }
+  return succeeded(matchQDQMatmulChain(uniqueUser, mmLhs, mmRhs, mmResult));
+}
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

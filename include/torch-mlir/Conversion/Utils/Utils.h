@@ -13,6 +13,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Support/LLVM.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 
 namespace mlir {
 namespace torch {
@@ -124,6 +125,30 @@ LogicalResult getQuantizationParams(Value value, Value &zeropoint, Value &scale,
 
 APFloat getFloatInf(mlir::FloatType fpType, bool negative,
                     bool allowNonFinites);
+
+// Matched operands and constants for a fusable dq->mm->q chain.
+struct QDQMatmulChain {
+  QuantizedDecomposedDequantizePerTensorOp lhsDq, rhsDq;
+  QuantizedDecomposedQuantizePerTensorOp qOp;
+  double lhsScale, rhsScale;
+  int64_t lhsZp, rhsZp;
+  double outScale;
+  int64_t outZp, outQmin, outQmax;
+};
+
+// Matches a fusable dq->mm->q chain anchored on `mmOp` with operands
+// `lhsTorch`, `rhsTorch`, `resultTorch`. Returns the matched chain with all
+// constant qparams extracted, or failure if the chain does not match.
+// Used as the single source of truth for legality predicates and fusion
+// lowerings across conversion passes (TorchToLinalg, TorchToTosa, etc.).
+FailureOr<QDQMatmulChain> matchQDQMatmulChain(Operation *mmOp, Value lhsTorch,
+                                              Value rhsTorch,
+                                              Value resultTorch);
+
+// Returns true if `dqOp` feeds a fusable dq->mm->q chain.
+// Thin wrapper around matchQDQMatmulChain for use in addDynamicallyLegalOp
+// predicates.
+bool feedsFusableQDQMatmul(QuantizedDecomposedDequantizePerTensorOp dqOp);
 
 } // namespace Torch
 } // namespace torch

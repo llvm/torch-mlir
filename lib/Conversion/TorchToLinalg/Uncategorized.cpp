@@ -4147,8 +4147,14 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp,
       AtenRealOp, AtenImagOp, AtenDequantizeSelfOp, AtenDequantizeTensorOp,
       AtenQuantizePerTensorOp, AtenIscloseOp,
-      QuantizedDecomposedDequantizePerTensorOp,
       QuantizedDecomposedQuantizePerTensorOp>();
+  // Dq ops feeding a fusable dq->mm->q chain are handled (and erased) by the
+  // fusion pattern in Linear.cpp; mark them legal here so ConvertElementwiseOp
+  // does not emit a dead linalg.generic for them.
+  target.addDynamicallyLegalOp<QuantizedDecomposedDequantizePerTensorOp>(
+      [](QuantizedDecomposedDequantizePerTensorOp op) {
+        return Torch::feedsFusableQDQMatmul(op);
+      });
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);

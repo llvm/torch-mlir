@@ -14,6 +14,8 @@
 #include "mlir/Dialect/Complex/IR/Complex.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
+#include "mlir/Dialect/Math/IR/Math.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
@@ -22,6 +24,8 @@
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/Support/MathExtras.h"
 #include <algorithm>
+#include <climits>
+#include <cmath>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -29,12 +33,20 @@ using namespace mlir::torch::Torch;
 
 namespace {
 
-// for uint8 types, we shift down by 128 so that we can faithfully
-// represent the quantization with signed i8 types.
+// For uint8 types, shift down by 128 so we can faithfully represent the
+// quantization with signed i8 types.  No-op for signed types.
+//
+// In-place: rebinds `arg` to a sign-shifted tensor (linalg.generic adding
+// -2^(N-1) elementwise) and `zp` to the adjusted zero point (zp + -2^(N-1)).
+// `arg`'s element type and `zp`'s integer type are unchanged; only the values
+// are rebound.  N is taken from `arg`'s element-type bit width.
 static void signShift(PatternRewriter &rewriter, Location loc, Value &arg,
-                      Value &zp, bool isUnsignedType, int64_t numBits) {
+                      Value &zp, bool isUnsignedType) {
   if (!isUnsignedType)
     return;
+  int64_t numBits = cast<mlir::IntegerType>(
+                        cast<RankedTensorType>(arg.getType()).getElementType())
+                        .getWidth();
   int64_t minSI = -(1 << (numBits - 1));
   Value minSIValue = arith::ConstantIntOp::create(
       rewriter, loc, minSI, cast<mlir::IntegerType>(zp.getType()).getWidth());
@@ -48,6 +60,29 @@ static void signShift(PatternRewriter &rewriter, Location loc, Value &arg,
             arith::AddIOp::create(rewriter, loc, payloadArgs[0], minSIValue);
         linalg::YieldOp::create(b, loc, result);
       });
+}
+
+// Materialize, truncate to i32, and sign-shift both zero points and their
+// corresponding tensors for a quantized matmul.
+//
+// In-place: rebinds `lhs`, `rhs`, `lhsZp`, `rhsZp`.  The zero points enter as
+// Torch-dialect SSA values and exit as i32 builtin SSA values; the tensors
+// keep their element type but their values are sign-shifted when unsigned.
+static void prepareQuantizedInputs(ConversionPatternRewriter &rewriter,
+                                   Location loc,
+                                   const TypeConverter *typeConverter,
+                                   Value &lhs, Value &rhs, Value &lhsZp,
+                                   Value &rhsZp, bool lhsUnsigned,
+                                   bool rhsUnsigned) {
+  lhsZp = typeConverter->materializeTargetConversion(
+      rewriter, loc, typeConverter->convertType(lhsZp.getType()), lhsZp);
+  rhsZp = typeConverter->materializeTargetConversion(
+      rewriter, loc, typeConverter->convertType(rhsZp.getType()), rhsZp);
+  lhsZp = arith::TruncIOp::create(rewriter, loc, rewriter.getI32Type(), lhsZp);
+  rhsZp = arith::TruncIOp::create(rewriter, loc, rewriter.getI32Type(), rhsZp);
+
+  signShift(rewriter, loc, lhs, lhsZp, lhsUnsigned);
+  signShift(rewriter, loc, rhs, rhsZp, rhsUnsigned);
 }
 
 static Value transposeValue(Location loc, Value value, ArrayRef<int64_t> perms,
@@ -155,26 +190,9 @@ public:
 
     Value matmul;
     if (lhsZeroPoint) {
-      lhsZeroPoint = typeConverter->materializeTargetConversion(
-          rewriter, loc,
-          getTypeConverter()->convertType(lhsZeroPoint.getType()),
-          lhsZeroPoint);
-      rhsZeroPoint = typeConverter->materializeTargetConversion(
-          rewriter, loc,
-          getTypeConverter()->convertType(rhsZeroPoint.getType()),
-          rhsZeroPoint);
-      lhsZeroPoint = arith::TruncIOp::create(
-          rewriter, loc, rewriter.getI32Type(), lhsZeroPoint);
-      rhsZeroPoint = arith::TruncIOp::create(
-          rewriter, loc, rewriter.getI32Type(), rhsZeroPoint);
-
-      // change uint8 quantization -> int8 quantization
-      int64_t numBits =
-          cast<mlir::IntegerType>(lhsType.getElementType()).getWidth();
-      signShift(rewriter, loc, lhs, lhsZeroPoint, isUnsigned, numBits);
-      numBits = cast<mlir::IntegerType>(rhsType.getElementType()).getWidth();
-      signShift(rewriter, loc, rhs, rhsZeroPoint, isUnsignedR, numBits);
-
+      prepareQuantizedInputs(rewriter, loc, typeConverter, lhs, rhs,
+                             lhsZeroPoint, rhsZeroPoint, isUnsigned,
+                             isUnsignedR);
       matmul = linalg::QuantizedMatmulOp::create(
                    rewriter, loc, zeroFill.getType(),
                    ValueRange{lhs, rhs, lhsZeroPoint, rhsZeroPoint}, zeroFill)
@@ -238,6 +256,243 @@ public:
 } // namespace
 
 namespace {
+
+// Sub-case 2: collapse all batch dims into one, call linalg.batch_matmul on 3D
+// inputs, then expand back to the full shape.  Returns a tensor with element
+// type accumType; any post-accumulation type conversion (e.g., requantize) is
+// performed by the caller on the returned value.
+static Value emitCollapsedBatchMatmul(
+    ConversionPatternRewriter &rewriter, Location loc, Value broadcastedLhs,
+    Value broadcastedRhs, ArrayRef<Value> broadcastedBatchShape, Value lhsDim0,
+    Value rhsDim1, unsigned maxRank, unsigned batchRank, Value lhsZp,
+    Value rhsZp, Type accumType, RankedTensorType resultShapeType) {
+  SmallVector<ReassociationIndices> reassociation(3);
+  for (unsigned i = 0, j = 0; i < maxRank; i++) {
+    if (i >= batchRank)
+      j++;
+    reassociation[j].push_back(i);
+  }
+  Value collapsedLhs = tensor::CollapseShapeOp::create(
+      rewriter, loc, broadcastedLhs, reassociation);
+  Value collapsedRhs = tensor::CollapseShapeOp::create(
+      rewriter, loc, broadcastedRhs, reassociation);
+
+  // Collapsed batch size = product of all broadcasted batch dims.
+  Value collapsedBatch = broadcastedBatchShape[0];
+  for (unsigned i = 1; i < batchRank; i++)
+    collapsedBatch = rewriter.createOrFold<arith::MulIOp>(
+        loc, collapsedBatch, broadcastedBatchShape[i]);
+
+  Value zeroTensor = createZeroInitTensor(
+      rewriter, loc, ValueRange{collapsedBatch, lhsDim0, rhsDim1}, accumType);
+  Value bmmResult;
+  if (lhsZp) {
+    bmmResult =
+        linalg::QuantizedBatchMatmulOp::create(
+            rewriter, loc, zeroTensor.getType(),
+            ValueRange{collapsedLhs, collapsedRhs, lhsZp, rhsZp}, zeroTensor)
+            .getResult(0);
+  } else {
+    bmmResult = linalg::BatchMatmulOp::create(
+                    rewriter, loc, zeroTensor.getType(),
+                    ValueRange{collapsedLhs, collapsedRhs}, zeroTensor)
+                    .getResult(0);
+  }
+
+  // Convert accumulator element type before expanding (e.g. f32 → f16).
+  Type resultElemType = resultShapeType.getElementType();
+  if (resultElemType != accumType)
+    bmmResult = torch_to_linalg::convertTensorToElementType(
+        rewriter, loc, bmmResult, resultElemType);
+
+  // Expand the collapsed batch dim back to the full result shape.
+  auto expandResultType =
+      RankedTensorType::get(resultShapeType.getShape(), resultElemType);
+  return tensor::ExpandShapeOp::create(rewriter, loc, expandResultType,
+                                       bmmResult, reassociation)
+      .getResult();
+}
+
+// Sub-case 3: multiple dynamic batch dims — linalg.generic with a
+// caller-provided body builder.
+static Value emitGenericBatchMatmul(
+    ConversionPatternRewriter &rewriter, Location loc, Value broadcastedLhs,
+    Value broadcastedRhs, ArrayRef<Value> broadcastedBatchShape, Value lhsDim0,
+    Value rhsDim1, unsigned batchRank, Type accumType,
+    function_ref<void(OpBuilder &, Location, ValueRange)> genericBodyBuilder) {
+  SmallVector<AffineExpr> lhsExpr, rhsExpr, outExpr;
+  SmallVector<utils::IteratorType> iteratorTypes(batchRank,
+                                                 utils::IteratorType::parallel);
+  for (unsigned i = 0; i < batchRank; i++) {
+    lhsExpr.push_back(rewriter.getAffineDimExpr(i));
+    rhsExpr.push_back(rewriter.getAffineDimExpr(i));
+    outExpr.push_back(rewriter.getAffineDimExpr(i));
+  }
+  lhsExpr.insert(lhsExpr.end(), {rewriter.getAffineDimExpr(batchRank),
+                                 rewriter.getAffineDimExpr(batchRank + 1)});
+  rhsExpr.insert(rhsExpr.end(), {rewriter.getAffineDimExpr(batchRank + 1),
+                                 rewriter.getAffineDimExpr(batchRank + 2)});
+  outExpr.insert(outExpr.end(), {rewriter.getAffineDimExpr(batchRank),
+                                 rewriter.getAffineDimExpr(batchRank + 2)});
+
+  SmallVector<Value> resultDims(broadcastedBatchShape);
+  resultDims.insert(resultDims.end(), {lhsDim0, rhsDim1});
+  Value zeroTensor = createZeroInitTensor(rewriter, loc, resultDims, accumType);
+
+  auto indexingMaps = AffineMap::inferFromExprList({lhsExpr, rhsExpr, outExpr},
+                                                   rewriter.getContext());
+  iteratorTypes.insert(iteratorTypes.end(), {utils::IteratorType::parallel,
+                                             utils::IteratorType::reduction,
+                                             utils::IteratorType::parallel});
+  return linalg::GenericOp::create(rewriter, loc, zeroTensor.getType(),
+                                   ValueRange{broadcastedLhs, broadcastedRhs},
+                                   zeroTensor, indexingMaps, iteratorTypes,
+                                   genericBodyBuilder)
+      .getResult(0);
+}
+
+// Broadcast + batch matmul for rank > 2 inputs.  Handles three sub-cases:
+//   1. maxRank == 3             : direct linalg.batch_matmul / quantized
+//   variant
+//   2. !multipleDynamicBatchDims: collapse batch dims → 3D bmm → expand back
+//   3. multipleDynamicBatchDims : linalg.generic with caller-provided body
+//
+// lhsZp / rhsZp are i32 scalars; pass null Values for non-quantized paths.
+// accumType is the element type of the accumulator tensor (e.g. f32 or i32).
+// resultShapeType supplies the result shape and final element type.  When
+// resultShapeType.getElementType() differs from accumType (e.g. f16 output
+// accumulating in f32), the conversion is performed internally before
+// returning; the caller receives a tensor with resultShapeType's element type.
+// genericBodyBuilder is only invoked for sub-case 3; it receives the three
+// block arguments (lhs elem, rhs elem, acc elem) and must yield one value of
+// accumType.  Quantized paths must not reach sub-case 3 (no named op exists).
+static FailureOr<Value> emitBatchBroadcastedMatmul(
+    Operation *op, ConversionPatternRewriter &rewriter, Location loc, Value lhs,
+    Value rhs, Value lhsZp, Value rhsZp, Type accumType,
+    RankedTensorType resultShapeType,
+    function_ref<void(OpBuilder &, Location, ValueRange)> genericBodyBuilder) {
+  auto lhsType = cast<RankedTensorType>(lhs.getType());
+  auto rhsType = cast<RankedTensorType>(rhs.getType());
+  unsigned lhsRank = lhsType.getRank();
+  unsigned rhsRank = rhsType.getRank();
+  unsigned maxRank = std::max(lhsRank, rhsRank);
+  unsigned minRank = std::min(lhsRank, rhsRank);
+  unsigned batchRank = maxRank - 2;
+
+  // The `broadcastedBatchShape` contains the batch dimensions of the result,
+  // computed by broadcasting the batch dims of lhs and rhs against each other.
+  SmallVector<Value> broadcastedBatchShape(batchRank);
+  Value maxRankMatrix = (lhsRank > rhsRank) ? lhs : rhs;
+  for (unsigned i = 1; i <= batchRank; i++) {
+    Value maxDim;
+    if (i <= minRank - 2) {
+      // Dim present in both tensors: take the larger (numpy broadcast).
+      Value ld = getDimOp(rewriter, loc, lhs, lhsRank - 2 - i);
+      Value rd = getDimOp(rewriter, loc, rhs, rhsRank - 2 - i);
+      maxDim = rewriter.createOrFold<arith::MaxUIOp>(loc, ld, rd);
+    } else {
+      // Dim only present in the higher-rank tensor.
+      maxDim = getDimOp(rewriter, loc, maxRankMatrix, maxRank - 2 - i);
+    }
+    broadcastedBatchShape[batchRank - i] = maxDim;
+  }
+
+  Value lhsDim0 = getDimOp(rewriter, loc, lhs, lhsRank - 2);
+  Value lhsDim1 = getDimOp(rewriter, loc, lhs, lhsRank - 1);
+  Value rhsDim0 = getDimOp(rewriter, loc, rhs, rhsRank - 2);
+  Value rhsDim1 = getDimOp(rewriter, loc, rhs, rhsRank - 1);
+  checkDimEqualHelper(rewriter, loc, lhsDim1, rhsDim0);
+
+  // Compute the broadcasted shape of both matrices in i64 integer format,
+  // as required by broadcastToGivenShape.
+  SmallVector<Value> lhsBcastShape(broadcastedBatchShape);
+  lhsBcastShape.push_back(lhsDim0);
+  lhsBcastShape.push_back(lhsDim1);
+  SmallVector<Value> rhsBcastShape(broadcastedBatchShape);
+  rhsBcastShape.push_back(rhsDim0);
+  rhsBcastShape.push_back(rhsDim1);
+  for (unsigned i = 0; i < maxRank; i++) {
+    lhsBcastShape[i] = castIndexToInt64(rewriter, loc, lhsBcastShape[i]);
+    rhsBcastShape[i] = castIndexToInt64(rewriter, loc, rhsBcastShape[i]);
+  }
+
+  SmallVector<int64_t> lhsTargetShape =
+      llvm::to_vector(llvm::map_range(lhsBcastShape, [](Value v) {
+        return getConstantIntValue(v).value_or(ShapedType::kDynamic);
+      }));
+  SmallVector<int64_t> rhsTargetShape =
+      llvm::to_vector(llvm::map_range(rhsBcastShape, [](Value v) {
+        return getConstantIntValue(v).value_or(ShapedType::kDynamic);
+      }));
+
+  // Broadcast the batch dimensions of both matrices.
+  Value broadcastedLhs, broadcastedRhs;
+  if (failed(torch_to_linalg::broadcastToGivenShape(
+          op, rewriter, lhs, lhsBcastShape,
+          RankedTensorType::get(lhsTargetShape, lhsType.getElementType()),
+          broadcastedLhs)))
+    return rewriter.notifyMatchFailure(
+        op, "batch matmul: broadcast failed for lhs");
+  if (failed(torch_to_linalg::broadcastToGivenShape(
+          op, rewriter, rhs, rhsBcastShape,
+          RankedTensorType::get(rhsTargetShape, rhsType.getElementType()),
+          broadcastedRhs)))
+    return rewriter.notifyMatchFailure(
+        op, "batch matmul: broadcast failed for rhs");
+
+  // Sub-case 1: inputs are already rank 3 — no collapse needed.
+  Type resultElemType = resultShapeType.getElementType();
+  if (maxRank == 3) {
+    Value zeroTensor = createZeroInitTensor(
+        rewriter, loc, ValueRange{broadcastedBatchShape[0], lhsDim0, rhsDim1},
+        accumType);
+    Value bmmResult;
+    if (lhsZp)
+      bmmResult = linalg::QuantizedBatchMatmulOp::create(
+                      rewriter, loc, zeroTensor.getType(),
+                      ValueRange{broadcastedLhs, broadcastedRhs, lhsZp, rhsZp},
+                      zeroTensor)
+                      .getResult(0);
+    else
+      bmmResult = linalg::BatchMatmulOp::create(
+                      rewriter, loc, zeroTensor.getType(),
+                      ValueRange{broadcastedLhs, broadcastedRhs}, zeroTensor)
+                      .getResult(0);
+    if (resultElemType != accumType)
+      bmmResult = torch_to_linalg::convertTensorToElementType(
+          rewriter, loc, bmmResult, resultElemType);
+    return bmmResult;
+  }
+
+  // Check if the result has more than one dynamic batch dimension.
+  // Lowering to linalg.batch_matmul is only possible with at most one dynamic
+  // batch dim due to limited support of tensor.expand_shape.
+  SmallVector<int64_t> batchDimsInt =
+      makeShapeTorchCompatible(resultShapeType.getShape());
+  batchDimsInt.pop_back();
+  batchDimsInt.pop_back();
+  bool multipleDynamicBatchDims = llvm::count(batchDimsInt, kUnknownSize) > 1;
+
+  if (!multipleDynamicBatchDims)
+    return emitCollapsedBatchMatmul(rewriter, loc, broadcastedLhs,
+                                    broadcastedRhs, broadcastedBatchShape,
+                                    lhsDim0, rhsDim1, maxRank, batchRank, lhsZp,
+                                    rhsZp, accumType, resultShapeType);
+
+  // Sub-case 3 does not support quantized accumulation.
+  assert(!lhsZp && "quantized path must not reach the generic fallback");
+  Value genericResult = emitGenericBatchMatmul(
+      rewriter, loc, broadcastedLhs, broadcastedRhs, broadcastedBatchShape,
+      lhsDim0, rhsDim1, batchRank, accumType, genericBodyBuilder);
+  if (resultElemType != accumType)
+    genericResult = torch_to_linalg::convertTensorToElementType(
+        rewriter, loc, genericResult, resultElemType);
+  return genericResult;
+}
+
+} // namespace
+
+namespace {
 class ConvertAtenMatmulOp : public OpConversionPattern<AtenMatmulOp> {
 public:
   using OpConversionPattern::OpConversionPattern;
@@ -287,26 +542,9 @@ public:
     Type elementType = accumulatorDType;
 
     if (lhsZeroPoint) {
-      // get each zero point ready to pass to a quantized_matmul
-      lhsZeroPoint = typeConverter->materializeTargetConversion(
-          rewriter, loc,
-          getTypeConverter()->convertType(lhsZeroPoint.getType()),
-          lhsZeroPoint);
-      rhsZeroPoint = typeConverter->materializeTargetConversion(
-          rewriter, loc,
-          getTypeConverter()->convertType(rhsZeroPoint.getType()),
-          rhsZeroPoint);
-      lhsZeroPoint = arith::TruncIOp::create(
-          rewriter, loc, rewriter.getI32Type(), lhsZeroPoint);
-      rhsZeroPoint = arith::TruncIOp::create(
-          rewriter, loc, rewriter.getI32Type(), rhsZeroPoint);
-
-      // change uint8 quantization -> int8 quantization
-      int64_t numBits =
-          cast<mlir::IntegerType>(lhsType.getElementType()).getWidth();
-      signShift(rewriter, loc, lhs, lhsZeroPoint, isUnsigned, numBits);
-      numBits = cast<mlir::IntegerType>(rhsType.getElementType()).getWidth();
-      signShift(rewriter, loc, rhs, rhsZeroPoint, isUnsignedR, numBits);
+      prepareQuantizedInputs(rewriter, loc, typeConverter, lhs, rhs,
+                             lhsZeroPoint, rhsZeroPoint, isUnsigned,
+                             isUnsignedR);
 
       // for quantized vec-vec, vec-mat, and mat-vec cases, lower to
       // expand/collapse + quantized_matmul
@@ -461,230 +699,29 @@ public:
     // rank and the other has batch dimension.
     if (lhsRank > 1 && rhsRank > 1) {
       unsigned maxRank = std::max(lhsRank, rhsRank);
-      unsigned minRank = std::min(lhsRank, rhsRank);
       unsigned batchRank = maxRank - 2;
-
-      // At least one of the matrix must have rank greater than 2.
-      if (batchRank <= 0) {
+      if (batchRank <= 0)
         return rewriter.notifyMatchFailure(op, "expected batch dimensions");
-      }
 
-      // The `broadcastedBatchShape` contains batch dimensions of the resultant
-      // matrix.
-      SmallVector<Value> broadcastedBatchShape(batchRank);
-      Value maxRankMatrix = (lhsRank > rhsRank) ? lhs : rhs;
-      Value maxDim;
-      // Compute broadcasted batch dimensions if the batch dimensions of
-      // the matrices are broadcastable.
-      for (unsigned i = 1; i <= batchRank; i++) {
-        if (i <= minRank - 2) {
-          Value lhsDim = getDimOp(rewriter, loc, lhs, lhsRank - 2 - i);
-          Value rhsDim = getDimOp(rewriter, loc, rhs, rhsRank - 2 - i);
-          maxDim = rewriter.createOrFold<arith::MaxUIOp>(loc, lhsDim, rhsDim);
-        } else {
-          maxDim = getDimOp(rewriter, loc, maxRankMatrix, maxRank - 2 - i);
+      auto genericBody = [&](OpBuilder &b, Location loc, ValueRange args) {
+        Value l = args[0], r = args[1], res = args[2];
+        if (accumulatorDType != lhsType.getElementType()) {
+          l = arith::ExtFOp::create(b, loc, accumulatorDType, l);
+          r = arith::ExtFOp::create(b, loc, accumulatorDType, r);
         }
-        broadcastedBatchShape[batchRank - i] = maxDim;
-      }
+        Value mul = arith::MulFOp::create(b, loc, l, r);
+        Value add = arith::AddFOp::create(b, loc, mul, res);
+        linalg::YieldOp::create(b, loc, add);
+      };
 
-      Value lhsDim0 = getDimOp(rewriter, loc, lhs, lhsRank - 2);
-      Value lhsDim1 = getDimOp(rewriter, loc, lhs, lhsRank - 1);
-      Value rhsDim0 = getDimOp(rewriter, loc, rhs, rhsRank - 2);
-      Value rhsDim1 = getDimOp(rewriter, loc, rhs, rhsRank - 1);
-      checkDimEqualHelper(rewriter, loc, lhsDim1, rhsDim0);
+      auto bmmResult = emitBatchBroadcastedMatmul(
+          op, rewriter, loc, lhs, rhs, lhsZeroPoint, rhsZeroPoint, elementType,
+          resultType, genericBody);
+      if (failed(bmmResult))
+        return failure();
 
-      // Compute broadcasted shape of both the matrices in integer format.
-      SmallVector<Value> lhsBroadcastToShape(broadcastedBatchShape);
-      lhsBroadcastToShape.push_back(lhsDim0);
-      lhsBroadcastToShape.push_back(lhsDim1);
-      SmallVector<Value> rhsBroadcastToShape(broadcastedBatchShape);
-      rhsBroadcastToShape.push_back(rhsDim0);
-      rhsBroadcastToShape.push_back(rhsDim1);
-      for (unsigned i = 0; i < maxRank; i++) {
-        lhsBroadcastToShape[i] =
-            castIndexToInt64(rewriter, loc, lhsBroadcastToShape[i]);
-        rhsBroadcastToShape[i] =
-            castIndexToInt64(rewriter, loc, rhsBroadcastToShape[i]);
-      }
-
-      // Broadcast the batch dimensions of both the matrices.
-      Value broadcastedLhs, broadcastedRhs;
-      SmallVector<int64_t> lhsTargetShape =
-          llvm::to_vector(llvm::map_range(lhsBroadcastToShape, [](Value v) {
-            return getConstantIntValue(v).value_or(ShapedType::kDynamic);
-          }));
-
-      auto lhsBroadcastType = RankedTensorType::get(
-          lhsTargetShape, lhsType.getElementType(), lhsType.getEncoding());
-      if (failed(torch_to_linalg::broadcastToGivenShape(
-              op, rewriter, lhs, lhsBroadcastToShape, lhsBroadcastType,
-              broadcastedLhs))) {
-        return rewriter.notifyMatchFailure(
-            op, "unable to perform broadcast operation");
-      }
-      SmallVector<int64_t> rhsTargetShape =
-          llvm::to_vector(llvm::map_range(rhsBroadcastToShape, [](Value v) {
-            return getConstantIntValue(v).value_or(ShapedType::kDynamic);
-          }));
-      auto rhsBroadcastType = RankedTensorType::get(
-          rhsTargetShape, rhsType.getElementType(), rhsType.getEncoding());
-      if (failed(torch_to_linalg::broadcastToGivenShape(
-              op, rewriter, rhs, rhsBroadcastToShape, rhsBroadcastType,
-              broadcastedRhs))) {
-        return rewriter.notifyMatchFailure(
-            op, "unable to perform broadcast operation");
-      }
-
-      if (maxRank == 3) {
-        Value zeroTensor = createZeroInitTensor(
-            rewriter, loc,
-            ValueRange{broadcastedBatchShape[0], lhsDim0, rhsDim1},
-            elementType);
-        Value matmul;
-        if (lhsZeroPoint) {
-          matmul = linalg::QuantizedBatchMatmulOp::create(
-                       rewriter, loc, zeroTensor.getType(),
-                       ValueRange{broadcastedLhs, broadcastedRhs, lhsZeroPoint,
-                                  rhsZeroPoint},
-                       zeroTensor)
-                       .getResult(0);
-          rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType,
-                                                      matmul);
-          return success();
-        }
-        matmul = linalg::BatchMatmulOp::create(
-                     rewriter, loc, zeroTensor.getType(),
-                     ValueRange{broadcastedLhs, broadcastedRhs}, zeroTensor)
-                     .getResult(0);
-        if (accumulatorDType != resultElementType) {
-          matmul = torch_to_linalg::convertTensorToElementType(
-              rewriter, loc, matmul, resultElementType);
-        }
-        rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, matmul);
-        return success();
-      }
-
-      // Check if the result of the matrix multiplication has more than one
-      // dynamic batch dimensions.
-      SmallVector<int64_t> batchDimsInt =
-          makeShapeTorchCompatible(resultType.getShape());
-      batchDimsInt.pop_back();
-      batchDimsInt.pop_back();
-      bool multipleDynamicBatchDims =
-          llvm::count(batchDimsInt, kUnknownSize) > 1;
-
-      // TODO: Lowering to `linalg.BatchMatmul` is only possible when there is
-      // at most one dynamic batch dimension due to limited support of the
-      // `tensor.ExpandShape` op.
-      if (!multipleDynamicBatchDims) {
-        // Collapse the batch dimensions into one dimension. The resultant rank
-        // will always be 3.
-        SmallVector<ReassociationIndices> reassociation(3);
-        for (unsigned i = 0, j = 0; i < maxRank; i++) {
-          if (i >= batchRank)
-            j++;
-          reassociation[j].push_back(i);
-        }
-        Value collapsedLhs = tensor::CollapseShapeOp::create(
-            rewriter, op->getLoc(), broadcastedLhs, reassociation);
-        Value collapsedRhs = tensor::CollapseShapeOp::create(
-            rewriter, op->getLoc(), broadcastedRhs, reassociation);
-
-        // Compute the result shape after collapsing the batch dimensions.
-        SmallVector<Value> collapsedResultShape;
-        collapsedResultShape.push_back(broadcastedBatchShape[0]);
-        for (unsigned i = 1; i < batchRank; i++) {
-          collapsedResultShape[0] = rewriter.createOrFold<arith::MulIOp>(
-              loc, collapsedResultShape[0], broadcastedBatchShape[i]);
-        }
-        collapsedResultShape.push_back(lhsDim0);
-        collapsedResultShape.push_back(rhsDim1);
-        SmallVector<OpFoldResult> updatedCollapseResultShape =
-            getAsOpFoldResult(collapsedResultShape);
-
-        Value initTensor = tensor::EmptyOp::create(
-            rewriter, loc, updatedCollapseResultShape, elementType);
-        Value c0 = arith::ConstantOp::create(rewriter, loc,
-                                             rewriter.getZeroAttr(elementType));
-        Value zeroTensor =
-            linalg::FillOp::create(rewriter, loc, c0, initTensor).getResult(0);
-        Value batchMatMul;
-
-        if (lhsZeroPoint) {
-          batchMatMul = linalg::QuantizedBatchMatmulOp::create(
-                            rewriter, loc, zeroTensor.getType(),
-                            ValueRange{collapsedLhs, collapsedRhs, lhsZeroPoint,
-                                       rhsZeroPoint},
-                            zeroTensor)
-                            .getResult(0);
-        } else {
-          batchMatMul = linalg::BatchMatmulOp::create(
-                            rewriter, loc, zeroTensor.getType(),
-                            ValueRange{collapsedLhs, collapsedRhs}, zeroTensor)
-                            .getResult(0);
-        }
-        if (accumulatorDType != resultElementType) {
-          batchMatMul = torch_to_linalg::convertTensorToElementType(
-              rewriter, loc, batchMatMul, resultElementType);
-        }
-        Value expandResult = tensor::ExpandShapeOp::create(
-            rewriter, loc, resultType, batchMatMul, reassociation);
-        rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType,
-                                                    expandResult);
-        return success();
-      }
-
-      SmallVector<AffineExpr> lhsExpr;
-      SmallVector<AffineExpr> rhsExpr;
-      SmallVector<AffineExpr> outExpr;
-      SmallVector<utils::IteratorType> iteratorTypes(
-          batchRank, utils::IteratorType::parallel);
-      for (unsigned i = 0; i < batchRank; i++) {
-        lhsExpr.push_back(rewriter.getAffineDimExpr(i));
-        rhsExpr.push_back(rewriter.getAffineDimExpr(i));
-        outExpr.push_back(rewriter.getAffineDimExpr(i));
-      }
-      lhsExpr.insert(lhsExpr.end(), {rewriter.getAffineDimExpr(batchRank),
-                                     rewriter.getAffineDimExpr(batchRank + 1)});
-      rhsExpr.insert(rhsExpr.end(), {rewriter.getAffineDimExpr(batchRank + 1),
-                                     rewriter.getAffineDimExpr(batchRank + 2)});
-      outExpr.insert(outExpr.end(), {rewriter.getAffineDimExpr(batchRank),
-                                     rewriter.getAffineDimExpr(batchRank + 2)});
-
-      SmallVector<Value> resultShape(broadcastedBatchShape);
-      resultShape.insert(resultShape.end(), {lhsDim0, rhsDim1});
-      Value zeroTensor =
-          createZeroInitTensor(rewriter, loc, resultShape, elementType);
-      auto indexingMaps = AffineMap::inferFromExprList(
-          {lhsExpr, rhsExpr, outExpr}, rewriter.getContext());
-      iteratorTypes.insert(iteratorTypes.end(),
-                           {utils::IteratorType::parallel,
-                            utils::IteratorType::reduction,
-                            utils::IteratorType::parallel});
-
-      Value finalRes =
-          linalg::GenericOp::create(
-              rewriter, loc, zeroTensor.getType(),
-              ValueRange{broadcastedLhs, broadcastedRhs}, zeroTensor,
-              /*indexingMaps=*/indexingMaps,
-              /*iteratorTypes=*/iteratorTypes,
-              [&](OpBuilder &b, Location loc, ValueRange args) {
-                Value l = args[0], r = args[1], res = args[2];
-                if (accumulatorDType != lhsType.getElementType()) {
-                  l = arith::ExtFOp::create(b, loc, accumulatorDType, l);
-                  r = arith::ExtFOp::create(b, loc, accumulatorDType, r);
-                }
-                Value mul = arith::MulFOp::create(b, loc, l, r);
-                Value add = arith::AddFOp::create(b, loc, mul, res);
-                linalg::YieldOp::create(b, loc, add);
-              })
-              .getResult(0);
-
-      if (accumulatorDType != resultElementType) {
-        finalRes = torch_to_linalg::convertTensorToElementType(
-            rewriter, loc, finalRes, resultElementType);
-      }
-      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, finalRes);
+      rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType,
+                                                  *bmmResult);
       return success();
     }
     return failure();
@@ -972,14 +1009,10 @@ public:
         getAsConstantIntValues(rewriter, loc, strideInts);
 
     // convert any uint8 quantization to int8 quantization
-    if (auto integerType = dyn_cast<mlir::IntegerType>(inputDTy)) {
-      int64_t width = integerType.getWidth();
-      signShift(rewriter, loc, input, inputZp, inputUnsigned, width);
-    }
-    if (auto integerType = dyn_cast<mlir::IntegerType>(weightDTy)) {
-      int64_t width = integerType.getWidth();
-      signShift(rewriter, loc, weight, weightZp, weightUnsigned, width);
-    }
+    if (isa<mlir::IntegerType>(inputDTy))
+      signShift(rewriter, loc, input, inputZp, inputUnsigned);
+    if (isa<mlir::IntegerType>(weightDTy))
+      signShift(rewriter, loc, weight, weightZp, weightUnsigned);
     // Pad the input tensor according to padding.
     SmallVector<Value> outDims{inBatch, weightBatch};
     Value paddedInput;
@@ -2610,6 +2643,311 @@ public:
 };
 } // namespace
 
+namespace {
+// ---------------------------------------------------------------------------
+// PT2E quantized matmul: dq -> {mm, matmul} -> q
+//
+// Anchors on aten.mm / aten.matmul at benefit=2 (ConvertAtenMmOp is benefit=1).
+// Checks both inputs come from dequantize_per_tensor with constant qparams and
+// that mm's result has a single use which is quantize_per_tensor with constant
+// qparams.  If matched, emits linalg.quantized_matmul + requantize epilogue and
+// replaces the q op's users with the integer result.  If not matched, returns
+// failure so ConvertAtenMmOp fires instead.
+//
+//
+// All scale/zp arguments must be compile-time constants (static per-tensor).
+// ---------------------------------------------------------------------------
+
+// Decompose a positive compile-time scale into a Q31 fixed-point multiplier
+// and a right-shift count such that:
+//   scale ≈ multiplier * 2^(-shift)
+// multiplier is in (0, 2^31-1], shift = 31 - frexp_exponent.
+// The caller computes round_half_to_even(acc * scale) by treating
+// (acc * multiplier) as a Q(shift) fixed-point value and rounding it to an
+// integer with banker's rounding; see emitRequantize for the lowering.
+// Returns failure if shift is outside [1, 62] (scale out of Q31 range).
+static FailureOr<std::pair<int32_t, int32_t>> quantizeMultiplier(double scale) {
+  assert(scale > 0.0 && "scale must be positive");
+  int exponent;
+  double significand = std::frexp(scale, &exponent);
+  int32_t shift = 31 - exponent;
+  if (shift < 1 || shift > 62)
+    return failure();
+  double multiplierD = std::round(significand * (1LL << 31));
+  int32_t multiplier =
+      static_cast<int32_t>(std::min(multiplierD, (double)INT32_MAX));
+  return std::make_pair(multiplier, shift);
+}
+
+// Emit the per-element requantize epilogue: i32 accumulator tensor → output
+// integer tensor.  effectiveScale = lhsScale * rhsScale / outScale.
+//
+// Integer-only path (no float ops at runtime).  Uses i64 multiply to avoid
+// overflow, then round-half-to-even right-shift to match PyTorch's
+// std::nearbyint (FE_TONEAREST) semantics in quantize_per_tensor.  See
+// at::native::quantize_val in PyTorch (both the fbgemm and non-fbgemm
+// branches round via std::nearbyint; the non-fbgemm fallback is shown):
+// https://github.com/pytorch/pytorch/blob/449aa5b695056c4c14c3134909de5ad1a3078cc8/aten/src/ATen/native/quantized/AffineQuantizerBase.cpp#L107-L124
+//   prod_i64 = acc_i32 * multiplier  (i64)
+//   floor    = prod_i64 >>signed shift                       (toward -inf)
+//   rem      = prod_i64 & ((1<<shift) - 1)                   (unsigned, [0,
+//   2^shift)) delta    = rem > half ? 1
+//            : rem == half ? (floor & 1)        // ties to even
+//            : 0
+//   result_i32 = trunc(floor + delta)
+//   output = clamp(result_i32 + outZp, outQmin, outQmax) truncated to
+//   outElemType
+static Value emitRequantize(PatternRewriter &rewriter, Location loc, Value acc,
+                            Type outElemType,
+                            std::pair<int32_t, int32_t> multiplierShift,
+                            int64_t outZp, int64_t outQmin, int64_t outQmax) {
+  auto [multiplier, shift] = multiplierShift;
+  Type i32Type = rewriter.getI32Type();
+  Type i64Type = rewriter.getI64Type();
+  Value multiplierI64 =
+      arith::ConstantIntOp::create(rewriter, loc, i64Type, multiplier);
+  // shift ∈ [1, 62] (enforced by quantizeMultiplier), so 1<<shift and
+  // 1<<(shift-1) both fit in i64.
+  int64_t halfVal = int64_t(1) << (shift - 1);
+  int64_t maskVal = (int64_t(1) << shift) - 1;
+  Value halfI64 = arith::ConstantIntOp::create(rewriter, loc, i64Type, halfVal);
+  Value maskI64 = arith::ConstantIntOp::create(rewriter, loc, i64Type, maskVal);
+  Value shiftI64 = arith::ConstantIntOp::create(rewriter, loc, i64Type, shift);
+  Value oneI64 = arith::ConstantIntOp::create(rewriter, loc, i64Type, 1);
+  Value zeroI64 = arith::ConstantIntOp::create(rewriter, loc, i64Type, 0);
+  Value outZpI32 = arith::ConstantIntOp::create(rewriter, loc, i32Type, outZp);
+  Value qminI32 = arith::ConstantIntOp::create(rewriter, loc, i32Type, outQmin);
+  Value qmaxI32 = arith::ConstantIntOp::create(rewriter, loc, i32Type, outQmax);
+  return torch_to_linalg::createElementwiseLinalgGeneric(
+      rewriter, loc, ValueRange{acc}, outElemType,
+      [&](OpBuilder &b, Location loc, ValueRange args) {
+        Value accI64 = arith::ExtSIOp::create(b, loc, i64Type, args[0]);
+        Value prod = arith::MulIOp::create(b, loc, accI64, multiplierI64);
+        Value floored = arith::ShRSIOp::create(b, loc, prod, shiftI64);
+        Value rem = arith::AndIOp::create(b, loc, prod, maskI64);
+        Value gtHalf = arith::CmpIOp::create(b, loc, arith::CmpIPredicate::sgt,
+                                             rem, halfI64);
+        Value eqHalf = arith::CmpIOp::create(b, loc, arith::CmpIPredicate::eq,
+                                             rem, halfI64);
+        Value floorIsOdd = arith::AndIOp::create(b, loc, floored, oneI64);
+        Value tieDelta =
+            arith::SelectOp::create(b, loc, eqHalf, floorIsOdd, zeroI64);
+        Value delta = arith::SelectOp::create(b, loc, gtHalf, oneI64, tieDelta);
+        Value rounded = arith::AddIOp::create(b, loc, floored, delta);
+        Value ri32 = arith::TruncIOp::create(b, loc, i32Type, rounded);
+        Value withZp = arith::AddIOp::create(b, loc, ri32, outZpI32);
+        Value clamped = arith::MinSIOp::create(
+            b, loc, arith::MaxSIOp::create(b, loc, withZp, qminI32), qmaxI32);
+        linalg::YieldOp::create(
+            b, loc,
+            arith::TruncIOp::create(b, loc, outElemType, clamped).getResult());
+      });
+}
+
+// Shared implementation called by both mm and matmul patterns.
+// `mmOp` is the AtenMmOp/AtenMatmulOp; `lhsTorch`/`rhsTorch` are its
+// Torch-dialect inputs; `resultTorch` is its result (used to find the q op).
+static LogicalResult emitQuantizedMatmul(Operation *mmOp, Value lhsTorch,
+                                         Value rhsTorch, Value resultTorch,
+                                         ConversionPatternRewriter &rewriter,
+                                         const TypeConverter *typeConverter) {
+  Location loc = mmOp->getLoc();
+
+  auto chainOrFailure =
+      Torch::matchQDQMatmulChain(mmOp, lhsTorch, rhsTorch, resultTorch);
+  if (failed(chainOrFailure))
+    return rewriter.notifyMatchFailure(mmOp, "not a fusable dq->mm->q chain");
+  auto &chain = *chainOrFailure;
+
+  auto lhsDq = chain.lhsDq;
+  auto rhsDq = chain.rhsDq;
+  auto qOp = chain.qOp;
+
+  // Mirror feedsFusableQDQMatmul: dq is exclusive to mmOp iff every non-cast
+  // user is mmOp. Capture this before any rewriter mutation makes use-lists
+  // unreliable.
+  auto isExclusiveToMm = [&](QuantizedDecomposedDequantizePerTensorOp dq) {
+    for (Operation *user : dq.getResult().getUsers())
+      if (!isa<UnrealizedConversionCastOp>(user) && user != mmOp)
+        return false;
+    return true;
+  };
+  bool lhsDqExclusive = isExclusiveToMm(lhsDq);
+  bool rhsDqExclusive = isExclusiveToMm(rhsDq);
+
+  auto lhsVTy = dyn_cast<ValueTensorType>(lhsDq.getInput().getType());
+  auto rhsVTy = dyn_cast<ValueTensorType>(rhsDq.getInput().getType());
+  if (!lhsVTy || !rhsVTy)
+    return rewriter.notifyMatchFailure(mmOp, "dq inputs are not value tensors");
+
+  // Get lowered integer inputs via type conversion.
+  Value lhsConverted = typeConverter->materializeTargetConversion(
+      rewriter, loc, typeConverter->convertType(lhsDq.getInput().getType()),
+      lhsDq.getInput());
+  Value rhsConverted = typeConverter->materializeTargetConversion(
+      rewriter, loc, typeConverter->convertType(rhsDq.getInput().getType()),
+      rhsDq.getInput());
+
+  auto lhsType = cast<RankedTensorType>(lhsConverted.getType());
+  auto rhsType = cast<RankedTensorType>(rhsConverted.getType());
+  unsigned lhsRank = lhsType.getRank();
+  unsigned rhsRank = rhsType.getRank();
+
+  // i32 zero points.
+  Type i32Type = rewriter.getI32Type();
+  Value lhsZpI32 =
+      arith::ConstantIntOp::create(rewriter, loc, i32Type, chain.lhsZp);
+  Value rhsZpI32 =
+      arith::ConstantIntOp::create(rewriter, loc, i32Type, chain.rhsZp);
+
+  // Normalize unsigned inputs to signed.
+  // linalg.quantized_matmul requires signed integer operands.  For uint8
+  // inputs, signShift subtracts 128 elementwise and adjusts the zero point
+  // by the same offset, converting uint8 bit patterns to int8.  No-op for
+  // signed inputs.
+  bool lhsUnsigned = torch_to_linalg::isUnsignedTorchType(lhsVTy.getDtype());
+  bool rhsUnsigned = torch_to_linalg::isUnsignedTorchType(rhsVTy.getDtype());
+  signShift(rewriter, loc, lhsConverted, lhsZpI32, lhsUnsigned);
+  signShift(rewriter, loc, rhsConverted, rhsZpI32, rhsUnsigned);
+
+  // Emit linalg quantized matmul.
+  auto emitQMM = [&](Value lhs, Value rhs) -> Value {
+    Value d0 = getDimOp(rewriter, loc, lhs, 0);
+    Value d1 = getDimOp(rewriter, loc, rhs, 1);
+    Value zero =
+        createZeroInitTensor(rewriter, loc, ValueRange{d0, d1}, i32Type);
+    return linalg::QuantizedMatmulOp::create(
+               rewriter, loc, zero.getType(),
+               ValueRange{lhs, rhs, lhsZpI32, rhsZpI32}, zero)
+        .getResult(0);
+  };
+
+  TensorType resultType =
+      cast<TensorType>(typeConverter->convertType(qOp.getType()));
+  Type outElemType = resultType.getElementType();
+  double effectiveScale = chain.lhsScale * chain.rhsScale / chain.outScale;
+  if (effectiveScale <= 0.0)
+    return rewriter.notifyMatchFailure(mmOp, "effectiveScale must be positive");
+  auto multiplierShift = quantizeMultiplier(effectiveScale);
+  if (failed(multiplierShift))
+    return rewriter.notifyMatchFailure(
+        mmOp, "effectiveScale out of Q31 representable range");
+
+  Value matmul;
+  if (lhsRank == 1 && rhsRank == 1) {
+    // 1D×1D dot product: unsqueeze both to 2D, quantized_matmul, collapse to
+    // scalar.
+    int64_t n = lhsType.getShape()[0];
+    SmallVector<ReassociationIndices> ri = {{0, 1}};
+    Value lhsUnsq = tensor::ExpandShapeOp::create(
+        rewriter, loc, RankedTensorType::get({1, n}, lhsType.getElementType()),
+        lhsConverted, ri);
+    Value rhsUnsq = tensor::ExpandShapeOp::create(
+        rewriter, loc, RankedTensorType::get({n, 1}, rhsType.getElementType()),
+        rhsConverted, ri);
+    matmul = tensor::CollapseShapeOp::create(
+        rewriter, loc, RankedTensorType::get({}, i32Type),
+        emitQMM(lhsUnsq, rhsUnsq), SmallVector<ReassociationIndices>{});
+  } else if (lhsRank == 2 && rhsRank == 2) {
+    matmul = emitQMM(lhsConverted, rhsConverted);
+  } else if (lhsRank == 1 && rhsRank == 2) {
+    SmallVector<ReassociationIndices> ri = {{0, 1}};
+    int64_t d = lhsType.getShape()[0];
+    Value lhsUnsq = tensor::ExpandShapeOp::create(
+        rewriter, loc, RankedTensorType::get({1, d}, lhsType.getElementType()),
+        lhsConverted, ri);
+    matmul = tensor::CollapseShapeOp::create(
+        rewriter, loc, emitQMM(lhsUnsq, rhsConverted), ri);
+  } else if (lhsRank == 2 && rhsRank == 1) {
+    SmallVector<ReassociationIndices> ri = {{0, 1}};
+    int64_t d = rhsType.getShape()[0];
+    Value rhsUnsq = tensor::ExpandShapeOp::create(
+        rewriter, loc, RankedTensorType::get({d, 1}, rhsType.getElementType()),
+        rhsConverted, ri);
+    matmul = tensor::CollapseShapeOp::create(
+        rewriter, loc, emitQMM(lhsConverted, rhsUnsq), ri);
+  } else if (lhsRank > 2 && rhsRank > 2) {
+    SmallVector<int64_t> i32ResultShape(resultType.getShape().begin(),
+                                        resultType.getShape().end());
+    // There is no linalg named op for quantized bmm with multiple dynamic batch
+    // dims; bail out so the non-quantized ConvertAtenMatmulOp handles it.
+    SmallVector<int64_t> batchCheck(i32ResultShape.begin(),
+                                    i32ResultShape.end() - 2);
+    if (llvm::count(batchCheck, ShapedType::kDynamic) > 1)
+      return rewriter.notifyMatchFailure(
+          mmOp, "quantized batch matmul with multiple dynamic batch dims is "
+                "not supported");
+    auto i32ResultType = RankedTensorType::get(i32ResultShape, i32Type);
+    auto batchResult = emitBatchBroadcastedMatmul(
+        mmOp, rewriter, loc, lhsConverted, rhsConverted, lhsZpI32, rhsZpI32,
+        i32Type, i32ResultType, nullptr);
+    if (failed(batchResult))
+      return failure();
+    matmul = *batchResult;
+  } else {
+    return rewriter.notifyMatchFailure(
+        mmOp, "unsupported rank combination for quantized matmul");
+  }
+
+  // Requantize: i32 accumulator -> output integer dtype.
+  Value requantized =
+      emitRequantize(rewriter, loc, matmul, outElemType, *multiplierShift,
+                     chain.outZp, chain.outQmin, chain.outQmax);
+
+  // Replace the q op with the requantized result.
+  rewriter.replaceOp(qOp, requantized);
+
+  // mmOp must be explicitly erased: the ConversionPattern is anchored on it,
+  // so the framework requires it to be replaced or erased before success().
+  rewriter.eraseOp(mmOp);
+
+  // Erase dq ops exclusive to mmOp.
+  if (rhsDqExclusive)
+    rewriter.eraseOp(rhsDq);
+  if (lhsDq != rhsDq && lhsDqExclusive)
+    rewriter.eraseOp(lhsDq);
+
+  return success();
+}
+
+class ConvertAtenMmQDQFusionOp : public OpConversionPattern<AtenMmOp> {
+public:
+  ConvertAtenMmQDQFusionOp(TypeConverter &tc, MLIRContext *ctx)
+      : OpConversionPattern<AtenMmOp>(tc, ctx, /*benefit=*/2) {}
+  LogicalResult
+  matchAndRewrite(AtenMmOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    return emitQuantizedMatmul(op, op.getSelf(), op.getMat2(), op.getResult(),
+                               rewriter, getTypeConverter());
+  }
+};
+
+class ConvertAtenMatmulQDQFusionOp : public OpConversionPattern<AtenMatmulOp> {
+public:
+  ConvertAtenMatmulQDQFusionOp(TypeConverter &tc, MLIRContext *ctx)
+      : OpConversionPattern<AtenMatmulOp>(tc, ctx, /*benefit=*/2) {}
+  LogicalResult
+  matchAndRewrite(AtenMatmulOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    return emitQuantizedMatmul(op, op.getSelf(), op.getOther(), op.getResult(),
+                               rewriter, getTypeConverter());
+  }
+};
+
+class ConvertAtenBmmQDQFusionOp : public OpConversionPattern<AtenBmmOp> {
+public:
+  ConvertAtenBmmQDQFusionOp(TypeConverter &tc, MLIRContext *ctx)
+      : OpConversionPattern<AtenBmmOp>(tc, ctx, /*benefit=*/2) {}
+  LogicalResult
+  matchAndRewrite(AtenBmmOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    return emitQuantizedMatmul(op, op.getSelf(), op.getMat2(), op.getResult(),
+                               rewriter, getTypeConverter());
+  }
+};
+
+} // namespace
+
 void mlir::torch::torch_to_linalg::populateLinearPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target) {
@@ -2630,4 +2968,7 @@ void mlir::torch::torch_to_linalg::populateLinearPatternsAndLegality(
   patterns.add<ConvertAtenFftRfftOp>(typeConverter, context);
   target.addIllegalOp<AtenOuterOp>();
   patterns.add<ConvertAtenOuterOp>(typeConverter, context);
+  patterns.add<ConvertAtenMmQDQFusionOp>(typeConverter, context);
+  patterns.add<ConvertAtenMatmulQDQFusionOp>(typeConverter, context);
+  patterns.add<ConvertAtenBmmQDQFusionOp>(typeConverter, context);
 }
