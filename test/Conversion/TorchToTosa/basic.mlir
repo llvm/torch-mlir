@@ -1855,10 +1855,53 @@ func.func @torch.aten.where.self(%arg0: !torch.vtensor<[1,1,5,5],i1>, %arg1: !to
 // CHECK:           %[[VAL_11:.*]] = tosa.reshape %[[VAL_7]], %[[VAL_10]] : (tensor<1x1xf32>, !tosa.shape<6>) -> tensor<1x1x1x1x1x1xf32>
 // CHECK:           %[[VAL_12:.*]] = tosa.select %[[VAL_9]], %[[VAL_11]], %[[VAL_3]] : (tensor<1x1x1x1x5x4xi1>, tensor<1x1x1x1x1x1xf32>, tensor<1x3x1x1x5x4xf32>) -> tensor<1x3x1x1x5x4xf32>
 // CHECK:           %[[VAL_13:.*]] = torch_c.from_builtin_tensor %[[VAL_12]] : tensor<1x3x1x1x5x4xf32> -> !torch.vtensor<[1,3,1,1,5,4],f32>
-// CHECK:           return %[[VAL_13]]
+// CHECK:           return %[[VAL_13]] : !torch.vtensor<[1,3,1,1,5,4],f32>
+// CHECK:         }
 func.func @torch.aten.where.self_differing_rank_inputs(%40: !torch.vtensor<[5,4],i1>, %41: !torch.vtensor<[],f32>, %38 : !torch.vtensor<[1,3,1,1,5,4],f32>) -> (!torch.vtensor<[1,3,1,1,5,4],f32>) {
     %42 = torch.aten.where.self %40, %41, %38 : !torch.vtensor<[5,4],i1>, !torch.vtensor<[],f32>, !torch.vtensor<[1,3,1,1,5,4],f32> -> !torch.vtensor<[1,3,1,1,5,4],f32>
     return %42: !torch.vtensor<[1,3,1,1,5,4],f32>
+}
+
+// -----
+// CHECK-LABEL:   func.func @torch.aten.where.self_differing_dtype_inputs(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !torch.vtensor<[1,1,5,5],i1>,
+// CHECK-SAME:                    %[[VAL_1:.*]]: !torch.vtensor<[1,12,5,5],si32>,
+// CHECK-SAME:                    %[[VAL_2:.*]]: !torch.vtensor<[1,12,5,5],si64>) -> !torch.vtensor<[1,12,5,5],si64> {
+// CHECK:           %[[VAL_3:.*]] = torch_c.to_builtin_tensor %[[VAL_2]] : !torch.vtensor<[1,12,5,5],si64> -> tensor<1x12x5x5xi64>
+// CHECK:           %[[VAL_4:.*]] = torch_c.to_builtin_tensor %[[VAL_1]] : !torch.vtensor<[1,12,5,5],si32> -> tensor<1x12x5x5xi32>
+// CHECK:           %[[VAL_5:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,1,5,5],i1> -> tensor<1x1x5x5xi1>
+// CHECK:           %[[VAL_6:.*]] = tosa.cast %[[VAL_4]] : (tensor<1x12x5x5xi32>) -> tensor<1x12x5x5xi64>
+// CHECK:           %[[VAL_7:.*]] = tosa.select %[[VAL_5]], %[[VAL_6]], %[[VAL_3]] : (tensor<1x1x5x5xi1>, tensor<1x12x5x5xi64>, tensor<1x12x5x5xi64>) -> tensor<1x12x5x5xi64>
+// CHECK:           %[[VAL_8:.*]] = torch_c.from_builtin_tensor %[[VAL_7]] : tensor<1x12x5x5xi64> -> !torch.vtensor<[1,12,5,5],si64>
+// CHECK:           return %[[VAL_8]] : !torch.vtensor<[1,12,5,5],si64>
+// CHECK:         }
+func.func @torch.aten.where.self_differing_dtype_inputs(%arg0: !torch.vtensor<[1,1,5,5],i1>, %arg1: !torch.vtensor<[1,12,5,5],si32>, %arg2: !torch.vtensor<[1,12,5,5],si64>) -> !torch.vtensor<[1,12,5,5],si64> {
+    %0 = torch.aten.where.self %arg0, %arg1, %arg2 : !torch.vtensor<[1,1,5,5],i1>, !torch.vtensor<[1,12,5,5],si32>, !torch.vtensor<[1,12,5,5],si64> -> !torch.vtensor<[1,12,5,5],si64>
+    return %0 : !torch.vtensor<[1,12,5,5],si64>
+}
+
+// -----
+// CHECK-LABEL:   func.func @torch.aten.where.self_differing_dtype_and_rank_inputs(
+// CHECK-SAME:                    %[[VAL_0:.*]]: !torch.vtensor<[5,4],i1>,
+// CHECK-SAME:                    %[[VAL_1:.*]]: !torch.vtensor<[],si64>,
+// CHECK-SAME:                    %[[VAL_2:.*]]: !torch.vtensor<[1,3,1,1,5,4],si32>) -> !torch.vtensor<[1,3,1,1,5,4],si32> {
+// CHECK:           %[[VAL_3:.*]] = torch_c.to_builtin_tensor %[[VAL_2]] : !torch.vtensor<[1,3,1,1,5,4],si32> -> tensor<1x3x1x1x5x4xi32>
+// CHECK:           %[[VAL_4:.*]] = torch_c.to_builtin_tensor %[[VAL_1]] : !torch.vtensor<[],si64> -> tensor<i64>
+// CHECK:           %[[VAL_5:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[5,4],i1> -> tensor<5x4xi1>
+// CHECK:           %[[VAL_6:.*]] = tosa.cast %[[VAL_4]] : (tensor<i64>) -> tensor<i32>
+// CHECK:           %[[VAL_7:.*]] = tosa.const_shape  {values = dense<1> : tensor<2xindex>} : () -> !tosa.shape<2>
+// CHECK:           %[[VAL_8:.*]] = tosa.reshape %[[VAL_6]], %[[VAL_7]] : (tensor<i32>, !tosa.shape<2>) -> tensor<1x1xi32>
+// CHECK:           %[[VAL_9:.*]] = tosa.const_shape  {values = dense<[1, 1, 1, 1, 5, 4]> : tensor<6xindex>} : () -> !tosa.shape<6>
+// CHECK:           %[[VAL_10:.*]] = tosa.reshape %[[VAL_5]], %[[VAL_9]] : (tensor<5x4xi1>, !tosa.shape<6>) -> tensor<1x1x1x1x5x4xi1>
+// CHECK:           %[[VAL_11:.*]] = tosa.const_shape  {values = dense<1> : tensor<6xindex>} : () -> !tosa.shape<6>
+// CHECK:           %[[VAL_12:.*]] = tosa.reshape %[[VAL_8]], %[[VAL_11]] : (tensor<1x1xi32>, !tosa.shape<6>) -> tensor<1x1x1x1x1x1xi32>
+// CHECK:           %[[VAL_13:.*]] = tosa.select %[[VAL_10]], %[[VAL_12]], %[[VAL_3]] : (tensor<1x1x1x1x5x4xi1>, tensor<1x1x1x1x1x1xi32>, tensor<1x3x1x1x5x4xi32>) -> tensor<1x3x1x1x5x4xi32>
+// CHECK:           %[[VAL_14:.*]] = torch_c.from_builtin_tensor %[[VAL_13]] : tensor<1x3x1x1x5x4xi32> -> !torch.vtensor<[1,3,1,1,5,4],si32>
+// CHECK:           return %[[VAL_14]] : !torch.vtensor<[1,3,1,1,5,4],si32>
+// CHECK:         }
+func.func @torch.aten.where.self_differing_dtype_and_rank_inputs(%arg0: !torch.vtensor<[5,4],i1>, %arg1: !torch.vtensor<[],si64>, %arg2: !torch.vtensor<[1,3,1,1,5,4],si32>) -> !torch.vtensor<[1,3,1,1,5,4],si32> {
+    %0 = torch.aten.where.self %arg0, %arg1, %arg2 : !torch.vtensor<[5,4],i1>, !torch.vtensor<[],si64>, !torch.vtensor<[1,3,1,1,5,4],si32> -> !torch.vtensor<[1,3,1,1,5,4],si32>
+    return %0 : !torch.vtensor<[1,3,1,1,5,4],si32>
 }
 
 // -----
