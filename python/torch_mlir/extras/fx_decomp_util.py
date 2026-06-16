@@ -35,6 +35,7 @@ DEFAULT_DECOMPOSITIONS = [
     torch.ops.aten._adaptive_avg_pool2d,
     torch.ops.aten._prelu_kernel,
     torch.ops.aten.full,
+    torch.ops.aten.logsumexp,
     torch.ops.aten._log_softmax,
     torch.ops.aten.nll_loss_forward,
     torch.ops.aten.nll_loss_backward,

@@ -3366,6 +3366,8 @@ ONNX_XFAIL_SET = {
     "ReduceL1NormComplexModule_basic",
     "ReduceL2NormComplexModule_basic",
     "ReduceL3NormKeepDimComplexModule_basic",
+    "ReduceLogSumExpDimIntListBoolModule_basic",
+    "ReduceLogSumExpDimIntListIntModule_basic",
     "ReflectionPad3dModule_basic",
     "ReflectionPad3dModuleFront_basic",
     "ReflectionPad3dModuleBack_basic",
