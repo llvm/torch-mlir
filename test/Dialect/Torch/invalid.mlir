@@ -269,6 +269,41 @@ torch.global_slot.module_initializer {
 
 // -----
 
+// Nested (non-flat) symbol ref slot name.
+
+torch.global_slot.module_initializer {
+  %0 = torch.constant.int 1
+  // expected-error @+1 {{attribute 'slotSymNames' failed to satisfy constraint: flat symbol ref array attribute}}
+  "torch.initialize.global_slots"(%0) <{slotSymNames = [@a::@b]}> : (!torch.int) -> ()
+}
+
+// -----
+
+// Operand/slot count mismatch.
+
+torch.global_slot @slot0 : !torch.int
+
+torch.global_slot.module_initializer {
+  %0 = torch.constant.int 1
+  %1 = torch.constant.int 2
+  // expected-error @+1 {{expected number of operands to match number of slots}}
+  "torch.initialize.global_slots"(%0, %1) <{slotSymNames = [@slot0]}> : (!torch.int, !torch.int) -> ()
+}
+
+// -----
+
+// Module initializer nested under an op other than a module.
+
+func.func @f() {
+  // expected-error @+1 {{'torch.global_slot.module_initializer' op expects parent op 'builtin.module'}}
+  "torch.global_slot.module_initializer"() ({
+    "torch.initialize.global_slots"() <{slotSymNames = []}> : () -> ()
+  }) : () -> ()
+  return
+}
+
+// -----
+
 func.func @torch.tensor_static_info_cast$shape_mismatch(%arg0: !torch.vtensor<[],unk>) -> !torch.vtensor<[?],unk> {
   // expected-error@+1 {{'torch.tensor_static_info_cast' op operand type '!torch.vtensor<[],unk>' and result type '!torch.vtensor<[?],unk>' are cast incompatible}}
   %0 = torch.tensor_static_info_cast %arg0 : !torch.vtensor<[],unk> to !torch.vtensor<[?],unk>
