@@ -1174,3 +1174,76 @@ func.func @mean_dim_scalar_negative_dim(%arg0: !torch.vtensor<[],f32>) -> !torch
   %0 = torch.aten.mean.dim %arg0, %dims, %keepdim, %dtype : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[],f32>
   return %0 : !torch.vtensor<[],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @smooth_l1_loss_mean(
+// CHECK-SAME:        %[[SELF:.*]]: !torch.vtensor<[2,4],f32>, %[[TARGET:.*]]: !torch.vtensor<[2,4],f32>
+// CHECK-DAG:       %[[NONE:.*]] = torch.constant.none
+// CHECK-DAG:       %[[HALFBETA:.*]] = torch.constant.float 1.500000e+00
+// CHECK-DAG:       %[[BETA:.*]] = torch.constant.float 3.000000e+00
+// CHECK-DAG:       %[[HALF:.*]] = torch.constant.float 5.000000e-01
+// CHECK-DAG:       %[[ONE:.*]] = torch.constant.float 1.000000e+00
+// CHECK:           %[[SUB:.*]] = torch.aten.sub.Tensor %[[SELF]], %[[TARGET]], %[[ONE]]
+// CHECK:           %[[Z:.*]] = torch.aten.abs %[[SUB]]
+// CHECK:           %[[SQ:.*]] = torch.aten.mul.Tensor %[[Z]], %[[Z]]
+// CHECK:           %[[QUADH:.*]] = torch.aten.mul.Scalar %[[SQ]], %[[HALF]]
+// CHECK:           %[[QUAD:.*]] = torch.aten.div.Scalar %[[QUADH]], %[[BETA]]
+// CHECK:           %[[LIN:.*]] = torch.aten.sub.Scalar %[[Z]], %[[HALFBETA]], %[[ONE]]
+// CHECK:           %[[MASK:.*]] = torch.aten.lt.Scalar %[[Z]], %[[BETA]]
+// CHECK:           %[[WHERE:.*]] = torch.aten.where.self %[[MASK]], %[[QUAD]], %[[LIN]]
+// CHECK:           %[[SUM:.*]] = torch.aten.sum %[[WHERE]], %[[NONE]]
+// CHECK:           %[[NUMEL:.*]] = torch.aten.numel %[[WHERE]]
+// CHECK:           %[[MEAN:.*]] = torch.aten.div.Scalar %[[SUM]], %[[NUMEL]]
+// CHECK:           return %[[MEAN]]
+func.func @smooth_l1_loss_mean(%arg0: !torch.vtensor<[2,4],f32>, %arg1: !torch.vtensor<[2,4],f32>) -> !torch.vtensor<[],f32> {
+  %reduction = torch.constant.int 1
+  %beta = torch.constant.float 3.000000e+00
+  %0 = torch.aten.smooth_l1_loss %arg0, %arg1, %reduction, %beta : !torch.vtensor<[2,4],f32>, !torch.vtensor<[2,4],f32>, !torch.int, !torch.float -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @smooth_l1_loss_sum(
+// CHECK:           %[[WHERE:.*]] = torch.aten.where.self
+// CHECK:           %[[SUM:.*]] = torch.aten.sum %[[WHERE]]
+// CHECK-NOT:       torch.aten.numel
+// CHECK:           return %[[SUM]]
+func.func @smooth_l1_loss_sum(%arg0: !torch.vtensor<[2,4],f32>, %arg1: !torch.vtensor<[2,4],f32>) -> !torch.vtensor<[],f32> {
+  %reduction = torch.constant.int 2
+  %beta = torch.constant.float 3.000000e+00
+  %0 = torch.aten.smooth_l1_loss %arg0, %arg1, %reduction, %beta : !torch.vtensor<[2,4],f32>, !torch.vtensor<[2,4],f32>, !torch.int, !torch.float -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
+}
+
+// -----
+
+// When beta == 0 the loss degenerates to L1: just `abs(self - target)`, no
+// quadratic branch.
+// CHECK-LABEL:   func.func @smooth_l1_loss_beta_zero(
+// CHECK-SAME:        %[[SELF:.*]]: !torch.vtensor<[2,4],f32>, %[[TARGET:.*]]: !torch.vtensor<[2,4],f32>
+// CHECK:           %[[SUB:.*]] = torch.aten.sub.Tensor %[[SELF]], %[[TARGET]]
+// CHECK:           %[[ABS:.*]] = torch.aten.abs %[[SUB]]
+// CHECK-NOT:       torch.aten.where.self
+// CHECK:           return %[[ABS]]
+func.func @smooth_l1_loss_beta_zero(%arg0: !torch.vtensor<[2,4],f32>, %arg1: !torch.vtensor<[2,4],f32>) -> !torch.vtensor<[2,4],f32> {
+  %reduction = torch.constant.int 0
+  %beta = torch.constant.float 0.000000e+00
+  %0 = torch.aten.smooth_l1_loss %arg0, %arg1, %reduction, %beta : !torch.vtensor<[2,4],f32>, !torch.vtensor<[2,4],f32>, !torch.int, !torch.float -> !torch.vtensor<[2,4],f32>
+  return %0 : !torch.vtensor<[2,4],f32>
+}
+
+// -----
+
+// A negative beta is invalid (PyTorch rejects it), so the op is left undecomposed.
+// CHECK-LABEL:   func.func @smooth_l1_loss_negative_beta(
+// CHECK:           torch.aten.smooth_l1_loss
+// CHECK-NOT:       torch.aten.where.self
+// CHECK-NOT:       torch.aten.abs
+func.func @smooth_l1_loss_negative_beta(%arg0: !torch.vtensor<[2,4],f32>, %arg1: !torch.vtensor<[2,4],f32>) -> !torch.vtensor<[2,4],f32> {
+  %reduction = torch.constant.int 0
+  %beta = torch.constant.float -1.000000e+00
+  %0 = torch.aten.smooth_l1_loss %arg0, %arg1, %reduction, %beta : !torch.vtensor<[2,4],f32>, !torch.vtensor<[2,4],f32>, !torch.int, !torch.float -> !torch.vtensor<[2,4],f32>
+  return %0 : !torch.vtensor<[2,4],f32>
+}

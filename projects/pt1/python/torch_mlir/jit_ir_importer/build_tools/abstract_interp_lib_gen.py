@@ -2300,6 +2300,11 @@ def aten〇l1_loss〡shape(self: List[int], target: List[int], reduction: int = 
         return upstream_shape_functions.unary(self)
     return []
 
+def aten〇smooth_l1_loss〡shape(self: List[int], target: List[int], reduction: int = 1, beta: float = 1.) -> List[int]:
+    if reduction == 0:
+        return upstream_shape_functions.unary(self)
+    return []
+
 def aten〇cross_entropy_loss〡shape(self: List[int], target: List[int], weight: Optional[List[int]] = None, reduction: int = 1, ignore_index: int = -100, label_smoothing: float = 0.) -> List[int]:
     return upstream_shape_functions.cross_entropy_loss(self, target, weight, reduction, ignore_index, label_smoothing)
 
@@ -4804,6 +4809,15 @@ def aten〇mse_loss〡dtype(self_rank_dtype: Tuple[int, int], target_rank_dtype:
     return promoted_dtype
 
 def aten〇l1_loss〡dtype(self_rank_dtype: Tuple[int, int], target_rank_dtype: Tuple[int, int], reduction: int = 1) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    target_rank, target_dtype = target_rank_dtype
+    ranks: List[Optional[int]] = [self_rank, target_rank]
+    dtypes = [self_dtype, target_dtype]
+    promoted_dtype = promote_dtypes(ranks, dtypes)
+    assert not is_integer_dtype(promoted_dtype)
+    return promoted_dtype
+
+def aten〇smooth_l1_loss〡dtype(self_rank_dtype: Tuple[int, int], target_rank_dtype: Tuple[int, int], reduction: int = 1, beta: float = 1.) -> int:
     self_rank, self_dtype = self_rank_dtype
     target_rank, target_dtype = target_rank_dtype
     ranks: List[Optional[int]] = [self_rank, target_rank]
