@@ -2779,6 +2779,11 @@ LTC_XFAIL_SET = {
 }
 
 ONNX_XFAIL_SET = {
+    # aten.triplet_margin_loss has no ONNX import path, so these fail at import time.
+    "TripletMarginLossModule_basic",
+    "TripletMarginLossSwapModule_basic",
+    "TripletMarginLossNoReductionModule_basic",
+    "TripletMarginLossSumReductionModule_basic",
     "ToDtypeIntFromFloatModule_basic",
     # This test is expected to time out
     "TimeOutModule_basic",
@@ -4101,6 +4106,11 @@ ONNX_TOSA_CRASHING_SET = {
 }
 
 ONNX_TOSA_XFAIL_SET = {
+    # aten.triplet_margin_loss has no ONNX import path, so these fail at import time.
+    "TripletMarginLossModule_basic",
+    "TripletMarginLossSwapModule_basic",
+    "TripletMarginLossNoReductionModule_basic",
+    "TripletMarginLossSumReductionModule_basic",
     "AtenFftRfft2DLastDim_basic",
     "AtenFftRfft2DMiddleDim_basic",
     "AtenStftCenter1D_basic",

@@ -9919,6 +9919,36 @@ def Torch_AtenL1LossOp : Torch_Op<"aten.l1_loss", [
   }];
 }
 
+def Torch_AtenTripletMarginLossOp : Torch_Op<"aten.triplet_margin_loss", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::triplet_margin_loss : (Tensor, Tensor, Tensor, float, float, float, bool, int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$anchor,
+    AnyTorchTensorType:$positive,
+    AnyTorchTensorType:$negative,
+    Torch_FloatType:$margin,
+    Torch_FloatType:$p,
+    Torch_FloatType:$eps,
+    Torch_BoolType:$swap,
+    Torch_IntType:$reduction
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenTripletMarginLossOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 8, 1);
+    }
+    void AtenTripletMarginLossOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 8, 1);
+    }
+  }];
+}
+
 def Torch_AtenUpsampleNearest2dBackwardOp : Torch_Op<"aten.upsample_nearest2d_backward", [
     AllowsTypeRefinement,
     HasValueSemantics,

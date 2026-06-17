@@ -1174,3 +1174,66 @@ func.func @mean_dim_scalar_negative_dim(%arg0: !torch.vtensor<[],f32>) -> !torch
   %0 = torch.aten.mean.dim %arg0, %dims, %keepdim, %dtype : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[],f32>
   return %0 : !torch.vtensor<[],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @triplet_margin_loss_mean(
+// CHECK-SAME:        %[[A:.*]]: !torch.vtensor<[3,5],f32>, %[[P:.*]]: !torch.vtensor<[3,5],f32>, %[[N:.*]]: !torch.vtensor<[3,5],f32>
+// CHECK-DAG:       %[[MARGIN:.*]] = torch.constant.float 3.000000e+00
+// CHECK-DAG:       %[[ORD:.*]] = torch.constant.float 2.000000e+00
+// CHECK-DAG:       %[[EPS:.*]] = torch.constant.float 9.99{{.*}}E-7
+// CHECK-DAG:       %[[ONE:.*]] = torch.constant.float 1.000000e+00
+// CHECK-DAG:       %[[ZERO:.*]] = torch.constant.float 0.000000e+00
+// CHECK-DAG:       %[[NONE:.*]] = torch.constant.none
+// CHECK-DAG:       %[[FALSE:.*]] = torch.constant.bool false
+// CHECK-DAG:       %[[NEGONE:.*]] = torch.constant.int -1
+// CHECK:           %[[DIMS:.*]] = torch.prim.ListConstruct %[[NEGONE]]
+// CHECK:           %[[DAP_DIFF:.*]] = torch.aten.sub.Tensor %[[A]], %[[P]], %[[ONE]]
+// CHECK:           %[[DAP_SHIFT:.*]] = torch.aten.add.Scalar %[[DAP_DIFF]], %[[EPS]], %[[ONE]]
+// CHECK:           %[[DAP:.*]] = torch.aten.linalg_vector_norm %[[DAP_SHIFT]], %[[ORD]], %[[DIMS]], %[[FALSE]], %[[NONE]]
+// CHECK:           %[[DAN_DIFF:.*]] = torch.aten.sub.Tensor %[[A]], %[[N]], %[[ONE]]
+// CHECK:           %[[DAN_SHIFT:.*]] = torch.aten.add.Scalar %[[DAN_DIFF]], %[[EPS]], %[[ONE]]
+// CHECK:           %[[DAN:.*]] = torch.aten.linalg_vector_norm %[[DAN_SHIFT]], %[[ORD]], %[[DIMS]], %[[FALSE]], %[[NONE]]
+// CHECK:           %[[DIFF:.*]] = torch.aten.sub.Tensor %[[DAP]], %[[DAN]], %[[ONE]]
+// CHECK:           %[[HINGE:.*]] = torch.aten.add.Scalar %[[DIFF]], %[[MARGIN]], %[[ONE]]
+// CHECK:           %[[CLAMP:.*]] = torch.aten.clamp %[[HINGE]], %[[ZERO]], %[[NONE]]
+// CHECK:           %[[SUM:.*]] = torch.aten.sum %[[CLAMP]], %[[NONE]]
+// CHECK:           %[[NUMEL:.*]] = torch.aten.numel %[[CLAMP]]
+// CHECK:           %[[MEAN:.*]] = torch.aten.div.Scalar %[[SUM]], %[[NUMEL]]
+// CHECK:           return %[[MEAN]]
+func.func @triplet_margin_loss_mean(%arg0: !torch.vtensor<[3,5],f32>, %arg1: !torch.vtensor<[3,5],f32>, %arg2: !torch.vtensor<[3,5],f32>) -> !torch.vtensor<[],f32> {
+  %margin = torch.constant.float 3.000000e+00
+  %p = torch.constant.float 2.000000e+00
+  %eps = torch.constant.float 1.000000e-06
+  %swap = torch.constant.bool false
+  %reduction = torch.constant.int 1
+  %0 = torch.aten.triplet_margin_loss %arg0, %arg1, %arg2, %margin, %p, %eps, %swap, %reduction : !torch.vtensor<[3,5],f32>, !torch.vtensor<[3,5],f32>, !torch.vtensor<[3,5],f32>, !torch.float, !torch.float, !torch.float, !torch.bool, !torch.int -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
+}
+
+// -----
+
+// With swap=true and reduction=none, the negative distance is min(d(a,n), d(p,n))
+// and the per-sample hinge is returned unreduced.
+// CHECK-LABEL:   func.func @triplet_margin_loss_none_swap(
+// CHECK-SAME:        %[[A:.*]]: !torch.vtensor<[3,5],f32>, %[[P:.*]]: !torch.vtensor<[3,5],f32>, %[[N:.*]]: !torch.vtensor<[3,5],f32>
+// CHECK:           %[[DAP:.*]] = torch.aten.linalg_vector_norm
+// CHECK:           %[[DAN:.*]] = torch.aten.linalg_vector_norm
+// CHECK:           %[[PN_DIFF:.*]] = torch.aten.sub.Tensor %[[P]], %[[N]]
+// CHECK:           %[[PN_SHIFT:.*]] = torch.aten.add.Scalar %[[PN_DIFF]]
+// CHECK:           %[[DPN:.*]] = torch.aten.linalg_vector_norm %[[PN_SHIFT]]
+// CHECK:           %[[DNEG:.*]] = torch.aten.minimum %[[DAN]], %[[DPN]]
+// CHECK:           %[[DIFF:.*]] = torch.aten.sub.Tensor %[[DAP]], %[[DNEG]]
+// CHECK:           %[[HINGE:.*]] = torch.aten.add.Scalar %[[DIFF]]
+// CHECK:           %[[CLAMP:.*]] = torch.aten.clamp %[[HINGE]]
+// CHECK-NOT:       torch.aten.sum
+// CHECK:           return %[[CLAMP]]
+func.func @triplet_margin_loss_none_swap(%arg0: !torch.vtensor<[3,5],f32>, %arg1: !torch.vtensor<[3,5],f32>, %arg2: !torch.vtensor<[3,5],f32>) -> !torch.vtensor<[3],f32> {
+  %margin = torch.constant.float 1.000000e+00
+  %p = torch.constant.float 2.000000e+00
+  %eps = torch.constant.float 1.000000e-06
+  %swap = torch.constant.bool true
+  %reduction = torch.constant.int 0
+  %0 = torch.aten.triplet_margin_loss %arg0, %arg1, %arg2, %margin, %p, %eps, %swap, %reduction : !torch.vtensor<[3,5],f32>, !torch.vtensor<[3,5],f32>, !torch.vtensor<[3,5],f32>, !torch.float, !torch.float, !torch.float, !torch.bool, !torch.int -> !torch.vtensor<[3],f32>
+  return %0 : !torch.vtensor<[3],f32>
+}
