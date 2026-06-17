@@ -180,3 +180,95 @@ class DiagonalWithDimsOffsetModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: DiagonalWithDimsOffsetModule())
 def DiagonalModule_with_dims_and_offset(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
+
+
+# ==============================================================================
+
+
+class Diag1DModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.diag(a)
+
+
+@register_test_case(module_factory=lambda: Diag1DModule())
+def Diag1DModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5))
+
+
+# ==============================================================================
+
+
+class Diag1DOffsetModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.diag(a, diagonal=2)
+
+
+@register_test_case(module_factory=lambda: Diag1DOffsetModule())
+def Diag1DOffsetModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5))
+
+
+# ==============================================================================
+
+
+class Diag2DModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.diag(a)
+
+
+@register_test_case(module_factory=lambda: Diag2DModule())
+def Diag2DModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 6))
+
+
+# ==============================================================================
+
+
+class Diag2DNegativeOffsetModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.diag(a, diagonal=-1)
+
+
+@register_test_case(module_factory=lambda: Diag2DNegativeOffsetModule())
+def Diag2DNegativeOffsetModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 6))

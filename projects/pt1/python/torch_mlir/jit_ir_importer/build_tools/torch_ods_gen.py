@@ -815,6 +815,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::cosine_embedding_loss : (Tensor, Tensor, Tensor, float, int) -> (Tensor)"
     )
     emit("aten::diag_embed : (Tensor, int, int, int) -> (Tensor)")
+    emit("aten::diag : (Tensor, int) -> (Tensor)")
     emit("aten::_weight_norm_interface : (Tensor, Tensor, int) -> (Tensor, Tensor)")
     emit("aten::rot90 : (Tensor, int, int[]) -> (Tensor)", has_verifier=True)
     emit("aten::count_nonzero : (Tensor, int?) -> (Tensor)", has_verifier=True)
