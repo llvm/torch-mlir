@@ -1577,6 +1577,20 @@ class ConvertAtenMultipleDimsReductionOp
         reduceDims.push_back(i);
     }
 
+    // PyTorch accepts dim=0 and dim=-1 for scalar reductions. TOSA
+    // reduction ops currently require at least rank-1 tensors, and scalar
+    // reductions are semantically no-ops, so lower them as no-axis reductions.
+    if (inputRank == 0) {
+      if (reduceDims.size() > 1)
+        return rewriter.notifyMatchFailure(
+            op, "scalar reduce dim appears multiple times");
+      if (!reduceDims.empty() && reduceDims.front() != 0 &&
+          reduceDims.front() != -1)
+        return rewriter.notifyMatchFailure(
+            op, "scalar reduce dim is statically invalid");
+      reduceDims.clear();
+    }
+
     int64_t N = reduceDims.size();
     for (unsigned i = 0; i < N; i++) {
       reduceDims[i] = toPositiveDim(reduceDims[i], inputRank);
