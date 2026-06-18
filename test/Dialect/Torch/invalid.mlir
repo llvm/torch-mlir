@@ -538,6 +538,29 @@ func.func @torch.aten._scaled_mm_v2$invalid_unsupported_recipe(
 
 // -----
 
+func.func @torch.aten._scaled_mm_v2$invalid_static_recipe_dynamic_swizzle(
+    %arg0: !torch.vtensor<[128,64],f4E2M1FN>,
+    %arg1: !torch.vtensor<[64,128],f4E2M1FN>,
+    %arg2: !torch.vtensor<[128,1],f32>,
+    %arg3: !torch.vtensor<[1,128],f32>,
+    %arg4: !torch.list<int>,
+    %arg5: !torch.list<int>) -> !torch.vtensor<[128,128],bf16> {
+  %false = torch.constant.bool false
+  %int5 = torch.constant.int 5
+  %int15 = torch.constant.int 15
+  %none = torch.constant.none
+  %scale_a = torch.prim.ListConstruct %arg2 : (!torch.vtensor<[128,1],f32>) -> !torch.list<vtensor>
+  %recipe_a = torch.prim.ListConstruct %int5 : (!torch.int) -> !torch.list<int>
+  %scale_b = torch.prim.ListConstruct %arg3 : (!torch.vtensor<[1,128],f32>) -> !torch.list<vtensor>
+  %recipe_b = torch.prim.ListConstruct %int5 : (!torch.int) -> !torch.list<int>
+  %contraction_dim = torch.prim.ListConstruct : () -> !torch.list<int>
+  // expected-error @+1 {{invalid scaling configuration for recipe_a and recipe_b}}
+  %0 = torch.aten._scaled_mm_v2 %arg0, %arg1, %scale_a, %recipe_a, %arg4, %scale_b, %recipe_b, %arg5, %none, %int15, %contraction_dim, %false : !torch.vtensor<[128,64],f4E2M1FN>, !torch.vtensor<[64,128],f4E2M1FN>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.none, !torch.int, !torch.list<int>, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}
+
+// -----
+
 func.func @torch.aten._scaled_mm_v2$invalid_f32_blockwise_1x128_1x128_scale_shape(
     %arg0: !torch.vtensor<[128,64],f4E2M1FN>,
     %arg1: !torch.vtensor<[64,128],f4E2M1FN>,
