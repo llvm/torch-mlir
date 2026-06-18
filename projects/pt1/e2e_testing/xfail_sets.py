@@ -427,6 +427,7 @@ FX_IMPORTER_XFAIL_SET = {
     "AtenIntMM_basic",
     "AtenNonzero1DDynamicModule_basic",  # no lowering for torch.aten.sym_constrain_range_for_size
     "AtenScaledMmBlockScaledFp8Module_basic",
+    "AtenScaledMmBlockScaledFp8SwizzledModule_basic",
     "AtenScaledMmPerTensorE5M2Module_basic",
     "AtenScaledMmPerTensorF16Module_basic",
     "AtenScaledMmPerTensorF32Module_basic",
@@ -664,6 +665,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenRealView128Module_basic",
     "AtenRealView64Module_basic",
     "AtenScaledMmBlockScaledFp8Module_basic",
+    "AtenScaledMmBlockScaledFp8SwizzledModule_basic",
     "AtenScaledMmPerTensorE5M2Module_basic",
     "AtenScaledMmPerTensorF16Module_basic",
     "AtenScaledMmPerTensorF32Module_basic",
@@ -2915,6 +2917,7 @@ ONNX_XFAIL_SET = {
     "AtenMmQint8_basic",
     "AtenMmQuint8_basic",
     "AtenScaledMmBlockScaledFp8Module_basic",
+    "AtenScaledMmBlockScaledFp8SwizzledModule_basic",
     "AtenScaledMmPerTensorE5M2Module_basic",
     "AtenScaledMmPerTensorF16Module_basic",
     "AtenScaledMmPerTensorF32Module_basic",
@@ -3643,6 +3646,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     # These import through FX and lower to TOSA, but the TOSA execution backend
     # cannot currently load FP8 tensor element types in the lowered matmul path.
     "AtenScaledMmBlockScaledFp8Module_basic",
+    "AtenScaledMmBlockScaledFp8SwizzledModule_basic",
     "AtenScaledMmPerTensorE5M2Module_basic",
     "AtenScaledMmPerTensorF16Module_basic",
     "AtenScaledMmPerTensorF32Module_basic",

@@ -32,6 +32,7 @@
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/MathExtras.h"
 #include <array>
+#include <cassert>
 #include <cmath>
 #include <numeric>
 #include <optional>
@@ -122,6 +123,17 @@ static bool isSupportedBlockedScaledMmScaleElementType(Type type) {
   return isa<Float8E8M0FNUType>(type);
 }
 
+// TOSA matmul_t_block_scaled uses 128x32 data blocks and one E8M0 scale for
+// each 32-wide slice. The swizzled PyTorch/NVIDIA storage packs each 128x4
+// scale block as a 32x16 byte tile.
+// https://www.mlplatform.org/tosa/tosa_spec_1_0_1.html#_matmul_t_block_scaled
+static constexpr int64_t kTosaBlockedScaleRowBlock = 128;
+static constexpr int64_t kTosaBlockedScaleColBlock = 4;
+static constexpr int64_t kTosaBlockedScaleSwizzleTileRows = 32;
+static constexpr int64_t kTosaBlockedScaleSwizzleTileCols = 16;
+static constexpr int64_t kTosaBlockedScaleSwizzleTileSize =
+    kTosaBlockedScaleSwizzleTileRows * kTosaBlockedScaleSwizzleTileCols;
+
 static SmallVector<int64_t> getTensorShape(RankedTensorType tensorTy) {
   return SmallVector<int64_t>(tensorTy.getShape().begin(),
                               tensorTy.getShape().end());
@@ -139,7 +151,7 @@ static Value reshapeTensor(Value input, ArrayRef<int64_t> shape, Type elementTy,
 static std::optional<Value>
 createScaledMmZeroTensor(ConversionPatternRewriter &rewriter, Location loc,
                          Type elementType) {
-  if (!isa<Float8E4M3FNType, Float8E5M2Type, Float8E8M0FNUType>(elementType))
+  if (!isa<Float8E4M3FNType, Float8E5M2Type>(elementType))
     return tosa::createZeroPointTensor(rewriter, loc, elementType,
                                        /*zeroPoint=*/0);
 
@@ -343,30 +355,17 @@ static FailureOr<Value> createScaledMmMatmulTBlockScaledResult(
   return castScaledMmResultToType(*resultWithBiasOr, resultTy, rewriter);
 }
 
-static FailureOr<Value> reshapeFlatBlockedScaleForTosa(
-    Value scale, RankedTensorType scaleTy, int64_t rows, int64_t scaleCols,
-    ConversionPatternRewriter &rewriter, Location loc) {
-  if (!scaleTy.hasStaticShape())
-    return failure();
-
+static FailureOr<Value>
+reshapeFlatBlockedScale(Value scale, RankedTensorType scaleTy, int64_t rows,
+                        int64_t scaleCols, ConversionPatternRewriter &rewriter,
+                        Location loc) {
   SmallVector<int64_t> scaleShape = {1, rows, scaleCols};
   auto reshapedTy = RankedTensorType::get(scaleShape, scaleTy.getElementType());
-  int64_t rowBlocks = llvm::divideCeil(rows, int64_t{128});
-  int64_t colBlocks = llvm::divideCeil(scaleCols, int64_t{4});
-  SmallVector<int64_t> paddedScaleShape = {1, rowBlocks * 128, colBlocks * 4};
-
-  if (scaleTy.getRank() == 2) {
-    if (scaleTy.getDimSize(0) != paddedScaleShape[1] ||
-        scaleTy.getDimSize(1) != paddedScaleShape[2])
-      return failure();
-  } else {
-    if (scaleTy.getRank() != 1)
-      return failure();
-
-    int64_t numel = scaleTy.getDimSize(0);
-    if (numel != paddedScaleShape[1] * paddedScaleShape[2])
-      return failure();
-  }
+  int64_t rowBlocks = llvm::divideCeil(rows, kTosaBlockedScaleRowBlock);
+  int64_t colBlocks = llvm::divideCeil(scaleCols, kTosaBlockedScaleColBlock);
+  SmallVector<int64_t> paddedScaleShape = {
+      1, rowBlocks * kTosaBlockedScaleRowBlock,
+      colBlocks * kTosaBlockedScaleColBlock};
 
   auto paddedScaleTy =
       RankedTensorType::get(paddedScaleShape, scaleTy.getElementType());
@@ -403,6 +402,28 @@ static FailureOr<ArrayRef<char>> getDenseConstantRawByteData(Value value) {
   return failure();
 }
 
+static SmallVector<char> expandRawByteData(ArrayRef<char> rawData,
+                                           int64_t numElements) {
+  if (rawData.size() == 1 && numElements > 1)
+    return SmallVector<char>(numElements, rawData.front());
+  return SmallVector<char>(rawData.begin(), rawData.end());
+}
+
+static FailureOr<SmallVector<char>>
+getDenseConstantRawByteData(Value value, int64_t numElements) {
+  FailureOr<ArrayRef<char>> rawData = getDenseConstantRawByteData(value);
+  if (failed(rawData))
+    return failure();
+  return expandRawByteData(*rawData, numElements);
+}
+
+// PyTorch accepts blocked scales in two encodings:
+//   FlatPadded: a runtime value already padded to ceil(rows, 128) x
+//     ceil(K / 32, 4), either rank-2 or flattened. Lowering reshapes it and
+//     slices away padding that is outside the true M/N extent.
+//   SwizzledConstant: a compile-time constant stored as 32x16 byte tiles. This
+//     is reordered at compile time into the compact [1, rows, K / 32] TOSA
+//     layout because TOSA does not model the swizzled storage format.
 enum class BlockedScaleLayout {
   Invalid,
   FlatPadded,
@@ -411,19 +432,19 @@ enum class BlockedScaleLayout {
 
 struct BlockedScaleClassification {
   BlockedScaleLayout layout = BlockedScaleLayout::Invalid;
-  ArrayRef<char> rawSwizzledData = {};
+  SmallVector<char> rawSwizzledData = {};
 };
 
-static BlockedScaleLayout
-classifyFlatBlockedScaleForTosa(RankedTensorType scaleTy, int64_t rows,
-                                int64_t scaleCols) {
+static BlockedScaleLayout classifyFlatBlockedScale(RankedTensorType scaleTy,
+                                                   int64_t rows,
+                                                   int64_t scaleCols) {
   if (!scaleTy.hasStaticShape())
     return BlockedScaleLayout::Invalid;
 
-  int64_t rowBlocks = llvm::divideCeil(rows, int64_t{128});
-  int64_t colBlocks = llvm::divideCeil(scaleCols, int64_t{4});
-  int64_t paddedRows = rowBlocks * 128;
-  int64_t paddedCols = colBlocks * 4;
+  int64_t rowBlocks = llvm::divideCeil(rows, kTosaBlockedScaleRowBlock);
+  int64_t colBlocks = llvm::divideCeil(scaleCols, kTosaBlockedScaleColBlock);
+  int64_t paddedRows = rowBlocks * kTosaBlockedScaleRowBlock;
+  int64_t paddedCols = colBlocks * kTosaBlockedScaleColBlock;
 
   if (scaleTy.getRank() == 2)
     return scaleTy.getDimSize(0) == paddedRows &&
@@ -439,53 +460,55 @@ classifyFlatBlockedScaleForTosa(RankedTensorType scaleTy, int64_t rows,
              : BlockedScaleLayout::Invalid;
 }
 
-static bool hasSwizzledBlockedScaleShapeForTosa(RankedTensorType scaleTy,
-                                                int64_t rows,
-                                                int64_t scaleCols) {
+static bool hasSwizzledBlockedScaleShape(RankedTensorType scaleTy, int64_t rows,
+                                         int64_t scaleCols) {
   if (!scaleTy.hasStaticShape() || scaleTy.getRank() != 2)
     return false;
 
-  int64_t rowBlocks = llvm::divideCeil(rows, int64_t{128});
-  int64_t colBlocks = llvm::divideCeil(scaleCols, int64_t{4});
-  return scaleTy.getDimSize(0) == rowBlocks * colBlocks * 32 &&
-         scaleTy.getDimSize(1) == 16;
+  int64_t rowBlocks = llvm::divideCeil(rows, kTosaBlockedScaleRowBlock);
+  int64_t colBlocks = llvm::divideCeil(scaleCols, kTosaBlockedScaleColBlock);
+  return scaleTy.getDimSize(0) ==
+             rowBlocks * colBlocks * kTosaBlockedScaleSwizzleTileRows &&
+         scaleTy.getDimSize(1) == kTosaBlockedScaleSwizzleTileCols;
 }
 
-static FailureOr<ArrayRef<char>>
-getSwizzledBlockedScaleRawDataForTosa(Value scale, RankedTensorType scaleTy,
-                                      int64_t rows, int64_t scaleCols) {
-  if (!hasSwizzledBlockedScaleShapeForTosa(scaleTy, rows, scaleCols))
+static FailureOr<SmallVector<char>>
+getSwizzledBlockedScaleRawData(Value scale, RankedTensorType scaleTy,
+                               int64_t rows, int64_t scaleCols) {
+  if (!hasSwizzledBlockedScaleShape(scaleTy, rows, scaleCols))
     return failure();
 
-  FailureOr<ArrayRef<char>> rawData = getDenseConstantRawByteData(scale);
+  FailureOr<SmallVector<char>> rawData =
+      getDenseConstantRawByteData(scale, scaleTy.getNumElements());
   if (failed(rawData) ||
       static_cast<int64_t>(rawData->size()) != scaleTy.getNumElements())
     return failure();
   return *rawData;
 }
 
-static BlockedScaleClassification
-classifyBlockedScaleForTosa(Value scale, RankedTensorType scaleTy, int64_t rows,
-                            int64_t scaleCols) {
+static BlockedScaleClassification classifyBlockedScale(Value scale,
+                                                       RankedTensorType scaleTy,
+                                                       int64_t rows,
+                                                       int64_t scaleCols) {
   BlockedScaleLayout flatLayout =
-      classifyFlatBlockedScaleForTosa(scaleTy, rows, scaleCols);
+      classifyFlatBlockedScale(scaleTy, rows, scaleCols);
   if (flatLayout != BlockedScaleLayout::Invalid)
     return {flatLayout, {}};
 
-  FailureOr<ArrayRef<char>> rawData =
-      getSwizzledBlockedScaleRawDataForTosa(scale, scaleTy, rows, scaleCols);
+  FailureOr<SmallVector<char>> rawData =
+      getSwizzledBlockedScaleRawData(scale, scaleTy, rows, scaleCols);
   if (failed(rawData))
     return {};
-  return {BlockedScaleLayout::SwizzledConstant, *rawData};
+  return {BlockedScaleLayout::SwizzledConstant, std::move(*rawData)};
 }
 
-static FailureOr<Value> reorderSwizzledBlockedScaleConstantForTosa(
+static FailureOr<Value> reorderSwizzledBlockedScaleConstant(
     Value scale, RankedTensorType scaleTy, int64_t rows, int64_t scaleCols,
     ArrayRef<char> rawData, ConversionPatternRewriter &rewriter, Location loc) {
-  if (!hasSwizzledBlockedScaleShapeForTosa(scaleTy, rows, scaleCols))
+  if (!hasSwizzledBlockedScaleShape(scaleTy, rows, scaleCols))
     return failure();
 
-  int64_t colBlocks = llvm::divideCeil(scaleCols, int64_t{4});
+  int64_t colBlocks = llvm::divideCeil(scaleCols, kTosaBlockedScaleColBlock);
 
   // E8M0 scale values are layout-reordered byte payloads here, not numerically
   // transformed. The swizzled storage is [rowBlocks * colBlocks * 32, 16],
@@ -497,17 +520,21 @@ static FailureOr<Value> reorderSwizzledBlockedScaleConstantForTosa(
 
   SmallVector<char> compactData(rows * scaleCols);
   for (int64_t row = 0; row < rows; ++row) {
-    int64_t rowBlock = row / 128;
-    int64_t rowInBlock = row % 128;
+    int64_t rowBlock = row / kTosaBlockedScaleRowBlock;
+    int64_t rowInBlock = row % kTosaBlockedScaleRowBlock;
     for (int64_t col = 0; col < scaleCols; ++col) {
-      int64_t colBlock = col / 4;
-      int64_t colInBlock = col % 4;
+      int64_t colBlock = col / kTosaBlockedScaleColBlock;
+      int64_t colInBlock = col % kTosaBlockedScaleColBlock;
       int64_t block = rowBlock * colBlocks + colBlock;
       // Within each 32x16 tile, rows are grouped by row % 32 and columns by
       // four-row sub-blocks, so compact [row, col] maps to:
       //   tileBase + (row % 32) * 16 + (row / 32) * 4 + (col % 4).
-      int64_t srcIndex = block * 512 + (rowInBlock % 32) * 16 +
-                         (rowInBlock / 32) * 4 + colInBlock;
+      int64_t srcIndex = block * kTosaBlockedScaleSwizzleTileSize +
+                         (rowInBlock % kTosaBlockedScaleSwizzleTileRows) *
+                             kTosaBlockedScaleSwizzleTileCols +
+                         (rowInBlock / kTosaBlockedScaleSwizzleTileRows) *
+                             kTosaBlockedScaleColBlock +
+                         colInBlock;
       compactData[row * scaleCols + col] = rawData[srcIndex];
     }
   }
@@ -520,49 +547,44 @@ static FailureOr<Value> reorderSwizzledBlockedScaleConstantForTosa(
 }
 
 static FailureOr<Value>
-getBlockedScaleForTosa(Value scale, RankedTensorType scaleTy, int64_t rows,
-                       int64_t scaleCols,
-                       BlockedScaleClassification classification,
-                       ConversionPatternRewriter &rewriter, Location loc) {
+getBlockedScale(Value scale, RankedTensorType scaleTy, int64_t rows,
+                int64_t scaleCols, BlockedScaleClassification classification,
+                ConversionPatternRewriter &rewriter, Location loc) {
   switch (classification.layout) {
   case BlockedScaleLayout::FlatPadded:
-    return reshapeFlatBlockedScaleForTosa(scale, scaleTy, rows, scaleCols,
-                                          rewriter, loc);
+    assert(classifyFlatBlockedScale(scaleTy, rows, scaleCols) ==
+               BlockedScaleLayout::FlatPadded &&
+           "blocked scale classification must validate flat padded layout");
+    return reshapeFlatBlockedScale(scale, scaleTy, rows, scaleCols, rewriter,
+                                   loc);
   case BlockedScaleLayout::SwizzledConstant:
-    return reorderSwizzledBlockedScaleConstantForTosa(
-        scale, scaleTy, rows, scaleCols, classification.rawSwizzledData,
-        rewriter, loc);
+    return reorderSwizzledBlockedScaleConstant(scale, scaleTy, rows, scaleCols,
+                                               classification.rawSwizzledData,
+                                               rewriter, loc);
   case BlockedScaleLayout::Invalid:
     return failure();
   }
   llvm_unreachable("unhandled blocked scale layout");
 }
 
-static Value getBlockedRhsForTosa(Value rhs, RankedTensorType rhsTy, int64_t k,
-                                  int64_t n,
-                                  ConversionPatternRewriter &rewriter,
-                                  Location loc) {
-  // TOSA matmul_t_block_scaled expects RHS as [batch, N, K].
-  auto rhsTransposedTy = RankedTensorType::get({n, k}, rhsTy.getElementType());
-  rhs = tosa::TransposeOp::create(rewriter, loc, rhsTransposedTy, rhs,
-                                  rewriter.getDenseI32ArrayAttr({1, 0}))
-            .getResult();
-  auto rhsBlockedTy = RankedTensorType::get({1, n, k}, rhsTy.getElementType());
-  return tosa::ReshapeOp::create(
-             rewriter, loc, rhsBlockedTy, rhs,
-             tosa::getTosaConstShape(rewriter, loc, {1, n, k}))
-      .getResult();
-}
+static Value addBatchDimForBlockedMatmul(Value value, RankedTensorType valueTy,
+                                         int64_t outer, int64_t inner,
+                                         bool transpose,
+                                         ConversionPatternRewriter &rewriter,
+                                         Location loc) {
+  if (transpose) {
+    auto transposedTy =
+        RankedTensorType::get({outer, inner}, valueTy.getElementType());
+    value = tosa::TransposeOp::create(rewriter, loc, transposedTy, value,
+                                      rewriter.getDenseI32ArrayAttr({1, 0}))
+                .getResult();
+  }
 
-static Value getBlockedLhsForTosa(Value lhs, RankedTensorType lhsTy, int64_t m,
-                                  int64_t k,
-                                  ConversionPatternRewriter &rewriter,
-                                  Location loc) {
-  // Keep this legalization tied to aten._scaled_mm's rank-2 contract.
-  auto lhsBlockedTy = RankedTensorType::get({1, m, k}, lhsTy.getElementType());
+  auto rhsBlockedTy =
+      RankedTensorType::get({1, outer, inner}, valueTy.getElementType());
   return tosa::ReshapeOp::create(
-             rewriter, loc, lhsBlockedTy, lhs,
-             tosa::getTosaConstShape(rewriter, loc, {1, m, k}))
+             rewriter, loc, rhsBlockedTy, value,
+             tosa::getTosaConstShape(rewriter, loc, {1, outer, inner}))
       .getResult();
 }
 
@@ -571,6 +593,21 @@ static LogicalResult rewriteFlatBlockedScaledMmToMatmulTBlockScaledOp(
     RankedTensorType lhsTy, RankedTensorType rhsTy, RankedTensorType scaleATy,
     RankedTensorType scaleBTy, RankedTensorType resultTy,
     ConversionPatternRewriter &rewriter, Location loc) {
+  Type lhsElemTy = lhsTy.getElementType();
+  Type rhsElemTy = rhsTy.getElementType();
+  if (!isSupportedScaledMmDataElementType(rhsElemTy))
+    return rewriter.notifyMatchFailure(
+        op, "aten._scaled_mm expects FP8 rhs input for blocked scales");
+
+  if (!isSupportedScaledMmDataElementType(lhsElemTy))
+    return rewriter.notifyMatchFailure(
+        op, "aten._scaled_mm expects FP8 lhs input for blocked scales");
+
+  if (lhsElemTy != rhsElemTy)
+    return rewriter.notifyMatchFailure(
+        op, "aten._scaled_mm requires matching lhs/rhs element types for "
+            "blocked scales");
+
   if (lhsTy.getRank() != 2 || rhsTy.getRank() != 2 || resultTy.getRank() != 2)
     return rewriter.notifyMatchFailure(
         op, "aten._scaled_mm expects rank-2 tensors for flat blocked scales");
@@ -595,21 +632,24 @@ static LogicalResult rewriteFlatBlockedScaledMmToMatmulTBlockScaledOp(
 
   int64_t scaleCols = k / 32;
   BlockedScaleClassification scaleAClassification =
-      classifyBlockedScaleForTosa(scaleA, scaleATy, m, scaleCols);
+      classifyBlockedScale(scaleA, scaleATy, m, scaleCols);
   BlockedScaleClassification scaleBClassification =
-      classifyBlockedScaleForTosa(scaleB, scaleBTy, n, scaleCols);
+      classifyBlockedScale(scaleB, scaleBTy, n, scaleCols);
   if (scaleAClassification.layout == BlockedScaleLayout::Invalid ||
       scaleBClassification.layout == BlockedScaleLayout::Invalid)
     return rewriter.notifyMatchFailure(
         op, "failed to validate aten._scaled_mm flat blocked scales");
 
-  lhs = getBlockedLhsForTosa(lhs, lhsTy, m, k, rewriter, loc);
-  rhs = getBlockedRhsForTosa(rhs, rhsTy, k, n, rewriter, loc);
+  lhs = addBatchDimForBlockedMatmul(lhs, lhsTy, m, k, /*transpose=*/false,
+                                    rewriter, loc);
+  // TOSA matmul_t_block_scaled expects RHS as [batch, N, K].
+  rhs = addBatchDimForBlockedMatmul(rhs, rhsTy, n, k, /*transpose=*/true,
+                                    rewriter, loc);
 
-  auto scaleAOr = getBlockedScaleForTosa(scaleA, scaleATy, m, scaleCols,
-                                         scaleAClassification, rewriter, loc);
-  auto scaleBOr = getBlockedScaleForTosa(scaleB, scaleBTy, n, scaleCols,
-                                         scaleBClassification, rewriter, loc);
+  auto scaleAOr = getBlockedScale(scaleA, scaleATy, m, scaleCols,
+                                  scaleAClassification, rewriter, loc);
+  auto scaleBOr = getBlockedScale(scaleB, scaleBTy, n, scaleCols,
+                                  scaleBClassification, rewriter, loc);
   if (failed(scaleAOr) || failed(scaleBOr))
     return rewriter.notifyMatchFailure(
         op, "failed to reshape aten._scaled_mm flat blocked scales");
@@ -3266,19 +3306,6 @@ public:
           op, lhs, rhs, scaleA, scaleB, bias, lhsTy, rhsTy, scaleATy, scaleBTy,
           resultTy, *batchedScaleShapes, m, k, n, rewriter, loc);
     }
-
-    if (!isSupportedScaledMmDataElementType(rhsElemTy))
-      return rewriter.notifyMatchFailure(
-          op, "aten._scaled_mm expects FP8 rhs input for blocked scales");
-
-    if (!isSupportedScaledMmDataElementType(lhsElemTy))
-      return rewriter.notifyMatchFailure(
-          op, "aten._scaled_mm expects FP8 lhs input for blocked scales");
-
-    if (lhsElemTy != rhsElemTy)
-      return rewriter.notifyMatchFailure(
-          op, "aten._scaled_mm requires matching lhs/rhs element types for "
-              "blocked scales");
 
     return rewriteFlatBlockedScaledMmToMatmulTBlockScaledOp(
         op, lhs, rhs, scaleA, scaleB, bias, lhsTy, rhsTy, scaleATy, scaleBTy,
