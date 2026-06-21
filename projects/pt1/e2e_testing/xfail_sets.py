@@ -3721,6 +3721,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenRealView128Module_basic",
     "AtenRealView64Module_basic",
     "AtenSubFloatModule_basic",
+    "AtenTopKLargeKStaticModule_basic",
     "Aten_EmbeddingBagExample_basic",
     "AvgPool1dIntModule_basic",
     "AvgPool1dStaticModule_basic",
