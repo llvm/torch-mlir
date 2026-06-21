@@ -281,10 +281,10 @@ static FailureOr<Value> createIntOrFloatCompareOp(PatternRewriter &rewriter,
   }
 
   if (isa<mlir::FloatType>(elementType)) {
-    Value lhsIsNan = arith::CmpFOp::create(
-        rewriter, loc, arith::CmpFPredicate::UNE, lhs, lhs);
-    Value rhsIsNan = arith::CmpFOp::create(
-        rewriter, loc, arith::CmpFPredicate::UNE, rhs, rhs);
+    Value lhsIsNan = arith::CmpFOp::create(rewriter, loc,
+                                           arith::CmpFPredicate::UNE, lhs, lhs);
+    Value rhsIsNan = arith::CmpFOp::create(rewriter, loc,
+                                           arith::CmpFPredicate::UNE, rhs, rhs);
 
     if (isEqual) {
       // Inclusive ordering used by sort. Match PyTorch by treating NaNs as
@@ -295,10 +295,9 @@ static FailureOr<Value> createIntOrFloatCompareOp(PatternRewriter &rewriter,
       Value numericCompare =
           arith::CmpFOp::create(rewriter, loc, predicate, lhs, rhs);
       Value nanAwareCompare =
-          isDescending ? arith::OrIOp::create(rewriter, loc, lhsIsNan,
-                                              numericCompare)
-                       : arith::OrIOp::create(rewriter, loc, rhsIsNan,
-                                              numericCompare);
+          isDescending
+              ? arith::OrIOp::create(rewriter, loc, lhsIsNan, numericCompare)
+              : arith::OrIOp::create(rewriter, loc, rhsIsNan, numericCompare);
       return nanAwareCompare;
     }
 
