@@ -310,7 +310,6 @@ static LogicalResult rewriteScaledMmToMatMulOp(
     const StaticScaledMmScaleShapes &batchedScaleShapes, int64_t m, int64_t k,
     int64_t n, ConversionPatternRewriter &rewriter, Location loc) {
   auto f32Ty = rewriter.getF32Type();
-  auto f16Ty = rewriter.getF16Type();
 
   lhs = reshapeTensor(lhs, {1, m, k}, lhsTy.getElementType(), rewriter, loc);
   rhs = reshapeTensor(rhs, {1, k, n}, rhsTy.getElementType(), rewriter, loc);
@@ -336,17 +335,12 @@ static LogicalResult rewriteScaledMmToMatMulOp(
     return rewriter.notifyMatchFailure(
         op, "failed to materialize FP8 zero point for matmul");
 
-  // TOSA FP8 matmul produces an f16 result, so the f32 scaling epilogue below
-  // is applied after that f16 rounding point. This intentionally models the
-  // closest TOSA-supported behavior, not PyTorch's exact scale-before-output
-  // accumulator semantics.
-  auto matmulTy = RankedTensorType::get({1, m, n}, f16Ty);
-  Value matmul = tosa::MatMulOp::create(rewriter, loc, matmulTy, lhs, rhs,
-                                        *zeroPointAOr, *zeroPointBOr)
-                     .getResult();
   auto scaledMatmulTy = RankedTensorType::get({1, m, n}, f32Ty);
-  Value matmulF32 =
-      tosa::tosaCastTensorToType(rewriter, matmul, scaledMatmulTy).value();
+  // Keep the FP8 dot product in f32; it can overflow f16 before the scale
+  // epilogue brings it back into the output range.
+  Value matmulF32 = tosa::MatMulOp::create(rewriter, loc, scaledMatmulTy, lhs,
+                                           rhs, *zeroPointAOr, *zeroPointBOr)
+                        .getResult();
 
   auto combinedScaleTy = RankedTensorType::get(
       {1, std::max(batchedScaleAShapeVec[1], batchedScaleBShapeVec[1]),
