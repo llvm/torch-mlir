@@ -7,5 +7,6 @@ add_mlir_conversion_library(TorchMLIRConversionUtils
   LINK_LIBS PUBLIC
   MLIRArithDialect
   MLIRLinalgDialect
+  MLIRTransformUtils
   TorchMLIRTorchDialect
 )

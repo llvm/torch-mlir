@@ -12,30 +12,10 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
-#include "torch-mlir/Dialect/Torch/Utils/SparsityUtils.h"
 
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
-
-int64_t Torch::toPositiveDim(int64_t dim, int64_t inputRank) {
-  return dim >= 0 ? dim : dim + inputRank;
-}
-
-bool Torch::isValidDim(int64_t dim, int64_t inputRank) {
-  return dim >= 0 && dim < inputRank;
-}
-
-std::optional<int64_t>
-Torch::matchLegalConstantIndexIntoListOfSize(Value v, int64_t length) {
-  int64_t dim;
-  if (!matchPattern(v, m_TorchConstantInt(&dim)))
-    return std::nullopt;
-  dim = toPositiveDim(dim, length);
-  if (!isValidDim(dim, length))
-    return std::nullopt;
-  return dim;
-}
 
 Value Torch::toIntListConstruct(PatternRewriter &rewriter, Location loc,
                                 ArrayRef<int64_t> cstInput) {
@@ -49,87 +29,6 @@ Value Torch::toIntListConstruct(PatternRewriter &rewriter, Location loc,
       cstValues);
 }
 
-bool Torch::getListConstructElements(Value v, SmallVectorImpl<Value> &elems) {
-  auto listConstruct = v.getDefiningOp<PrimListConstructOp>();
-  if (!listConstruct)
-    return false;
-  elems = llvm::to_vector<4>(listConstruct.getElements());
-  return true;
-}
-
-torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
-  if (isa<Float32Type>(type))
-    return torch_upstream::ScalarType::Float;
-  if (isa<Float64Type>(type))
-    return torch_upstream::ScalarType::Double;
-  if (type.isSignedInteger(64))
-    return torch_upstream::ScalarType::Long;
-  if (type.isSignedInteger(32))
-    return torch_upstream::ScalarType::Int;
-  if (type.isSignedInteger(16))
-    return torch_upstream::ScalarType::Short;
-  if (type.isSignlessInteger(1))
-    return torch_upstream::ScalarType::Bool;
-  if (type.isBF16())
-    return torch_upstream::ScalarType::BFloat16;
-  if (type.isF16())
-    return torch_upstream::ScalarType::Half;
-  if (type.isUnsignedInteger(8))
-    return torch_upstream::ScalarType::Byte;
-  if (type.isSignedInteger(8))
-    return torch_upstream::ScalarType::Char;
-  if (isa<QUInt8Type>(type))
-    return torch_upstream::ScalarType::QUInt8;
-  if (isa<QInt8Type>(type))
-    return torch_upstream::ScalarType::QInt8;
-  if (isa<QInt16Type>(type))
-    return torch_upstream::ScalarType::QInt16;
-  if (isa<QInt32Type>(type))
-    return torch_upstream::ScalarType::QInt32;
-  if (isa<ComplexType>(type)) {
-    mlir::Type complexElemType = cast<ComplexType>(type).getElementType();
-    if (complexElemType.isF16())
-      return torch_upstream::ScalarType::ComplexHalf;
-    if (complexElemType.isF32())
-      return torch_upstream::ScalarType::ComplexFloat;
-    if (complexElemType.isF64())
-      return torch_upstream::ScalarType::ComplexDouble;
-  }
-  if (isa<Float8E5M2Type>(type))
-    return torch_upstream::ScalarType::Float8_e5m2;
-  if (isa<Float8E4M3FNType>(type))
-    return torch_upstream::ScalarType::Float8_e4m3fn;
-  if (isa<Float8E5M2FNUZType>(type))
-    return torch_upstream::ScalarType::Float8_e5m2fnuz;
-  if (isa<Float8E4M3FNUZType>(type))
-    return torch_upstream::ScalarType::Float8_e4m3fnuz;
-  if (isa<Float8E8M0FNUType>(type))
-    return torch_upstream::ScalarType::Float8_e8m0fnu;
-  if (isa<Float4E2M1FNType>(type))
-    return torch_upstream::ScalarType::Float4_e2m1fn_x2;
-  std::string errorMsg = "Unhandled type in getScalarTypeForType: ";
-  llvm::raw_string_ostream os(errorMsg);
-  type.print(os);
-  // os << "\nType ID: " << type.getTypeID();
-  os << "\nType properties:";
-  os << "\n  Is integer: " << (type.isInteger() ? "yes" : "no");
-  os << "\n  Is float: "
-     << (type.isIntOrFloat() && !type.isInteger() ? "yes" : "no");
-  os << "\n  Is index: " << (type.isIndex() ? "yes" : "no");
-  os << "\n  Bit width: "
-     << (type.isIntOrFloat() ? std::to_string(type.getIntOrFloatBitWidth())
-                             : "N/A");
-  os << "\n  Is signless: " << (type.isSignlessInteger() ? "yes" : "no");
-  os << "\n  Is signed: " << (type.isSignedInteger() ? "yes" : "no");
-  // special error message for unsigned integer
-  if (type.isUnsignedInteger()) {
-    os << "\n  Is unsigned: yes";
-    os << "\nUnsigned integer support is currently spotty. Please seeheck "
-          "https://github.com/llvm/torch-mlir/issues/3720 "
-          "for more details.";
-  }
-  llvm::report_fatal_error(llvm::StringRef(errorMsg));
-}
 Type Torch::getTypeForTorchType(
     MLIRContext *context, Type type,
     mlir::IntegerType::SignednessSemantics signedness) {
@@ -138,63 +37,6 @@ Type Torch::getTypeForTorchType(
   if (isa<Torch::FloatType>(type))
     return Float64Type::get(context);
   llvm::report_fatal_error("unhandled type for getTypeForTorchType");
-}
-
-FailureOr<Type>
-Torch::getTypeForScalarType(MLIRContext *context,
-                            torch_upstream::ScalarType dtypeInt) {
-  switch (dtypeInt) {
-  case torch_upstream::ScalarType::Float:
-    return Float32Type::get(context);
-  case torch_upstream::ScalarType::Double:
-    return Float64Type::get(context);
-  case torch_upstream::ScalarType::Long:
-    return IntegerType::get(context, 64, mlir::IntegerType::Signed);
-  case torch_upstream::ScalarType::Int:
-    return IntegerType::get(context, 32, mlir::IntegerType::Signed);
-  case torch_upstream::ScalarType::Short:
-    return IntegerType::get(context, 16, mlir::IntegerType::Signed);
-  case torch_upstream::ScalarType::Bool:
-    return IntegerType::get(context, 1);
-  case torch_upstream::ScalarType::BFloat16:
-    return mlir::BFloat16Type::get(context);
-  case torch_upstream::ScalarType::Half:
-    return mlir::Float16Type::get(context);
-  case torch_upstream::ScalarType::Byte:
-    return mlir::IntegerType::get(context, 8, mlir::IntegerType::Unsigned);
-  case torch_upstream::ScalarType::Char:
-    return mlir::IntegerType::get(context, 8, mlir::IntegerType::Signed);
-  case torch_upstream::ScalarType::QUInt8:
-    return QUInt8Type::get(context);
-  case torch_upstream::ScalarType::QInt8:
-    return QInt8Type::get(context);
-  case torch_upstream::ScalarType::QInt16:
-    return QInt16Type::get(context);
-  case torch_upstream::ScalarType::QInt32:
-    return QInt32Type::get(context);
-  case torch_upstream::ScalarType::ComplexHalf:
-    return mlir::ComplexType::get(Float16Type::get(context));
-  case torch_upstream::ScalarType::ComplexFloat:
-    return mlir::ComplexType::get(Float32Type::get(context));
-  case torch_upstream::ScalarType::ComplexDouble:
-    return mlir::ComplexType::get(Float64Type::get(context));
-  case torch_upstream::ScalarType::Float8_e5m2:
-    return Float8E5M2Type::get(context);
-  case torch_upstream::ScalarType::Float8_e4m3fn:
-    return Float8E4M3FNType::get(context);
-  case torch_upstream::ScalarType::Float8_e5m2fnuz:
-    return Float8E5M2FNUZType::get(context);
-  case torch_upstream::ScalarType::Float8_e4m3fnuz:
-    return Float8E4M3FNUZType::get(context);
-  case torch_upstream::ScalarType::Float8_e8m0fnu:
-    return Float8E8M0FNUType::get(context);
-  case torch_upstream::ScalarType::Float4_e2m1fn_x2:
-    return Float4E2M1FNType::get(context);
-  case torch_upstream::ScalarType::Undefined:
-    return failure();
-  default:
-    llvm::report_fatal_error("unhandled type for getTypeForScalarType");
-  }
 }
 
 FailureOr<Type>
@@ -301,13 +143,6 @@ bool Torch::isBuiltInType(Type type) {
   return isa<BuiltinDialect>(type.getDialect());
 }
 
-std::optional<unsigned> Torch::getTensorRank(Value tensor) {
-  BaseTensorType tensorType = cast<BaseTensorType>(tensor.getType());
-  if (!tensorType.hasSizes())
-    return std::nullopt;
-  return tensorType.getSizes().size();
-}
-
 std::optional<int64_t> Torch::getTensorNumel(Value tensor) {
   BaseTensorType tensorType = cast<BaseTensorType>(tensor.getType());
   if (!tensorType.hasSizes())
@@ -371,17 +206,6 @@ int64_t Torch::getNumberOfElements(RankedTensorType inputType) {
   return numel;
 }
 
-SmallVector<int64_t> Torch::makeShapeLLVMCompatible(ArrayRef<int64_t> shape) {
-  SmallVector<int64_t> updatedShape(shape);
-  int64_t kDynamic = ShapedType::kDynamic;
-  for (unsigned i = 0; i < shape.size(); i++) {
-    assert(shape[i] >= 0 || shape[i] == kUnknownSize);
-    if (shape[i] == kUnknownSize)
-      updatedShape[i] = kDynamic;
-  }
-  return updatedShape;
-}
-
 SmallVector<int64_t> Torch::makeShapeTorchCompatible(ArrayRef<int64_t> shape) {
   SmallVector<int64_t> updatedShape(shape);
   int64_t kDynamic = ShapedType::kDynamic;
@@ -417,77 +241,6 @@ Value Torch::getTensorDimSize(PatternRewriter &rewriter, Value tensor,
   // If the dimension is a constant, then the AtenSizeIntOp is folded to a
   // ContantIntOp.
   return rewriter.createOrFold<AtenSizeIntOp>(loc, tensor, dimVal);
-}
-
-// Helper function to squeeze the input tensor at given dim.
-// Return the squeezed tensor or failure.
-FailureOr<Value> Torch::squeezeTensor(PatternRewriter &rewriter, Operation *op,
-                                      Location loc, int64_t dim, Value input) {
-  BaseTensorType inputType = cast<BaseTensorType>(input.getType());
-  if (!inputType.hasSizes()) {
-    return rewriter.notifyMatchFailure(loc, "input tensor must have size");
-  }
-  SmallVector<int64_t> inputShape{inputType.getSizes()};
-  unsigned inputRank = inputShape.size();
-  dim = toPositiveDim(dim, inputRank);
-  if (!isValidDim(dim, inputRank)) {
-    return rewriter.notifyMatchFailure(
-        op, "dimension to be squeezed is an invalid dim");
-  }
-  inputShape.erase(inputShape.begin() + dim);
-  Type squeezedType =
-      inputType.getWithSizesAndDtype(inputShape, inputType.getOptionalDtype());
-
-  Value cstDim = Torch::ConstantIntOp::create(rewriter, loc,
-                                              rewriter.getI64IntegerAttr(dim));
-  // Adding a check to verify if the dimension to be squeezed has size 1 or not.
-  Value cstOne = Torch::ConstantIntOp::create(rewriter, loc,
-                                              rewriter.getI64IntegerAttr(1));
-  Value dimSize = AtenSizeIntOp::create(rewriter, loc, input, cstDim);
-  Value cmp = Torch::AtenEqIntOp::create(rewriter, loc, dimSize, cstOne);
-  Torch::RuntimeAssertOp::create(
-      rewriter, loc, cmp,
-      "squeeze operation possible for dim only when input_shape[dim] == 1.");
-
-  Value result =
-      AtenSqueezeDimOp::create(rewriter, loc, squeezedType, input, cstDim);
-  return result;
-}
-
-// Helper function to unsqueeze the input tensor at given dim.
-// Return the unsqueezed tensor or failure.
-FailureOr<Value> Torch::unsqueezeTensor(PatternRewriter &rewriter,
-                                        Operation *op, Value input, Value dim) {
-  BaseTensorType inputType = cast<BaseTensorType>(input.getType());
-  if (!inputType.hasSizes()) {
-    return rewriter.notifyMatchFailure(op, "input tensor must have size");
-  }
-  FailureOr<Attribute> enc =
-      getSparsityWithDenseLTAtDim(inputType.getOptionalSparsity(), dim);
-  if (failed(enc)) {
-    return failure();
-  }
-
-  SmallVector<int64_t> unsqueezedShape;
-  ArrayRef<int64_t> inputShape = inputType.getSizes();
-  // `input` has a reduced rank. Hence add 1.
-  int64_t unsqueezedRank = inputShape.size() + 1;
-  int64_t dimInt = 0;
-  if (matchPattern(dim, m_TorchConstantInt(&dimInt))) {
-    dimInt = toPositiveDim(dimInt, unsqueezedRank);
-    if (!isValidDim(dimInt, unsqueezedRank)) {
-      return rewriter.notifyMatchFailure(op, "dim is not a valid dim");
-    }
-    unsqueezedShape.append(inputShape.begin(), inputShape.end());
-    unsqueezedShape.insert(unsqueezedShape.begin() + dimInt, 1);
-  } else {
-    unsqueezedShape.resize(unsqueezedRank, kUnknownSize);
-  }
-  Type unsqueezedType = inputType.getWithSizesAndDtypeAndSparsity(
-      unsqueezedShape, inputType.getOptionalDtype(), enc.value());
-  Value unsqueezed = AtenUnsqueezeOp::create(rewriter, op->getLoc(),
-                                             unsqueezedType, input, dim);
-  return unsqueezed;
 }
 
 // Checks whether the inputs are broadcast compatible or not. If

@@ -11,6 +11,7 @@
 
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 
@@ -18,19 +19,169 @@ namespace mlir {
 namespace torch {
 namespace Torch {
 
-int64_t toPositiveDim(int64_t dim, int64_t inputRank);
-bool isValidDim(int64_t dim, int64_t inputRank);
+inline int64_t toPositiveDim(int64_t dim, int64_t inputRank) {
+  return dim >= 0 ? dim : dim + inputRank;
+}
+
+inline bool isValidDim(int64_t dim, int64_t inputRank) {
+  return dim >= 0 && dim < inputRank;
+}
+
 Value toIntListConstruct(PatternRewriter &rewriter, Location loc,
                          ArrayRef<int64_t> cstInput);
-bool getListConstructElements(Value v, SmallVectorImpl<Value> &elems);
+
+inline bool getListConstructElements(Value v, SmallVectorImpl<Value> &elems) {
+  auto listConstruct = v.getDefiningOp<PrimListConstructOp>();
+  if (!listConstruct)
+    return false;
+  llvm::append_range(elems, listConstruct.getElements());
+  return true;
+}
+
 /// Returns the index indicated by `v` for a list of given `length`.
 /// If the index is negative, it is adjusted to `length` + `v`.
 /// `None` is returned the index is not an integer in the range [0,`length).
-std::optional<int64_t> matchLegalConstantIndexIntoListOfSize(Value v,
-                                                             int64_t length);
-torch_upstream::ScalarType getScalarTypeForType(Type type);
-FailureOr<Type> getTypeForScalarType(MLIRContext *context,
-                                     torch_upstream::ScalarType dtypeInt);
+inline std::optional<int64_t>
+matchLegalConstantIndexIntoListOfSize(Value v, int64_t length) {
+  int64_t dim;
+  if (!matchPattern(v, m_TorchConstantInt(&dim)))
+    return std::nullopt;
+  dim = toPositiveDim(dim, length);
+  if (!isValidDim(dim, length))
+    return std::nullopt;
+  return dim;
+}
+
+inline torch_upstream::ScalarType getScalarTypeForType(Type type) {
+  if (isa<Float32Type>(type))
+    return torch_upstream::ScalarType::Float;
+  if (isa<Float64Type>(type))
+    return torch_upstream::ScalarType::Double;
+  if (type.isSignedInteger(64))
+    return torch_upstream::ScalarType::Long;
+  if (type.isSignedInteger(32))
+    return torch_upstream::ScalarType::Int;
+  if (type.isSignedInteger(16))
+    return torch_upstream::ScalarType::Short;
+  if (type.isSignlessInteger(1))
+    return torch_upstream::ScalarType::Bool;
+  if (type.isBF16())
+    return torch_upstream::ScalarType::BFloat16;
+  if (type.isF16())
+    return torch_upstream::ScalarType::Half;
+  if (type.isUnsignedInteger(8))
+    return torch_upstream::ScalarType::Byte;
+  if (type.isSignedInteger(8))
+    return torch_upstream::ScalarType::Char;
+  if (isa<QUInt8Type>(type))
+    return torch_upstream::ScalarType::QUInt8;
+  if (isa<QInt8Type>(type))
+    return torch_upstream::ScalarType::QInt8;
+  if (isa<QInt16Type>(type))
+    return torch_upstream::ScalarType::QInt16;
+  if (isa<QInt32Type>(type))
+    return torch_upstream::ScalarType::QInt32;
+  if (isa<ComplexType>(type)) {
+    mlir::Type complexElemType = cast<ComplexType>(type).getElementType();
+    if (complexElemType.isF16())
+      return torch_upstream::ScalarType::ComplexHalf;
+    if (complexElemType.isF32())
+      return torch_upstream::ScalarType::ComplexFloat;
+    if (complexElemType.isF64())
+      return torch_upstream::ScalarType::ComplexDouble;
+  }
+  if (isa<Float8E5M2Type>(type))
+    return torch_upstream::ScalarType::Float8_e5m2;
+  if (isa<Float8E4M3FNType>(type))
+    return torch_upstream::ScalarType::Float8_e4m3fn;
+  if (isa<Float8E5M2FNUZType>(type))
+    return torch_upstream::ScalarType::Float8_e5m2fnuz;
+  if (isa<Float8E4M3FNUZType>(type))
+    return torch_upstream::ScalarType::Float8_e4m3fnuz;
+  if (isa<Float8E8M0FNUType>(type))
+    return torch_upstream::ScalarType::Float8_e8m0fnu;
+  if (isa<Float4E2M1FNType>(type))
+    return torch_upstream::ScalarType::Float4_e2m1fn_x2;
+  std::string errorMsg = "Unhandled type in getScalarTypeForType: ";
+  llvm::raw_string_ostream os(errorMsg);
+  type.print(os);
+  // os << "\nType ID: " << type.getTypeID();
+  os << "\nType properties:";
+  os << "\n  Is integer: " << (type.isInteger() ? "yes" : "no");
+  os << "\n  Is float: "
+     << (type.isIntOrFloat() && !type.isInteger() ? "yes" : "no");
+  os << "\n  Is index: " << (type.isIndex() ? "yes" : "no");
+  os << "\n  Bit width: "
+     << (type.isIntOrFloat() ? std::to_string(type.getIntOrFloatBitWidth())
+                             : "N/A");
+  os << "\n  Is signless: " << (type.isSignlessInteger() ? "yes" : "no");
+  os << "\n  Is signed: " << (type.isSignedInteger() ? "yes" : "no");
+  // special error message for unsigned integer
+  if (type.isUnsignedInteger()) {
+    os << "\n  Is unsigned: yes";
+    os << "\nUnsigned integer support is currently spotty. Please seeheck "
+          "https://github.com/llvm/torch-mlir/issues/3720 "
+          "for more details.";
+  }
+  llvm::report_fatal_error(llvm::StringRef(errorMsg));
+}
+
+inline FailureOr<Type>
+getTypeForScalarType(MLIRContext *context,
+                     torch_upstream::ScalarType dtypeInt) {
+  switch (dtypeInt) {
+  case torch_upstream::ScalarType::Float:
+    return Float32Type::get(context);
+  case torch_upstream::ScalarType::Double:
+    return Float64Type::get(context);
+  case torch_upstream::ScalarType::Long:
+    return IntegerType::get(context, 64, mlir::IntegerType::Signed);
+  case torch_upstream::ScalarType::Int:
+    return IntegerType::get(context, 32, mlir::IntegerType::Signed);
+  case torch_upstream::ScalarType::Short:
+    return IntegerType::get(context, 16, mlir::IntegerType::Signed);
+  case torch_upstream::ScalarType::Bool:
+    return IntegerType::get(context, 1);
+  case torch_upstream::ScalarType::BFloat16:
+    return mlir::BFloat16Type::get(context);
+  case torch_upstream::ScalarType::Half:
+    return mlir::Float16Type::get(context);
+  case torch_upstream::ScalarType::Byte:
+    return mlir::IntegerType::get(context, 8, mlir::IntegerType::Unsigned);
+  case torch_upstream::ScalarType::Char:
+    return mlir::IntegerType::get(context, 8, mlir::IntegerType::Signed);
+  case torch_upstream::ScalarType::QUInt8:
+    return QUInt8Type::get(context);
+  case torch_upstream::ScalarType::QInt8:
+    return QInt8Type::get(context);
+  case torch_upstream::ScalarType::QInt16:
+    return QInt16Type::get(context);
+  case torch_upstream::ScalarType::QInt32:
+    return QInt32Type::get(context);
+  case torch_upstream::ScalarType::ComplexHalf:
+    return mlir::ComplexType::get(Float16Type::get(context));
+  case torch_upstream::ScalarType::ComplexFloat:
+    return mlir::ComplexType::get(Float32Type::get(context));
+  case torch_upstream::ScalarType::ComplexDouble:
+    return mlir::ComplexType::get(Float64Type::get(context));
+  case torch_upstream::ScalarType::Float8_e5m2:
+    return Float8E5M2Type::get(context);
+  case torch_upstream::ScalarType::Float8_e4m3fn:
+    return Float8E4M3FNType::get(context);
+  case torch_upstream::ScalarType::Float8_e5m2fnuz:
+    return Float8E5M2FNUZType::get(context);
+  case torch_upstream::ScalarType::Float8_e4m3fnuz:
+    return Float8E4M3FNUZType::get(context);
+  case torch_upstream::ScalarType::Float8_e8m0fnu:
+    return Float8E8M0FNUType::get(context);
+  case torch_upstream::ScalarType::Float4_e2m1fn_x2:
+    return Float4E2M1FNType::get(context);
+  case torch_upstream::ScalarType::Undefined:
+    return failure();
+  default:
+    llvm::report_fatal_error("unhandled type for getTypeForScalarType");
+  }
+}
 
 Type getTypeForTorchType(
     MLIRContext *context, Type type,
@@ -75,7 +226,12 @@ bool isBuiltInType(Type type);
 
 // Helper function to get rank of `Base tensor type`.
 // std::nullopt is returned if the tensorRank can't be determined.
-std::optional<unsigned> getTensorRank(Value tensor);
+inline std::optional<unsigned> getTensorRank(Value tensor) {
+  BaseTensorType tensorType = cast<BaseTensorType>(tensor.getType());
+  if (!tensorType.hasSizes())
+    return std::nullopt;
+  return tensorType.getSizes().size();
+}
 
 // Helper function to get the number of elements in a tensor.
 std::optional<int64_t> getTensorNumel(Value tensor);
@@ -89,22 +245,22 @@ Value getConstantWithGivenDtypeAndValue(PatternRewriter &rewriter, Location loc,
 // return -1.
 int64_t getNumberOfElements(RankedTensorType inputType);
 
-SmallVector<int64_t> makeShapeLLVMCompatible(ArrayRef<int64_t> shape);
+inline SmallVector<int64_t> makeShapeLLVMCompatible(ArrayRef<int64_t> shape) {
+  SmallVector<int64_t> updatedShape(shape);
+  int64_t kDynamic = ShapedType::kDynamic;
+  for (unsigned i = 0; i < shape.size(); i++) {
+    assert(shape[i] >= 0 || shape[i] == kUnknownSize);
+    if (shape[i] == kUnknownSize)
+      updatedShape[i] = kDynamic;
+  }
+  return updatedShape;
+}
+
 SmallVector<int64_t> makeShapeTorchCompatible(ArrayRef<int64_t> shape);
 
 ValueTensorType getTensorTypeFromShapeValues(ArrayRef<Value> shapes,
                                              Type dtype);
 Value getTensorDimSize(PatternRewriter &rewriter, Value tensor, int64_t dim);
-
-// Helper function to squeeze the input tensor at given dim.
-// Return the squeezed tensor or failure.
-FailureOr<Value> squeezeTensor(PatternRewriter &rewriter, Operation *op,
-                               Location loc, int64_t dim, Value input);
-
-// Helper function to unsqueeze the input tensor at given dim.
-// Return the unsqueezed tensor or failure.
-FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
-                                 Value input, Value dim);
 
 // In Dynamo import paths, we can assume that dynamic dimensions are strictly
 // quantities and are not ambiguous with '1' symbols that can be interpreted

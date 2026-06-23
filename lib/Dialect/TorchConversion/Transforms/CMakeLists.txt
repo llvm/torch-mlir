@@ -5,12 +5,13 @@ set(LinkedLibs
   MLIRLinalgTransforms
   MLIRMemRefTransforms
   MLIRPass
+  MLIRTensorDialect
   MLIRTosaTransforms
+  MLIRTransformUtils
   MLIRVectorTransforms
   TorchMLIRTorchConversionDialect
   TorchMLIRTorchDialect
   TorchMLIRTorchPasses
-  TorchMLIRConversionPasses
   )
 
 if(TORCH_MLIR_ENABLE_STABLEHLO)

@@ -32,10 +32,11 @@ add_mlir_library(TorchMLIRTorchPasses
 
   LINK_LIBS PUBLIC
   MLIRIR
+  MLIRParser
   MLIRPass
   MLIRTransforms
   TorchMLIRTorchDialect
-  TorchMLIRTorchUtils
+  TorchMLIRTorchOnnxToTorch
 )
 
 torch_mlir_target_includes(TorchMLIRTorchPasses)

@@ -13,6 +13,7 @@ add_mlir_dialect_library(TorchMLIRTorchConversionDialect
   MLIRIR
   MLIRSupport
   MLIRSideEffectInterfaces
+  TorchMLIRTorchDialect
 )
 
 torch_mlir_target_includes(TorchMLIRTorchConversionDialect)

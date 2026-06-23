@@ -8,9 +8,16 @@ add_mlir_conversion_library(TorchMLIRTorchToArith
   TorchMLIRConversionPassIncGen
 
   LINK_LIBS PUBLIC
+  MLIRControlFlowDialect
   MLIRIR
+  MLIRMathDialect
   MLIRPass
+  MLIRRewrite
   MLIRFuncDialect
+  MLIRTensorDialect
+  MLIRTransformUtils
+  TorchMLIRConversionUtils
+  TorchMLIRTorchConversionPasses
   TorchMLIRTorchDialect
 )
 

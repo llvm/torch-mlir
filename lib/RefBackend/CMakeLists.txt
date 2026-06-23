@@ -14,9 +14,12 @@ add_mlir_library(TorchMLIRRefBackend
 
   LINK_LIBS PUBLIC
   MLIRIR
-  MLIRTransforms
-  MLIRMathTransforms
   MLIRLinalgTransforms
+  MLIRMathTransforms
+  MLIRMLProgramDialect
+  MLIRTransforms
+  TorchMLIRTorchConversionDialect
+  TorchMLIRTorchDialect
   )
 
 mlir_check_all_link_libraries(TorchMLIRRefBackend)

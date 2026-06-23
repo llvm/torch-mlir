@@ -11,6 +11,7 @@ add_mlir_public_c_api_library(TorchMLIRCAPI
   ENABLE_AGGREGATION
 
   LINK_LIBS PUBLIC
+  MLIRCAPIIR
   MLIRIR
   MLIRSupport
   TorchMLIRTorchDialect
