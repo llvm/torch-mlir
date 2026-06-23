@@ -16,12 +16,17 @@ add_mlir_library(TorchMLIRTorchDialect
   MLIRBytecodeOpInterface
   MLIRBytecodeReader
   MLIRBytecodeWriter
+  MLIRCastInterfaces
+  MLIRDialectUtils
   MLIRFuncDialect
   MLIRIR
   MLIRSupport
   MLIRControlFlowInterfaces
   MLIRInferTypeOpInterface
   MLIRSideEffectInterfaces
+
+  LINK_LIBS PRIVATE
+  MLIRSparseTensorDialect
 )
 
 torch_mlir_target_includes(TorchMLIRTorchDialect)
