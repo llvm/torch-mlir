@@ -339,3 +339,42 @@ func.func @torch.aten.tril(%arg0: !torch.vtensor<[2,3,5],f32>, %arg1: !torch.int
   %0 = torch.aten.tril %arg0, %arg1:!torch.vtensor<[2,3,5],f32>, !torch.int -> !torch.vtensor<[2,3,5],f32>
   return %0 : !torch.vtensor<[2,3,5],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.bitwise_or.Scalar(
+// CHECK-SAME:                                            %[[INPUT:.*]]: !torch.vtensor<[2,8],si32>) -> !torch.vtensor<[2,8],si32> {
+// CHECK:           %[[BUILTIN:.*]] = torch_c.to_builtin_tensor %[[INPUT]] : !torch.vtensor<[2,8],si32> -> tensor<2x8xi32>
+// CHECK:           %[[UNUSED:.*]] = torch.constant.int 3
+// CHECK:           %[[CST:.*]] = arith.constant 3 : i64
+// CHECK:           %[[ELEM:.*]] = tensor.from_elements %[[CST]] : tensor<1xi64>
+// CHECK:           %[[CONV:.*]] = stablehlo.convert %[[ELEM]] : (tensor<1xi64>) -> tensor<1xi32>
+// CHECK:           %[[SCALAR:.*]] = stablehlo.reshape %[[CONV]] : (tensor<1xi32>) -> tensor<i32>
+// CHECK:           %[[RES:.*]] = chlo.broadcast_or %[[BUILTIN]], %[[SCALAR]] : (tensor<2x8xi32>, tensor<i32>) -> tensor<2x8xi32>
+// CHECK:           %[[OUT:.*]] = torch_c.from_builtin_tensor %[[RES]] : tensor<2x8xi32> -> !torch.vtensor<[2,8],si32>
+// CHECK:           return %[[OUT]] : !torch.vtensor<[2,8],si32>
+// CHECK:         }
+func.func @torch.aten.bitwise_or.Scalar(%arg0: !torch.vtensor<[2,8],si32>) -> !torch.vtensor<[2,8],si32> {
+  %int3 = torch.constant.int 3
+  %0 = torch.aten.bitwise_or.Scalar %arg0, %int3 : !torch.vtensor<[2,8],si32>, !torch.int -> !torch.vtensor<[2,8],si32>
+  return %0 : !torch.vtensor<[2,8],si32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.bitwise_xor.Scalar(
+// CHECK-SAME:                                             %[[INPUT:.*]]: !torch.vtensor<[3,7],si64>) -> !torch.vtensor<[3,7],si64> {
+// CHECK:           %[[BUILTIN:.*]] = torch_c.to_builtin_tensor %[[INPUT]] : !torch.vtensor<[3,7],si64> -> tensor<3x7xi64>
+// CHECK:           %[[UNUSED:.*]] = torch.constant.int 15
+// CHECK:           %[[CST:.*]] = arith.constant 15 : i64
+// CHECK:           %[[ELEM:.*]] = tensor.from_elements %[[CST]] : tensor<1xi64>
+// CHECK:           %[[SCALAR:.*]] = stablehlo.reshape %[[ELEM]] : (tensor<1xi64>) -> tensor<i64>
+// CHECK:           %[[RES:.*]] = chlo.broadcast_xor %[[BUILTIN]], %[[SCALAR]] : (tensor<3x7xi64>, tensor<i64>) -> tensor<3x7xi64>
+// CHECK:           %[[OUT:.*]] = torch_c.from_builtin_tensor %[[RES]] : tensor<3x7xi64> -> !torch.vtensor<[3,7],si64>
+// CHECK:           return %[[OUT]] : !torch.vtensor<[3,7],si64>
+// CHECK:         }
+func.func @torch.aten.bitwise_xor.Scalar(%arg0: !torch.vtensor<[3,7],si64>) -> !torch.vtensor<[3,7],si64> {
+  %int15 = torch.constant.int 15
+  %0 = torch.aten.bitwise_xor.Scalar %arg0, %int15 : !torch.vtensor<[3,7],si64>, !torch.int -> !torch.vtensor<[3,7],si64>
+  return %0 : !torch.vtensor<[3,7],si64>
+}
