@@ -4216,9 +4216,14 @@ LogicalResult ConvertAtenOp<AtenUnflattenIntOp>::matchAndRewriteImpl(
   auto newType = RankedTensorType::get(makeShapeLLVMCompatible(newShape),
                                        selfType.getElementType());
 
-  rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
-      op, getTypeConverter()->convertType(newType), adaptor.getSelf(),
+  // Reshape to the static type, then tensor.cast to the (possibly dynamic)
+  // converted result type.
+  auto reshapeOp = tosa::ReshapeOp::create(
+      rewriter, op.getLoc(), newType, adaptor.getSelf(),
       tosa::getTosaConstShape(rewriter, op->getLoc(), newShape));
+
+  rewriter.replaceOpWithNewOp<tensor::CastOp>(
+      op, getTypeConverter()->convertType(op.getType()), reshapeOp);
 
   return success();
 }

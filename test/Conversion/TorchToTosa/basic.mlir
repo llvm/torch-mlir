@@ -899,7 +899,8 @@ func.func @torch.aten.flatten.using_ints$basic(%arg0: !torch.vtensor<[10,3,8,9,3
 // CHECK:           %[[VAL_5:.*]] = torch.prim.ListConstruct %[[VAL_3]], %[[VAL_4]] : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[VAL_6:.*]] = tosa.const_shape  {values = dense<[1, 2, 3, 4]> : tensor<4xindex>} : () -> !tosa.shape<4>
 // CHECK:           %[[VAL_7:.*]] = tosa.reshape %[[VAL_1]], %[[VAL_6]] : (tensor<1x6x4xf32>, !tosa.shape<4>) -> tensor<1x2x3x4xf32>
-// CHECK:           %[[VAL_8:.*]] = torch_c.from_builtin_tensor %[[VAL_7]] : tensor<1x2x3x4xf32> -> !torch.vtensor<[1,2,3,4],f32>
+// CHECK:           %[[CAST:.*]] = tensor.cast %[[VAL_7]] : tensor<1x2x3x4xf32> to tensor<1x2x3x4xf32>
+// CHECK:           %[[VAL_8:.*]] = torch_c.from_builtin_tensor %[[CAST]] : tensor<1x2x3x4xf32> -> !torch.vtensor<[1,2,3,4],f32>
 // CHECK:           return %[[VAL_8]] : !torch.vtensor<[1,2,3,4],f32>
 // CHECK:         }
 func.func @torch.aten.unflatten.int$basic(%arg0: !torch.vtensor<[1,6,4],f32> ) -> !torch.vtensor<[1,2,3,4],f32> {
