@@ -5098,6 +5098,14 @@ func.func @torch.aten.matmul$zero_k_f32(%arg0: !torch.vtensor<[5,0],f32>, %arg1:
 }
 
 // -----
+
+func.func @torch.aten.matmul$dynamic_batch(%arg0: !torch.vtensor<[?,?,4,5],f32>, %arg1: !torch.vtensor<[?,?,5,6],f32>) -> !torch.vtensor<[?,?,4,6],f32> {
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.matmul' that was explicitly marked illegal}}
+  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[?,?,4,5],f32>, !torch.vtensor<[?,?,5,6],f32> -> !torch.vtensor<[?,?,4,6],f32>
+  return %0 : !torch.vtensor<[?,?,4,6],f32>
+}
+
+// -----
 // CHECK-LABEL:   func.func @torch.aten.bmm$zero_k_f32(
 // CHECK-SAME:      %[[LHS:.*]]: !torch.vtensor<[2,5,0],f32>,
 // CHECK-SAME:      %[[RHS:.*]]: !torch.vtensor<[2,0,10],f32>) -> !torch.vtensor<[2,5,10],f32> {

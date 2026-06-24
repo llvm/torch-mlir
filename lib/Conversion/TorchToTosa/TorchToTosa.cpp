@@ -2287,9 +2287,13 @@ public:
       }
       commonValue = commonValue < 0 ? kUnknownSize : commonValue;
 
-      // TODO: Handle the case when there are dynamic batch dimensions.
+      // Dynamic batch dims would make both commonValue and lhsSqueezedValue
+      // kUnknownSize, yielding two -1 slots in the tosa.reshape output type,
+      // which the TOSA verifier rejects. Bail out cleanly until a proper
+      // dynamic-batch matmul lowering is added.
       if (hasDynamicDims)
-        commonValue = kUnknownSize;
+        return rewriter.notifyMatchFailure(
+            op, "dynamic batch dims in matmul not supported");
 
       // Step: generate the LHS squeezed dim/shape information.
       for (uint32_t dim = 0; dim < maxInputRank - 2; dim++) {
@@ -2551,6 +2555,9 @@ public:
       // Perform reshape
       auto reshapedOpType = RankedTensorType::get(
           makeShapeLLVMCompatible(reshapedOpShape), accElemTy);
+      if (reshapedOpType.getNumDynamicDims() > 1)
+        return rewriter.notifyMatchFailure(
+            op, "matmul output reshape has multiple dynamic dims");
       auto reshapedOp = tosa::ReshapeOp::create(
           rewriter, op->getLoc(),
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
