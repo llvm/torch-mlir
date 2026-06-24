@@ -2173,6 +2173,19 @@ func.func @torch.aten.__interpolate.size_list_scale_list.nearest(%arg0: !torch.v
 
 // -----
 
+func.func @torch.aten.__interpolate$dynamic_input(%arg0: !torch.vtensor<[1,16,?,?],f32>) -> !torch.vtensor<[1,16,?,?],f32> {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %str = torch.constant.str "bilinear"
+  %float2.000000e00 = torch.constant.float 2.000000e+00
+  %0 = torch.prim.ListConstruct %float2.000000e00, %float2.000000e00 : (!torch.float, !torch.float) -> !torch.list<float>
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.__interpolate.size_list_scale_list' that was explicitly marked illegal}}
+  %1 = torch.aten.__interpolate.size_list_scale_list %arg0, %none, %0, %str, %false, %none, %false : !torch.vtensor<[1,16,?,?],f32>, !torch.none, !torch.list<float>, !torch.str, !torch.bool, !torch.none, !torch.bool -> !torch.vtensor<[1,16,?,?],f32>
+  return %1 : !torch.vtensor<[1,16,?,?],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.tril$basic(
 // CHECK-SAME:                                     %[[VAL_0:.*]]: !torch.vtensor<[2,4],si32>) -> !torch.vtensor<[2,4],si32> {
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[2,4],si32> -> tensor<2x4xi32>

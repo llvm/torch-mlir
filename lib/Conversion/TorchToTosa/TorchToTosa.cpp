@@ -8320,6 +8320,9 @@ ConvertAtenOp<Aten__InterpolateSizeListScaleListOp>::matchAndRewriteImpl(
 
   auto inputShape = inputTy.getShape();
 
+  if (llvm::any_of(inputShape, ShapedType::isDynamic))
+    return rewriter.notifyMatchFailure(op, "dynamic input dims not supported");
+
   int outputHeight, outputWidth;
   if (!isa<Torch::NoneType>(op.getScaleFactor().getType())) {
     SmallVector<double, 2> scaleFactor;
