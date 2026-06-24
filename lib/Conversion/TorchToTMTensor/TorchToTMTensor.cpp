@@ -2039,9 +2039,12 @@ public:
     }
 
     // Overwrite with tm_tensor::attention
-    Value attention = AttentionOp::create(rewriter, loc, outType, inputs,
-                                          SmallVector<Value>{output})
-                          .getResult()[0];
+    std::optional<bool> isCausalOpt =
+        causal ? std::optional<bool>(true) : std::nullopt;
+    Value attention =
+        AttentionOp::create(rewriter, loc, inputs, SmallVector<Value>{output},
+                            isCausalOpt)
+            .getResult()[0];
 
     if (opTy != outType) {
       attention = tensor::ExpandShapeOp::create(rewriter, loc, opTy, attention,
