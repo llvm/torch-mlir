@@ -182,6 +182,15 @@ func.func @prim_list_construct$valid_shape_subtype(%arg0: !torch.vtensor<[1,53,5
 }
 
 // Check that verification passes with '-1' as a permutation index.
+// CHECK-LABEL:   func.func @torch.permute$negative_index_valid(
+// CHECK-SAME:                                                  %[[VAL_0:.*]]: !torch.vtensor<[1,2,3],f32>) -> !torch.vtensor<[1,2,3],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch.constant.int -1
+// CHECK:           %[[VAL_2:.*]] = torch.constant.int 0
+// CHECK:           %[[VAL_3:.*]] = torch.constant.int 1
+// CHECK:           %[[VAL_4:.*]] = torch.prim.ListConstruct %[[VAL_2]], %[[VAL_3]], %[[VAL_1]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[VAL_5:.*]] = torch.aten.permute %[[VAL_0]], %[[VAL_4]] : !torch.vtensor<[1,2,3],f32>, !torch.list<int> -> !torch.vtensor<[1,2,3],f32>
+// CHECK:           return %[[VAL_5]] : !torch.vtensor<[1,2,3],f32>
+// CHECK:         }
 func.func @torch.permute$negative_index_valid (%arg0: !torch.vtensor<[1,2,3],f32>) -> !torch.vtensor<[1,2,3],f32> {
   %intm1 = torch.constant.int -1
   %int0 = torch.constant.int 0
@@ -190,6 +199,62 @@ func.func @torch.permute$negative_index_valid (%arg0: !torch.vtensor<[1,2,3],f32
   %3 = torch.aten.permute %arg0, %perm : !torch.vtensor<[1,2,3],f32>, !torch.list<int> -> !torch.vtensor<[1,2,3],f32>
   return %3 : !torch.vtensor<[1,2,3],f32>
 }
+
+// Check that verification passes with native (non-negative) permutation indices.
+// CHECK-LABEL:   func.func @torch.permute$native_index_valid(
+// CHECK-SAME:                                                %[[VAL_0:.*]]: !torch.vtensor<[2,3,4],f32>) -> !torch.vtensor<[4,2,3],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch.constant.int 0
+// CHECK:           %[[VAL_2:.*]] = torch.constant.int 1
+// CHECK:           %[[VAL_3:.*]] = torch.constant.int 2
+// CHECK:           %[[VAL_4:.*]] = torch.prim.ListConstruct %[[VAL_3]], %[[VAL_1]], %[[VAL_2]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[VAL_5:.*]] = torch.aten.permute %[[VAL_0]], %[[VAL_4]] : !torch.vtensor<[2,3,4],f32>, !torch.list<int> -> !torch.vtensor<[4,2,3],f32>
+// CHECK:           return %[[VAL_5]] : !torch.vtensor<[4,2,3],f32>
+// CHECK:         }
+func.func @torch.permute$native_index_valid (%arg0: !torch.vtensor<[2,3,4],f32>) -> !torch.vtensor<[4,2,3],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %perm = torch.prim.ListConstruct %int2, %int0, %int1 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.permute %arg0, %perm : !torch.vtensor<[2,3,4],f32>, !torch.list<int> -> !torch.vtensor<[4,2,3],f32>
+  return %0 : !torch.vtensor<[4,2,3],f32>
+}
+
+// Check that verification passes with native indices forming a transpose.
+// CHECK-LABEL:   func.func @torch.permute$native_index_transpose(
+// CHECK-SAME:                                                    %[[VAL_0:.*]]: !torch.vtensor<[5,7],f32>) -> !torch.vtensor<[7,5],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch.constant.int 0
+// CHECK:           %[[VAL_2:.*]] = torch.constant.int 1
+// CHECK:           %[[VAL_3:.*]] = torch.prim.ListConstruct %[[VAL_2]], %[[VAL_1]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[VAL_4:.*]] = torch.aten.permute %[[VAL_0]], %[[VAL_3]] : !torch.vtensor<[5,7],f32>, !torch.list<int> -> !torch.vtensor<[7,5],f32>
+// CHECK:           return %[[VAL_4]] : !torch.vtensor<[7,5],f32>
+// CHECK:         }
+func.func @torch.permute$native_index_transpose (%arg0: !torch.vtensor<[5,7],f32>) -> !torch.vtensor<[7,5],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %perm = torch.prim.ListConstruct %int1, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.permute %arg0, %perm : !torch.vtensor<[5,7],f32>, !torch.list<int> -> !torch.vtensor<[7,5],f32>
+  return %0 : !torch.vtensor<[7,5],f32>
+}
+
+// Check that verification passes with all negative indices (-3, -2, -1).
+// CHECK-LABEL:   func.func @torch.permute$all_negative_indices(
+// CHECK-SAME:                                                  %[[VAL_0:.*]]: !torch.vtensor<[2,3,4],f32>) -> !torch.vtensor<[4,3,2],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch.constant.int -1
+// CHECK:           %[[VAL_2:.*]] = torch.constant.int -2
+// CHECK:           %[[VAL_3:.*]] = torch.constant.int -3
+// CHECK:           %[[VAL_4:.*]] = torch.prim.ListConstruct %[[VAL_1]], %[[VAL_2]], %[[VAL_3]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[VAL_5:.*]] = torch.aten.permute %[[VAL_0]], %[[VAL_4]] : !torch.vtensor<[2,3,4],f32>, !torch.list<int> -> !torch.vtensor<[4,3,2],f32>
+// CHECK:           return %[[VAL_5]] : !torch.vtensor<[4,3,2],f32>
+// CHECK:         }
+func.func @torch.permute$all_negative_indices (%arg0: !torch.vtensor<[2,3,4],f32>) -> !torch.vtensor<[4,3,2],f32> {
+  %intm1 = torch.constant.int -1
+  %intm2 = torch.constant.int -2
+  %intm3 = torch.constant.int -3
+  %perm = torch.prim.ListConstruct %intm1, %intm2, %intm3 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.permute %arg0, %perm : !torch.vtensor<[2,3,4],f32>, !torch.list<int> -> !torch.vtensor<[4,3,2],f32>
+  return %0 : !torch.vtensor<[4,3,2],f32>
+}
+
 
 // Check fake quantize ops
 func.func @torch.aten.fake_quantize_per_channel_affine (%arg0: !torch.vtensor<[3,3],f32>, %arg1: !torch.vtensor<[3],f32>, %arg2: !torch.vtensor<[3],si32>) -> !torch.vtensor<[3,3],f32> {
