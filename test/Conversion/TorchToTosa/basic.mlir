@@ -800,6 +800,24 @@ func.func @torch.aten.reshape$basic(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !to
 
 // -----
 
+// CHECK-LABEL:   func.func @torch.aten.view$dynamic_input_neg_one(
+// CHECK-SAME:                                        %[[VAL_0:.*]]: !torch.vtensor<[?,64,4,4],f32>) -> !torch.vtensor<[?,1024],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[?,64,4,4],f32> -> tensor<?x64x4x4xf32>
+// CHECK:           %[[SHAPE:.*]] = tosa.const_shape  {values = dense<[-1, 1024]> : tensor<2xindex>} : () -> !tosa.shape<2>
+// CHECK:           %[[VIEW:.*]] = tosa.reshape %[[VAL_1]], %[[SHAPE]] : (tensor<?x64x4x4xf32>, !tosa.shape<2>) -> tensor<?x1024xf32>
+// CHECK:           %[[OUT:.*]] = torch_c.from_builtin_tensor %[[VIEW]] : tensor<?x1024xf32> -> !torch.vtensor<[?,1024],f32>
+// CHECK:           return %[[OUT]] : !torch.vtensor<[?,1024],f32>
+// CHECK:         }
+func.func @torch.aten.view$dynamic_input_neg_one(%arg0: !torch.vtensor<[?,64,4,4],f32>) -> !torch.vtensor<[?,1024],f32> {
+  %dim0 = torch.constant.int -1
+  %dim1 = torch.constant.int 1024
+  %shape = torch.prim.ListConstruct %dim0, %dim1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.view %arg0, %shape : !torch.vtensor<[?,64,4,4],f32>, !torch.list<int> -> !torch.vtensor<[?,1024],f32>
+  return %0 : !torch.vtensor<[?,1024],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.native_batch_norm$basic(
 // CHECK-SAME:                                                  %[[VAL_0:.*]]: !torch.vtensor<[10,4,3],f32>) -> !torch.vtensor<[10,4,3],f32> {
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[10,4,3],f32> -> tensor<10x4x3xf32>

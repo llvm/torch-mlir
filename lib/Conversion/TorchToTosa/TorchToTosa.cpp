@@ -4480,21 +4480,31 @@ LogicalResult ConvertAtenOp<AtenViewOp>::matchAndRewriteImpl(
   }
 
   auto inputShape = selfType.getShape();
-  size_t totalSize = 1;
-  for (size_t i = 0; i < inputShape.size(); i++) {
-    totalSize *= inputShape[i];
-  }
-
-  size_t otherSize = 1;
-  for (size_t i = 0; i < outShape.size(); i++) {
-    if (outShape[i] > 0) {
-      otherSize *= outShape[i];
+  // The size list may carry a -1, meaning "infer this dim from the total
+  // element count".
+  //  - Fully static input: resolve -1 here via integer arithmetic on the
+  //    known dims, yielding a fully static result.
+  //  - Any dynamic (?) input dim: the element count is unknown, and the ?
+  //    (ShapedType::kDynamic) would poison the arithmetic when computing
+  //    totalSize. Leave -1 in place and let tosa.reshape infer it at runtime.
+  bool inputFullyStatic = llvm::none_of(inputShape, ShapedType::isDynamic);
+  if (inputFullyStatic) {
+    size_t totalSize = 1;
+    for (size_t i = 0; i < inputShape.size(); i++) {
+      totalSize *= inputShape[i];
     }
-  }
-  for (size_t i = 0; i < outShape.size(); i++) {
-    if (outShape[i] < 0) {
-      outShape[i] = totalSize / otherSize;
-      break;
+
+    size_t otherSize = 1;
+    for (size_t i = 0; i < outShape.size(); i++) {
+      if (outShape[i] > 0) {
+        otherSize *= outShape[i];
+      }
+    }
+    for (size_t i = 0; i < outShape.size(); i++) {
+      if (outShape[i] < 0) {
+        outShape[i] = totalSize / otherSize;
+        break;
+      }
     }
   }
 
