@@ -800,6 +800,24 @@ func.func @torch.aten.reshape$basic(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !to
 
 // -----
 
+// CHECK-LABEL:   func.func @torch.aten.view$dynamic_input_neg_one(
+// CHECK-SAME:                                        %[[VAL_0:.*]]: !torch.vtensor<[?,64,4,4],f32>) -> !torch.vtensor<[?,1024],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[?,64,4,4],f32> -> tensor<?x64x4x4xf32>
+// CHECK:           %[[SHAPE:.*]] = tosa.const_shape  {values = dense<[-1, 1024]> : tensor<2xindex>} : () -> !tosa.shape<2>
+// CHECK:           %[[VIEW:.*]] = tosa.reshape %[[VAL_1]], %[[SHAPE]] : (tensor<?x64x4x4xf32>, !tosa.shape<2>) -> tensor<?x1024xf32>
+// CHECK:           %[[OUT:.*]] = torch_c.from_builtin_tensor %[[VIEW]] : tensor<?x1024xf32> -> !torch.vtensor<[?,1024],f32>
+// CHECK:           return %[[OUT]] : !torch.vtensor<[?,1024],f32>
+// CHECK:         }
+func.func @torch.aten.view$dynamic_input_neg_one(%arg0: !torch.vtensor<[?,64,4,4],f32>) -> !torch.vtensor<[?,1024],f32> {
+  %dim0 = torch.constant.int -1
+  %dim1 = torch.constant.int 1024
+  %shape = torch.prim.ListConstruct %dim0, %dim1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.view %arg0, %shape : !torch.vtensor<[?,64,4,4],f32>, !torch.list<int> -> !torch.vtensor<[?,1024],f32>
+  return %0 : !torch.vtensor<[?,1024],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.native_batch_norm$basic(
 // CHECK-SAME:                                                  %[[VAL_0:.*]]: !torch.vtensor<[10,4,3],f32>) -> !torch.vtensor<[10,4,3],f32> {
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[10,4,3],f32> -> tensor<10x4x3xf32>
@@ -881,7 +899,8 @@ func.func @torch.aten.flatten.using_ints$basic(%arg0: !torch.vtensor<[10,3,8,9,3
 // CHECK:           %[[VAL_5:.*]] = torch.prim.ListConstruct %[[VAL_3]], %[[VAL_4]] : (!torch.int, !torch.int) -> !torch.list<int>
 // CHECK:           %[[VAL_6:.*]] = tosa.const_shape  {values = dense<[1, 2, 3, 4]> : tensor<4xindex>} : () -> !tosa.shape<4>
 // CHECK:           %[[VAL_7:.*]] = tosa.reshape %[[VAL_1]], %[[VAL_6]] : (tensor<1x6x4xf32>, !tosa.shape<4>) -> tensor<1x2x3x4xf32>
-// CHECK:           %[[VAL_8:.*]] = torch_c.from_builtin_tensor %[[VAL_7]] : tensor<1x2x3x4xf32> -> !torch.vtensor<[1,2,3,4],f32>
+// CHECK:           %[[CAST:.*]] = tensor.cast %[[VAL_7]] : tensor<1x2x3x4xf32> to tensor<1x2x3x4xf32>
+// CHECK:           %[[VAL_8:.*]] = torch_c.from_builtin_tensor %[[CAST]] : tensor<1x2x3x4xf32> -> !torch.vtensor<[1,2,3,4],f32>
 // CHECK:           return %[[VAL_8]] : !torch.vtensor<[1,2,3,4],f32>
 // CHECK:         }
 func.func @torch.aten.unflatten.int$basic(%arg0: !torch.vtensor<[1,6,4],f32> ) -> !torch.vtensor<[1,2,3,4],f32> {
@@ -2150,6 +2169,19 @@ func.func @torch.aten.__interpolate.size_list_scale_list.nearest(%arg0: !torch.v
   %0 = torch.prim.ListConstruct %float2.000000e00, %float2.000000e00 : (!torch.float, !torch.float) -> !torch.list<float>
   %1 = torch.aten.__interpolate.size_list_scale_list %arg0, %none, %0, %str, %false, %none, %false : !torch.vtensor<[1,16,135,240],f32>, !torch.none, !torch.list<float>, !torch.str, !torch.bool, !torch.none, !torch.bool -> !torch.vtensor<[1,16,270,480],f32>
   return %1 : !torch.vtensor<[1,16,270,480],f32>
+}
+
+// -----
+
+func.func @torch.aten.__interpolate$dynamic_input(%arg0: !torch.vtensor<[1,16,?,?],f32>) -> !torch.vtensor<[1,16,?,?],f32> {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %str = torch.constant.str "bilinear"
+  %float2.000000e00 = torch.constant.float 2.000000e+00
+  %0 = torch.prim.ListConstruct %float2.000000e00, %float2.000000e00 : (!torch.float, !torch.float) -> !torch.list<float>
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.__interpolate.size_list_scale_list' that was explicitly marked illegal}}
+  %1 = torch.aten.__interpolate.size_list_scale_list %arg0, %none, %0, %str, %false, %none, %false : !torch.vtensor<[1,16,?,?],f32>, !torch.none, !torch.list<float>, !torch.str, !torch.bool, !torch.none, !torch.bool -> !torch.vtensor<[1,16,?,?],f32>
+  return %1 : !torch.vtensor<[1,16,?,?],f32>
 }
 
 // -----
@@ -5076,6 +5108,14 @@ func.func @torch.aten.mm$zero_k_f32(%arg0: !torch.vtensor<[5,0],f32>, %arg1: !to
 func.func @torch.aten.matmul$zero_k_f32(%arg0: !torch.vtensor<[5,0],f32>, %arg1: !torch.vtensor<[0,10],f32>) -> !torch.vtensor<[5,10],f32> {
   %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[5,0],f32>, !torch.vtensor<[0,10],f32> -> !torch.vtensor<[5,10],f32>
   return %0 : !torch.vtensor<[5,10],f32>
+}
+
+// -----
+
+func.func @torch.aten.matmul$dynamic_batch(%arg0: !torch.vtensor<[?,?,4,5],f32>, %arg1: !torch.vtensor<[?,?,5,6],f32>) -> !torch.vtensor<[?,?,4,6],f32> {
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.matmul' that was explicitly marked illegal}}
+  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[?,?,4,5],f32>, !torch.vtensor<[?,?,5,6],f32> -> !torch.vtensor<[?,?,4,6],f32>
+  return %0 : !torch.vtensor<[?,?,4,6],f32>
 }
 
 // -----

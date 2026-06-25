@@ -2287,9 +2287,13 @@ public:
       }
       commonValue = commonValue < 0 ? kUnknownSize : commonValue;
 
-      // TODO: Handle the case when there are dynamic batch dimensions.
+      // Dynamic batch dims would make both commonValue and lhsSqueezedValue
+      // kUnknownSize, yielding two -1 slots in the tosa.reshape output type,
+      // which the TOSA verifier rejects. Bail out cleanly until a proper
+      // dynamic-batch matmul lowering is added.
       if (hasDynamicDims)
-        commonValue = kUnknownSize;
+        return rewriter.notifyMatchFailure(
+            op, "dynamic batch dims in matmul not supported");
 
       // Step: generate the LHS squeezed dim/shape information.
       for (uint32_t dim = 0; dim < maxInputRank - 2; dim++) {
@@ -2551,6 +2555,9 @@ public:
       // Perform reshape
       auto reshapedOpType = RankedTensorType::get(
           makeShapeLLVMCompatible(reshapedOpShape), accElemTy);
+      if (reshapedOpType.getNumDynamicDims() > 1)
+        return rewriter.notifyMatchFailure(
+            op, "matmul output reshape has multiple dynamic dims");
       auto reshapedOp = tosa::ReshapeOp::create(
           rewriter, op->getLoc(),
           OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
@@ -4216,9 +4223,14 @@ LogicalResult ConvertAtenOp<AtenUnflattenIntOp>::matchAndRewriteImpl(
   auto newType = RankedTensorType::get(makeShapeLLVMCompatible(newShape),
                                        selfType.getElementType());
 
-  rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
-      op, getTypeConverter()->convertType(newType), adaptor.getSelf(),
+  // Reshape to the static type, then tensor.cast to the (possibly dynamic)
+  // converted result type.
+  auto reshapeOp = tosa::ReshapeOp::create(
+      rewriter, op.getLoc(), newType, adaptor.getSelf(),
       tosa::getTosaConstShape(rewriter, op->getLoc(), newShape));
+
+  rewriter.replaceOpWithNewOp<tensor::CastOp>(
+      op, getTypeConverter()->convertType(op.getType()), reshapeOp);
 
   return success();
 }
@@ -4480,21 +4492,31 @@ LogicalResult ConvertAtenOp<AtenViewOp>::matchAndRewriteImpl(
   }
 
   auto inputShape = selfType.getShape();
-  size_t totalSize = 1;
-  for (size_t i = 0; i < inputShape.size(); i++) {
-    totalSize *= inputShape[i];
-  }
-
-  size_t otherSize = 1;
-  for (size_t i = 0; i < outShape.size(); i++) {
-    if (outShape[i] > 0) {
-      otherSize *= outShape[i];
+  // The size list may carry a -1, meaning "infer this dim from the total
+  // element count".
+  //  - Fully static input: resolve -1 here via integer arithmetic on the
+  //    known dims, yielding a fully static result.
+  //  - Any dynamic (?) input dim: the element count is unknown, and the ?
+  //    (ShapedType::kDynamic) would poison the arithmetic when computing
+  //    totalSize. Leave -1 in place and let tosa.reshape infer it at runtime.
+  bool inputFullyStatic = llvm::none_of(inputShape, ShapedType::isDynamic);
+  if (inputFullyStatic) {
+    size_t totalSize = 1;
+    for (size_t i = 0; i < inputShape.size(); i++) {
+      totalSize *= inputShape[i];
     }
-  }
-  for (size_t i = 0; i < outShape.size(); i++) {
-    if (outShape[i] < 0) {
-      outShape[i] = totalSize / otherSize;
-      break;
+
+    size_t otherSize = 1;
+    for (size_t i = 0; i < outShape.size(); i++) {
+      if (outShape[i] > 0) {
+        otherSize *= outShape[i];
+      }
+    }
+    for (size_t i = 0; i < outShape.size(); i++) {
+      if (outShape[i] < 0) {
+        outShape[i] = totalSize / otherSize;
+        break;
+      }
     }
   }
 
@@ -8297,6 +8319,9 @@ ConvertAtenOp<Aten__InterpolateSizeListScaleListOp>::matchAndRewriteImpl(
                                        "TOSA resize() takes rank==4 tensors.");
 
   auto inputShape = inputTy.getShape();
+
+  if (llvm::any_of(inputShape, ShapedType::isDynamic))
+    return rewriter.notifyMatchFailure(op, "dynamic input dims not supported");
 
   int outputHeight, outputWidth;
   if (!isa<Torch::NoneType>(op.getScaleFactor().getType())) {
