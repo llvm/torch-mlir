@@ -10355,6 +10355,105 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.smooth_l1_loss` into elementwise ops plus a reduction,
+// mirroring PyTorch (aten/src/ATen/native/cpu/BinaryOpsKernel.cpp):
+//   z = |self - target|
+//   elem = 0.5 * z * z / beta   if z < beta
+//          z - 0.5 * beta       otherwise
+// then apply the reduction. beta == 0 degenerates to L1 (elem = z); beta < 0 is
+// rejected, matching PyTorch's runtime check.
+class DecomposeAtenSmoothL1LossOp
+    : public OpRewritePattern<AtenSmoothL1LossOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenSmoothL1LossOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    auto selfTy = dyn_cast<BaseTensorType>(self.getType());
+    if (!selfTy || !selfTy.hasSizes() || !selfTy.hasDtype())
+      return rewriter.notifyMatchFailure(
+          op, "expected self to be a tensor with sizes and a dtype");
+
+    Value target = op.getTarget();
+    auto targetTy = dyn_cast<BaseTensorType>(target.getType());
+    if (!targetTy || !targetTy.hasDtype())
+      return rewriter.notifyMatchFailure(
+          op, "expected target to be a tensor with a dtype");
+
+    auto outTy = dyn_cast<BaseTensorType>(op.getType());
+    if (!outTy || !outTy.hasDtype())
+      return rewriter.notifyMatchFailure(
+          op, "expected output to be a tensor with a dtype");
+
+    int64_t reductionInt;
+    if (!matchPattern(op.getReduction(), m_TorchConstantInt(&reductionInt)))
+      return rewriter.notifyMatchFailure(
+          op, "expected reduction to be a constant int");
+
+    double beta;
+    if (!matchPattern(op.getBeta(), m_TorchConstantFloat(&beta)))
+      return rewriter.notifyMatchFailure(
+          op, "expected beta to be a constant float");
+    if (beta < 0.0)
+      return rewriter.notifyMatchFailure(op, "beta must be non-negative");
+
+    Type outDtype = outTy.getDtype();
+    if (selfTy.getDtype() != outDtype)
+      self = convertTensorToDtype(rewriter, loc, self, outDtype);
+    if (targetTy.getDtype() != outDtype)
+      target = convertTensorToDtype(rewriter, loc, target, outDtype);
+
+    Type elemTy = outTy.getWithSizesAndDtype(selfTy.getSizes(), outDtype);
+    Value sub = createTensorSub(rewriter, loc, elemTy, self, target);
+    Value z = AtenAbsOp::create(rewriter, loc, elemTy, sub);
+
+    Value elem;
+    if (beta == 0.0) {
+      elem = z;
+    } else {
+      Value half =
+          ConstantFloatOp::create(rewriter, loc, rewriter.getF64FloatAttr(0.5));
+      Value one =
+          ConstantFloatOp::create(rewriter, loc, rewriter.getF64FloatAttr(1.0));
+      Value betaVal = ConstantFloatOp::create(
+          rewriter, loc, rewriter.getF64FloatAttr(beta));
+      Value halfBeta = ConstantFloatOp::create(
+          rewriter, loc, rewriter.getF64FloatAttr(0.5 * beta));
+
+      Value zSquared = AtenSquareOp::create(rewriter, loc, elemTy, z);
+      Value quad =
+          AtenMulScalarOp::create(rewriter, loc, elemTy, zSquared, half);
+      quad = AtenDivScalarOp::create(rewriter, loc, elemTy, quad, betaVal);
+
+      Value linear =
+          AtenSubScalarOp::create(rewriter, loc, elemTy, z, halfBeta, one);
+
+      Type boolTy =
+          outTy.getWithSizesAndDtype(selfTy.getSizes(), rewriter.getI1Type());
+      Value mask = AtenLtScalarOp::create(rewriter, loc, boolTy, z, betaVal);
+      elem = AtenWhereSelfOp::create(rewriter, loc, elemTy, mask, quad, linear);
+    }
+
+    if (reductionInt == torch_upstream::Reduction::None) {
+      rewriter.replaceOp(op, elem);
+      return success();
+    }
+    Value none = ConstantNoneOp::create(rewriter, loc);
+    Value sum = AtenSumOp::create(rewriter, loc, outTy, elem, none);
+    if (reductionInt == torch_upstream::Reduction::Mean) {
+      Value numel = AtenNumelOp::create(rewriter, loc, elem);
+      Value mean = AtenDivScalarOp::create(rewriter, loc, outTy, sum, numel);
+      rewriter.replaceOp(op, mean);
+      return success();
+    }
+    rewriter.replaceOp(op, sum);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.norm.ScalarOpt_dim` op to `aten.linalg_vector_norm` op
 class DecomposeAtenNormScalarOptDimOp
     : public OpRewritePattern<AtenNormScalarOptDimOp> {
@@ -13620,6 +13719,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenLiftFreshCopyOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMseLossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenL1LossOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenSmoothL1LossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNormScalarOptDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandintOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandintLowOp>(patterns);

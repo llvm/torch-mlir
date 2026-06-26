@@ -2786,6 +2786,12 @@ LTC_XFAIL_SET = {
 }
 
 ONNX_XFAIL_SET = {
+    # aten.smooth_l1_loss has no ONNX import path, so these fail at import time.
+    "SmoothL1LossNoReductionModule_basic",
+    "SmoothL1LossMeanReductionModule_basic",
+    "SmoothL1LossSumReductionModule_basic",
+    "SmoothL1LossBetaModule_basic",
+    "SmoothL1LossDifferentElemTypeModule_basic",
     "ToDtypeIntFromFloatModule_basic",
     # This test is expected to time out
     "TimeOutModule_basic",
@@ -4111,6 +4117,12 @@ ONNX_TOSA_CRASHING_SET = {
 }
 
 ONNX_TOSA_XFAIL_SET = {
+    # aten.smooth_l1_loss has no ONNX import path, so these fail at import time.
+    "SmoothL1LossNoReductionModule_basic",
+    "SmoothL1LossMeanReductionModule_basic",
+    "SmoothL1LossSumReductionModule_basic",
+    "SmoothL1LossBetaModule_basic",
+    "SmoothL1LossDifferentElemTypeModule_basic",
     "AtenFftRfft2DLastDim_basic",
     "AtenFftRfft2DMiddleDim_basic",
     "AtenStftCenter1D_basic",

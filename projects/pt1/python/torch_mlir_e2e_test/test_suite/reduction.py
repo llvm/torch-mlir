@@ -2803,3 +2803,125 @@ class CountNonzeroDimIntListModuleBool(torch.nn.Module):
 @register_test_case(module_factory=lambda: CountNonzeroDimIntListModuleBool())
 def CountNonzeroDimIntListModuleBool_Basic(module, tu: TestUtils):
     module.forward(tu.randint(2, 3, 4, low=0, high=2).to(torch.bool))
+
+
+# ==============================================================================
+
+
+class SmoothL1LossNoReductionModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 4], torch.float32, True),
+            ([2, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.smooth_l1_loss(x, y, reduction=0)
+
+
+@register_test_case(module_factory=lambda: SmoothL1LossNoReductionModule())
+def SmoothL1LossNoReductionModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4), tu.rand(2, 4))
+
+
+# ==============================================================================
+
+
+class SmoothL1LossMeanReductionModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 4], torch.float32, True),
+            ([2, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.smooth_l1_loss(x, y, reduction=1)
+
+
+@register_test_case(module_factory=lambda: SmoothL1LossMeanReductionModule())
+def SmoothL1LossMeanReductionModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4), tu.rand(2, 4))
+
+
+# ==============================================================================
+
+
+class SmoothL1LossSumReductionModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 4], torch.float32, True),
+            ([2, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.smooth_l1_loss(x, y, reduction=2)
+
+
+@register_test_case(module_factory=lambda: SmoothL1LossSumReductionModule())
+def SmoothL1LossSumReductionModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4), tu.rand(2, 4))
+
+
+# ==============================================================================
+
+
+class SmoothL1LossBetaModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 4], torch.float32, True),
+            ([2, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.smooth_l1_loss(x, y, reduction=1, beta=0.5)
+
+
+@register_test_case(module_factory=lambda: SmoothL1LossBetaModule())
+def SmoothL1LossBetaModule_basic(module, tu: TestUtils):
+    # Wide range so |x - y| straddles beta=0.5, exercising both the quadratic
+    # (|x-y| < beta) and linear (|x-y| >= beta) branches.
+    module.forward(tu.rand(2, 4, low=-2.0, high=2.0), tu.rand(2, 4, low=-2.0, high=2.0))
+
+
+# ==============================================================================
+
+
+class SmoothL1LossDifferentElemTypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float64, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.smooth_l1_loss(x, y, reduction=1)
+
+
+@register_test_case(module_factory=lambda: SmoothL1LossDifferentElemTypeModule())
+def SmoothL1LossDifferentElemTypeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4), tu.rand(2, 4).to(torch.float64))
