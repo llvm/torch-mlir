@@ -602,8 +602,9 @@ def test_import_scaled_mm_v2_nv_two_level_blockwise_tensorwise_fp4():
 # CHECK: %[[SWIZZLE_B_VALUE:.*]] = torch.constant.int 1
 # CHECK: %[[SWIZZLE_B:.*]] = torch.prim.ListConstruct %[[SWIZZLE_B_VALUE]]
 # CHECK: %[[OUT_DTYPE:.*]] = torch.constant.int 15
-# CHECK: %[[CONTRACTION_VALUE:.*]] = torch.constant.int 1
-# CHECK: %[[CONTRACTION:.*]] = torch.prim.ListConstruct %[[CONTRACTION_VALUE]]
+# CHECK: %[[CONTRACTION_A_VALUE:.*]] = torch.constant.int 1
+# CHECK: %[[CONTRACTION_B_VALUE:.*]] = torch.constant.int 0
+# CHECK: %[[CONTRACTION:.*]] = torch.prim.ListConstruct %[[CONTRACTION_A_VALUE]], %[[CONTRACTION_B_VALUE]]
 # CHECK: %[[TRUE:.*]] = torch.constant.bool true
 # CHECK: %[[MM:.*]] = torch.aten._scaled_mm_v2 %arg0, %arg1, %[[SCALE_A]], %[[RECIPE_A]], %[[SWIZZLE_A]], %[[SCALE_B]], %[[RECIPE_B]], %[[SWIZZLE_B]], %arg4, %[[OUT_DTYPE]], %[[CONTRACTION]], %[[TRUE]]
 # CHECK: return %[[MM]]
@@ -621,7 +622,7 @@ def test_import_scaled_mm_v2_non_default_args_fp4():
                 swizzle_b=[F.SwizzleType.SWIZZLE_32_4_4],
                 bias=bias,
                 output_dtype=torch.bfloat16,
-                contraction_dim=[1],
+                contraction_dim=[1, 0],
                 use_fast_accum=True,
             )
 

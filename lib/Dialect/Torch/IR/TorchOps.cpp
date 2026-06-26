@@ -6594,38 +6594,29 @@ enum class ScaledMmV2SwizzleType : int64_t {
 };
 
 enum class ScaledMmV2RecipeMode {
+  Unknown,
   Tensorwise,
   Rowwise,
   NvSingleLevel,
   NvTwoLevel,
   MxBlockwise,
-  Blockwise1x1281x128,
-  Blockwise1x128128x128,
-  Blockwise128x1281x128,
+  Blockwise1x128_1x128,
+  Blockwise1x128_128x128,
+  Blockwise128x128_1x128,
 };
 
 struct ScaledMmV2ScaleInfo {
-  bool hasScaleA = false;
-  bool hasScaleB = false;
-  bool hasScales = false;
   ArrayRef<BaseTensorType> scaleATypes;
   ArrayRef<BaseTensorType> scaleBTypes;
 };
 
 struct ScaledMmV2RecipeInfo {
-  bool hasRecipeA = false;
-  bool hasRecipeB = false;
-  bool hasRecipes = false;
-  bool hasMode = false;
-  ScaledMmV2RecipeMode mode = ScaledMmV2RecipeMode::Tensorwise;
+  ScaledMmV2RecipeMode mode = ScaledMmV2RecipeMode::Unknown;
   ArrayRef<int64_t> recipeAValues;
   ArrayRef<int64_t> recipeBValues;
 };
 
 struct ScaledMmV2SwizzleInfo {
-  bool hasSwizzleA = false;
-  bool hasSwizzleB = false;
-  bool hasSwizzles = false;
   ArrayRef<int64_t> swizzleAValues;
   ArrayRef<int64_t> swizzleBValues;
 };
@@ -6657,9 +6648,9 @@ static bool isScaledMmV2NvBlockwiseMode(ScaledMmV2RecipeMode mode) {
 }
 
 static bool isScaledMmV2F32BlockwiseMode(ScaledMmV2RecipeMode mode) {
-  return isScaledMmV2Mode(mode, ScaledMmV2RecipeMode::Blockwise1x1281x128) ||
-         isScaledMmV2Mode(mode, ScaledMmV2RecipeMode::Blockwise1x128128x128) ||
-         isScaledMmV2Mode(mode, ScaledMmV2RecipeMode::Blockwise128x1281x128);
+  return isScaledMmV2Mode(mode, ScaledMmV2RecipeMode::Blockwise1x128_1x128) ||
+         isScaledMmV2Mode(mode, ScaledMmV2RecipeMode::Blockwise1x128_128x128) ||
+         isScaledMmV2Mode(mode, ScaledMmV2RecipeMode::Blockwise128x128_1x128);
 }
 
 static FailureOr<ScaledMmV2ScaleInfo>
@@ -6667,24 +6658,32 @@ getScaledMmV2ScaleInfo(Aten_ScaledMmV2Op op,
                        SmallVectorImpl<BaseTensorType> &scaleATypesStorage,
                        SmallVectorImpl<BaseTensorType> &scaleBTypesStorage) {
   ScaledMmV2ScaleInfo info;
-  info.hasScaleA = op.getScaleA().getDefiningOp<PrimListConstructOp>();
-  info.hasScaleB = op.getScaleB().getDefiningOp<PrimListConstructOp>();
-  info.hasScales = info.hasScaleA && info.hasScaleB;
-
-  if (info.hasScaleA) {
+  if (op.getScaleA().getDefiningOp<PrimListConstructOp>()) {
     auto &scaleATypes = scaleATypesStorage;
     if (failed(getTensorTypesFromList(op.getScaleA(), scaleATypes))) {
       op.emitOpError(
           "expected scale_a to be a statically constructed tensor list");
       return failure();
     }
+    if (scaleATypes.empty()) {
+      op.emitOpError(
+          "expected scale_a, recipe_a, scale_b and recipe_b lists to be "
+          "non-empty");
+      return failure();
+    }
     info.scaleATypes = scaleATypes;
   }
-  if (info.hasScaleB) {
+  if (op.getScaleB().getDefiningOp<PrimListConstructOp>()) {
     auto &scaleBTypes = scaleBTypesStorage;
     if (failed(getTensorTypesFromList(op.getScaleB(), scaleBTypes))) {
       op.emitOpError(
           "expected scale_b to be a statically constructed tensor list");
+      return failure();
+    }
+    if (scaleBTypes.empty()) {
+      op.emitOpError(
+          "expected scale_a, recipe_a, scale_b and recipe_b lists to be "
+          "non-empty");
       return failure();
     }
     info.scaleBTypes = scaleBTypes;
@@ -6697,24 +6696,32 @@ getScaledMmV2RecipeInfo(Aten_ScaledMmV2Op op,
                         SmallVectorImpl<int64_t> &recipeAValuesStorage,
                         SmallVectorImpl<int64_t> &recipeBValuesStorage) {
   ScaledMmV2RecipeInfo info;
-  info.hasRecipeA = op.getRecipeA().getDefiningOp<PrimListConstructOp>();
-  info.hasRecipeB = op.getRecipeB().getDefiningOp<PrimListConstructOp>();
-  info.hasRecipes = info.hasRecipeA && info.hasRecipeB;
-
-  if (info.hasRecipeA) {
+  if (op.getRecipeA().getDefiningOp<PrimListConstructOp>()) {
     auto &recipeAValues = recipeAValuesStorage;
     if (failed(getConstantIntList(op.getRecipeA(), recipeAValues))) {
       op.emitOpError(
           "expected recipe_a to be a statically constructed int list");
       return failure();
     }
+    if (recipeAValues.empty()) {
+      op.emitOpError(
+          "expected scale_a, recipe_a, scale_b and recipe_b lists to be "
+          "non-empty");
+      return failure();
+    }
     info.recipeAValues = recipeAValues;
   }
-  if (info.hasRecipeB) {
+  if (op.getRecipeB().getDefiningOp<PrimListConstructOp>()) {
     auto &recipeBValues = recipeBValuesStorage;
     if (failed(getConstantIntList(op.getRecipeB(), recipeBValues))) {
       op.emitOpError(
           "expected recipe_b to be a statically constructed int list");
+      return failure();
+    }
+    if (recipeBValues.empty()) {
+      op.emitOpError(
+          "expected scale_a, recipe_a, scale_b and recipe_b lists to be "
+          "non-empty");
       return failure();
     }
     info.recipeBValues = recipeBValues;
@@ -6727,24 +6734,28 @@ getScaledMmV2SwizzleInfo(Aten_ScaledMmV2Op op,
                          SmallVectorImpl<int64_t> &swizzleAValuesStorage,
                          SmallVectorImpl<int64_t> &swizzleBValuesStorage) {
   ScaledMmV2SwizzleInfo info;
-  info.hasSwizzleA = op.getSwizzleA().getDefiningOp<PrimListConstructOp>();
-  info.hasSwizzleB = op.getSwizzleB().getDefiningOp<PrimListConstructOp>();
-  info.hasSwizzles = info.hasSwizzleA && info.hasSwizzleB;
-
-  if (info.hasSwizzleA) {
+  if (op.getSwizzleA().getDefiningOp<PrimListConstructOp>()) {
     auto &swizzleAValues = swizzleAValuesStorage;
     if (failed(getConstantIntList(op.getSwizzleA(), swizzleAValues))) {
       op.emitOpError(
           "expected swizzle_a to be a statically constructed int list");
       return failure();
     }
+    if (swizzleAValues.empty()) {
+      op.emitOpError("expected swizzle_a and swizzle_b lists to be non-empty");
+      return failure();
+    }
     info.swizzleAValues = swizzleAValues;
   }
-  if (info.hasSwizzleB) {
+  if (op.getSwizzleB().getDefiningOp<PrimListConstructOp>()) {
     auto &swizzleBValues = swizzleBValuesStorage;
     if (failed(getConstantIntList(op.getSwizzleB(), swizzleBValues))) {
       op.emitOpError(
           "expected swizzle_b to be a statically constructed int list");
+      return failure();
+    }
+    if (swizzleBValues.empty()) {
+      op.emitOpError("expected swizzle_a and swizzle_b lists to be non-empty");
       return failure();
     }
     info.swizzleBValues = swizzleBValues;
@@ -6756,27 +6767,18 @@ static LogicalResult
 verifyScaledMmV2ListLengths(Aten_ScaledMmV2Op op,
                             const ScaledMmV2ScaleInfo &scaleInfo,
                             const ScaledMmV2RecipeInfo &recipeInfo) {
-  if ((scaleInfo.hasScaleA && scaleInfo.scaleATypes.empty()) ||
-      (scaleInfo.hasScaleB && scaleInfo.scaleBTypes.empty()) ||
-      (recipeInfo.hasRecipeA && recipeInfo.recipeAValues.empty()) ||
-      (recipeInfo.hasRecipeB && recipeInfo.recipeBValues.empty()))
-    return op.emitOpError(
-        "expected scale_a, recipe_a, scale_b and recipe_b lists to be "
-        "non-empty");
-
-  if ((scaleInfo.hasScaleA && scaleInfo.scaleATypes.size() > 2) ||
-      (scaleInfo.hasScaleB && scaleInfo.scaleBTypes.size() > 2) ||
-      (recipeInfo.hasRecipeA && recipeInfo.recipeAValues.size() > 2) ||
-      (recipeInfo.hasRecipeB && recipeInfo.recipeBValues.size() > 2))
+  if (scaleInfo.scaleATypes.size() > 2 || scaleInfo.scaleBTypes.size() > 2 ||
+      recipeInfo.recipeAValues.size() > 2 ||
+      recipeInfo.recipeBValues.size() > 2)
     return op.emitOpError(
         "expected scale_a, recipe_a, scale_b and recipe_b lists to have at "
         "most two elements");
 
-  if (scaleInfo.hasScaleA && recipeInfo.hasRecipeA &&
+  if (!scaleInfo.scaleATypes.empty() && !recipeInfo.recipeAValues.empty() &&
       scaleInfo.scaleATypes.size() != recipeInfo.recipeAValues.size())
     return op.emitOpError(
         "expected scale_a and recipe_a lists to have the same length");
-  if (scaleInfo.hasScaleB && recipeInfo.hasRecipeB &&
+  if (!scaleInfo.scaleBTypes.empty() && !recipeInfo.recipeBValues.empty() &&
       scaleInfo.scaleBTypes.size() != recipeInfo.recipeBValues.size())
     return op.emitOpError(
         "expected scale_b and recipe_b lists to have the same length");
@@ -6787,37 +6789,11 @@ verifyScaledMmV2ListLengths(Aten_ScaledMmV2Op op,
 static LogicalResult
 classifyScaledMmV2RecipeMode(Aten_ScaledMmV2Op op,
                              ScaledMmV2RecipeInfo &recipeInfo) {
-  if (!recipeInfo.hasRecipes)
+  if (recipeInfo.recipeAValues.empty() || recipeInfo.recipeBValues.empty())
     return success();
 
   ArrayRef<int64_t> recipeAValues = recipeInfo.recipeAValues;
   ArrayRef<int64_t> recipeBValues = recipeInfo.recipeBValues;
-
-  if (recipeAValues.size() == 1 && recipeBValues.size() == 1 &&
-      isScaledMmV2Recipe(recipeAValues[0], ScaledMmV2ScalingType::TensorWise) &&
-      isScaledMmV2Recipe(recipeBValues[0], ScaledMmV2ScalingType::TensorWise)) {
-    recipeInfo.hasMode = true;
-    recipeInfo.mode = ScaledMmV2RecipeMode::Tensorwise;
-    return success();
-  }
-
-  if (recipeAValues.size() == 1 && recipeBValues.size() == 1 &&
-      isScaledMmV2Recipe(recipeAValues[0], ScaledMmV2ScalingType::RowWise) &&
-      isScaledMmV2Recipe(recipeBValues[0], ScaledMmV2ScalingType::RowWise)) {
-    recipeInfo.hasMode = true;
-    recipeInfo.mode = ScaledMmV2RecipeMode::Rowwise;
-    return success();
-  }
-
-  if (recipeAValues.size() == 1 && recipeBValues.size() == 1 &&
-      isScaledMmV2Recipe(recipeAValues[0],
-                         ScaledMmV2ScalingType::BlockWise1x16) &&
-      isScaledMmV2Recipe(recipeBValues[0],
-                         ScaledMmV2ScalingType::BlockWise1x16)) {
-    recipeInfo.hasMode = true;
-    recipeInfo.mode = ScaledMmV2RecipeMode::NvSingleLevel;
-    return success();
-  }
 
   if (recipeAValues.size() == 2 && recipeBValues.size() == 2 &&
       isScaledMmV2Recipe(recipeAValues[0],
@@ -6826,48 +6802,56 @@ classifyScaledMmV2RecipeMode(Aten_ScaledMmV2Op op,
                          ScaledMmV2ScalingType::BlockWise1x16) &&
       isScaledMmV2Recipe(recipeAValues[1], ScaledMmV2ScalingType::TensorWise) &&
       isScaledMmV2Recipe(recipeBValues[1], ScaledMmV2ScalingType::TensorWise)) {
-    recipeInfo.hasMode = true;
     recipeInfo.mode = ScaledMmV2RecipeMode::NvTwoLevel;
     return success();
   }
 
-  if (recipeAValues.size() == 1 && recipeBValues.size() == 1 &&
-      isScaledMmV2Recipe(recipeAValues[0],
-                         ScaledMmV2ScalingType::BlockWise1x32) &&
-      isScaledMmV2Recipe(recipeBValues[0],
-                         ScaledMmV2ScalingType::BlockWise1x32)) {
-    recipeInfo.hasMode = true;
+  if (recipeAValues.size() != 1 || recipeBValues.size() != 1)
+    return op.emitOpError(
+        "invalid scaling configuration for recipe_a and recipe_b");
+
+  int64_t recipeA = recipeAValues[0];
+  int64_t recipeB = recipeBValues[0];
+
+  if (isScaledMmV2Recipe(recipeA, ScaledMmV2ScalingType::TensorWise) &&
+      isScaledMmV2Recipe(recipeB, ScaledMmV2ScalingType::TensorWise)) {
+    recipeInfo.mode = ScaledMmV2RecipeMode::Tensorwise;
+    return success();
+  }
+
+  if (isScaledMmV2Recipe(recipeA, ScaledMmV2ScalingType::RowWise) &&
+      isScaledMmV2Recipe(recipeB, ScaledMmV2ScalingType::RowWise)) {
+    recipeInfo.mode = ScaledMmV2RecipeMode::Rowwise;
+    return success();
+  }
+
+  if (isScaledMmV2Recipe(recipeA, ScaledMmV2ScalingType::BlockWise1x16) &&
+      isScaledMmV2Recipe(recipeB, ScaledMmV2ScalingType::BlockWise1x16)) {
+    recipeInfo.mode = ScaledMmV2RecipeMode::NvSingleLevel;
+    return success();
+  }
+
+  if (isScaledMmV2Recipe(recipeA, ScaledMmV2ScalingType::BlockWise1x32) &&
+      isScaledMmV2Recipe(recipeB, ScaledMmV2ScalingType::BlockWise1x32)) {
     recipeInfo.mode = ScaledMmV2RecipeMode::MxBlockwise;
     return success();
   }
 
-  if (recipeAValues.size() == 1 && recipeBValues.size() == 1 &&
-      isScaledMmV2Recipe(recipeAValues[0],
-                         ScaledMmV2ScalingType::BlockWise1x128) &&
-      isScaledMmV2Recipe(recipeBValues[0],
-                         ScaledMmV2ScalingType::BlockWise1x128)) {
-    recipeInfo.hasMode = true;
-    recipeInfo.mode = ScaledMmV2RecipeMode::Blockwise1x1281x128;
+  if (isScaledMmV2Recipe(recipeA, ScaledMmV2ScalingType::BlockWise1x128) &&
+      isScaledMmV2Recipe(recipeB, ScaledMmV2ScalingType::BlockWise1x128)) {
+    recipeInfo.mode = ScaledMmV2RecipeMode::Blockwise1x128_1x128;
     return success();
   }
 
-  if (recipeAValues.size() == 1 && recipeBValues.size() == 1 &&
-      isScaledMmV2Recipe(recipeAValues[0],
-                         ScaledMmV2ScalingType::BlockWise1x128) &&
-      isScaledMmV2Recipe(recipeBValues[0],
-                         ScaledMmV2ScalingType::BlockWise128x128)) {
-    recipeInfo.hasMode = true;
-    recipeInfo.mode = ScaledMmV2RecipeMode::Blockwise1x128128x128;
+  if (isScaledMmV2Recipe(recipeA, ScaledMmV2ScalingType::BlockWise1x128) &&
+      isScaledMmV2Recipe(recipeB, ScaledMmV2ScalingType::BlockWise128x128)) {
+    recipeInfo.mode = ScaledMmV2RecipeMode::Blockwise1x128_128x128;
     return success();
   }
 
-  if (recipeAValues.size() == 1 && recipeBValues.size() == 1 &&
-      isScaledMmV2Recipe(recipeAValues[0],
-                         ScaledMmV2ScalingType::BlockWise128x128) &&
-      isScaledMmV2Recipe(recipeBValues[0],
-                         ScaledMmV2ScalingType::BlockWise1x128)) {
-    recipeInfo.hasMode = true;
-    recipeInfo.mode = ScaledMmV2RecipeMode::Blockwise128x1281x128;
+  if (isScaledMmV2Recipe(recipeA, ScaledMmV2ScalingType::BlockWise128x128) &&
+      isScaledMmV2Recipe(recipeB, ScaledMmV2ScalingType::BlockWise1x128)) {
+    recipeInfo.mode = ScaledMmV2RecipeMode::Blockwise128x128_1x128;
     return success();
   }
 
@@ -6879,7 +6863,8 @@ static LogicalResult
 verifyScaledMmV2Swizzles(Aten_ScaledMmV2Op op,
                          const ScaledMmV2RecipeInfo &recipeInfo,
                          const ScaledMmV2SwizzleInfo &swizzleInfo) {
-  if (!recipeInfo.hasMode || !swizzleInfo.hasSwizzles)
+  if (recipeInfo.mode == ScaledMmV2RecipeMode::Unknown ||
+      swizzleInfo.swizzleAValues.empty() || swizzleInfo.swizzleBValues.empty())
     return success();
 
   ScaledMmV2RecipeMode mode = recipeInfo.mode;
@@ -6905,7 +6890,8 @@ static LogicalResult
 verifyScaledMmV2ScaleDtypes(Aten_ScaledMmV2Op op,
                             const ScaledMmV2ScaleInfo &scaleInfo,
                             const ScaledMmV2RecipeInfo &recipeInfo) {
-  if (!recipeInfo.hasMode || !scaleInfo.hasScales)
+  if (recipeInfo.mode == ScaledMmV2RecipeMode::Unknown ||
+      scaleInfo.scaleATypes.empty() || scaleInfo.scaleBTypes.empty())
     return success();
 
   ScaledMmV2RecipeMode mode = recipeInfo.mode;
@@ -7006,6 +6992,21 @@ verifyScaledMmV2MatrixShapes(Aten_ScaledMmV2Op op) {
   auto selfType = cast<BaseTensorType>(op.getSelf().getType());
   auto mat2Type = cast<BaseTensorType>(op.getMat2().getType());
 
+  bool hasStaticContractionDims =
+      op.getContractionDim().getDefiningOp<PrimListConstructOp>();
+  SmallVector<int64_t> contractionDims;
+  if (hasStaticContractionDims) {
+    if (failed(getConstantIntList(op.getContractionDim(), contractionDims))) {
+      op.emitOpError(
+          "expected contraction_dim to be a statically constructed int list");
+      return failure();
+    }
+    if (!contractionDims.empty() && contractionDims.size() != 2) {
+      op.emitOpError("contraction_dim must have exactly 2 elements");
+      return failure();
+    }
+  }
+
   if (!selfType.hasSizes() || !mat2Type.hasSizes())
     return info;
 
@@ -7015,6 +7016,28 @@ verifyScaledMmV2MatrixShapes(Aten_ScaledMmV2Op op) {
     op.emitOpError("expected self and mat2 to be rank 2, but got ranks ")
         << selfShape.size() << " and " << mat2Shape.size();
     return failure();
+  }
+
+  bool hasExplicitContractionDims = false;
+  int64_t selfContractionDim = 1;
+  int64_t mat2ContractionDim = 0;
+  if (!contractionDims.empty()) {
+    auto normalizeRank2Dim = [](int64_t dim) {
+      if (dim < 0)
+        dim += 2;
+      return dim;
+    };
+    selfContractionDim = normalizeRank2Dim(contractionDims[0]);
+    mat2ContractionDim = normalizeRank2Dim(contractionDims[1]);
+    if (selfContractionDim < 0 || selfContractionDim >= 2 ||
+        mat2ContractionDim < 0 || mat2ContractionDim >= 2) {
+      op.emitOpError(
+          "expected contraction_dim values to be valid rank-2 dimensions, "
+          "but got ")
+          << contractionDims[0] << " and " << contractionDims[1];
+      return failure();
+    }
+    hasExplicitContractionDims = true;
   }
 
   info.hasKnownMatrixSizes =
@@ -7028,6 +7051,10 @@ verifyScaledMmV2MatrixShapes(Aten_ScaledMmV2Op op) {
       selfType.hasDtype() && isa<Float4E2M1FNType>(selfType.getDtype());
   bool mat2IsFp4 =
       mat2Type.hasDtype() && isa<Float4E2M1FNType>(mat2Type.getDtype());
+  // `k` is the statically visible storage dimension. For FP4, the
+  // float4_e2m1fn_x2 representation packs two logical FP4 values into each
+  // storage element. PyTorch _scaled_mm_v2 applies that packed-K multiplier
+  // only when both matrix operands are FP4.
   info.logicalK = info.k;
   int64_t mat2LogicalK = mat2K;
   if (selfIsFp4 && mat2IsFp4) {
@@ -7037,12 +7064,27 @@ verifyScaledMmV2MatrixShapes(Aten_ScaledMmV2Op op) {
       mat2LogicalK = mat2K * 2;
   }
 
-  if (info.logicalK != kUnknownSize && mat2LogicalK != kUnknownSize &&
-      info.logicalK != mat2LogicalK) {
-    op.emitOpError("expected self and mat2 contracting dimensions to "
-                   "match, but got ")
-        << info.logicalK << " and " << mat2LogicalK;
-    return failure();
+  if (hasStaticContractionDims) {
+    int64_t selfContractionSize = hasExplicitContractionDims
+                                      ? selfShape[selfContractionDim]
+                                      : info.logicalK;
+    int64_t mat2ContractionSize = hasExplicitContractionDims
+                                      ? mat2Shape[mat2ContractionDim]
+                                      : mat2LogicalK;
+    if (selfContractionSize != kUnknownSize &&
+        mat2ContractionSize != kUnknownSize &&
+        selfContractionSize != mat2ContractionSize) {
+      if (hasExplicitContractionDims) {
+        op.emitOpError("expected self and mat2 contraction_dim-selected "
+                       "dimensions to match, but got ")
+            << selfContractionSize << " and " << mat2ContractionSize;
+        return failure();
+      }
+      op.emitOpError("expected self and mat2 contracting dimensions to "
+                     "match, but got ")
+          << selfContractionSize << " and " << mat2ContractionSize;
+      return failure();
+    }
   }
   if (info.logicalK != kUnknownSize && info.logicalK % 16 != 0) {
     op.emitOpError("expected self contracting dimension to be divisible "
@@ -7071,7 +7113,8 @@ verifyScaledMmV2ScaleNumel(Aten_ScaledMmV2Op op,
                            const ScaledMmV2ScaleInfo &scaleInfo,
                            const ScaledMmV2RecipeInfo &recipeInfo,
                            const ScaledMmV2MatrixInfo &matrixInfo) {
-  if (!recipeInfo.hasMode || !scaleInfo.hasScales ||
+  if (recipeInfo.mode == ScaledMmV2RecipeMode::Unknown ||
+      scaleInfo.scaleATypes.empty() || scaleInfo.scaleBTypes.empty() ||
       isScaledMmV2Mode(recipeInfo.mode, ScaledMmV2RecipeMode::Tensorwise) ||
       !matrixInfo.hasKnownMatrixSizes)
     return success();
@@ -7125,12 +7168,17 @@ verifyScaledMmV2ScaleNumel(Aten_ScaledMmV2Op op,
   }
 
   if (isScaledMmV2F32BlockwiseMode(mode)) {
+    if (logicalK % 128 != 0)
+      return op.emitOpError(
+          "expected contracting dimension to be divisible by 128 for "
+          "1x128/128x128 blockwise scaling");
+
     int64_t kBlocks128 = logicalK / 128;
     int64_t paddedKBlocks128 = llvm::divideCeil(kBlocks128, int64_t{4}) * 4;
     int64_t mBlocks128 = m / 128;
     int64_t nBlocks128 = n / 128;
 
-    if (isScaledMmV2Mode(mode, ScaledMmV2RecipeMode::Blockwise1x1281x128)) {
+    if (isScaledMmV2Mode(mode, ScaledMmV2RecipeMode::Blockwise1x128_1x128)) {
       if (!hasShape(scaleAShape, {m, kBlocks128}) ||
           !hasShape(scaleBShape, {n, kBlocks128}))
         return op.emitOpError("invalid 1x128 x 1x128 blockwise scaling "
@@ -7140,7 +7188,7 @@ verifyScaledMmV2ScaleNumel(Aten_ScaledMmV2Op op,
       return success();
     }
 
-    if (isScaledMmV2Mode(mode, ScaledMmV2RecipeMode::Blockwise1x128128x128)) {
+    if (isScaledMmV2Mode(mode, ScaledMmV2RecipeMode::Blockwise1x128_128x128)) {
       if (!hasShape(scaleAShape, {m, kBlocks128}) ||
           !hasShape(scaleBShape, {paddedKBlocks128, nBlocks128}))
         return op.emitOpError("invalid 1x128 x 128x128 blockwise scaling "
