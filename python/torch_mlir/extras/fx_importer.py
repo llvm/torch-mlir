@@ -40,6 +40,8 @@ import torch.export
 import torch.fx as torch_fx
 from torch.fx.passes.shape_prop import TensorMetadata
 
+from .fx_as_strided import rewrite_as_strided
+
 from torch import (
     dtype as TorchDtype,
     FunctionSchema,
@@ -638,6 +640,9 @@ class FxImporter:
         method to control access to mutable buffers and parameters. Without that, the
         default policy is to capture them as frozen values.
         """
+        # Run before Torch IR import while FakeTensor storage metadata is still
+        # available.
+        rewrite_as_strided(prog.graph)
         # Create lookaside table of placeholders/outputs.
         placeholder_nodes: Dict[str, Node] = {}
         all_producer_nodes: Dict[str, Node] = {}
@@ -1052,6 +1057,10 @@ class FxImporter:
         TODO: This mechanism is deprecated by the `import_program` entry-point and
         it should be removed when no longer required for backwards compatibility.
         """
+        # Run before Torch IR import while FakeTensor storage metadata is still
+        # available. Graph-only callers may be rejected if safe rewriting needs
+        # owning GraphModule state for generated index tensors.
+        rewrite_as_strided(g)
         ftype, loc = self._graph_to_function_meta(g)
         # TODO: The FuncOp constructor requires a context-manager context.
         # Fix upstream and then unnest.
@@ -2082,6 +2091,11 @@ class GraphNodeImporter:
         else:
             target = concrete_target
 
+        if target == torch.ops.aten.as_strided.default:
+            raise NotImplementedError(
+                "aten.as_strided.default must be rewritten before Torch IR import"
+            )
+
         schema = target._schema
         assert isinstance(schema, FunctionSchema)
         mlir_op_name = _get_mlir_op_name_for_schema(schema)
@@ -2373,6 +2387,14 @@ class GraphNodeImporter:
             if isinstance(operand, Node):
                 if operand in self._multi_result_nodes:
                     raise RuntimeError(f"Attempt to de-reference a multi-result node")
+                if operand.op == "get_attr" and (operand, 0) not in self._v:
+                    gm = operand.graph.owning_module
+                    assert hasattr(
+                        gm, operand.target
+                    ), f"Attempting to retrieve attribute '{operand.target}' from module, but no such attribute exists"
+                    obj = getattr(gm, operand.target)
+                    with loc:
+                        self.bind_node_value(operand, self._import_literal(obj))
                 val = self.resolve_node_value(operand)
                 val_type = str(val.type)
                 assert (

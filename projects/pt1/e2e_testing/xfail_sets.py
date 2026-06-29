@@ -704,8 +704,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ChannelShuffleTrailingOnes_basic",
     "ChannelShuffleDynamicDims_basic",
     "ConstantBoolParameterModule_basic",
-    "ConstantInt32ParameterModule_basic",
-    "ConstantInt64ParameterModule_basic",
     "ContainsIntList_False",
     "ContainsIntList_True",
     "Conv2dFP16NoBiasModule_basic",
@@ -1003,12 +1001,8 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenSymConstrainRange_basic",
     "AtenSymConstrainRangeForSize_basic",
     "Aten_AssertScalar_basic",
-    "NativeGroupNormModule_basic",
     "AvgPool2dCeilModeFullDimIndivisibleByStrideModule_basic",
     "MaxPool2dCeilModeFullDimIndivisibleByStrideModule_basic",
-    "AtenAsStridedModule_basic",
-    "AtenAsStridedNoStorageOffsetModule_basic",
-    "AtenAsStridedUnknownSizeModule_basic",
     # error: argument must be a memref of f32, f64, i32, i64, i8, i1, c32, c64, but got 'memref<3x5xbf16>'
     "ElementwiseClampMaxModule_bfloat16",
     "ElementwiseClampMinModule_bfloat16",
@@ -1046,6 +1040,32 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
 }
 
 STABLEHLO_PASS_SET = {
+    "AtenAsStridedAfterAliasDetachModule_basic",
+    "AtenAsStridedAfterBroadcastToModule_basic",
+    "AtenAsStridedAfterChainedViewsModule_basic",
+    "AtenAsStridedAfterDiagonalModule_basic",
+    "AtenAsStridedAfterExpandAsModule_basic",
+    "AtenAsStridedAfterExpandLeadingSingletonSliceModule_basic",
+    "AtenAsStridedAfterExpandModule_basic",
+    "AtenAsStridedAfterMovedimModule_basic",
+    "AtenAsStridedAfterNarrowModule_basic",
+    "AtenAsStridedAfterNestedAsStridedExplicitOffsetModule_basic",
+    "AtenAsStridedAfterNumpyTModule_basic",
+    "AtenAsStridedAfterPermuteModule_basic",
+    "AtenAsStridedAfterReshapeAliasModule_basic",
+    "AtenAsStridedAfterReshapeFlattenModule_basic",
+    "AtenAsStridedAfterSelectModule_basic",
+    "AtenAsStridedAfterSliceModule_basic",
+    "AtenAsStridedAfterSliceWithExplicitOffsetModule_basic",
+    "AtenAsStridedAfterSqueezeUnsqueezeModule_basic",
+    "AtenAsStridedAfterTModule_basic",
+    "AtenAsStridedAfterTransposeModule_basic",
+    "AtenAsStridedAfterUnflattenModule_basic",
+    "AtenAsStridedAfterUnfoldModule_basic",
+    "AtenAsStridedAfterUnsafeViewModule_basic",
+    "AtenAsStridedAfterViewModule_basic",
+    "AtenAsStridedModule_basic",
+    "AtenAsStridedNoStorageOffsetModule_basic",
     "ReduceAminmaxSingleDim_basic",
     "ReduceAminmaxAllDims_basic",
     "ReduceAmaxEmptyDim_basic",
@@ -1818,6 +1838,32 @@ FX_IMPORTER_TOSA_CRASHING_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "AtenAsStridedAfterAliasDetachModule_basic",
+    "AtenAsStridedAfterBroadcastToModule_basic",
+    "AtenAsStridedAfterChainedViewsModule_basic",
+    "AtenAsStridedAfterDiagonalModule_basic",
+    "AtenAsStridedAfterExpandAsModule_basic",
+    "AtenAsStridedAfterExpandLeadingSingletonSliceModule_basic",
+    "AtenAsStridedAfterExpandModule_basic",
+    "AtenAsStridedAfterMovedimModule_basic",
+    "AtenAsStridedAfterNarrowModule_basic",
+    "AtenAsStridedAfterNestedAsStridedExplicitOffsetModule_basic",
+    "AtenAsStridedAfterNumpyTModule_basic",
+    "AtenAsStridedAfterPermuteModule_basic",
+    "AtenAsStridedAfterReshapeAliasModule_basic",
+    "AtenAsStridedAfterReshapeFlattenModule_basic",
+    "AtenAsStridedAfterSelectModule_basic",
+    "AtenAsStridedAfterSliceModule_basic",
+    "AtenAsStridedAfterSliceWithExplicitOffsetModule_basic",
+    "AtenAsStridedAfterSqueezeUnsqueezeModule_basic",
+    "AtenAsStridedAfterTModule_basic",
+    "AtenAsStridedAfterTransposeModule_basic",
+    "AtenAsStridedAfterUnflattenModule_basic",
+    "AtenAsStridedAfterUnfoldModule_basic",
+    "AtenAsStridedAfterUnsafeViewModule_basic",
+    "AtenAsStridedAfterViewModule_basic",
+    "AtenAsStridedModule_basic",
+    "AtenAsStridedNoStorageOffsetModule_basic",
     "ConvolutionBackwardModule2DStatic_basic",
     "AtenEyeMModuleInt2D_basic",
     "AtenEyeModuleInt2D_basic",
@@ -2786,6 +2832,35 @@ LTC_XFAIL_SET = {
 }
 
 ONNX_XFAIL_SET = {
+    # ONNX export applies explicit offset to materialized slice storage.
+    "AtenAsStridedAfterAliasDetachModule_basic",
+    # ONNX transpose materializes movedim before gather, so indexing uses new storage.
+    "AtenAsStridedAfterMovedimModule_basic",
+    # ONNX export lowers nested as_strided as two gathers, losing base storage offset.
+    "AtenAsStridedAfterNestedAsStridedExplicitOffsetModule_basic",
+    # ONNX transpose materializes numpy_T before gather, so indexing uses new storage.
+    "AtenAsStridedAfterNumpyTModule_basic",
+    # ONNX transpose materializes permute before gather, so indexing uses new storage.
+    "AtenAsStridedAfterPermuteModule_basic",
+    # ONNX _reshape_alias path creates an invalid 24-to-1 reshape/collapse.
+    "AtenAsStridedAfterReshapeAliasModule_basic",
+    # ONNX export lowers channels-last as_strided to flatten/gather over the
+    # logical NCHW tensor, losing channels-last storage order.
+    "AtenAsStridedAfterToChannelsLastModule_basic",
+    "AtenAsStridedChannelsLastInputModule_basic",
+    "AtenAsStridedChannelsLastParameterModule_basic",
+    # ONNX export applies explicit offset to the slice, not to base storage.
+    "AtenAsStridedAfterSliceWithExplicitOffsetModule_basic",
+    # ONNX transpose materializes t() before gather, so indexing uses new storage.
+    "AtenAsStridedAfterTModule_basic",
+    # ONNX transpose materializes transpose before gather, so indexing uses new storage.
+    "AtenAsStridedAfterTransposeModule_basic",
+    # ONNX unflatten path creates an invalid 24-to-1 reshape/collapse.
+    "AtenAsStridedAfterUnflattenModule_basic",
+    # ONNX unfold export materializes windows before gather, losing view storage.
+    "AtenAsStridedAfterUnfoldModule_basic",
+    # ONNX _unsafe_view path creates an invalid reshape/collapse after slice.
+    "AtenAsStridedAfterUnsafeViewModule_basic",
     "ToDtypeIntFromFloatModule_basic",
     # This test is expected to time out
     "TimeOutModule_basic",
@@ -3606,6 +3681,16 @@ if torch_version_for_comparison() > version.parse("2.4.0.dev"):
 
 
 ONNX_CRASHING_SET = LINALG_CRASHING_SET | {
+    # ONNX-imported diagonal/as_strided hits SIGABRT before report_results runs.
+    "AtenAsStridedAfterDiagonalModule_basic",
+    # ONNX empty-slice/as_strided gathers from a 0-length tensor and aborts.
+    "AtenAsStridedAfterExpandLeadingSingletonSliceModule_basic",
+    # ONNX-imported narrow/as_strided hits SIGABRT before report_results runs.
+    "AtenAsStridedAfterNarrowModule_basic",
+    # ONNX-imported select/as_strided hits SIGABRT before report_results runs.
+    "AtenAsStridedAfterSelectModule_basic",
+    # ONNX-imported stepped slice/as_strided hits SIGABRT before report_results runs.
+    "AtenAsStridedAfterSliceStepModule_basic",
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
     "ElementwisePreluModule_basic",
@@ -4090,10 +4175,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ReplicationPad1dModule_3DInput_basic",
     "ReplicationPad3dModule_basic",
     "ReplicationPad3dModuleSingleIntPad_basic",
-    "AtenAsStridedModule_basic",
-    "AtenAsStridedNoStorageOffsetModule_basic",
-    "AtenAsStridedUnknownSizeModule_basic",
-    "NativeGroupNormModule_basic",
     # error: argument must be a memref of f32, f64, i32, i64, i8, i1, c32, c64, but got 'memref<3x5xbf16>'
     "ElementwiseClampMaxModule_bfloat16",
     "ElementwiseClampMinModule_bfloat16",
@@ -4102,6 +4183,10 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
 }
 
 ONNX_TOSA_CRASHING_SET = {
+    # ONNX-TOSA narrow/as_strided hits SIGABRT before report_results runs.
+    "AtenAsStridedAfterNarrowModule_basic",
+    # ONNX-TOSA select/as_strided hits SIGABRT before report_results runs.
+    "AtenAsStridedAfterSelectModule_basic",
     "ScatterSrcStaticModule_basic",
     "StdCorrectionEmptyDimModule_basic",
     "StdDimEmptyDimModule_basic",
@@ -4111,6 +4196,35 @@ ONNX_TOSA_CRASHING_SET = {
 }
 
 ONNX_TOSA_XFAIL_SET = {
+    # ONNX export applies explicit offset to materialized slice storage.
+    "AtenAsStridedAfterAliasDetachModule_basic",
+    # ONNX export gathers from the materialized empty slice.
+    "AtenAsStridedAfterExpandLeadingSingletonSliceModule_basic",
+    # ONNX diagonal emits aten.item from ConstantOfShape, which TOSA rejects.
+    "AtenAsStridedAfterDiagonalModule_basic",
+    # ONNX transpose materializes movedim before gather, so indexing uses new storage.
+    "AtenAsStridedAfterMovedimModule_basic",
+    # ONNX export lowers nested as_strided as two gathers, losing base storage offset.
+    "AtenAsStridedAfterNestedAsStridedExplicitOffsetModule_basic",
+    # ONNX transpose materializes numpy_T before gather, so indexing uses new storage.
+    "AtenAsStridedAfterNumpyTModule_basic",
+    # ONNX transpose materializes permute before gather, so indexing uses new storage.
+    "AtenAsStridedAfterPermuteModule_basic",
+    # ONNX _reshape_alias path creates an invalid 24-to-1 TOSA reshape.
+    "AtenAsStridedAfterReshapeAliasModule_basic",
+    # ONNX export applies explicit offset to the slice, not to base storage.
+    "AtenAsStridedAfterSliceWithExplicitOffsetModule_basic",
+    # ONNX transpose materializes t() before gather, so indexing uses new storage.
+    "AtenAsStridedAfterTModule_basic",
+    # ONNX transpose materializes transpose before gather, so indexing uses new storage.
+    "AtenAsStridedAfterTransposeModule_basic",
+    # ONNX unflatten path creates an invalid 24-to-1 TOSA reshape.
+    "AtenAsStridedAfterUnflattenModule_basic",
+    # ONNX unfold export materializes windows before gather, losing view storage.
+    "AtenAsStridedAfterUnfoldModule_basic",
+    # ONNX _unsafe_view path creates an invalid TOSA reshape after slice.
+    "AtenAsStridedAfterUnsafeViewModule_basic",
+    "AtenAsStridedUnknownSizeModule_basic",
     "AtenFftRfft2DLastDim_basic",
     "AtenFftRfft2DMiddleDim_basic",
     "AtenStftCenter1D_basic",
