@@ -258,6 +258,7 @@ OPTIONAL_TORCH_DTYPE_TO_INT = {
     "float8_e5m2fnuz": 25,
     "float8_e4m3fnuz": 26,
     "float8_e8m0fnu": 28,
+    "float4_e2m1fn_x2": 29,
 }
 for dtype_str, dtype_int in OPTIONAL_TORCH_DTYPE_TO_INT.items():
     if hasattr(torch, dtype_str):
