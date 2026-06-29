@@ -134,3 +134,54 @@ func.func @scatter_src_dim2(%arg0: !torch.vtensor<[2,2,5,8],f32>, %arg1: !torch.
   %0 = torch.aten.scatter.src %arg0, %int2, %arg1, %arg2 : !torch.vtensor<[2,2,5,8],f32>, !torch.int, !torch.vtensor<[2,2,1,8],si64>, !torch.vtensor<[2,2,1,8],f32> -> !torch.vtensor<[2,2,5,8],f32>
   return %0 : !torch.vtensor<[2,2,5,8],f32>
 }
+
+// -----
+
+// CHECK-LABEL: @sort_float_ascending_nan_aware
+// CHECK: tm_tensor.sort
+// CHECK: ^bb0(%[[LHS:.*]]: f32, %[[RHS:.*]]: f32, %{{.*}}: i64, %{{.*}}: i64):
+// CHECK-DAG: %[[RHS_NAN:.*]] = arith.cmpf une, %[[RHS]], %[[RHS]] : f32
+// CHECK-DAG: %[[NUMERIC_LE:.*]] = arith.cmpf ole, %[[LHS]], %[[RHS]] : f32
+// CHECK: %[[KEEP:.*]] = arith.ori %[[RHS_NAN]], %[[NUMERIC_LE]] : i1
+// CHECK: tm_tensor.yield %[[KEEP]] : i1
+func.func @sort_float_ascending_nan_aware(%arg0: !torch.vtensor<[6],f32>) -> (!torch.vtensor<[6],f32>, !torch.vtensor<[6],si64>) {
+  %dim = torch.constant.int -1
+  %false = torch.constant.bool false
+  %values, %indices = torch.aten.sort %arg0, %dim, %false : !torch.vtensor<[6],f32>, !torch.int, !torch.bool -> !torch.vtensor<[6],f32>, !torch.vtensor<[6],si64>
+  return %values, %indices : !torch.vtensor<[6],f32>, !torch.vtensor<[6],si64>
+}
+
+// -----
+
+// CHECK-LABEL: @sort_float_descending_nan_aware
+// CHECK: tm_tensor.sort
+// CHECK: ^bb0(%[[LHS:.*]]: f32, %[[RHS:.*]]: f32, %{{.*}}: i64, %{{.*}}: i64):
+// CHECK-DAG: %[[LHS_NAN:.*]] = arith.cmpf une, %[[LHS]], %[[LHS]] : f32
+// CHECK-DAG: %[[NUMERIC_GE:.*]] = arith.cmpf oge, %[[LHS]], %[[RHS]] : f32
+// CHECK: %[[KEEP:.*]] = arith.ori %[[LHS_NAN]], %[[NUMERIC_GE]] : i1
+// CHECK: tm_tensor.yield %[[KEEP]] : i1
+func.func @sort_float_descending_nan_aware(%arg0: !torch.vtensor<[6],f32>) -> (!torch.vtensor<[6],f32>, !torch.vtensor<[6],si64>) {
+  %dim = torch.constant.int -1
+  %true = torch.constant.bool true
+  %values, %indices = torch.aten.sort %arg0, %dim, %true : !torch.vtensor<[6],f32>, !torch.int, !torch.bool -> !torch.vtensor<[6],f32>, !torch.vtensor<[6],si64>
+  return %values, %indices : !torch.vtensor<[6],f32>, !torch.vtensor<[6],si64>
+}
+
+// -----
+
+// CHECK-LABEL: @kthvalue_float_nan_aware
+// CHECK: tm_tensor.topk
+// CHECK: ^bb0(%[[LHS:.*]]: f32, %[[RHS:.*]]: f32):
+// CHECK-DAG: %[[RHS_NAN:.*]] = arith.cmpf une, %[[RHS]], %[[RHS]] : f32
+// CHECK-DAG: %[[LHS_NOT_NAN:.*]] = arith.cmpf oeq, %[[LHS]], %[[LHS]] : f32
+// CHECK-DAG: %[[NUMERIC_LT:.*]] = arith.cmpf olt, %[[LHS]], %[[RHS]] : f32
+// CHECK: %[[RHS_NAN_ONLY:.*]] = arith.andi %[[RHS_NAN]], %[[LHS_NOT_NAN]] : i1
+// CHECK: %[[IS_BETTER:.*]] = arith.ori %[[RHS_NAN_ONLY]], %[[NUMERIC_LT]] : i1
+// CHECK: tm_tensor.yield %[[IS_BETTER]] : i1
+func.func @kthvalue_float_nan_aware(%arg0: !torch.vtensor<[6],f32>) -> (!torch.vtensor<[],f32>, !torch.vtensor<[],si64>) {
+  %k = torch.constant.int 2
+  %dim = torch.constant.int 0
+  %false = torch.constant.bool false
+  %values, %indices = torch.aten.kthvalue %arg0, %k, %dim, %false : !torch.vtensor<[6],f32>, !torch.int, !torch.int, !torch.bool -> !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+  return %values, %indices : !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+}

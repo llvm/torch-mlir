@@ -282,15 +282,43 @@ static FailureOr<Value> createIntOrFloatCompareOp(PatternRewriter &rewriter,
   }
 
   if (isa<mlir::FloatType>(elementType)) {
-    // Case for using arith::CmpFOp.
-    arith::CmpFPredicate g =
-        isEqual ? arith::CmpFPredicate::OGE : arith::CmpFPredicate::OGT;
-    arith::CmpFPredicate l =
-        isEqual ? arith::CmpFPredicate::OLE : arith::CmpFPredicate::OLT;
+    auto isNan = [&](Value value) -> Value {
+      return arith::CmpFOp::create(rewriter, loc, arith::CmpFPredicate::UNE,
+                                   value, value);
+    };
+    auto isNotNan = [&](Value value) -> Value {
+      return arith::CmpFOp::create(rewriter, loc, arith::CmpFPredicate::OEQ,
+                                   value, value);
+    };
 
-    arith::CmpFPredicate predicate = isDescending ? g : l;
-    compareOp = arith::CmpFOp::create(rewriter, loc, predicate, lhs, rhs);
-    return compareOp;
+    if (isEqual) {
+      // Inclusive ordering used by sort. Match PyTorch by treating NaNs as
+      // greater than all numeric values: last for ascending, first for
+      // descending.
+      arith::CmpFPredicate predicate =
+          isDescending ? arith::CmpFPredicate::OGE : arith::CmpFPredicate::OLE;
+      Value numericCompare =
+          arith::CmpFOp::create(rewriter, loc, predicate, lhs, rhs);
+      Value nanCompare = isDescending ? isNan(lhs) : isNan(rhs);
+      Value nanAwareCompare =
+          arith::OrIOp::create(rewriter, loc, nanCompare, numericCompare);
+      return nanAwareCompare;
+    }
+
+    // Strict ordering used by topk. NaNs are greater than all numeric values,
+    // but equal to other NaNs so the existing index tie-breaker remains
+    // deterministic.
+    arith::CmpFPredicate predicate =
+        isDescending ? arith::CmpFPredicate::OGT : arith::CmpFPredicate::OLT;
+    Value numericCompare =
+        arith::CmpFOp::create(rewriter, loc, predicate, lhs, rhs);
+    Value nanCompare =
+        isDescending
+            ? arith::AndIOp::create(rewriter, loc, isNan(lhs), isNotNan(rhs))
+            : arith::AndIOp::create(rewriter, loc, isNan(rhs), isNotNan(lhs));
+    Value nanAwareCompare =
+        arith::OrIOp::create(rewriter, loc, nanCompare, numericCompare);
+    return nanAwareCompare;
   }
 
   return rewriter.notifyMatchFailure(
