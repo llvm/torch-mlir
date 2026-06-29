@@ -10355,6 +10355,48 @@ public:
 } // namespace
 
 namespace {
+// `aten.diag` is a rank-dependent alias (aten/src/ATen/native/TensorShape.cpp):
+// a 1-D input builds a 2-D matrix with the input on the `diagonal`-th diagonal
+// (aten.diag_embed); a 2-D input extracts the `diagonal`-th diagonal as a 1-D
+// tensor (aten.diagonal).
+class DecomposeAtenDiagOp : public OpRewritePattern<AtenDiagOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenDiagOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    std::optional<unsigned> maybeRank = getTensorRank(self);
+    if (!maybeRank)
+      return rewriter.notifyMatchFailure(op, "expected input to have a rank");
+    unsigned rank = *maybeRank;
+    if (rank != 1 && rank != 2)
+      return rewriter.notifyMatchFailure(op,
+                                         "expected input to be rank 1 or 2");
+
+    Value zero =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
+    Value one =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
+    Value diagonal = op.getDiagonal();
+
+    if (rank == 1) {
+      Value embed = AtenDiagEmbedOp::create(rewriter, loc, op.getType(), self,
+                                            /*offset=*/diagonal, /*dim1=*/zero,
+                                            /*dim2=*/one);
+      rewriter.replaceOp(op, embed);
+      return success();
+    }
+    Value diag = AtenDiagonalOp::create(rewriter, loc, op.getType(), self,
+                                        /*offset=*/diagonal, /*dim1=*/zero,
+                                        /*dim2=*/one);
+    rewriter.replaceOp(op, diag);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.norm.ScalarOpt_dim` op to `aten.linalg_vector_norm` op
 class DecomposeAtenNormScalarOptDimOp
     : public OpRewritePattern<AtenNormScalarOptDimOp> {
@@ -13620,6 +13662,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenLiftFreshCopyOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMseLossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenL1LossOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenDiagOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNormScalarOptDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandintOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandintLowOp>(patterns);

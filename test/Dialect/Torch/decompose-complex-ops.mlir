@@ -1174,3 +1174,47 @@ func.func @mean_dim_scalar_negative_dim(%arg0: !torch.vtensor<[],f32>) -> !torch
   %0 = torch.aten.mean.dim %arg0, %dims, %keepdim, %dtype : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[],f32>
   return %0 : !torch.vtensor<[],f32>
 }
+
+// -----
+
+// A 1-D input builds a 2-D matrix with the input on the `diagonal`-th diagonal
+// (offset=2), placed across dims 0 and 1.
+// CHECK-LABEL:   func.func @diag_1d(
+// CHECK-SAME:        %[[SELF:.*]]: !torch.vtensor<[3],f32>
+// CHECK-DAG:       %[[OFFSET:.*]] = torch.constant.int 2
+// CHECK-DAG:       %[[ZERO:.*]] = torch.constant.int 0
+// CHECK-DAG:       %[[ONE:.*]] = torch.constant.int 1
+// CHECK:           %[[EMBED:.*]] = torch.aten.diag_embed %[[SELF]], %[[OFFSET]], %[[ZERO]], %[[ONE]]
+// CHECK:           return %[[EMBED]]
+func.func @diag_1d(%arg0: !torch.vtensor<[3],f32>) -> !torch.vtensor<[5,5],f32> {
+  %diagonal = torch.constant.int 2
+  %0 = torch.aten.diag %arg0, %diagonal : !torch.vtensor<[3],f32>, !torch.int -> !torch.vtensor<[5,5],f32>
+  return %0 : !torch.vtensor<[5,5],f32>
+}
+
+// -----
+
+// A 2-D input extracts the `diagonal`-th diagonal (offset=3) as a 1-D tensor.
+// CHECK-LABEL:   func.func @diag_2d(
+// CHECK-SAME:        %[[SELF:.*]]: !torch.vtensor<[3,5],f32>
+// CHECK-DAG:       %[[OFFSET:.*]] = torch.constant.int 3
+// CHECK-DAG:       %[[ZERO:.*]] = torch.constant.int 0
+// CHECK-DAG:       %[[ONE:.*]] = torch.constant.int 1
+// CHECK:           %[[DIAG:.*]] = torch.aten.diagonal %[[SELF]], %[[OFFSET]], %[[ZERO]], %[[ONE]]
+// CHECK:           return %[[DIAG]]
+func.func @diag_2d(%arg0: !torch.vtensor<[3,5],f32>) -> !torch.vtensor<[2],f32> {
+  %diagonal = torch.constant.int 3
+  %0 = torch.aten.diag %arg0, %diagonal : !torch.vtensor<[3,5],f32>, !torch.int -> !torch.vtensor<[2],f32>
+  return %0 : !torch.vtensor<[2],f32>
+}
+
+// -----
+
+// diag supports only rank 1 or 2, so a rank-3 input is left undecomposed.
+// CHECK-LABEL:   func.func @diag_rank3_no_decompose(
+// CHECK:           torch.aten.diag %
+func.func @diag_rank3_no_decompose(%arg0: !torch.vtensor<[2,3,4],f32>) -> !torch.vtensor<[?],f32> {
+  %diagonal = torch.constant.int 0
+  %0 = torch.aten.diag %arg0, %diagonal : !torch.vtensor<[2,3,4],f32>, !torch.int -> !torch.vtensor<[?],f32>
+  return %0 : !torch.vtensor<[?],f32>
+}

@@ -135,6 +135,26 @@ def aten〇diagonal〡shape(self: List[int], offset: int = 0, dim1: int = 0, dim
 
     return diagonal
 
+@check_shape_function([
+    Invocation(TensorOfShape(3)), # 1-D: builds a square matrix.
+    Invocation(TensorOfShape(3), diagonal=2), # 1-D positive offset.
+    Invocation(TensorOfShape(3), diagonal=-2), # 1-D negative offset.
+    Invocation(TensorOfShape(3, 5)), # 2-D: extracts the main diagonal.
+    Invocation(TensorOfShape(3, 5), diagonal=1), # 2-D positive offset.
+    Invocation(TensorOfShape(3, 5), diagonal=-1), # 2-D negative offset.
+    Invocation(TensorOfShape(5, 3), diagonal=3), # 2-D empty result (offset past last column).
+    ErrorInvocation(TensorOfShape(2, 3, 4)), # Rank > 2 unsupported.
+])
+def aten〇diag〡shape(self: List[int], diagonal: int = 0) -> List[int]:
+    assert len(self) == 1 or len(self) == 2, "input must be 1D or 2D"
+    if len(self) == 1:
+        side = self[0] + abs(diagonal)
+        return [side, side]
+    diag_size = max(min(self[0], self[1] - diagonal), 0)
+    if diagonal < 0:
+        diag_size = max(min(self[0] + diagonal, self[1]), 0)
+    return [diag_size]
+
 def aten〇fake_quantize_per_tensor_affine〡shape(self: List[int], scale: float, zero_point: int, quant_min: int, quant_max: int) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -4062,6 +4082,11 @@ def aten〇tril〡dtype(self_rank_dtype: Tuple[int, int], diagonal: int = 0) -> 
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3)], dim1=0, dim2=1))
 def aten〇diagonal〡dtype(self_rank_dtype: Tuple[int, int], offset: int = 0, dim1: int = 0, dim2: int = 1) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇diag〡dtype(self_rank_dtype: Tuple[int, int], diagonal: int = 0) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 

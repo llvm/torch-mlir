@@ -67,6 +67,9 @@ if torch_version_for_comparison() < version.parse("2.5.0.dev"):
     }
 
 LINALG_CRASHING_SET = {
+    # aten.diag with a nonzero offset lowers to aten.diag_embed, whose linalg
+    # lowering does an out-of-bounds extract (same crash as AtenDiagEmbedOffsetDiag).
+    "Diag1DOffsetModule_basic",
     # Runtime op verification: Out of bounds access
     "AtenDiagEmbedNegOffsetDiag_basic",
     "AtenDiagEmbedNonDefault4DDiag_basic",
@@ -550,6 +553,12 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
+    # aten.diag decomposes to aten.diag_embed / aten.diagonal, which are xfail
+    # on the stablehlo backend (same as AtenDiagEmbed*/DiagonalModule).
+    "Diag1DModule_basic",
+    "Diag1DOffsetModule_basic",
+    "Diag2DModule_basic",
+    "Diag2DNegativeOffsetModule_basic",
     "ArgsortTensor_basic",
     "ArgsortTensorInteger_basic",
     "AddFloatIntModule_basic",
@@ -2786,6 +2795,11 @@ LTC_XFAIL_SET = {
 }
 
 ONNX_XFAIL_SET = {
+    # aten.diag has no ONNX import path, so these fail at import time.
+    "Diag1DModule_basic",
+    "Diag1DOffsetModule_basic",
+    "Diag2DModule_basic",
+    "Diag2DNegativeOffsetModule_basic",
     "ToDtypeIntFromFloatModule_basic",
     # This test is expected to time out
     "TimeOutModule_basic",
@@ -4111,6 +4125,11 @@ ONNX_TOSA_CRASHING_SET = {
 }
 
 ONNX_TOSA_XFAIL_SET = {
+    # aten.diag has no ONNX import path, so these fail at import time.
+    "Diag1DModule_basic",
+    "Diag1DOffsetModule_basic",
+    "Diag2DModule_basic",
+    "Diag2DNegativeOffsetModule_basic",
     "AtenFftRfft2DLastDim_basic",
     "AtenFftRfft2DMiddleDim_basic",
     "AtenStftCenter1D_basic",

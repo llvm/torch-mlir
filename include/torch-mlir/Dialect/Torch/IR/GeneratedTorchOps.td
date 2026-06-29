@@ -10251,6 +10251,30 @@ def Torch_AtenDiagEmbedOp : Torch_Op<"aten.diag_embed", [
   }];
 }
 
+def Torch_AtenDiagOp : Torch_Op<"aten.diag", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::diag : (Tensor, int) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$diagonal
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenDiagOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 2, 1);
+    }
+    void AtenDiagOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 2, 1);
+    }
+  }];
+}
+
 def Torch_Aten_WeightNormInterfaceOp : Torch_Op<"aten._weight_norm_interface", [
     AllowsTypeRefinement,
     HasValueSemantics,
