@@ -1817,6 +1817,24 @@ public:
         });
     if (hadErrorCreatingPayload)
       return failure();
+
+    // Forward user-annotation attrs from the source op to the surrounding
+    // `linalg.generic`. The generic represents the elementwise op as a whole,
+    // so this is the natural carrier for annotations (e.g. domain bounds);
+    // downstream passes that operate on payload ops should walk up
+    // to the parent `linalg.generic` to read these. Only attrs prefixed
+    // `mlir.user.` are forwarded so we don't leak unrelated discardable
+    // attrs (dialect-internal flags) into linalg ops; the
+    // `torch-lift-user-attrs` pass at the end of the lowering pipeline
+    // strips the prefix to expose the user's chosen names.
+    constexpr StringLiteral kUserAttrPrefix("mlir.user.");
+    if (auto linalgGeneric =
+            dyn_cast_or_null<linalg::GenericOp>(generic.getDefiningOp())) {
+      for (NamedAttribute attr : op->getDiscardableAttrs()) {
+        if (attr.getName().getValue().starts_with(kUserAttrPrefix))
+          linalgGeneric->setAttr(attr.getName(), attr.getValue());
+      }
+    }
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, generic);
     return success();
   }

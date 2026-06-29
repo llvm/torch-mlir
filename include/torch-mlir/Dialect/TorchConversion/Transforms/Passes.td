@@ -86,4 +86,21 @@ def ConvertCustomQuantOp : InterfacePass<"torch-convert-custom-quant-op", "mlir:
   let summary = "Convert torch custom quant op to linalg";
   let constructor = "mlir::torch::TorchConversion::createConvertCustomQuantOpPass()";
 }
+
+def LiftUserAttrs : Pass<"torch-lift-user-attrs", "ModuleOp"> {
+  let summary = "Strip the `mlir.user.` prefix off user-annotation attrs";
+  let constructor = "mlir::torch::TorchConversion::createLiftUserAttrsPass()";
+  let description = [{
+    Frontends emit user-supplied annotations (e.g. those produced from
+    `node.meta["mlir.attrs"]` / `mlir.arg_attrs` by the FX importer) with a
+    `mlir.user.` prefix on each attribute name, so they can be forwarded
+    selectively through lowerings without leaking dialect-internal flags. This
+    pass runs at the end of the backend pipelines and, for every op discardable
+    attribute and every `func.func` per-argument attribute whose name starts
+    with `mlir.user.`, re-attaches the value under the un-prefixed name and
+    removes the prefixed entry. Non-prefixed attrs are left untouched.
+    Downstream consumers see plain attrs like
+    `{attr1=...}` as if they had been set directly.
+  }];
+}
 #endif // TORCHMLIR_TORCHCONVERSION_PASSES

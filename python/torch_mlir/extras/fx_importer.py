@@ -101,11 +101,13 @@ from ..ir import (
     AffineModExpr,
     AffineMulExpr,
     AffineSymbolExpr,
+    ArrayAttr,
     Attribute,
     Block,
     Context,
     DenseElementsAttr,
     DenseResourceElementsAttr,
+    DictAttr,
     FlatSymbolRefAttr,
     FloatAttr,
     BF16Type,
@@ -459,6 +461,104 @@ def is_builtin_function_or_method(obj: Any) -> bool:
     return isinstance(obj, (BuiltinMethodType, BuiltinFunctionType))
 
 
+# Reserved `torch.fx.Node.meta` keys consumed by the importer to attach MLIR
+# attributes to emitted ops / function arguments.
+#
+#   node.meta["mlir.attrs"]     -> Dict[str, Any]     (op attributes)
+#   node.meta["mlir.arg_attrs"] -> Dict[str, Any]     (only on placeholders)
+#
+# Values are coerced to MLIR `Attribute`s via `_coerce_mlir_attr`. Pre-built
+# `Attribute` objects pass through unchanged.
+MLIR_OP_ATTRS_META_KEY = "mlir.attrs"
+MLIR_ARG_ATTRS_META_KEY = "mlir.arg_attrs"
+
+
+def _coerce_mlir_attr(value: Any, context: Context) -> Optional[Attribute]:
+    """Convert a Python value into an MLIR `Attribute`.
+
+    Returns `None` for values that should be skipped (e.g. `False` on a unit
+    attr channel). Raises `TypeError` for unsupported Python types.
+    """
+    if isinstance(value, Attribute):
+        return value
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        # Booleans model unit attrs: True -> present, False -> absent.
+        return UnitAttr.get(context=context) if value else None
+    if isinstance(value, int):
+        return IntegerAttr.get(IntegerType.get_signless(64, context=context), value)
+    if isinstance(value, float):
+        # Use f64 to match MLIR's default parse of a bare `3.14` literal.
+        return FloatAttr.get(F64Type.get(context=context), value)
+    if isinstance(value, str):
+        return StringAttr.get(value, context=context)
+    if isinstance(value, (list, tuple)):
+        elems = [_coerce_mlir_attr(v, context) for v in value]
+        elems = [e for e in elems if e is not None]
+        return ArrayAttr.get(elems, context=context)
+    raise TypeError(
+        f"Cannot coerce Python value of type {type(value).__name__} "
+        f"to an MLIR Attribute (value={value!r}). Pass a pre-built "
+        f"`mlir.ir.Attribute` to use a custom encoding."
+    )
+
+
+# User-supplied attributes (from `mlir.attrs` / `mlir.arg_attrs` meta) are
+# emitted by the importer with this prefix, so backend-lowering patterns that
+# opt in (e.g. ConvertElementwiseOp in TorchToLinalg) can forward exactly
+# these attrs without leaking unrelated discardable attrs (dialect internals
+# etc.). The `torch-lift-user-attrs` pass at the end of the lowering pipeline
+# strips this prefix to expose the user's chosen names.
+USER_ATTR_PREFIX = "mlir.user."
+
+
+def _apply_op_attrs_from_meta(
+    operation: Operation, node: torch_fx.Node, context: Context
+) -> None:
+    """Read `node.meta['mlir.attrs']` and emit each entry as `mlir.user.<k>`."""
+    attrs = node.meta.get(MLIR_OP_ATTRS_META_KEY)
+    if not attrs:
+        return
+    with Location.unknown(context):
+        for key, value in attrs.items():
+            mlir_attr = _coerce_mlir_attr(value, context)
+            if mlir_attr is None:
+                continue
+            operation.attributes[USER_ATTR_PREFIX + key] = mlir_attr
+
+
+def _apply_arg_attrs_from_meta(
+    func_op: Any,
+    placeholder_nodes: Sequence[torch_fx.Node],
+    context: Context,
+) -> None:
+    """Read `mlir.arg_attrs` and emit per-arg attrs as `mlir.user.<k>`.
+
+    `placeholder_nodes` must be the ordered list of FX nodes that correspond
+    1:1 to the function's arguments (same order as `func_op` block args).
+    """
+    num_args = len(placeholder_nodes)
+    per_arg: List[Dict[str, Attribute]] = [{} for _ in range(num_args)]
+    any_attrs = False
+    with Location.unknown(context):
+        for i, node in enumerate(placeholder_nodes):
+            attrs = node.meta.get(MLIR_ARG_ATTRS_META_KEY)
+            if not attrs:
+                continue
+            for key, value in attrs.items():
+                mlir_attr = _coerce_mlir_attr(value, context)
+                if mlir_attr is None:
+                    continue
+                per_arg[i][USER_ATTR_PREFIX + key] = mlir_attr
+                any_attrs = True
+        if not any_attrs:
+            return
+        func_op.arg_attrs = ArrayAttr.get(
+            [DictAttr.get(d, context=context) for d in per_arg], context=context
+        )
+
+
 def is_scalar_arg(arg: NodeArgument) -> bool:
     """Check whether an arg is, or carries a meta val of, a literal or symbolic scalar."""
     if isinstance(arg, (float, int)) or is_symbolic(arg):
@@ -809,6 +909,7 @@ class FxImporter:
             # causes various lowerings to be able to emit more efficient code or
             # handle more cases. See isAssumingStrictSymbolicShapes().
             func_op.attributes["torch.assume_strict_symbolic_shapes"] = UnitAttr.get()
+            _apply_arg_attrs_from_meta(func_op, user_inputs, self._c)
             entry_block = Block.create_at_start(func_op.body, ftype.inputs)
 
         node_importer = GraphNodeImporter(
@@ -1059,6 +1160,8 @@ class FxImporter:
                 ip=self._m_ip,
                 visibility=func_visibility,
             )
+            placeholders = [n for n in g.nodes if n.op == "placeholder"]
+            _apply_arg_attrs_from_meta(func, placeholders, self._c)
             entry_block = Block.create_at_start(func.body, ftype.inputs)
         node_importer = GraphNodeImporter(
             self,
@@ -2125,6 +2228,7 @@ class GraphNodeImporter:
         operation = _emit_operation(
             mlir_op_name, result_types=result_types, operands=operands, loc=loc
         )
+        _apply_op_attrs_from_meta(operation, node, self._c)
 
         # Record value mapping.
         for i, value in enumerate(operation.results):
