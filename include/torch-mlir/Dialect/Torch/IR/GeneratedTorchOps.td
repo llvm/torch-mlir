@@ -2938,6 +2938,51 @@ def Torch_AtenAbs_Op : Torch_Op<"aten.abs_", [
   }];
 }
 
+def Torch_AtenAbsoluteOp : Torch_Op<"aten.absolute", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::absolute : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenAbsoluteOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenAbsoluteOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
+def Torch_AtenAbsolute_Op : Torch_Op<"aten.absolute_", [
+    IsTrailingUnderscoreInplaceVariant,
+    AllowsTypeRefinement
+  ]> {
+  let summary = "Generated op for `aten::absolute_ : (Tensor) -> (Tensor)`";
+  let arguments = (ins
+    Torch_NonValueTensorType:$self
+  );
+  let results = (outs
+    AnyTorchOptionalNonValueTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenAbsolute_Op::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 1, 1);
+    }
+    void AtenAbsolute_Op::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 1, 1);
+    }
+  }];
+}
+
 def Torch_AtenReciprocalOp : Torch_Op<"aten.reciprocal", [
     AllowsTypeRefinement,
     HasValueSemantics,

@@ -13376,6 +13376,18 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenAbsoluteOp : public OpRewritePattern<AtenAbsoluteOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenAbsoluteOp op,
+                                PatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<AtenAbsOp>(op, op.getType(), op.getSelf());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeComplexOpsPass
     : public impl::DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
 private:
@@ -13710,6 +13722,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAten_AssertScalarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRoundDecimalsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAsStridedOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenAbsoluteOp>(patterns);
 
     GreedyRewriteConfig config;
     config.setUseTopDownTraversal(true);

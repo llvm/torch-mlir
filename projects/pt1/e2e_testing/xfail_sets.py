@@ -1192,6 +1192,8 @@ STABLEHLO_PASS_SET = {
     "DropoutEvalIntModule_basic",
     "ElementwiseAbsFloatModule_basic",
     "ElementwiseAbsIntModule_basic",
+    "ElementwiseAbsoluteFloatModule_basic",
+    "ElementwiseAbsoluteIntModule_basic",
     "ElementwiseAcoshIntModule_basic",
     "ElementwiseAcoshModule_basic",
     "ElementwiseAsinhIntModule_basic",
