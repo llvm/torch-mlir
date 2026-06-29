@@ -588,7 +588,7 @@ static Value addBatchDimForBlockedMatmul(Value value, RankedTensorType valueTy,
       .getResult();
 }
 
-static LogicalResult rewriteFlatBlockedScaledMmToMatmulTBlockScaledOp(
+static LogicalResult rewriteBlockedScaledMmToMatmulTBlockScaledOp(
     Operation *op, Value lhs, Value rhs, Value scaleA, Value scaleB, Value bias,
     RankedTensorType lhsTy, RankedTensorType rhsTy, RankedTensorType scaleATy,
     RankedTensorType scaleBTy, RankedTensorType resultTy,
@@ -610,7 +610,7 @@ static LogicalResult rewriteFlatBlockedScaledMmToMatmulTBlockScaledOp(
 
   if (lhsTy.getRank() != 2 || rhsTy.getRank() != 2 || resultTy.getRank() != 2)
     return rewriter.notifyMatchFailure(
-        op, "aten._scaled_mm expects rank-2 tensors for flat blocked scales");
+        op, "aten._scaled_mm expects rank-2 tensors for blocked scales");
 
   int64_t m = lhsTy.getDimSize(0);
   int64_t k = lhsTy.getDimSize(1);
@@ -638,7 +638,7 @@ static LogicalResult rewriteFlatBlockedScaledMmToMatmulTBlockScaledOp(
   if (scaleAClassification.layout == BlockedScaleLayout::Invalid ||
       scaleBClassification.layout == BlockedScaleLayout::Invalid)
     return rewriter.notifyMatchFailure(
-        op, "failed to validate aten._scaled_mm flat blocked scales");
+        op, "failed to validate aten._scaled_mm blocked scales");
 
   lhs = addBatchDimForBlockedMatmul(lhs, lhsTy, m, k, /*transpose=*/false,
                                     rewriter, loc);
@@ -652,7 +652,7 @@ static LogicalResult rewriteFlatBlockedScaledMmToMatmulTBlockScaledOp(
                                   scaleBClassification, rewriter, loc);
   if (failed(scaleAOr) || failed(scaleBOr))
     return rewriter.notifyMatchFailure(
-        op, "failed to reshape aten._scaled_mm flat blocked scales");
+        op, "failed to reshape aten._scaled_mm blocked scales");
 
   auto blockedResultTy =
       RankedTensorType::get({1, m, n}, resultTy.getElementType());
@@ -3307,7 +3307,7 @@ public:
           resultTy, *batchedScaleShapes, m, k, n, rewriter, loc);
     }
 
-    return rewriteFlatBlockedScaledMmToMatmulTBlockScaledOp(
+    return rewriteBlockedScaledMmToMatmulTBlockScaledOp(
         op, lhs, rhs, scaleA, scaleB, bias, lhsTy, rhsTy, scaleATy, scaleBTy,
         resultTy, rewriter, loc);
   }

@@ -3643,8 +3643,11 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenSymConstrainRangeForSize_basic",
     "AtenSymConstrainRange_basic",
     "Aten_AssertScalar_basic",
-    # These import through FX and lower to TOSA, but the TOSA execution backend
-    # cannot currently load FP8 tensor element types in the lowered matmul path.
+    # These import through FX and lower to TOSA. To enable them end-to-end, the
+    # TOSA execution backend needs support for loading the FP8 input tensors and
+    # float8_e8m0fnu blocked-scale tensors used by matmul_t_block_scaled. The
+    # e2e framework also needs a non-CPU reference path because PyTorch CPU does
+    # not execute blocked-scale _scaled_mm.
     "AtenScaledMmBlockScaledFp8Module_basic",
     "AtenScaledMmBlockScaledFp8SwizzledModule_basic",
     "AtenScaledMmPerTensorE5M2Module_basic",
