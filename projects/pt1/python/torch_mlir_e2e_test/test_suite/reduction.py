@@ -2803,3 +2803,111 @@ class CountNonzeroDimIntListModuleBool(torch.nn.Module):
 @register_test_case(module_factory=lambda: CountNonzeroDimIntListModuleBool())
 def CountNonzeroDimIntListModuleBool_Basic(module, tu: TestUtils):
     module.forward(tu.randint(2, 3, 4, low=0, high=2).to(torch.bool))
+
+
+# ==============================================================================
+
+
+class TripletMarginLossModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 5], torch.float32, True),
+            ([3, 5], torch.float32, True),
+            ([3, 5], torch.float32, True),
+        ]
+    )
+    def forward(self, anchor, positive, negative):
+        return torch.ops.aten.triplet_margin_loss(
+            anchor, positive, negative, margin=1.0, p=2.0, reduction=1
+        )
+
+
+@register_test_case(module_factory=lambda: TripletMarginLossModule())
+def TripletMarginLossModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5), tu.rand(3, 5), tu.rand(3, 5))
+
+
+# ==============================================================================
+
+
+class TripletMarginLossSwapModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 5], torch.float32, True),
+            ([3, 5], torch.float32, True),
+            ([3, 5], torch.float32, True),
+        ]
+    )
+    def forward(self, anchor, positive, negative):
+        return torch.ops.aten.triplet_margin_loss(
+            anchor, positive, negative, margin=2.0, p=2.0, swap=True, reduction=2
+        )
+
+
+@register_test_case(module_factory=lambda: TripletMarginLossSwapModule())
+def TripletMarginLossSwapModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5), tu.rand(3, 5), tu.rand(3, 5))
+
+
+# ==============================================================================
+
+
+class TripletMarginLossNoReductionModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 5], torch.float32, True),
+            ([3, 5], torch.float32, True),
+            ([3, 5], torch.float32, True),
+        ]
+    )
+    def forward(self, anchor, positive, negative):
+        return torch.ops.aten.triplet_margin_loss(
+            anchor, positive, negative, margin=1.0, p=2.0, reduction=0
+        )
+
+
+@register_test_case(module_factory=lambda: TripletMarginLossNoReductionModule())
+def TripletMarginLossNoReductionModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5), tu.rand(3, 5), tu.rand(3, 5))
+
+
+# ==============================================================================
+
+
+class TripletMarginLossSumReductionModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 5], torch.float32, True),
+            ([3, 5], torch.float32, True),
+            ([3, 5], torch.float32, True),
+        ]
+    )
+    def forward(self, anchor, positive, negative):
+        return torch.ops.aten.triplet_margin_loss(
+            anchor, positive, negative, margin=1.0, p=2.0, swap=False, reduction=2
+        )
+
+
+@register_test_case(module_factory=lambda: TripletMarginLossSumReductionModule())
+def TripletMarginLossSumReductionModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5), tu.rand(3, 5), tu.rand(3, 5))

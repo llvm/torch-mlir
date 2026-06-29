@@ -793,6 +793,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::mse_loss_backward : (Tensor, Tensor, Tensor, int) -> (Tensor)")
     emit("aten::l1_loss : (Tensor, Tensor, int) -> (Tensor)")
     emit(
+        "aten::triplet_margin_loss : (Tensor, Tensor, Tensor, float, float, float, bool, int) -> (Tensor)"
+    )
+    emit(
         "aten::upsample_nearest2d_backward : (Tensor, int[], int[], float?, float?) -> (Tensor)"
     )
     emit(

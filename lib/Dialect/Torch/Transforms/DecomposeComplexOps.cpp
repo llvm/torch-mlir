@@ -10355,6 +10355,129 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.triplet_margin_loss` following the PyTorch reference
+// (aten/src/ATen/native/Loss.cpp):
+//   d(x1, x2) = ||x1 - x2 + eps||_p reduced over the last dim
+//   loss = clampMin(margin + d(a, p) - d(a, n), 0)
+//   swap: d(a, n) <- min(d(a, n), d(p, n))
+// then apply the reduction.
+class DecomposeAtenTripletMarginLossOp
+    : public OpRewritePattern<AtenTripletMarginLossOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenTripletMarginLossOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value anchor = op.getAnchor();
+    Value positive = op.getPositive();
+    Value negative = op.getNegative();
+
+    auto anchorTy = dyn_cast<BaseTensorType>(anchor.getType());
+    if (!anchorTy || !anchorTy.hasSizes() || !anchorTy.hasDtype())
+      return rewriter.notifyMatchFailure(
+          op, "expected anchor to be a tensor with sizes and a dtype");
+    auto positiveTy = dyn_cast<BaseTensorType>(positive.getType());
+    if (!positiveTy || !positiveTy.hasDtype())
+      return rewriter.notifyMatchFailure(
+          op, "expected positive to be a tensor with a dtype");
+    auto negativeTy = dyn_cast<BaseTensorType>(negative.getType());
+    if (!negativeTy || !negativeTy.hasDtype())
+      return rewriter.notifyMatchFailure(
+          op, "expected negative to be a tensor with a dtype");
+
+    auto outTy = dyn_cast<BaseTensorType>(op.getType());
+    if (!outTy || !outTy.hasDtype())
+      return rewriter.notifyMatchFailure(
+          op, "expected output to be a tensor with a dtype");
+
+    ArrayRef<int64_t> anchorSizes = anchorTy.getSizes();
+    if (anchorSizes.empty())
+      return rewriter.notifyMatchFailure(op,
+                                         "expected anchor to have rank >= 1");
+    // This decomposition assumes the three inputs share a shape; it does not
+    // handle the broadcasting that pairwise_distance otherwise allows.
+    if (!positiveTy.hasSizes() || positiveTy.getSizes() != anchorSizes ||
+        !negativeTy.hasSizes() || negativeTy.getSizes() != anchorSizes)
+      return rewriter.notifyMatchFailure(
+          op, "expected anchor, positive, negative to have the same shape");
+
+    int64_t reductionInt;
+    if (!matchPattern(op.getReduction(), m_TorchConstantInt(&reductionInt)))
+      return rewriter.notifyMatchFailure(
+          op, "expected reduction to be a constant int");
+
+    bool swap;
+    if (!matchPattern(op.getSwap(), m_TorchConstantBool(&swap)))
+      return rewriter.notifyMatchFailure(
+          op, "expected swap to be a constant bool");
+
+    Type outDtype = outTy.getDtype();
+    if (anchorTy.getDtype() != outDtype)
+      anchor = convertTensorToDtype(rewriter, loc, anchor, outDtype);
+    if (positiveTy.getDtype() != outDtype)
+      positive = convertTensorToDtype(rewriter, loc, positive, outDtype);
+    if (negativeTy.getDtype() != outDtype)
+      negative = convertTensorToDtype(rewriter, loc, negative, outDtype);
+
+    Type subTy = anchorTy.getWithSizesAndDtype(anchorSizes, outDtype);
+    SmallVector<int64_t> distSizes(anchorSizes.begin(), anchorSizes.end() - 1);
+    Type distTy = anchorTy.getWithSizesAndDtype(distSizes, outDtype);
+
+    Value p = op.getP();
+    Value eps = op.getEps();
+    Value margin = op.getMargin();
+    Value one =
+        ConstantFloatOp::create(rewriter, loc, rewriter.getF64FloatAttr(1.0));
+    Value zero =
+        ConstantFloatOp::create(rewriter, loc, rewriter.getF64FloatAttr(0.0));
+    Value none = ConstantNoneOp::create(rewriter, loc);
+    Value cstFalse = ConstantBoolOp::create(rewriter, loc, false);
+    Value negOne =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(-1));
+    Value lastDim = PrimListConstructOp::create(
+        rewriter, loc,
+        Torch::ListType::get(Torch::IntType::get(op.getContext())),
+        SmallVector<Value>{negOne});
+
+    // d(x1, x2) = ||x1 - x2 + eps||_p over the last dim.
+    auto pairwiseDist = [&](Value x1, Value x2) -> Value {
+      Value diff = createTensorSub(rewriter, loc, subTy, x1, x2);
+      Value shifted =
+          AtenAddScalarOp::create(rewriter, loc, subTy, diff, eps, one);
+      return AtenLinalgVectorNormOp::create(rewriter, loc, distTy, shifted, p,
+                                            lastDim, cstFalse, none);
+    };
+
+    Value distPos = pairwiseDist(anchor, positive);
+    Value distNeg = pairwiseDist(anchor, negative);
+    if (swap) {
+      Value distSwap = pairwiseDist(positive, negative);
+      distNeg = AtenMinimumOp::create(rewriter, loc, distTy, distNeg, distSwap);
+    }
+
+    Value diff = createTensorSub(rewriter, loc, distTy, distPos, distNeg);
+    Value shifted =
+        AtenAddScalarOp::create(rewriter, loc, distTy, diff, margin, one);
+    Value loss = AtenClampMinOp::create(rewriter, loc, distTy, shifted, zero);
+
+    if (reductionInt == torch_upstream::Reduction::None) {
+      rewriter.replaceOp(op, loss);
+      return success();
+    }
+    Value sum = AtenSumOp::create(rewriter, loc, outTy, loss, none);
+    if (reductionInt == torch_upstream::Reduction::Mean) {
+      Value numel = AtenNumelOp::create(rewriter, loc, loss);
+      Value mean = AtenDivScalarOp::create(rewriter, loc, outTy, sum, numel);
+      rewriter.replaceOp(op, mean);
+      return success();
+    }
+    rewriter.replaceOp(op, sum);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.norm.ScalarOpt_dim` op to `aten.linalg_vector_norm` op
 class DecomposeAtenNormScalarOptDimOp
     : public OpRewritePattern<AtenNormScalarOptDimOp> {
@@ -13620,6 +13743,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenLiftFreshCopyOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMseLossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenL1LossOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenTripletMarginLossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNormScalarOptDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandintOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandintLowOp>(patterns);
