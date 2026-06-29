@@ -636,6 +636,8 @@ class FxImporter:
         method to control access to mutable buffers and parameters. Without that, the
         default policy is to capture them as frozen values.
         """
+        # Run before Torch IR import while FakeTensor storage metadata is still
+        # available.
         rewrite_as_strided(prog.graph)
         # Create lookaside table of placeholders/outputs.
         placeholder_nodes: Dict[str, Node] = {}
@@ -1051,6 +1053,9 @@ class FxImporter:
         TODO: This mechanism is deprecated by the `import_program` entry-point and
         it should be removed when no longer required for backwards compatibility.
         """
+        # Run before Torch IR import while FakeTensor storage metadata is still
+        # available. Graph-only callers may be rejected if safe rewriting needs
+        # owning GraphModule state for generated index tensors.
         rewrite_as_strided(g)
         ftype, loc = self._graph_to_function_meta(g)
         # TODO: The FuncOp constructor requires a context-manager context.

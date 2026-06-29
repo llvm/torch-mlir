@@ -23,11 +23,11 @@ def rewrite_as_strided(g: fx.Graph) -> bool:
     base tensor that still has the needed storage layout. The rewrite preserves
     result values for supported static cases; it does not preserve view aliasing.
 
-    The graph must belong to a ``GraphModule`` because generated index tensors
-    are attached as synthetic buffers and read back through ``get_attr`` nodes.
-    Dynamic requests, out-of-bounds requests, and requests whose storage offsets
-    cannot be mapped to base indices raise ``ValueError`` before Torch IR import.
-    Returns ``True`` if the graph changed.
+    The graph must have an owning ``GraphModule`` because generated index
+    tensors are attached as synthetic buffers and read back through ``get_attr``
+    nodes. Dynamic requests, out-of-bounds requests, and requests whose storage
+    offsets cannot be mapped to base indices raise ``ValueError`` before Torch
+    IR import. Returns ``True`` if the graph changed.
     """
     changed = False
     # Walk a snapshot from the back so nested as_strided users are rewritten
