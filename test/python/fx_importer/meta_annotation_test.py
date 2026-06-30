@@ -55,9 +55,7 @@ def test_arg_attrs_from_meta():
                 }
                 break
 
-    m = fx.export_and_import(
-        TwoLinear(), torch.randn(1, 4), annotate=annotate
-    )
+    m = fx.export_and_import(TwoLinear(), torch.randn(1, 4), annotate=annotate)
     print(m)
 
 
@@ -77,9 +75,7 @@ def test_op_attrs_from_meta():
                 "my.range_lo": -1.0 if i == 0 else 2.5,
             }
 
-    m = fx.export_and_import(
-        TwoLinear(), torch.randn(1, 4), annotate=annotate
-    )
+    m = fx.export_and_import(TwoLinear(), torch.randn(1, 4), annotate=annotate)
     print(m)
 
 
@@ -94,9 +90,7 @@ def test_arg_attr_skipped_when_false():
                 n.meta["mlir.arg_attrs"] = {"my.secret": False}
                 break
 
-    m = fx.export_and_import(
-        TwoLinear(), torch.randn(1, 4), annotate=annotate
-    )
+    m = fx.export_and_import(TwoLinear(), torch.randn(1, 4), annotate=annotate)
     print(m)
 
 
@@ -182,9 +176,7 @@ class ReluThenLinear(nn.Module):
 def test_lift_user_attrs_through_pipeline():
     def annotate(prog):
         annotate_arg(prog, "x", {"my.secret": True})
-        annotate_module(
-            prog, "act", {"my.range_lo": -7.0, "my.range_hi": 7.0}
-        )
+        annotate_module(prog, "act", {"my.range_lo": -7.0, "my.range_hi": 7.0})
 
     m = fx.export_and_import(
         ReluThenLinear(),

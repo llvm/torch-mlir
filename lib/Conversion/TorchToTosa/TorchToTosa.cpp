@@ -2215,12 +2215,11 @@ public:
     auto mmOutputTy = RankedTensorType::get(
         makeShapeLLVMCompatible(matmulOutputShape), accElemTy);
 
-    auto matmulOp =
-        tosa::MatMulOp::create(
-            rewriter, op->getLoc(),
-            OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-                mmOutputTy),
-            matmulLhs, matmulRhs, lhsZp, rhsZp);
+    auto matmulOp = tosa::MatMulOp::create(
+        rewriter, op->getLoc(),
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            mmOutputTy),
+        matmulLhs, matmulRhs, lhsZp, rhsZp);
     forwardUserDiscardableAttrs(op, matmulOp);
     Value mmOpResult = matmulOp.getResult();
 

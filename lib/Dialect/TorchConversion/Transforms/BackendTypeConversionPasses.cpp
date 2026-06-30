@@ -365,8 +365,7 @@ static void liftFuncArgAttrs(func::FuncOp func) {
     func.setAllArgAttrs(newArgAttrs);
 }
 
-struct LiftUserAttrsPass
-    : public impl::LiftUserAttrsBase<LiftUserAttrsPass> {
+struct LiftUserAttrsPass : public impl::LiftUserAttrsBase<LiftUserAttrsPass> {
   using LiftUserAttrsBase::LiftUserAttrsBase;
   void runOnOperation() override {
     ModuleOp module = getOperation();

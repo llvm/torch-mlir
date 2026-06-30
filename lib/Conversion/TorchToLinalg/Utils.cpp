@@ -257,9 +257,9 @@ Value torch_to_linalg::createReductionLinalgGeneric(
       createInitTensor(b, loc, resultShape, initElem.getType(), initElem);
 
   auto genericOp = linalg::GenericOp::create(
-             b, loc, /*resultTensorTypes=*/accumulator.getType(),
-             /*inputs=*/opInfo.tensorOperand,
-             /*outputs=*/accumulator, indexingMaps, iteratorTypes, bodyBuild);
+      b, loc, /*resultTensorTypes=*/accumulator.getType(),
+      /*inputs=*/opInfo.tensorOperand,
+      /*outputs=*/accumulator, indexingMaps, iteratorTypes, bodyBuild);
   if (sourceOp)
     forwardUserDiscardableAttrs(sourceOp, genericOp);
   return genericOp.getResult(0);
@@ -390,11 +390,11 @@ Value torch_to_linalg::createElementwiseLinalgGeneric(
 
   Value initTensor = tensor::EmptyOp::create(
       b, loc, getAsOpFoldResult(resultShape), resultElementType);
-  auto genericOp = linalg::GenericOp::create(b, loc,
-                                   /*resultTensorTypes=*/initTensor.getType(),
-                                   /*inputs=*/tensorOperands,
-                                   /*outputs=*/initTensor, indexingMaps,
-                                   iteratorTypes, bodyBuild);
+  auto genericOp = linalg::GenericOp::create(
+      b, loc,
+      /*resultTensorTypes=*/initTensor.getType(),
+      /*inputs=*/tensorOperands,
+      /*outputs=*/initTensor, indexingMaps, iteratorTypes, bodyBuild);
   if (sourceOp)
     forwardUserDiscardableAttrs(sourceOp, genericOp);
   return genericOp.getResult(0);

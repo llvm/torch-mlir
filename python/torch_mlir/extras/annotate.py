@@ -61,7 +61,8 @@ def annotate_arg(
     and pass explicit `mlir.ir.BoolAttr` objects.
     """
     user_names = [
-        s.arg.name for s in prog.graph_signature.input_specs
+        s.arg.name
+        for s in prog.graph_signature.input_specs
         if s.kind == InputKind.USER_INPUT
     ]
     if isinstance(name_or_index, bool) or not isinstance(name_or_index, (str, int)):

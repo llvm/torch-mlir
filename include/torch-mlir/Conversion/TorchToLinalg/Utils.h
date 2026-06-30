@@ -85,7 +85,6 @@ Value createElementwiseLinalgGeneric(
     function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild,
     Operation *sourceOp = nullptr);
 
-
 // Broadcasts input tensor based on the broadcastToShape.
 LogicalResult broadcastToGivenShape(Operation *op, PatternRewriter &rewriter,
                                     Value input,
