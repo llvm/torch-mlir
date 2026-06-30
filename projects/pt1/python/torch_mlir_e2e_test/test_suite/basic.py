@@ -5940,6 +5940,81 @@ def SortTensorNegativeDimension_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
 
 
+class SortTensorInfStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([2], torch.float32, True)])
+    def forward(self, input):
+        return torch.sort(input)
+
+
+@register_test_case(module_factory=lambda: SortTensorInfStaticModule())
+def SortTensorInfStaticModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([0.0, torch.inf]))
+
+
+class SortTensorNegInfDescendingStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([2], torch.float32, True)])
+    def forward(self, input):
+        return torch.sort(input, descending=True)
+
+
+@register_test_case(module_factory=lambda: SortTensorNegInfDescendingStaticModule())
+def SortTensorNegInfDescendingStaticModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([0.0, -torch.inf]))
+
+
+class SortTensorNaNInfStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([6], torch.float32, True)])
+    def forward(self, input):
+        return torch.sort(input)
+
+
+@register_test_case(module_factory=lambda: SortTensorNaNInfStaticModule())
+def SortTensorNaNInfStaticModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([0.0, torch.nan, torch.inf, -torch.inf, 2.0, -1.0]))
+
+
+class SortTensorLargeStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([129], torch.float32, True)])
+    def forward(self, input):
+        return torch.sort(input)
+
+
+@register_test_case(module_factory=lambda: SortTensorLargeStaticModule())
+def SortTensorLargeStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(129))
+
+
+class SortTensorEmptyDimStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([2, 0], torch.float32, True)])
+    def forward(self, input):
+        return torch.sort(input, dim=1)
+
+
+@register_test_case(module_factory=lambda: SortTensorEmptyDimStaticModule())
+def SortTensorEmptyDimStaticModule_basic(module, tu: TestUtils):
+    module.forward(torch.empty(2, 0))
+
+
 class ArgsortTensor(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -6603,6 +6678,81 @@ class AtenTopKSmallestModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenTopKSmallestModule())
 def AtenTopKSmallestModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 40, 50))
+
+
+class AtenTopKInfStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([1, 4], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.topk(x, k=2, dim=-1, largest=True, sorted=True)
+
+
+@register_test_case(module_factory=lambda: AtenTopKInfStaticModule())
+def AtenTopKInfStaticModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([[0.0, torch.inf, -1.0, 2.0]]))
+
+
+class AtenTopKSmallestNegInfStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([1, 4], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.topk(x, k=2, dim=-1, largest=False, sorted=True)
+
+
+@register_test_case(module_factory=lambda: AtenTopKSmallestNegInfStaticModule())
+def AtenTopKSmallestNegInfStaticModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([[0.0, -torch.inf, 1.0, -2.0]]))
+
+
+class AtenTopKNaNInfStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([1, 6], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.topk(x, k=3, dim=-1, largest=True, sorted=True)
+
+
+@register_test_case(module_factory=lambda: AtenTopKNaNInfStaticModule())
+def AtenTopKNaNInfStaticModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([[0.0, torch.nan, torch.inf, -torch.inf, 2.0, -1.0]]))
+
+
+class AtenTopKSmallestNaNInfStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([1, 6], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.topk(x, k=6, dim=-1, largest=False, sorted=True)
+
+
+@register_test_case(module_factory=lambda: AtenTopKSmallestNaNInfStaticModule())
+def AtenTopKSmallestNaNInfStaticModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([[0.0, torch.nan, torch.inf, -torch.inf, 2.0, -1.0]]))
+
+
+class AtenTopKLargeKStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([1, 200], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.topk(x, k=129, dim=-1, largest=True, sorted=True)
+
+
+@register_test_case(module_factory=lambda: AtenTopKLargeKStaticModule())
+def AtenTopKLargeKStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 200))
 
 
 # ==============================================================================

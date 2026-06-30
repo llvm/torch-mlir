@@ -5609,6 +5609,171 @@ func.func @torch.aten.avg_pool1d.count_include_pad_needs_slice(%arg0: !torch.vte
   }
 
 // -----
+
+// CHECK-LABEL:   func.func @torch.aten.topk.decomposed_prefix_slice(
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[5,10,5],f32>) -> (!torch.vtensor<[5,2,5],f32>, !torch.vtensor<[5,2,5],si64>) {
+// CHECK:           %[[INPUT:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[5,10,5],f32> -> tensor<5x10x5xf32>
+// CHECK:           %[[ORDERED:.*]] = tosa.transpose %[[INPUT]] {perms = array<i32: 0, 2, 1>} : (tensor<5x10x5xf32>) -> tensor<5x5x10xf32>
+// CHECK:           %[[RESHAPED:.*]] = tosa.reshape %[[ORDERED]], {{.*}} : (tensor<5x5x10xf32>, !tosa.shape<3>) -> tensor<25x10x1xf32>
+// CHECK:           %[[SENTINEL:.*]] = "tosa.const"() <{values = dense<0xFF800000> : tensor<25x1x1xf32>}> : () -> tensor<25x1x1xf32>
+// CHECK:           %[[SENTINEL_FULL:.*]] = "tosa.const"() <{values = dense<0xFF800000> : tensor<25x10x1xf32>}> : () -> tensor<25x10x1xf32>
+// CHECK:           %[[NON_NAN:.*]] = tosa.equal %[[RESHAPED]], %[[RESHAPED]] : (tensor<25x10x1xf32>, tensor<25x10x1xf32>) -> tensor<25x10x1xi1>
+// CHECK:           %[[NAN_MASK:.*]] = tosa.logical_not %[[NON_NAN]] : (tensor<25x10x1xi1>) -> tensor<25x10x1xi1>
+// CHECK:           %[[UNSELECTED0:.*]] = tosa.equal {{.*}} : (tensor<25x10x1xi32>, tensor<25x10x1xi32>) -> tensor<25x10x1xi1>
+// CHECK:           %[[UNSELECTED_NUMERIC0:.*]] = tosa.logical_and %[[UNSELECTED0]], %[[NON_NAN]] : (tensor<25x10x1xi1>, tensor<25x10x1xi1>) -> tensor<25x10x1xi1>
+// CHECK:           %[[UNSELECTED_NAN0:.*]] = tosa.logical_and %[[UNSELECTED0]], %[[NAN_MASK]] : (tensor<25x10x1xi1>, tensor<25x10x1xi1>) -> tensor<25x10x1xi1>
+// CHECK:           %[[NUMERIC_SCORE0:.*]] = tosa.select %[[UNSELECTED_NUMERIC0]], {{.*}}, {{.*}} : (tensor<25x10x1xi1>, tensor<25x10x1xi8>, tensor<25x10x1xi8>) -> tensor<25x10x1xi8>
+// CHECK:           %[[NUMERIC_FALLBACK_IDX0:.*]] = tosa.argmax %[[NUMERIC_SCORE0]] {axis = 1 : i32} : (tensor<25x10x1xi8>) -> tensor<25x1xi32>
+// CHECK:           %[[NAN_SCORE0:.*]] = tosa.select %[[UNSELECTED_NAN0]], {{.*}}, {{.*}} : (tensor<25x10x1xi1>, tensor<25x10x1xi8>, tensor<25x10x1xi8>) -> tensor<25x10x1xi8>
+// CHECK:           %[[NAN_IDX0:.*]] = tosa.argmax %[[NAN_SCORE0]] {axis = 1 : i32} : (tensor<25x10x1xi8>) -> tensor<25x1xi32>
+// CHECK:           %[[NUMERIC_INPUT0:.*]] = tosa.select %[[UNSELECTED_NUMERIC0]], %[[RESHAPED]], %[[SENTINEL_FULL]] : (tensor<25x10x1xi1>, tensor<25x10x1xf32>, tensor<25x10x1xf32>) -> tensor<25x10x1xf32>
+// CHECK:           %[[NUMERIC_IDX0:.*]] = tosa.argmax %[[NUMERIC_INPUT0]] {axis = 1 : i32} : (tensor<25x10x1xf32>) -> tensor<25x1xi32>
+// CHECK:           %[[SELECTED_NUMERIC_IDX0:.*]] = tosa.select {{.*}}, %[[NUMERIC_IDX0]], %[[NUMERIC_FALLBACK_IDX0]] : (tensor<25x1xi1>, tensor<25x1xi32>, tensor<25x1xi32>) -> tensor<25x1xi32>
+// CHECK:           %[[SELECTED_IDX0:.*]] = tosa.select {{.*}}, %[[NAN_IDX0]], %[[SELECTED_NUMERIC_IDX0]] : (tensor<25x1xi1>, tensor<25x1xi32>, tensor<25x1xi32>) -> tensor<25x1xi32>
+// CHECK:           %[[VALUE0:.*]] = tosa.gather %[[RESHAPED]], %[[SELECTED_IDX0]] : (tensor<25x10x1xf32>, tensor<25x1xi32>) -> tensor<25x1x1xf32>
+// CHECK:           %[[IDX0_RESHAPED:.*]] = tosa.reshape %[[SELECTED_IDX0]], {{.*}} : (tensor<25x1xi32>, !tosa.shape<3>) -> tensor<25x1x1xi32>
+// CHECK:           %[[MASKED0:.*]] = tosa.scatter %[[RESHAPED]], %[[SELECTED_IDX0]], %[[SENTINEL]] : (tensor<25x10x1xf32>, tensor<25x1xi32>, tensor<25x1x1xf32>) -> tensor<25x10x1xf32>
+// CHECK:           %[[SELECTED_MASK0:.*]] = tosa.scatter {{.*}}, %[[SELECTED_IDX0]], {{.*}} : (tensor<25x10x1xi8>, tensor<25x1xi32>, tensor<25x1x1xi8>) -> tensor<25x10x1xi8>
+// CHECK:           %[[SELECTED_MASK0_I32:.*]] = tosa.cast %[[SELECTED_MASK0]] : (tensor<25x10x1xi8>) -> tensor<25x10x1xi32>
+// CHECK:           %[[UNSELECTED1:.*]] = tosa.equal %[[SELECTED_MASK0_I32]], {{.*}} : (tensor<25x10x1xi32>, tensor<25x10x1xi32>) -> tensor<25x10x1xi1>
+// CHECK:           %[[UNSELECTED_NUMERIC1:.*]] = tosa.logical_and %[[UNSELECTED1]], %[[NON_NAN]] : (tensor<25x10x1xi1>, tensor<25x10x1xi1>) -> tensor<25x10x1xi1>
+// CHECK:           %[[NUMERIC_INPUT1:.*]] = tosa.select %[[UNSELECTED_NUMERIC1]], %[[MASKED0]], %[[SENTINEL_FULL]] : (tensor<25x10x1xi1>, tensor<25x10x1xf32>, tensor<25x10x1xf32>) -> tensor<25x10x1xf32>
+// CHECK:           %[[SELECTED_NUMERIC_IDX1:.*]] = tosa.select {{.*}} : (tensor<25x1xi1>, tensor<25x1xi32>, tensor<25x1xi32>) -> tensor<25x1xi32>
+// CHECK:           %[[SELECTED_IDX1:.*]] = tosa.select {{.*}}, {{.*}}, %[[SELECTED_NUMERIC_IDX1]] : (tensor<25x1xi1>, tensor<25x1xi32>, tensor<25x1xi32>) -> tensor<25x1xi32>
+// CHECK:           %[[VALUE1:.*]] = tosa.gather %[[RESHAPED]], %[[SELECTED_IDX1]] : (tensor<25x10x1xf32>, tensor<25x1xi32>) -> tensor<25x1x1xf32>
+// CHECK:           %[[IDX1_RESHAPED:.*]] = tosa.reshape %[[SELECTED_IDX1]], {{.*}} : (tensor<25x1xi32>, !tosa.shape<3>) -> tensor<25x1x1xi32>
+// CHECK-NOT:       tosa.argmax
+// CHECK-NOT:       tosa.slice
+// CHECK:           %[[VALUES_CONCAT:.*]] = tosa.concat %[[VALUE0]], %[[VALUE1]] {axis = 1 : i32} : (tensor<25x1x1xf32>, tensor<25x1x1xf32>) -> tensor<25x2x1xf32>
+// CHECK:           %[[INDICES_CONCAT:.*]] = tosa.concat %[[IDX0_RESHAPED]], %[[IDX1_RESHAPED]] {axis = 1 : i32} : (tensor<25x1x1xi32>, tensor<25x1x1xi32>) -> tensor<25x2x1xi32>
+// CHECK:           %[[VALUES_ORDERED:.*]] = tosa.reshape %[[VALUES_CONCAT]], {{.*}} : (tensor<25x2x1xf32>, !tosa.shape<3>) -> tensor<5x5x2xf32>
+// CHECK:           %[[INDICES_ORDERED:.*]] = tosa.reshape %[[INDICES_CONCAT]], {{.*}} : (tensor<25x2x1xi32>, !tosa.shape<3>) -> tensor<5x5x2xi32>
+// CHECK:           %[[VALUES:.*]] = tosa.transpose %[[VALUES_ORDERED]] {perms = array<i32: 0, 2, 1>} : (tensor<5x5x2xf32>) -> tensor<5x2x5xf32>
+// CHECK:           %[[TORCH_VALUES:.*]] = torch_c.from_builtin_tensor %[[VALUES]] : tensor<5x2x5xf32> -> !torch.vtensor<[5,2,5],f32>
+// CHECK:           %[[INDICES_I32:.*]] = tosa.transpose %[[INDICES_ORDERED]] {perms = array<i32: 0, 2, 1>} : (tensor<5x5x2xi32>) -> tensor<5x2x5xi32>
+// CHECK:           %[[INDICES:.*]] = tosa.cast %[[INDICES_I32]] : (tensor<5x2x5xi32>) -> tensor<5x2x5xi64>
+// CHECK:           %[[TORCH_INDICES:.*]] = torch_c.from_builtin_tensor %[[INDICES]] : tensor<5x2x5xi64> -> !torch.vtensor<[5,2,5],si64>
+// CHECK:           return %[[TORCH_VALUES]], %[[TORCH_INDICES]]
+func.func @torch.aten.topk.decomposed_prefix_slice(%arg0: !torch.vtensor<[5,10,5],f32>) -> (!torch.vtensor<[5,2,5],f32>, !torch.vtensor<[5,2,5],si64>) {
+  %dim = torch.constant.int 1
+  %true = torch.constant.bool true
+  %zero = torch.constant.int 0
+  %two = torch.constant.int 2
+  %one = torch.constant.int 1
+  %values, %indices = torch.aten.sort %arg0, %dim, %true : !torch.vtensor<[5,10,5],f32>, !torch.int, !torch.bool -> !torch.vtensor<[5,10,5],f32>, !torch.vtensor<[5,10,5],si64>
+  %top_values = torch.aten.slice.Tensor %values, %dim, %zero, %two, %one : !torch.vtensor<[5,10,5],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[5,2,5],f32>
+  %top_indices = torch.aten.slice.Tensor %indices, %dim, %zero, %two, %one : !torch.vtensor<[5,10,5],si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[5,2,5],si64>
+  return %top_values, %top_indices : !torch.vtensor<[5,2,5],f32>, !torch.vtensor<[5,2,5],si64>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.sort.full_ascending_last_dim(
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],si64>) {
+// CHECK:           %[[INPUT:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[2,3],f32> -> tensor<2x3xf32>
+// CHECK:           %[[RESHAPED:.*]] = tosa.reshape %[[INPUT]], {{.*}} : (tensor<2x3xf32>, !tosa.shape<3>) -> tensor<2x3x1xf32>
+// CHECK:           %[[NON_NAN:.*]] = tosa.equal %[[RESHAPED]], %[[RESHAPED]] : (tensor<2x3x1xf32>, tensor<2x3x1xf32>) -> tensor<2x3x1xi1>
+// CHECK:           %[[NAN_MASK:.*]] = tosa.logical_not %[[NON_NAN]] : (tensor<2x3x1xi1>) -> tensor<2x3x1xi1>
+// CHECK:           %[[UNSELECTED0:.*]] = tosa.equal {{.*}} : (tensor<2x3x1xi32>, tensor<2x3x1xi32>) -> tensor<2x3x1xi1>
+// CHECK:           %[[UNSELECTED_NUMERIC0:.*]] = tosa.logical_and %[[UNSELECTED0]], %[[NON_NAN]] : (tensor<2x3x1xi1>, tensor<2x3x1xi1>) -> tensor<2x3x1xi1>
+// CHECK:           %[[UNSELECTED_NAN0:.*]] = tosa.logical_and %[[UNSELECTED0]], %[[NAN_MASK]] : (tensor<2x3x1xi1>, tensor<2x3x1xi1>) -> tensor<2x3x1xi1>
+// CHECK:           %[[NUMERIC_SCORE0:.*]] = tosa.select %[[UNSELECTED_NUMERIC0]], {{.*}}, {{.*}} : (tensor<2x3x1xi1>, tensor<2x3x1xi8>, tensor<2x3x1xi8>) -> tensor<2x3x1xi8>
+// CHECK:           %[[NUMERIC_FALLBACK_IDX0:.*]] = tosa.argmax %[[NUMERIC_SCORE0]] {axis = 1 : i32} : (tensor<2x3x1xi8>) -> tensor<2x1xi32>
+// CHECK:           %[[NAN_SCORE0:.*]] = tosa.select %[[UNSELECTED_NAN0]], {{.*}}, {{.*}} : (tensor<2x3x1xi1>, tensor<2x3x1xi8>, tensor<2x3x1xi8>) -> tensor<2x3x1xi8>
+// CHECK:           %[[NAN_IDX0:.*]] = tosa.argmax %[[NAN_SCORE0]] {axis = 1 : i32} : (tensor<2x3x1xi8>) -> tensor<2x1xi32>
+// CHECK:           %[[NUMERIC_INPUT0:.*]] = tosa.select %[[UNSELECTED_NUMERIC0]], %[[RESHAPED]], {{.*}} : (tensor<2x3x1xi1>, tensor<2x3x1xf32>, tensor<2x3x1xf32>) -> tensor<2x3x1xf32>
+// CHECK:           %[[NEGATED0:.*]] = tosa.negate %[[NUMERIC_INPUT0]]{{.*}} : (tensor<2x3x1xf32>{{.*}}) -> tensor<2x3x1xf32>
+// CHECK:           %[[NUMERIC_IDX0:.*]] = tosa.argmax %[[NEGATED0]] {axis = 1 : i32} : (tensor<2x3x1xf32>) -> tensor<2x1xi32>
+// CHECK:           %[[SELECTED_NUMERIC_IDX0:.*]] = tosa.select {{.*}}, %[[NUMERIC_IDX0]], %[[NUMERIC_FALLBACK_IDX0]] : (tensor<2x1xi1>, tensor<2x1xi32>, tensor<2x1xi32>) -> tensor<2x1xi32>
+// CHECK:           %[[SELECTED_IDX0:.*]] = tosa.select {{.*}}, %[[SELECTED_NUMERIC_IDX0]], %[[NAN_IDX0]] : (tensor<2x1xi1>, tensor<2x1xi32>, tensor<2x1xi32>) -> tensor<2x1xi32>
+// CHECK:           %[[VALUE0:.*]] = tosa.gather %[[RESHAPED]], %[[SELECTED_IDX0]] : (tensor<2x3x1xf32>, tensor<2x1xi32>) -> tensor<2x1x1xf32>
+// CHECK:           %[[MASKED0:.*]] = tosa.scatter %[[RESHAPED]], %[[SELECTED_IDX0]], {{.*}} : (tensor<2x3x1xf32>, tensor<2x1xi32>, tensor<2x1x1xf32>) -> tensor<2x3x1xf32>
+// CHECK:           %[[SELECTED_MASK0:.*]] = tosa.scatter {{.*}}, %[[SELECTED_IDX0]], {{.*}} : (tensor<2x3x1xi8>, tensor<2x1xi32>, tensor<2x1x1xi8>) -> tensor<2x3x1xi8>
+// CHECK:           %[[VALUE1:.*]] = tosa.gather %[[RESHAPED]], {{.*}} : (tensor<2x3x1xf32>, tensor<2x1xi32>) -> tensor<2x1x1xf32>
+// CHECK:           %[[VALUE2:.*]] = tosa.gather %[[RESHAPED]], {{.*}} : (tensor<2x3x1xf32>, tensor<2x1xi32>) -> tensor<2x1x1xf32>
+// CHECK:           %[[VALUES_CONCAT:.*]] = tosa.concat %[[VALUE0]], %[[VALUE1]], %[[VALUE2]] {axis = 1 : i32} : (tensor<2x1x1xf32>, tensor<2x1x1xf32>, tensor<2x1x1xf32>) -> tensor<2x3x1xf32>
+// CHECK:           %[[VALUES:.*]] = tosa.reshape %[[VALUES_CONCAT]], {{.*}} : (tensor<2x3x1xf32>, !tosa.shape<2>) -> tensor<2x3xf32>
+// CHECK:           %[[TORCH_VALUES:.*]] = torch_c.from_builtin_tensor %[[VALUES]] : tensor<2x3xf32> -> !torch.vtensor<[2,3],f32>
+// CHECK:           %[[INDICES:.*]] = tosa.cast {{.*}} : (tensor<2x3xi32>) -> tensor<2x3xi64>
+// CHECK:           %[[TORCH_INDICES:.*]] = torch_c.from_builtin_tensor %[[INDICES]] : tensor<2x3xi64> -> !torch.vtensor<[2,3],si64>
+// CHECK:           return %[[TORCH_VALUES]], %[[TORCH_INDICES]]
+func.func @torch.aten.sort.full_ascending_last_dim(%arg0: !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],si64>) {
+  %dim = torch.constant.int 1
+  %false = torch.constant.bool false
+  %values, %indices = torch.aten.sort %arg0, %dim, %false : !torch.vtensor<[2,3],f32>, !torch.int, !torch.bool -> !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],si64>
+  return %values, %indices : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],si64>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.sort.rank_zero(
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[],f32>) -> (!torch.vtensor<[],f32>, !torch.vtensor<[],si64>) {
+// CHECK:           %[[INDEX:.*]] = "tosa.const"() <{values = dense<0> : tensor<i64>}> : () -> tensor<i64>
+// CHECK:           %[[INDICES:.*]] = torch_c.from_builtin_tensor %[[INDEX]] : tensor<i64> -> !torch.vtensor<[],si64>
+// CHECK:           return %[[ARG0]], %[[INDICES]]
+func.func @torch.aten.sort.rank_zero(%arg0: !torch.vtensor<[],f32>) -> (!torch.vtensor<[],f32>, !torch.vtensor<[],si64>) {
+  %dim = torch.constant.int 0
+  %true = torch.constant.bool true
+  %values, %indices = torch.aten.sort %arg0, %dim, %true : !torch.vtensor<[],f32>, !torch.int, !torch.bool -> !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+  return %values, %indices : !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+}
+
+// -----
+
+func.func @torch.aten.sort.rank_zero_invalid_positive_dim(%arg0: !torch.vtensor<[],f32>) -> (!torch.vtensor<[],f32>, !torch.vtensor<[],si64>) {
+  %dim = torch.constant.int 1
+  %true = torch.constant.bool true
+  // expected-error @below {{failed to legalize operation 'torch.aten.sort' that was explicitly marked illegal}}
+  %values, %indices = torch.aten.sort %arg0, %dim, %true : !torch.vtensor<[],f32>, !torch.int, !torch.bool -> !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+  return %values, %indices : !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+}
+
+// -----
+
+func.func @torch.aten.sort.rank_zero_invalid_negative_dim(%arg0: !torch.vtensor<[],f32>) -> (!torch.vtensor<[],f32>, !torch.vtensor<[],si64>) {
+  %dim = torch.constant.int -2
+  %true = torch.constant.bool true
+  // expected-error @below {{failed to legalize operation 'torch.aten.sort' that was explicitly marked illegal}}
+  %values, %indices = torch.aten.sort %arg0, %dim, %true : !torch.vtensor<[],f32>, !torch.int, !torch.bool -> !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+  return %values, %indices : !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+}
+
+// -----
+
+func.func @torch.aten.sort.dim_size_exceeds_i32(%arg0: !torch.vtensor<[2147483648],f32>) -> (!torch.vtensor<[2147483648],f32>, !torch.vtensor<[2147483648],si64>) {
+  %dim = torch.constant.int 0
+  %true = torch.constant.bool true
+  // expected-error @below {{failed to legalize operation 'torch.aten.sort' that was explicitly marked illegal}}
+  %values, %indices = torch.aten.sort %arg0, %dim, %true : !torch.vtensor<[2147483648],f32>, !torch.int, !torch.bool -> !torch.vtensor<[2147483648],f32>, !torch.vtensor<[2147483648],si64>
+  return %values, %indices : !torch.vtensor<[2147483648],f32>, !torch.vtensor<[2147483648],si64>
+}
+
+// -----
+
+func.func @torch.aten.sort.full_dim_exceeds_tosa_selection_limit(%arg0: !torch.vtensor<[129],f32>) -> (!torch.vtensor<[129],f32>, !torch.vtensor<[129],si64>) {
+  %dim = torch.constant.int 0
+  %true = torch.constant.bool true
+  // expected-error @below {{failed to legalize operation 'torch.aten.sort' that was explicitly marked illegal}}
+  %values, %indices = torch.aten.sort %arg0, %dim, %true : !torch.vtensor<[129],f32>, !torch.int, !torch.bool -> !torch.vtensor<[129],f32>, !torch.vtensor<[129],si64>
+  return %values, %indices : !torch.vtensor<[129],f32>, !torch.vtensor<[129],si64>
+}
+
+// -----
+
+func.func @torch.aten.topk.decomposed_prefix_slice_exceeds_tosa_selection_limit(%arg0: !torch.vtensor<[200],f32>) -> (!torch.vtensor<[129],f32>, !torch.vtensor<[129],si64>) {
+  %dim = torch.constant.int 0
+  %true = torch.constant.bool true
+  %zero = torch.constant.int 0
+  %limit = torch.constant.int 129
+  %one = torch.constant.int 1
+  // expected-error @below {{failed to legalize operation 'torch.aten.sort' that was explicitly marked illegal}}
+  %values, %indices = torch.aten.sort %arg0, %dim, %true : !torch.vtensor<[200],f32>, !torch.int, !torch.bool -> !torch.vtensor<[200],f32>, !torch.vtensor<[200],si64>
+  %top_values = torch.aten.slice.Tensor %values, %dim, %zero, %limit, %one : !torch.vtensor<[200],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[129],f32>
+  %top_indices = torch.aten.slice.Tensor %indices, %dim, %zero, %limit, %one : !torch.vtensor<[200],si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[129],si64>
+  return %top_values, %top_indices : !torch.vtensor<[129],f32>, !torch.vtensor<[129],si64>
+}
+
+// -----
 func.func @torch.prim.NumToTensor.Scalar.unranked() -> !torch.vtensor<*,si64> {
     %int0 = torch.constant.int 0
     // expected-error @below {{failed to legalize operation 'torch.prim.NumToTensor.Scalar' that was explicitly marked illegal}}
