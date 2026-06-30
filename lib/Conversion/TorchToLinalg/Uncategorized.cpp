@@ -1829,10 +1829,7 @@ public:
     // strips the prefix to expose the user's chosen names.
     if (auto linalgGeneric =
             dyn_cast_or_null<linalg::GenericOp>(generic.getDefiningOp())) {
-      for (NamedAttribute attr : op->getDiscardableAttrs()) {
-        if (attr.getName().getValue().starts_with(kUserAttrPrefix))
-          linalgGeneric->setAttr(attr.getName(), attr.getValue());
-      }
+      forwardUserDiscardableAttrs(op, linalgGeneric);
     }
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, generic);
     return success();

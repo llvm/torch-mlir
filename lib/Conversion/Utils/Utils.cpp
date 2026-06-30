@@ -628,6 +628,15 @@ APFloat getFloatInf(mlir::FloatType fpType, bool negative,
              : APFloat::getLargest(fpType.getFloatSemantics(), negative);
 }
 
+void forwardUserDiscardableAttrs(Operation *from, Operation *to) {
+  if (!from || !to)
+    return;
+  for (NamedAttribute attr : from->getDiscardableAttrs()) {
+    if (attr.getName().getValue().starts_with(kUserAttrPrefix))
+      to->setAttr(attr.getName(), attr.getValue());
+  }
+}
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir
