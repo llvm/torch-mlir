@@ -965,13 +965,17 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   if (auto add = dyn_cast<AtenAddTensorOp>(op)) {
     AtenAddTensorOp::Adaptor adaptor(operands);
     Type resultElementType = cast<BaseTensorType>(add.getType()).getDtype();
+    Type lhsOriginalDtype =
+        cast<BaseTensorType>(add.getSelf().getType()).getDtype();
+    Type rhsOriginalDtype =
+        cast<BaseTensorType>(add.getOther().getType()).getDtype();
     Type dtype = cast<RankedTensorType>(converter->convertType(add.getType()))
                      .getElementType();
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype,
-                                     /*srcOriginalDtype=*/std::nullopt,
+                                     /*srcOriginalDtype=*/lhsOriginalDtype,
                                      /*dstOriginalDtype=*/resultElementType);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype,
-                                     /*srcOriginalDtype=*/std::nullopt,
+                                     /*srcOriginalDtype=*/rhsOriginalDtype,
                                      /*dstOriginalDtype=*/resultElementType);
     Value alpha = convertScalarToDtype(b, loc, adaptor.getAlpha(), dtype,
                                        /*srcOriginalDtype=*/std::nullopt,
@@ -992,11 +996,15 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type dtype = cast<RankedTensorType>(converter->convertType(sub.getType()))
                      .getElementType();
     Type resultElementType = cast<BaseTensorType>(sub.getType()).getDtype();
+    Type lhsOriginalDtype =
+        cast<BaseTensorType>(sub.getSelf().getType()).getDtype();
+    Type rhsOriginalDtype =
+        cast<BaseTensorType>(sub.getOther().getType()).getDtype();
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype,
-                                     /*srcOriginalDtype=*/std::nullopt,
+                                     /*srcOriginalDtype=*/lhsOriginalDtype,
                                      /*dstOriginalDtype=*/resultElementType);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype,
-                                     /*srcOriginalDtype=*/std::nullopt,
+                                     /*srcOriginalDtype=*/rhsOriginalDtype,
                                      /*dstOriginalDtype=*/resultElementType);
     Value alpha = convertScalarToDtype(b, loc, adaptor.getAlpha(), dtype,
                                        /*srcOriginalDtype=*/std::nullopt,
