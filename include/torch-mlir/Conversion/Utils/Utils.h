@@ -150,6 +150,13 @@ FailureOr<QDQMatmulChain> matchQDQMatmulChain(Operation *mmOp, Value lhsTorch,
 // predicates.
 bool feedsFusableQDQMatmul(QuantizedDecomposedDequantizePerTensorOp dqOp);
 
+// Decompose a positive compile-time scale into a Q31 fixed-point multiplier
+// and a right-shift count such that:
+//   scale ≈ multiplier * 2^(-shift)
+// multiplier is in (0, 2^31-1], shift = 31 - frexp_exponent.
+// Returns failure if shift is outside [1, 62] (scale out of Q31 range).
+FailureOr<std::pair<int32_t, int32_t>> quantizeMultiplier(double scale);
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

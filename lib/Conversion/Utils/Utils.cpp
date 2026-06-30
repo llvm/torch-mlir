@@ -18,6 +18,8 @@
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/TypeSwitch.h"
 
+#include <cmath>
+
 namespace mlir {
 namespace torch {
 namespace Torch {
@@ -663,28 +665,61 @@ FailureOr<QDQMatmulChain> matchQDQMatmulChain(Operation *mmOp, Value lhsTorch,
                     m_TorchConstantInt(&chain.rhsZp)))
     return failure();
 
-  // For AtenMatmulOp with both ranks > 2, bail if there are multiple dynamic
-  // batch dims — the fusion cannot lower this case.
+  // The fusion body (emitQuantizedMatmul in TorchToLinalg/Linear.cpp) only
+  // supports a fixed set of operand-rank combinations.  This predicate must
+  // reject any combination the body cannot lower. AtenMmOp is always 2x2 and
+  // AtenBmmOp is always 3x3 — both supported — so only AtenMatmulOp can present
+  // an unsupported rank pair.
   if (isa<AtenMatmulOp>(mmOp)) {
     auto lhsTy = dyn_cast<ValueTensorType>(lhsTorch.getType());
     auto rhsTy = dyn_cast<ValueTensorType>(rhsTorch.getType());
-    if (lhsTy && rhsTy && lhsTy.hasSizes() && rhsTy.hasSizes()) {
-      ArrayRef<int64_t> lhsShape = lhsTy.getSizes();
-      ArrayRef<int64_t> rhsShape = rhsTy.getSizes();
-      if (lhsShape.size() > 2 && rhsShape.size() > 2) {
-        auto resultTy = dyn_cast<ValueTensorType>(resultTorch.getType());
-        if (resultTy && resultTy.hasSizes()) {
-          ArrayRef<int64_t> resultShape = resultTy.getSizes();
-          SmallVector<int64_t> batchDims(resultShape.begin(),
-                                         resultShape.end() - 2);
-          if (llvm::count(batchDims, kUnknownSize) > 1)
-            return failure();
-        }
+    if (!lhsTy || !rhsTy || !lhsTy.hasSizes() || !rhsTy.hasSizes())
+      return failure();
+    size_t lhsRank = lhsTy.getSizes().size();
+    size_t rhsRank = rhsTy.getSizes().size();
+    // Mirror the body's rank dispatch exactly:
+    //   (1,1), (2,2), (1,2), (2,1), or both ranks > 2.
+    bool supported =
+        (lhsRank == 1 && rhsRank == 1) || (lhsRank == 2 && rhsRank == 2) ||
+        (lhsRank == 1 && rhsRank == 2) || (lhsRank == 2 && rhsRank == 1) ||
+        (lhsRank > 2 && rhsRank > 2);
+    if (!supported)
+      return failure();
+    // For the batched (>2,>2) case, the body bails when more than one of the
+    // result's batch dims is dynamic.
+    if (lhsRank > 2 && rhsRank > 2) {
+      auto resultTy = dyn_cast<ValueTensorType>(resultTorch.getType());
+      if (resultTy && resultTy.hasSizes()) {
+        ArrayRef<int64_t> resultShape = resultTy.getSizes();
+        SmallVector<int64_t> batchDims(resultShape.begin(),
+                                       resultShape.end() - 2);
+        if (llvm::count(batchDims, kUnknownSize) > 1)
+          return failure();
       }
     }
   }
 
+  // The fusion body computes an effective scale (lhsScale * rhsScale /
+  // outScale) and requantizes through a Q31 fixed-point multiplier.  Reject
+  // chains whose effective scale is non-positive or out of Q31 range here.
+  double effectiveScale = chain.lhsScale * chain.rhsScale / chain.outScale;
+  if (effectiveScale <= 0.0 || failed(quantizeMultiplier(effectiveScale)))
+    return failure();
+
   return chain;
+}
+
+FailureOr<std::pair<int32_t, int32_t>> quantizeMultiplier(double scale) {
+  assert(scale > 0.0 && "scale must be positive");
+  int exponent;
+  double significand = std::frexp(scale, &exponent);
+  int32_t shift = 31 - exponent;
+  if (shift < 1 || shift > 62)
+    return failure();
+  double multiplierD = std::round(significand * (1LL << 31));
+  int32_t multiplier =
+      static_cast<int32_t>(std::min(multiplierD, (double)INT32_MAX));
+  return std::make_pair(multiplier, shift);
 }
 
 bool feedsFusableQDQMatmul(QuantizedDecomposedDequantizePerTensorOp dqOp) {

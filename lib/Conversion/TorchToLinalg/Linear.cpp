@@ -257,10 +257,11 @@ public:
 
 namespace {
 
-// Sub-case 2: collapse all batch dims into one, call linalg.batch_matmul on 3D
-// inputs, then expand back to the full shape.  Returns a tensor with element
-// type accumType; any post-accumulation type conversion (e.g., requantize) is
-// performed by the caller on the returned value.
+// emitBatchBroadcastedMatmul sub-case 2 (single dynamic batch dim): collapse
+// all batch dims into one, call linalg.batch_matmul on 3D inputs, then expand
+// back to the full shape.  Returns a tensor with element type accumType; any
+// post-accumulation type conversion (e.g., requantize) is performed by the
+// caller on the returned value.
 static Value emitCollapsedBatchMatmul(
     ConversionPatternRewriter &rewriter, Location loc, Value broadcastedLhs,
     Value broadcastedRhs, ArrayRef<Value> broadcastedBatchShape, Value lhsDim0,
@@ -313,8 +314,8 @@ static Value emitCollapsedBatchMatmul(
       .getResult();
 }
 
-// Sub-case 3: multiple dynamic batch dims — linalg.generic with a
-// caller-provided body builder.
+// emitBatchBroadcastedMatmul sub-case 3 (multiple dynamic batch dims):
+// linalg.generic with a caller-provided body builder.
 static Value emitGenericBatchMatmul(
     ConversionPatternRewriter &rewriter, Location loc, Value broadcastedLhs,
     Value broadcastedRhs, ArrayRef<Value> broadcastedBatchShape, Value lhsDim0,
@@ -2658,27 +2659,6 @@ namespace {
 // All scale/zp arguments must be compile-time constants (static per-tensor).
 // ---------------------------------------------------------------------------
 
-// Decompose a positive compile-time scale into a Q31 fixed-point multiplier
-// and a right-shift count such that:
-//   scale ≈ multiplier * 2^(-shift)
-// multiplier is in (0, 2^31-1], shift = 31 - frexp_exponent.
-// The caller computes round_half_to_even(acc * scale) by treating
-// (acc * multiplier) as a Q(shift) fixed-point value and rounding it to an
-// integer with banker's rounding; see emitRequantize for the lowering.
-// Returns failure if shift is outside [1, 62] (scale out of Q31 range).
-static FailureOr<std::pair<int32_t, int32_t>> quantizeMultiplier(double scale) {
-  assert(scale > 0.0 && "scale must be positive");
-  int exponent;
-  double significand = std::frexp(scale, &exponent);
-  int32_t shift = 31 - exponent;
-  if (shift < 1 || shift > 62)
-    return failure();
-  double multiplierD = std::round(significand * (1LL << 31));
-  int32_t multiplier =
-      static_cast<int32_t>(std::min(multiplierD, (double)INT32_MAX));
-  return std::make_pair(multiplier, shift);
-}
-
 // Emit the per-element requantize epilogue: i32 accumulator tensor → output
 // integer tensor.  effectiveScale = lhsScale * rhsScale / outScale.
 //
@@ -2825,13 +2805,12 @@ static LogicalResult emitQuantizedMatmul(Operation *mmOp, Value lhsTorch,
   TensorType resultType =
       cast<TensorType>(typeConverter->convertType(qOp.getType()));
   Type outElemType = resultType.getElementType();
+  // matchQDQMatmulChain (run at the top of this function) already verified
+  // the effective scale is positive and Q31-representable, so this cannot fail.
   double effectiveScale = chain.lhsScale * chain.rhsScale / chain.outScale;
-  if (effectiveScale <= 0.0)
-    return rewriter.notifyMatchFailure(mmOp, "effectiveScale must be positive");
-  auto multiplierShift = quantizeMultiplier(effectiveScale);
-  if (failed(multiplierShift))
-    return rewriter.notifyMatchFailure(
-        mmOp, "effectiveScale out of Q31 representable range");
+  auto multiplierShift = Torch::quantizeMultiplier(effectiveScale);
+  assert(succeeded(multiplierShift) &&
+         "matchQDQMatmulChain must reject non-Q31-representable scales");
 
   Value matmul;
   if (lhsRank == 1 && rhsRank == 1) {
@@ -2870,13 +2849,12 @@ static LogicalResult emitQuantizedMatmul(Operation *mmOp, Value lhsTorch,
     SmallVector<int64_t> i32ResultShape(resultType.getShape().begin(),
                                         resultType.getShape().end());
     // There is no linalg named op for quantized bmm with multiple dynamic batch
-    // dims; bail out so the non-quantized ConvertAtenMatmulOp handles it.
+    // dims; matchQDQMatmulChain rejects this case beforehand so it cannot reach
+    // here.
     SmallVector<int64_t> batchCheck(i32ResultShape.begin(),
                                     i32ResultShape.end() - 2);
-    if (llvm::count(batchCheck, ShapedType::kDynamic) > 1)
-      return rewriter.notifyMatchFailure(
-          mmOp, "quantized batch matmul with multiple dynamic batch dims is "
-                "not supported");
+    assert(llvm::count(batchCheck, ShapedType::kDynamic) <= 1 &&
+           "matchQDQMatmulChain must reject multiple dynamic batch dims");
     auto i32ResultType = RankedTensorType::get(i32ResultShape, i32Type);
     auto batchResult = emitBatchBroadcastedMatmul(
         mmOp, rewriter, loc, lhsConverted, rhsConverted, lhsZpI32, rhsZpI32,
@@ -2885,8 +2863,8 @@ static LogicalResult emitQuantizedMatmul(Operation *mmOp, Value lhsTorch,
       return failure();
     matmul = *batchResult;
   } else {
-    return rewriter.notifyMatchFailure(
-        mmOp, "unsupported rank combination for quantized matmul");
+    // matchQDQMatmulChain only accepts the rank combinations handled above.
+    llvm_unreachable("unsupported rank combination for quantized matmul");
   }
 
   // Requantize: i32 accumulator -> output integer dtype.

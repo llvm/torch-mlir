@@ -4148,9 +4148,10 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenRealOp, AtenImagOp, AtenDequantizeSelfOp, AtenDequantizeTensorOp,
       AtenQuantizePerTensorOp, AtenIscloseOp,
       QuantizedDecomposedQuantizePerTensorOp>();
-  // Dq ops feeding a fusable dq->mm->q chain are handled (and erased) by the
-  // fusion pattern in Linear.cpp; mark them legal here so ConvertElementwiseOp
-  // does not emit a dead linalg.generic for them.
+  // Only dq needs dynamic legality. The fusion reuses dq's integer input and
+  // ignores its result, so without this ConvertElementwiseOp would lower dq
+  // into a linalg.generic left dead once the fusion erases the matmul. q is the
+  // fusion's anchor (replaced directly), so it can't be lowered both ways.
   target.addDynamicallyLegalOp<QuantizedDecomposedDequantizePerTensorOp>(
       [](QuantizedDecomposedDequantizePerTensorOp op) {
         return Torch::feedsFusableQDQMatmul(op);

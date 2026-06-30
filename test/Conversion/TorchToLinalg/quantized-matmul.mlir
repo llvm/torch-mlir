@@ -497,6 +497,45 @@ func.func @bmm_si8_two_dynamic_batch_dims(
 
 // -----
 
+// Effective scale (lhsScale * rhsScale / outScale = 1e-20) is out of the Q31
+// representable range, so the fusion's quantizeMultiplier would fail. The
+// legality predicate must reject the chain up front, so the chain falls back cleanly
+// to the float decomposed route with no stranded torch.quantized_decomposed.
+// CHECK-LABEL: func.func @mm_si8_no_fuse_scale_out_of_q31_range
+// CHECK-NOT:   linalg.quantized_matmul
+// CHECK-NOT:   torch.quantized_decomposed
+// CHECK:       linalg.generic
+func.func @mm_si8_no_fuse_scale_out_of_q31_range(
+    %lhs_q: !torch.vtensor<[4,8],si8>,
+    %rhs_q: !torch.vtensor<[8,16],si8>) -> !torch.vtensor<[4,16],si8> {
+  %scale_lhs = torch.constant.float 1.000000e-10
+  %scale_rhs = torch.constant.float 1.000000e-10
+  %scale_out = torch.constant.float 1.000000e+00
+  %zp   = torch.constant.int 0
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 2
+  %none = torch.constant.none
+  %od   = torch.derefine %none : !torch.none to !torch.optional<int>
+  %lhs_f = torch.quantized_decomposed.dequantize_per_tensor
+      %lhs_q, %scale_lhs, %zp, %qmin, %qmax, %dtype, %od
+      : !torch.vtensor<[4,8],si8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.optional<int>
+      -> !torch.vtensor<[4,8],f32>
+  %rhs_f = torch.quantized_decomposed.dequantize_per_tensor
+      %rhs_q, %scale_rhs, %zp, %qmin, %qmax, %dtype, %od
+      : !torch.vtensor<[8,16],si8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.optional<int>
+      -> !torch.vtensor<[8,16],f32>
+  %result_f = torch.aten.mm %lhs_f, %rhs_f
+      : !torch.vtensor<[4,8],f32>, !torch.vtensor<[8,16],f32> -> !torch.vtensor<[4,16],f32>
+  %result_q = torch.quantized_decomposed.quantize_per_tensor
+      %result_f, %scale_out, %zp, %qmin, %qmax, %dtype
+      : !torch.vtensor<[4,16],f32>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int
+      -> !torch.vtensor<[4,16],si8>
+  return %result_q : !torch.vtensor<[4,16],si8>
+}
+
+// -----
+
 // Non-constant lhs scale — fusion bails, falls back to float linalg.matmul.
 // dq/q are lowered to linalg.generic by ConvertElementwiseOp.
 // CHECK-LABEL: func.func @mm_si8_no_fuse_dynamic_scale
@@ -683,4 +722,115 @@ func.func @vecvec_si8_dynamic(
       : !torch.vtensor<[],f32>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int
       -> !torch.vtensor<[],si8>
   return %result_q : !torch.vtensor<[],si8>
+}
+
+// -----
+
+// 3D×2D matmul: the fusion body only handles (1,1),(2,2),(1,2),(2,1),(>2,>2),
+// so matchQDQMatmulChain must reject this rank pair. Must fall back cleanly to the
+// float decomposed route (dq/q lowered to linalg.generic, no quantized op).
+// CHECK-LABEL: func.func @matmul_si8_3d_2d
+// CHECK-NOT:   linalg.quantized_matmul
+// CHECK-NOT:   torch.quantized_decomposed
+// CHECK:       linalg.generic
+func.func @matmul_si8_3d_2d(
+    %lhs_q: !torch.vtensor<[2,4,8],si8>,
+    %rhs_q: !torch.vtensor<[8,16],si8>) -> !torch.vtensor<[2,4,16],si8> {
+  %scale_lhs = torch.constant.float 3.000000e-01
+  %scale_rhs = torch.constant.float 2.000000e-01
+  %scale_out = torch.constant.float 5.000000e-01
+  %zp   = torch.constant.int 0
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 2
+  %none = torch.constant.none
+  %od   = torch.derefine %none : !torch.none to !torch.optional<int>
+  %lhs_f = torch.quantized_decomposed.dequantize_per_tensor
+      %lhs_q, %scale_lhs, %zp, %qmin, %qmax, %dtype, %od
+      : !torch.vtensor<[2,4,8],si8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.optional<int>
+      -> !torch.vtensor<[2,4,8],f32>
+  %rhs_f = torch.quantized_decomposed.dequantize_per_tensor
+      %rhs_q, %scale_rhs, %zp, %qmin, %qmax, %dtype, %od
+      : !torch.vtensor<[8,16],si8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.optional<int>
+      -> !torch.vtensor<[8,16],f32>
+  %result_f = torch.aten.matmul %lhs_f, %rhs_f
+      : !torch.vtensor<[2,4,8],f32>, !torch.vtensor<[8,16],f32> -> !torch.vtensor<[2,4,16],f32>
+  %result_q = torch.quantized_decomposed.quantize_per_tensor
+      %result_f, %scale_out, %zp, %qmin, %qmax, %dtype
+      : !torch.vtensor<[2,4,16],f32>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int
+      -> !torch.vtensor<[2,4,16],si8>
+  return %result_q : !torch.vtensor<[2,4,16],si8>
+}
+
+// -----
+
+// 2D×3D matmul: same unsupported-rank fallback as the 3D×2D case above.
+// CHECK-LABEL: func.func @matmul_si8_2d_3d
+// CHECK-NOT:   linalg.quantized_matmul
+// CHECK-NOT:   torch.quantized_decomposed
+// CHECK:       linalg.generic
+func.func @matmul_si8_2d_3d(
+    %lhs_q: !torch.vtensor<[4,8],si8>,
+    %rhs_q: !torch.vtensor<[2,8,16],si8>) -> !torch.vtensor<[2,4,16],si8> {
+  %scale_lhs = torch.constant.float 3.000000e-01
+  %scale_rhs = torch.constant.float 2.000000e-01
+  %scale_out = torch.constant.float 5.000000e-01
+  %zp   = torch.constant.int 0
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 2
+  %none = torch.constant.none
+  %od   = torch.derefine %none : !torch.none to !torch.optional<int>
+  %lhs_f = torch.quantized_decomposed.dequantize_per_tensor
+      %lhs_q, %scale_lhs, %zp, %qmin, %qmax, %dtype, %od
+      : !torch.vtensor<[4,8],si8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.optional<int>
+      -> !torch.vtensor<[4,8],f32>
+  %rhs_f = torch.quantized_decomposed.dequantize_per_tensor
+      %rhs_q, %scale_rhs, %zp, %qmin, %qmax, %dtype, %od
+      : !torch.vtensor<[2,8,16],si8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.optional<int>
+      -> !torch.vtensor<[2,8,16],f32>
+  %result_f = torch.aten.matmul %lhs_f, %rhs_f
+      : !torch.vtensor<[4,8],f32>, !torch.vtensor<[2,8,16],f32> -> !torch.vtensor<[2,4,16],f32>
+  %result_q = torch.quantized_decomposed.quantize_per_tensor
+      %result_f, %scale_out, %zp, %qmin, %qmax, %dtype
+      : !torch.vtensor<[2,4,16],f32>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int
+      -> !torch.vtensor<[2,4,16],si8>
+  return %result_q : !torch.vtensor<[2,4,16],si8>
+}
+
+// -----
+
+// 4D×2D matmul: higher-rank lhs against a 2D rhs is also unsupported by the
+// fusion body and must fall back to the float decomposed route.
+// CHECK-LABEL: func.func @matmul_si8_4d_2d
+// CHECK-NOT:   linalg.quantized_matmul
+// CHECK-NOT:   torch.quantized_decomposed
+// CHECK:       linalg.generic
+func.func @matmul_si8_4d_2d(
+    %lhs_q: !torch.vtensor<[3,2,4,8],si8>,
+    %rhs_q: !torch.vtensor<[8,16],si8>) -> !torch.vtensor<[3,2,4,16],si8> {
+  %scale_lhs = torch.constant.float 3.000000e-01
+  %scale_rhs = torch.constant.float 2.000000e-01
+  %scale_out = torch.constant.float 5.000000e-01
+  %zp   = torch.constant.int 0
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 2
+  %none = torch.constant.none
+  %od   = torch.derefine %none : !torch.none to !torch.optional<int>
+  %lhs_f = torch.quantized_decomposed.dequantize_per_tensor
+      %lhs_q, %scale_lhs, %zp, %qmin, %qmax, %dtype, %od
+      : !torch.vtensor<[3,2,4,8],si8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.optional<int>
+      -> !torch.vtensor<[3,2,4,8],f32>
+  %rhs_f = torch.quantized_decomposed.dequantize_per_tensor
+      %rhs_q, %scale_rhs, %zp, %qmin, %qmax, %dtype, %od
+      : !torch.vtensor<[8,16],si8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.optional<int>
+      -> !torch.vtensor<[8,16],f32>
+  %result_f = torch.aten.matmul %lhs_f, %rhs_f
+      : !torch.vtensor<[3,2,4,8],f32>, !torch.vtensor<[8,16],f32> -> !torch.vtensor<[3,2,4,16],f32>
+  %result_q = torch.quantized_decomposed.quantize_per_tensor
+      %result_f, %scale_out, %zp, %qmin, %qmax, %dtype
+      : !torch.vtensor<[3,2,4,16],f32>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int
+      -> !torch.vtensor<[3,2,4,16],si8>
+  return %result_q : !torch.vtensor<[3,2,4,16],si8>
 }
