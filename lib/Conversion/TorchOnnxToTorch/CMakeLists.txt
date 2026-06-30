@@ -18,5 +18,9 @@ add_mlir_conversion_library(TorchMLIRTorchOnnxToTorch
     LINK_LIBS PUBLIC
     MLIRIR
     MLIRPass
+    MLIRRewrite
+    MLIRTransformUtils
+    TorchMLIRConversionUtils
     TorchMLIRTorchDialect
+    TorchMLIRTorchUtils
 )

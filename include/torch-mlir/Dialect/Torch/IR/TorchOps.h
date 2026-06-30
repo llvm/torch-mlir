@@ -370,6 +370,20 @@ inline int64_t getIntAttrAsSigned(IntegerAttr intAttr) {
   return intAttr.getValue().getSExtValue();
 }
 
+/// Create a new SparseTensorEncodingAttr based on the provided `attr`, but with
+/// a new dense level inserted at `dim`.
+FailureOr<Attribute> getSparsityWithDenseLTAtDim(Attribute attr, Value dim);
+
+/// Helper function to squeeze the input tensor at given dim.
+/// Return the squeezed tensor or failure.
+FailureOr<Value> squeezeTensor(PatternRewriter &rewriter, Operation *op,
+                               Location loc, int64_t dim, Value input);
+
+/// Helper function to unsqueeze the input tensor at given dim.
+/// Return the unsqueezed tensor or failure.
+FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
+                                 Value input, Value dim);
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

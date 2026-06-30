@@ -10,7 +10,10 @@ add_mlir_conversion_library(TorchMLIRTorchToTensor
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRPass
+  MLIRRewrite
   MLIRTensorDialect
+  MLIRTransformUtils
+  TorchMLIRTorchConversionPasses
   TorchMLIRTorchDialect
   TorchMLIRConversionUtils
 )

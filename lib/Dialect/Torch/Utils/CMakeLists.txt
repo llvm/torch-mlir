@@ -1,6 +1,5 @@
 add_mlir_dialect_library(TorchMLIRTorchUtils
   Utils.cpp
-  SparsityUtils.cpp
   TorchUpstream.cpp
 
   ADDITIONAL_HEADER_DIRS
@@ -9,4 +8,8 @@ add_mlir_dialect_library(TorchMLIRTorchUtils
   DEPENDS
   MLIRTorchOpsIncGen
   MLIRTorchTypesIncGen
+
+  LINK_LIBS PUBLIC
+  MLIRIR
+  TorchMLIRTorchDialect
 )
