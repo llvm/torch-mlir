@@ -4594,6 +4594,17 @@ func.func @torch.aten.mm$f32(%arg0: !torch.vtensor<[1,22],f32>, %arg1: !torch.vt
 }
 
 // -----
+
+// CHECK-LABEL:   func.func @test_tosa_matmul_user_attrs(
+// CHECK:           tosa.matmul
+// CHECK-SAME:        {mlir.user.tag = "attn_proj"}
+// CHECK-NOT:       internal.flag
+func.func @test_tosa_matmul_user_attrs(%arg0: !torch.vtensor<[1,22],f32>, %arg1: !torch.vtensor<[22,10],f32>) -> !torch.vtensor<[1,10],f32> {
+  %0 = torch.aten.mm %arg0, %arg1 {mlir.user.tag = "attn_proj", internal.flag = 1 : i64} : !torch.vtensor<[1,22],f32>, !torch.vtensor<[22,10],f32> -> !torch.vtensor<[1,10],f32>
+  return %0 : !torch.vtensor<[1,10],f32>
+}
+
+// -----
 // CHECK-LABEL:   func.func @torch.aten.mm$si8
 // CHECK: tosa.matmul
 // CHECK-SAME: (tensor<1x1x22xi8>, tensor<1x22x10xi8>, tensor<1xi8>, tensor<1xi8>) -> tensor<1x1x10xi32>
