@@ -426,6 +426,8 @@ FX_IMPORTER_XFAIL_SET = {
     "AtenIntBoolOpModule_basic",
     "AtenIntMM_basic",
     "AtenNonzero1DDynamicModule_basic",  # no lowering for torch.aten.sym_constrain_range_for_size
+    "AtenScaledMmBlockScaledFp8Module_basic",
+    "AtenScaledMmBlockScaledFp8SwizzledModule_basic",
     "AtenScaledMmPerTensorE5M2Module_basic",
     "AtenScaledMmPerTensorF16Module_basic",
     "AtenScaledMmPerTensorF32Module_basic",
@@ -663,6 +665,8 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenMmQuint8_basic",
     "AtenRealView128Module_basic",
     "AtenRealView64Module_basic",
+    "AtenScaledMmBlockScaledFp8Module_basic",
+    "AtenScaledMmBlockScaledFp8SwizzledModule_basic",
     "AtenScaledMmPerTensorE5M2Module_basic",
     "AtenScaledMmPerTensorF16Module_basic",
     "AtenScaledMmPerTensorF32Module_basic",
@@ -2998,6 +3002,8 @@ ONNX_XFAIL_SET = {
     "AtenMmQMixedSigni8_basic",
     "AtenMmQint8_basic",
     "AtenMmQuint8_basic",
+    "AtenScaledMmBlockScaledFp8Module_basic",
+    "AtenScaledMmBlockScaledFp8SwizzledModule_basic",
     "AtenScaledMmPerTensorE5M2Module_basic",
     "AtenScaledMmPerTensorF16Module_basic",
     "AtenScaledMmPerTensorF32Module_basic",
@@ -3737,8 +3743,13 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenSymConstrainRangeForSize_basic",
     "AtenSymConstrainRange_basic",
     "Aten_AssertScalar_basic",
-    # These import through FX and lower to TOSA, but the TOSA execution backend
-    # cannot currently load FP8 tensor element types in the lowered matmul path.
+    # These import through FX and lower to TOSA. To enable them end-to-end, the
+    # TOSA execution backend needs support for loading the FP8 input tensors and
+    # float8_e8m0fnu blocked-scale tensors used by matmul_t_block_scaled. The
+    # e2e framework also needs a non-CPU reference path because PyTorch CPU does
+    # not execute blocked-scale _scaled_mm.
+    "AtenScaledMmBlockScaledFp8Module_basic",
+    "AtenScaledMmBlockScaledFp8SwizzledModule_basic",
     "AtenScaledMmPerTensorE5M2Module_basic",
     "AtenScaledMmPerTensorF16Module_basic",
     "AtenScaledMmPerTensorF32Module_basic",
