@@ -3799,8 +3799,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AvgPool3dCountIncludePadFalse_basic",
     "AvgPool3dCountIncludePadFalseWithoutPadding_basic",
     "AvgPool3dSingleIntTupleStrideModule_basic",
-    "Conv_Transpose1dModule_basic",
-    "Conv_Transpose1dStaticModule_basic",
     "IndexPutWithNoneAndBroadcastModule_basic",
     "MaxUnpool3dModulePad0_basic",
     "MaxUnpool3dModule_basic",
