@@ -6576,23 +6576,6 @@ static LogicalResult getConstantIntList(Value value,
   return success();
 }
 
-// Mirrors PyTorch ScalingType and SwizzleType enum values used by
-// aten._scaled_mm_v2 metadata.
-// https://github.com/pytorch/pytorch/blob/449aa5b695056c4c14c3134909de5ad1a3078cc8/aten/src/ATen/BlasBackend.h#L34-L43
-enum class ScaledMmV2ScalingType : int64_t {
-  TensorWise = 0,
-  RowWise = 1,
-  BlockWise1x16 = 2,
-  BlockWise1x32 = 3,
-  BlockWise1x128 = 4,
-  BlockWise128x128 = 5,
-};
-
-enum class ScaledMmV2SwizzleType : int64_t {
-  NoSwizzle = 0,
-  Swizzle32x4x4 = 1,
-};
-
 enum class ScaledMmV2RecipeMode {
   Unknown,
   Tensorwise,
@@ -6629,11 +6612,13 @@ struct ScaledMmV2MatrixInfo {
   int64_t logicalK = kUnknownSize;
 };
 
-static bool isScaledMmV2Recipe(int64_t recipe, ScaledMmV2ScalingType type) {
+static bool isScaledMmV2Recipe(int64_t recipe,
+                               torch_upstream::ScaledMmV2ScalingType type) {
   return recipe == static_cast<int64_t>(type);
 }
 
-static bool isScaledMmV2Swizzle(int64_t swizzle, ScaledMmV2SwizzleType type) {
+static bool isScaledMmV2Swizzle(int64_t swizzle,
+                                torch_upstream::ScaledMmV2SwizzleType type) {
   return swizzle == static_cast<int64_t>(type);
 }
 
@@ -6796,12 +6781,16 @@ classifyScaledMmV2RecipeMode(Aten_ScaledMmV2Op op,
   ArrayRef<int64_t> recipeBValues = recipeInfo.recipeBValues;
 
   if (recipeAValues.size() == 2 && recipeBValues.size() == 2 &&
-      isScaledMmV2Recipe(recipeAValues[0],
-                         ScaledMmV2ScalingType::BlockWise1x16) &&
-      isScaledMmV2Recipe(recipeBValues[0],
-                         ScaledMmV2ScalingType::BlockWise1x16) &&
-      isScaledMmV2Recipe(recipeAValues[1], ScaledMmV2ScalingType::TensorWise) &&
-      isScaledMmV2Recipe(recipeBValues[1], ScaledMmV2ScalingType::TensorWise)) {
+      isScaledMmV2Recipe(
+          recipeAValues[0],
+          torch_upstream::ScaledMmV2ScalingType::BlockWise1x16) &&
+      isScaledMmV2Recipe(
+          recipeBValues[0],
+          torch_upstream::ScaledMmV2ScalingType::BlockWise1x16) &&
+      isScaledMmV2Recipe(recipeAValues[1],
+                         torch_upstream::ScaledMmV2ScalingType::TensorWise) &&
+      isScaledMmV2Recipe(recipeBValues[1],
+                         torch_upstream::ScaledMmV2ScalingType::TensorWise)) {
     recipeInfo.mode = ScaledMmV2RecipeMode::NvTwoLevel;
     return success();
   }
@@ -6813,44 +6802,58 @@ classifyScaledMmV2RecipeMode(Aten_ScaledMmV2Op op,
   int64_t recipeA = recipeAValues[0];
   int64_t recipeB = recipeBValues[0];
 
-  if (isScaledMmV2Recipe(recipeA, ScaledMmV2ScalingType::TensorWise) &&
-      isScaledMmV2Recipe(recipeB, ScaledMmV2ScalingType::TensorWise)) {
+  if (isScaledMmV2Recipe(recipeA,
+                         torch_upstream::ScaledMmV2ScalingType::TensorWise) &&
+      isScaledMmV2Recipe(recipeB,
+                         torch_upstream::ScaledMmV2ScalingType::TensorWise)) {
     recipeInfo.mode = ScaledMmV2RecipeMode::Tensorwise;
     return success();
   }
 
-  if (isScaledMmV2Recipe(recipeA, ScaledMmV2ScalingType::RowWise) &&
-      isScaledMmV2Recipe(recipeB, ScaledMmV2ScalingType::RowWise)) {
+  if (isScaledMmV2Recipe(recipeA,
+                         torch_upstream::ScaledMmV2ScalingType::RowWise) &&
+      isScaledMmV2Recipe(recipeB,
+                         torch_upstream::ScaledMmV2ScalingType::RowWise)) {
     recipeInfo.mode = ScaledMmV2RecipeMode::Rowwise;
     return success();
   }
 
-  if (isScaledMmV2Recipe(recipeA, ScaledMmV2ScalingType::BlockWise1x16) &&
-      isScaledMmV2Recipe(recipeB, ScaledMmV2ScalingType::BlockWise1x16)) {
+  if (isScaledMmV2Recipe(
+          recipeA, torch_upstream::ScaledMmV2ScalingType::BlockWise1x16) &&
+      isScaledMmV2Recipe(
+          recipeB, torch_upstream::ScaledMmV2ScalingType::BlockWise1x16)) {
     recipeInfo.mode = ScaledMmV2RecipeMode::NvSingleLevel;
     return success();
   }
 
-  if (isScaledMmV2Recipe(recipeA, ScaledMmV2ScalingType::BlockWise1x32) &&
-      isScaledMmV2Recipe(recipeB, ScaledMmV2ScalingType::BlockWise1x32)) {
+  if (isScaledMmV2Recipe(
+          recipeA, torch_upstream::ScaledMmV2ScalingType::BlockWise1x32) &&
+      isScaledMmV2Recipe(
+          recipeB, torch_upstream::ScaledMmV2ScalingType::BlockWise1x32)) {
     recipeInfo.mode = ScaledMmV2RecipeMode::MxBlockwise;
     return success();
   }
 
-  if (isScaledMmV2Recipe(recipeA, ScaledMmV2ScalingType::BlockWise1x128) &&
-      isScaledMmV2Recipe(recipeB, ScaledMmV2ScalingType::BlockWise1x128)) {
+  if (isScaledMmV2Recipe(
+          recipeA, torch_upstream::ScaledMmV2ScalingType::BlockWise1x128) &&
+      isScaledMmV2Recipe(
+          recipeB, torch_upstream::ScaledMmV2ScalingType::BlockWise1x128)) {
     recipeInfo.mode = ScaledMmV2RecipeMode::Blockwise1x128_1x128;
     return success();
   }
 
-  if (isScaledMmV2Recipe(recipeA, ScaledMmV2ScalingType::BlockWise1x128) &&
-      isScaledMmV2Recipe(recipeB, ScaledMmV2ScalingType::BlockWise128x128)) {
+  if (isScaledMmV2Recipe(
+          recipeA, torch_upstream::ScaledMmV2ScalingType::BlockWise1x128) &&
+      isScaledMmV2Recipe(
+          recipeB, torch_upstream::ScaledMmV2ScalingType::BlockWise128x128)) {
     recipeInfo.mode = ScaledMmV2RecipeMode::Blockwise1x128_128x128;
     return success();
   }
 
-  if (isScaledMmV2Recipe(recipeA, ScaledMmV2ScalingType::BlockWise128x128) &&
-      isScaledMmV2Recipe(recipeB, ScaledMmV2ScalingType::BlockWise1x128)) {
+  if (isScaledMmV2Recipe(
+          recipeA, torch_upstream::ScaledMmV2ScalingType::BlockWise128x128) &&
+      isScaledMmV2Recipe(
+          recipeB, torch_upstream::ScaledMmV2ScalingType::BlockWise1x128)) {
     recipeInfo.mode = ScaledMmV2RecipeMode::Blockwise128x128_1x128;
     return success();
   }
@@ -6876,10 +6879,12 @@ verifyScaledMmV2Swizzles(Aten_ScaledMmV2Op op,
     return op.emitOpError(
         "expected swizzle_a and swizzle_b to have entries for blockwise "
         "scaling");
-  if (!isScaledMmV2Swizzle(swizzleInfo.swizzleAValues[0],
-                           ScaledMmV2SwizzleType::Swizzle32x4x4) ||
-      !isScaledMmV2Swizzle(swizzleInfo.swizzleBValues[0],
-                           ScaledMmV2SwizzleType::Swizzle32x4x4))
+  if (!isScaledMmV2Swizzle(
+          swizzleInfo.swizzleAValues[0],
+          torch_upstream::ScaledMmV2SwizzleType::Swizzle32x4x4) ||
+      !isScaledMmV2Swizzle(
+          swizzleInfo.swizzleBValues[0],
+          torch_upstream::ScaledMmV2SwizzleType::Swizzle32x4x4))
     return op.emitOpError("expected blockwise swizzle_a and swizzle_b to be "
                           "SWIZZLE_32_4_4");
 

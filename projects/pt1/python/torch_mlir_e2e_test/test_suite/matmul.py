@@ -4,10 +4,22 @@
 # Also available under a BSD-style license. See LICENSE.
 
 import torch
+import torch.nn.functional as F
 
 from torch_mlir_e2e_test.annotations import annotate_args, export
 from torch_mlir_e2e_test.framework import TestUtils
 from torch_mlir_e2e_test.registry import register_test_case
+
+
+def make_fp4_tensor(shape, stride=None):
+    if stride is None:
+        tensor = torch.empty(shape, dtype=torch.float4_e2m1fn_x2)
+    else:
+        tensor = torch.empty_strided(shape, stride, dtype=torch.float4_e2m1fn_x2)
+    # PyTorch's FP4 shell dtype does not implement fill_ directly.
+    tensor.view(torch.uint8).fill_(1)
+    return tensor
+
 
 # ==============================================================================
 
@@ -157,6 +169,46 @@ def AtenScaledMmPerTensorF32Module_basic(module, tu: TestUtils):
 )
 def AtenScaledMmPerTensorE5M2Module_basic(module, tu: TestUtils):
     module.forward(tu.rand(16, 16), tu.rand(16, 16), tu.rand(), tu.rand())
+
+
+class AtenScaledMmV2BlockwiseMxFP4Module(torch.nn.Module):
+    def __init__(self, out_dtype=torch.bfloat16):
+        super().__init__()
+        self.out_dtype = out_dtype
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([128, 64], torch.float4_e2m1fn_x2, True),
+            ([64, 128], torch.float4_e2m1fn_x2, True),
+            ([512], torch.float8_e8m0fnu, True),
+            ([512], torch.float8_e8m0fnu, True),
+        ]
+    )
+    def forward(self, lhs, rhs, scale_lhs, scale_rhs):
+        return F.scaled_mm(
+            lhs,
+            rhs,
+            scale_a=[scale_lhs],
+            scale_recipe_a=[F.ScalingType.BlockWise1x32],
+            swizzle_a=[F.SwizzleType.SWIZZLE_32_4_4],
+            scale_b=[scale_rhs],
+            scale_recipe_b=[F.ScalingType.BlockWise1x32],
+            swizzle_b=[F.SwizzleType.SWIZZLE_32_4_4],
+            bias=None,
+            output_dtype=self.out_dtype,
+        )
+
+
+@register_test_case(module_factory=lambda: AtenScaledMmV2BlockwiseMxFP4Module())
+def AtenScaledMmV2BlockwiseMxFP4Module_basic(module, tu: TestUtils):
+    module.forward(
+        make_fp4_tensor((128, 64)),
+        make_fp4_tensor((64, 128), stride=(1, 64)),
+        torch.zeros((512,), dtype=torch.float8_e8m0fnu),
+        torch.zeros((512,), dtype=torch.float8_e8m0fnu),
+    )
 
 
 # ==============================================================================
