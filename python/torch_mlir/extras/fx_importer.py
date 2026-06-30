@@ -468,13 +468,21 @@ def is_builtin_function_or_method(obj: Any) -> bool:
 #   node.meta["mlir.arg_attrs"] -> Dict[str, Any]     (only on placeholders)
 #
 # Values are coerced to MLIR `Attribute`s via `_coerce_mlir_attr`. Pre-built
-# `Attribute` objects pass through unchanged.
+# `Attribute` objects pass through unchanged. Note that Python `bool` values
+# (`True` / `False`) model MLIR `UnitAttr` (`True` -> `UnitAttr`, `False` ->
+# omitted). To pass boolean value semantics (`true` / `false`), construct and
+# pass explicit `mlir.ir.BoolAttr` objects.
 MLIR_OP_ATTRS_META_KEY = "mlir.attrs"
 MLIR_ARG_ATTRS_META_KEY = "mlir.arg_attrs"
 
 
 def _coerce_mlir_attr(value: Any, context: Context) -> Optional[Attribute]:
     """Convert a Python value into an MLIR `Attribute`.
+
+    Note that Python `bool` values (`True` / `False`) model MLIR `UnitAttr`
+    (`True` -> `UnitAttr`, `False` -> omitted). When boolean value semantics
+    (`true` / `false`) are required, construct and pass explicit
+    `mlir.ir.BoolAttr` objects instead.
 
     Returns `None` for values that should be skipped (e.g. `False` on a unit
     attr channel). Raises `TypeError` for unsupported Python types.
@@ -484,7 +492,9 @@ def _coerce_mlir_attr(value: Any, context: Context) -> Optional[Attribute]:
     if value is None:
         return None
     if isinstance(value, bool):
-        # Booleans model unit attrs: True -> present, False -> absent.
+        # Booleans model unit attrs: True -> UnitAttr, False -> omitted (None).
+        # To get MLIR boolean value semantics (`true` / `false`), pass an
+        # explicit `mlir.ir.BoolAttr`.
         return UnitAttr.get(context=context) if value else None
     if isinstance(value, int):
         return IntegerAttr.get(IntegerType.get_signless(64, context=context), value)

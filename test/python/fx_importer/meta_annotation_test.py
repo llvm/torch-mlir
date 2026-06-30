@@ -19,7 +19,8 @@ exercise the unwrap via `LINALG_ON_TENSORS` output."""
 import torch
 import torch.nn as nn
 
-from torch_mlir import fx
+from torch_mlir import fx, ir
+from torch_mlir.dialects import torch as torch_d
 from torch_mlir.fx import OutputType
 from torch_mlir.extras.annotate import annotate_arg, annotate_module
 
@@ -95,6 +96,26 @@ def test_arg_attr_skipped_when_false():
 
     m = fx.export_and_import(
         TwoLinear(), torch.randn(1, 4), annotate=annotate
+    )
+    print(m)
+
+
+# CHECK-LABEL: test_explicit_bool_attr
+# Explicit mlir.ir.BoolAttr models boolean value semantics (`true`/`false`),
+# unlike Python `bool` which models UnitAttr (`True` -> present, `False` -> absent).
+# CHECK:       func.func @main(%arg0: !torch.vtensor<[1,4],f32> {mlir.user.my.flag = false})
+@run
+def test_explicit_bool_attr():
+    ctx = ir.Context()
+    torch_d.register_dialect(ctx)
+    importer = fx.FxImporter(context=ctx)
+    m = fx.export_and_import(
+        TwoLinear(),
+        torch.randn(1, 4),
+        fx_importer=importer,
+        annotate=lambda p: annotate_arg(
+            p, "x", {"my.flag": ir.BoolAttr.get(False, context=ctx)}
+        ),
     )
     print(m)
 

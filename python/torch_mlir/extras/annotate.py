@@ -15,6 +15,10 @@ These helpers are thin conveniences that resolve FX nodes by semantic identity
 (user-input name, submodule fully-qualified name) and write into those dicts.
 They carry no dialect-specific vocabulary: the user chooses the attribute names.
 
+Note that Python `bool` values (`True` / `False`) model MLIR `UnitAttr`
+(`True` -> `UnitAttr`, `False` -> omitted). To pass boolean value semantics
+(`true` / `false`), construct and pass explicit `mlir.ir.BoolAttr` objects.
+
 Typical usage, as the `annotate=` callback of `torch_mlir.fx.export_and_import`:
 
     def annotate(prog):
@@ -51,7 +55,10 @@ def annotate_arg(
     `name_or_index` selects the user input by `forward`-parameter name (str)
     or by positional index among user inputs (int). `attrs` are Python values
     coerced to MLIR `Attribute`s by the importer; pass a pre-built
-    `mlir.ir.Attribute` for custom encodings.
+    `mlir.ir.Attribute` for custom encodings. Note that Python `bool` values
+    (`True` / `False`) model MLIR `UnitAttr` (`True` -> `UnitAttr`, `False` ->
+    omitted). To pass boolean value semantics (`true` / `false`), construct
+    and pass explicit `mlir.ir.BoolAttr` objects.
     """
     user_names = [
         s.arg.name for s in prog.graph_signature.input_specs
@@ -94,6 +101,12 @@ def annotate_module(
     with the submodule path that produced each node. For a module like
     `model.act1`, pass `fqn="act1"` (suffix match) or `fqn="model.act1"`
     (exact match).
+
+    `attrs` are Python values coerced to MLIR `Attribute`s by the importer. Note
+    that Python `bool` values (`True` / `False`) model MLIR `UnitAttr`
+    (`True` -> `UnitAttr`, `False` -> omitted). To pass boolean value
+    semantics (`true` / `false`), construct and pass explicit
+    `mlir.ir.BoolAttr` objects.
 
     `mode`:
       * `"last"` (default): attach to the last matching node only. Right for
