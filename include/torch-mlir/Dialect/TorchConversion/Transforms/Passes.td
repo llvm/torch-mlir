@@ -101,6 +101,14 @@ def LiftUserAttrs : Pass<"torch-lift-user-attrs", "ModuleOp"> {
     removes the prefixed entry. Non-prefixed attrs are left untouched.
     Downstream consumers see plain attrs like
     `{attr1=...}` as if they had been set directly.
+
+    Note that when stripping `mlir.user.`, attributes become top-level attributes
+    on the target operation or function argument dictionary. If an attribute with
+    the exact same un-prefixed name already exists (such as an inherent operation
+    attribute like `indexing_maps` or `iterator_types` on `linalg.generic`, or
+    `sym_name` on `func.func`), it will be overwritten or cause verifier errors.
+    Frontend authors and users are advised to ensure un-prefixed attribute names
+    avoid collisions with target dialect keywords or inherent attributes.
   }];
 }
 #endif // TORCHMLIR_TORCHCONVERSION_PASSES
