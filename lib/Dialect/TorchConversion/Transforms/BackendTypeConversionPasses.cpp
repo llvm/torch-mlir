@@ -15,6 +15,7 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h"
@@ -22,6 +23,7 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::TorchConversion;
+using mlir::torch::Torch::kUserAttrPrefix;
 namespace mlir::torch::TorchConversion {
 
 #define GEN_PASS_DEF_FUNCBACKENDTYPECONVERSION
@@ -312,7 +314,6 @@ createFinalizingBackendTypeConversionForStablehloPass() {
 //===----------------------------------------------------------------------===//
 
 namespace {
-constexpr StringLiteral kUserAttrPrefix("mlir.user.");
 
 // Strip the `mlir.user.` prefix from every prefixed discardable attr on `op`,
 // re-attaching the value under its un-prefixed name.

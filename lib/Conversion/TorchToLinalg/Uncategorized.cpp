@@ -1827,7 +1827,6 @@ public:
     // attrs (dialect-internal flags) into linalg ops; the
     // `torch-lift-user-attrs` pass at the end of the lowering pipeline
     // strips the prefix to expose the user's chosen names.
-    constexpr StringLiteral kUserAttrPrefix("mlir.user.");
     if (auto linalgGeneric =
             dyn_cast_or_null<linalg::GenericOp>(generic.getDefiningOp())) {
       for (NamedAttribute attr : op->getDiscardableAttrs()) {
