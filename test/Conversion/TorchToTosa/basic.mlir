@@ -4922,6 +4922,27 @@ func.func @torch.aten.topk.decomposed_prefix_slice(%arg0: !torch.vtensor<[5,10,5
 
 // -----
 
+// CHECK-LABEL:   func.func @torch.aten.topk.decomposed_prefix_slice_zero_k(
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[200],f32>) -> (!torch.vtensor<[0],f32>, !torch.vtensor<[0],si64>) {
+// CHECK:           %[[VALUES:.*]] = tensor.empty() : tensor<0xf32>
+// CHECK:           %[[TORCH_VALUES:.*]] = torch_c.from_builtin_tensor %[[VALUES]] : tensor<0xf32> -> !torch.vtensor<[0],f32>
+// CHECK:           %[[INDICES:.*]] = tensor.empty() : tensor<0xi64>
+// CHECK:           %[[TORCH_INDICES:.*]] = torch_c.from_builtin_tensor %[[INDICES]] : tensor<0xi64> -> !torch.vtensor<[0],si64>
+// CHECK-NOT:       tosa.argmax
+// CHECK:           return %[[TORCH_VALUES]], %[[TORCH_INDICES]]
+func.func @torch.aten.topk.decomposed_prefix_slice_zero_k(%arg0: !torch.vtensor<[200],f32>) -> (!torch.vtensor<[0],f32>, !torch.vtensor<[0],si64>) {
+  %dim = torch.constant.int 0
+  %true = torch.constant.bool true
+  %zero = torch.constant.int 0
+  %one = torch.constant.int 1
+  %values, %indices = torch.aten.sort %arg0, %dim, %true : !torch.vtensor<[200],f32>, !torch.int, !torch.bool -> !torch.vtensor<[200],f32>, !torch.vtensor<[200],si64>
+  %top_values = torch.aten.slice.Tensor %values, %dim, %zero, %zero, %one : !torch.vtensor<[200],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[0],f32>
+  %top_indices = torch.aten.slice.Tensor %indices, %dim, %zero, %zero, %one : !torch.vtensor<[200],si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[0],si64>
+  return %top_values, %top_indices : !torch.vtensor<[0],f32>, !torch.vtensor<[0],si64>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.sort.full_ascending_last_dim(
 // CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],si64>) {
 // CHECK:           %[[INPUT:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[2,3],f32> -> tensor<2x3xf32>
@@ -4970,6 +4991,19 @@ func.func @torch.aten.sort.rank_zero(%arg0: !torch.vtensor<[],f32>) -> (!torch.v
   %true = torch.constant.bool true
   %values, %indices = torch.aten.sort %arg0, %dim, %true : !torch.vtensor<[],f32>, !torch.int, !torch.bool -> !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
   return %values, %indices : !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.sort.rank_zero_integer(
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[],si64>, %{{.*}}: !torch.bool) -> (!torch.vtensor<[],si64>, !torch.vtensor<[],si64>) {
+// CHECK:           %[[INDEX:.*]] = "tosa.const"() <{values = dense<0> : tensor<i64>}> : () -> tensor<i64>
+// CHECK:           %[[INDICES:.*]] = torch_c.from_builtin_tensor %[[INDEX]] : tensor<i64> -> !torch.vtensor<[],si64>
+// CHECK:           return %[[ARG0]], %[[INDICES]]
+func.func @torch.aten.sort.rank_zero_integer(%arg0: !torch.vtensor<[],si64>, %arg1: !torch.bool) -> (!torch.vtensor<[],si64>, !torch.vtensor<[],si64>) {
+  %dim = torch.constant.int 0
+  %values, %indices = torch.aten.sort %arg0, %dim, %arg1 : !torch.vtensor<[],si64>, !torch.int, !torch.bool -> !torch.vtensor<[],si64>, !torch.vtensor<[],si64>
+  return %values, %indices : !torch.vtensor<[],si64>, !torch.vtensor<[],si64>
 }
 
 // -----

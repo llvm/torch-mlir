@@ -6687,14 +6687,18 @@ class AtenTopKSmallestNaNInfStaticModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([None, ([1, 6], torch.float32, True)])
+    @annotate_args([None, ([1, 8], torch.float32, True)])
     def forward(self, x):
         return torch.ops.aten.topk(x, k=6, dim=-1, largest=False, sorted=True)
 
 
 @register_test_case(module_factory=lambda: AtenTopKSmallestNaNInfStaticModule())
 def AtenTopKSmallestNaNInfStaticModule_basic(module, tu: TestUtils):
-    module.forward(torch.tensor([[0.0, torch.nan, torch.inf, -torch.inf, 2.0, -1.0]]))
+    module.forward(
+        torch.tensor(
+            [[0.0, torch.nan, torch.inf, -torch.inf, 2.0, -1.0, -2.0, 1.0]]
+        )
+    )
 
 
 class AtenTopKLargeKStaticModule(torch.nn.Module):

@@ -1600,16 +1600,6 @@ LogicalResult ConvertAtenOp<AtenSortOp>::matchAndRewriteImpl(
     return rewriter.notifyMatchFailure(
         op, "only ranked tensor types with static shape are supported");
 
-  Type elementTy = selfTy.getElementType();
-  if (!elementTy.isF32() && !elementTy.isF16() && !elementTy.isBF16())
-    return rewriter.notifyMatchFailure(
-        op, "only f32, f16, and bf16 element types are supported");
-
-  bool descending;
-  if (!matchPattern(op.getDescending(), m_TorchConstantBool(&descending)))
-    return rewriter.notifyMatchFailure(
-        op, "unimplemented: only constant descending value is supported");
-
   int64_t dim;
   if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
     return rewriter.notifyMatchFailure(
@@ -1630,6 +1620,16 @@ LogicalResult ConvertAtenOp<AtenSortOp>::matchAndRewriteImpl(
     rewriter.replaceOp(op, {self, indices});
     return success();
   }
+
+  Type elementTy = selfTy.getElementType();
+  if (!elementTy.isF32() && !elementTy.isF16() && !elementTy.isBF16())
+    return rewriter.notifyMatchFailure(
+        op, "only f32, f16, and bf16 element types are supported");
+
+  bool descending;
+  if (!matchPattern(op.getDescending(), m_TorchConstantBool(&descending)))
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: only constant descending value is supported");
 
   dim = toPositiveDim(dim, rank);
   if (!isValidDim(dim, rank))
@@ -1681,7 +1681,7 @@ LogicalResult ConvertAtenOp<AtenSortOp>::matchAndRewriteImpl(
         return false;
       if (!matchPattern(slice.getEnd(), m_TorchConstantInt(&sliceK)))
         return false;
-      return sliceK > 0 && sliceK <= dimSize;
+      return sliceK >= 0 && sliceK <= dimSize;
     };
 
     int64_t valuesK;
@@ -1971,6 +1971,18 @@ LogicalResult ConvertAtenOp<AtenSortOp>::matchAndRewriteImpl(
     if (!valuesResultTy || !indicesResultTy)
       return rewriter.notifyMatchFailure(
           op, "expected ranked tensor types for topk slice results");
+    if (sliceUsers->k == 0) {
+      Value emptyValues = tensor::EmptyOp::create(
+          rewriter, loc, valuesResultTy.getShape(),
+          valuesResultTy.getElementType());
+      Value emptyIndices = tensor::EmptyOp::create(
+          rewriter, loc, indicesResultTy.getShape(),
+          indicesResultTy.getElementType());
+      rewriter.replaceOp(sliceUsers->valuesSlice, emptyValues);
+      rewriter.replaceOp(sliceUsers->indicesSlice, emptyIndices);
+      rewriter.eraseOp(op);
+      return success();
+    }
     auto topkValuesAndIndices =
         emitSelection(sliceUsers->k, valuesResultTy, indicesResultTy);
     if (failed(topkValuesAndIndices))
