@@ -15,6 +15,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Shape/IR/Shape.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/IR/DialectResourceBlobManager.h"
 #include "stablehlo/dialect/ChloOps.h"
 #include "stablehlo/dialect/StablehloOps.h"
 #include "torch-mlir/Conversion/TorchToStablehlo/StablehloLegalizeUtils.h"
@@ -894,8 +895,16 @@ LogicalResult ConvertAtenOp<ValueTensorLiteralOp>::matchAndRewrite(
     return success();
   }
 
-  rewriter.replaceOpWithNewOp<stablehlo::ConstantOp>(op, resultType,
-                                                     adaptor.getValue());
+  ElementsAttr attr = cast<ElementsAttr>(adaptor.getValue());
+  if (auto res = dyn_cast<DenseResourceElementsAttr>(attr)) {
+    // Resource-backed integer literals keep the Torch signedness in the
+    // attribute type. StableHLO integer tensors are signless, so retag the blob
+    // to the converted result type before constructing the constant.
+    auto shapedAttrTy = cast<ShapedType>(res.getType());
+    if (isa<IntegerType>(shapedAttrTy.getElementType()))
+      attr = DenseResourceElementsAttr::get(resultType, res.getRawHandle());
+  }
+  rewriter.replaceOpWithNewOp<stablehlo::ConstantOp>(op, resultType, attr);
   return success();
 }
 

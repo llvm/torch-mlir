@@ -133,3 +133,47 @@ func.func @aten.permute$identity_permutation(%arg0: !torch.vtensor<[64,32,16,8,4
   %1 = torch.aten.permute %arg0, %0 : !torch.vtensor<[64,32,16,8,4],f32>, !torch.list<int> -> !torch.vtensor<[64,32,16,8,4],f32>
   return %1 : !torch.vtensor<[64,32,16,8,4],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.slice$end_int64_max_dynamic(
+// CHECK-SAME:                  %[[ARG0:.*]]: !torch.vtensor<[4,?],f32>
+// CHECK-DAG:       %[[C1:.*]] = arith.constant 1 : index
+// CHECK-DAG:       %[[T:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[4,?],f32> -> tensor<4x?xf32>
+// CHECK:           %[[DIM:.*]] = tensor.dim %[[T]], %[[C1]] : tensor<4x?xf32>
+// COM: No INT64_MAX sentinel is materialized: the end resolves to %[[DIM]], so
+// COM: the slice extent is computed as (dim - start) directly off the queried
+// COM: dim, with no min(INT64_MAX, dim) clamp in between.
+// CHECK-NOT:       9223372036854775807
+// CHECK:           arith.subi %[[DIM]], %{{.*}} : index
+// CHECK:           %[[SLICE:.*]] = tensor.extract_slice %[[T]][0, %{{.*}}] [4, %{{.*}}] [1, 1] : tensor<4x?xf32> to tensor<4x?xf32>
+// CHECK:           torch_c.from_builtin_tensor %[[SLICE]]
+func.func @torch.aten.slice$end_int64_max_dynamic(%arg0: !torch.vtensor<[4,?],f32>) -> !torch.vtensor<[4,?],f32> {
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %intmax = torch.constant.int 9223372036854775807
+  %0 = torch.aten.slice.Tensor %arg0, %int1, %int2, %intmax, %int1 : !torch.vtensor<[4,?],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,?],f32>
+  return %0 : !torch.vtensor<[4,?],f32>
+}
+
+// -----
+
+// Same INT64_MAX end sentinel, but with step=2: the end still resolves to the
+// dim (no sentinel constant), and the strided size is (dim - start) floor-div
+// step.
+// CHECK-LABEL:   func.func @torch.aten.slice$end_int64_max_dynamic_step2(
+// CHECK-SAME:                  %[[ARG0:.*]]: !torch.vtensor<[4,?],f32>
+// CHECK-DAG:       %[[C1:.*]] = arith.constant 1 : index
+// CHECK-DAG:       %[[T:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[4,?],f32> -> tensor<4x?xf32>
+// CHECK:           %[[DIM:.*]] = tensor.dim %[[T]], %[[C1]] : tensor<4x?xf32>
+// CHECK-NOT:       9223372036854775807
+// CHECK:           %[[LEN:.*]] = arith.subi %[[DIM]], %{{.*}} : index
+// CHECK:           arith.floordivsi %{{.*}}, %{{.*}} : index
+// CHECK:           tensor.extract_slice %[[T]][0, %{{.*}}] [4, %{{.*}}] [1, 2] : tensor<4x?xf32> to tensor<4x?xf32>
+func.func @torch.aten.slice$end_int64_max_dynamic_step2(%arg0: !torch.vtensor<[4,?],f32>) -> !torch.vtensor<[4,?],f32> {
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %intmax = torch.constant.int 9223372036854775807
+  %0 = torch.aten.slice.Tensor %arg0, %int1, %int2, %intmax, %int2 : !torch.vtensor<[4,?],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,?],f32>
+  return %0 : !torch.vtensor<[4,?],f32>
+}
