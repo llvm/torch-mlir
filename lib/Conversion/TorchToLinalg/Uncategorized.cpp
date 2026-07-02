@@ -1588,9 +1588,59 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return arith::XOrIOp::create(b, loc, payloadArgs[0], allOnesVal);
   }
 
+  // Shared helper: emit (inputElem - zp) * scale -> float.
+  // inputElem is the integer payload argument; outFpArg provides the output
+  // float type.  scale and zp are unconverted Torch scalar SSA values.
+  auto emitDequantizePayload = [&](Value inputElem, bool isUnsigned,
+                                   Value scale, Value zp,
+                                   Type outFpTy) -> Value {
+    auto outBw = outFpTy.getIntOrFloatBitWidth();
+    auto outIntTy = b.getIntegerType(outBw);
+    if (inputElem.getType() != outIntTy) {
+      if (isUnsigned)
+        inputElem = arith::ExtUIOp::create(b, loc, outIntTy, inputElem);
+      else
+        inputElem = arith::ExtSIOp::create(b, loc, outIntTy, inputElem);
+    }
+    zp = converter->materializeTargetConversion(
+        b, loc, converter->convertType(zp.getType()), zp);
+    if (zp.getType() != outIntTy)
+      zp = arith::TruncIOp::create(b, loc, outIntTy, zp);
+    // treat as signed to prevent overflow on unsigned subtraction
+    inputElem = arith::SubIOp::create(b, loc, inputElem, zp);
+    inputElem = arith::SIToFPOp::create(b, loc, outFpTy, inputElem);
+    scale = converter->materializeTargetConversion(
+        b, loc, converter->convertType(scale.getType()), scale);
+    if (scale.getType() != outFpTy)
+      scale = arith::TruncFOp::create(b, loc, outFpTy, scale);
+    return arith::MulFOp::create(b, loc, inputElem, scale);
+  };
+
+  // Shared helper: emit clamp(round(inputElem / scale) + zp, qmin, qmax).
+  // qmin/qmax are float Values already in the input float type; destTy is the
+  // integer output element type.
+  auto emitQuantizePayload = [&](Value inputElem, Value scale, Value zp,
+                                 Value qmin, Value qmax, Type destTy,
+                                 bool isUnsigned) -> Value {
+    auto valueTy = inputElem.getType();
+    scale = converter->materializeTargetConversion(
+        b, loc, converter->convertType(scale.getType()), scale);
+    if (scale.getType() != valueTy)
+      scale = arith::TruncFOp::create(b, loc, valueTy, scale);
+    zp = converter->materializeTargetConversion(
+        b, loc, converter->convertType(zp.getType()), zp);
+    zp = arith::SIToFPOp::create(b, loc, valueTy, zp);
+    inputElem = arith::DivFOp::create(b, loc, inputElem, scale);
+    inputElem = math::RoundEvenOp::create(b, loc, inputElem);
+    inputElem = arith::AddFOp::create(b, loc, inputElem, zp);
+    inputElem = arith::MaximumFOp::create(b, loc, inputElem, qmin);
+    inputElem = arith::MinimumFOp::create(b, loc, inputElem, qmax);
+    if (isUnsigned)
+      return arith::FPToUIOp::create(b, loc, destTy, inputElem);
+    return arith::FPToSIOp::create(b, loc, destTy, inputElem);
+  };
+
   if (isa<AtenDequantizeTensorOp, AtenDequantizeSelfOp>(op)) {
-    auto value = payloadArgs[0];
-    auto valueTy = value.getType();
     auto qtensor = op->getOperand(0);
     auto qtensorTy = cast<ValueTensorType>(qtensor.getType()).getDtype();
 
@@ -1600,68 +1650,28 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       zp = makeQTensor.getZeroPoint();
       scale = makeQTensor.getScale();
     }
-
     if (auto quant = qtensor.getDefiningOp<AtenQuantizePerTensorOp>()) {
       zp = quant.getZeroPoint();
       scale = quant.getScale();
     }
-
-    if (!zp || !scale) {
+    if (!zp || !scale)
       return nullptr;
-    }
 
-    auto outFpTy = payloadArgs[1].getType();
-    auto outBw = outFpTy.getIntOrFloatBitWidth();
-    auto outIntTy = b.getIntegerType(outBw);
+    bool isUnsigned = torch_to_linalg::isUnsignedTorchType(qtensorTy);
+    return emitDequantizePayload(payloadArgs[0], isUnsigned, scale, zp,
+                                 payloadArgs[1].getType());
+  }
 
-    if (valueTy != outIntTy) {
-      if (torch_to_linalg::isUnsignedTorchType(qtensorTy)) {
-        value = arith::ExtUIOp::create(b, loc, outIntTy, value);
-      } else {
-        value = arith::ExtSIOp::create(b, loc, outIntTy, value);
-      }
-    }
-
-    zp = converter->materializeTargetConversion(
-        b, loc, converter->convertType(zp.getType()), zp);
-    auto zpTy = zp.getType();
-
-    if (zpTy != outIntTy) {
-      zp = arith::TruncIOp::create(b, loc, outIntTy, zp);
-    }
-
-    value = arith::SubIOp::create(b, loc, value, zp);
-    // treat the i32 as a signed int regardless of original signed-ness
-    // this will prevent overflow from subtraction for unsigned quantizations.
-    value = arith::SIToFPOp::create(b, loc, outFpTy, value);
-
-    scale = converter->materializeTargetConversion(
-        b, loc, converter->convertType(scale.getType()), scale);
-    if (scale.getType() != value.getType()) {
-      scale = arith::TruncFOp::create(b, loc, value.getType(), scale);
-    }
-    value = arith::MulFOp::create(b, loc, value, scale);
-    return value;
+  if (auto dq = dyn_cast<QuantizedDecomposedDequantizePerTensorOp>(op)) {
+    auto inputTy = cast<ValueTensorType>(dq.getInput().getType()).getDtype();
+    bool isUnsigned = torch_to_linalg::isUnsignedTorchType(inputTy);
+    return emitDequantizePayload(payloadArgs[0], isUnsigned, dq.getScale(),
+                                 dq.getZeroPoint(), payloadArgs[1].getType());
   }
 
   if (auto quant = dyn_cast<AtenQuantizePerTensorOp>(op)) {
     Value value = payloadArgs[0];
-    Value scale = quant.getScale();
-    Value zp = quant.getZeroPoint();
     auto valueTy = value.getType();
-
-    zp = converter->materializeTargetConversion(
-        b, loc, converter->convertType(zp.getType()), zp);
-    zp = arith::SIToFPOp::create(b, loc, valueTy, zp);
-
-    scale = converter->materializeTargetConversion(
-        b, loc, converter->convertType(scale.getType()), scale);
-    scale = arith::TruncFOp::create(b, loc, valueTy, scale);
-
-    value = arith::DivFOp::create(b, loc, value, scale);
-    value = math::RoundEvenOp::create(b, loc, value);
-    value = arith::AddFOp::create(b, loc, value, zp);
-
     auto destTy = payloadArgs[1].getType();
     auto bitwidth = destTy.getIntOrFloatBitWidth();
     bool isUnsigned = torch_to_linalg::isUnsignedTorchType(quant.getType());
@@ -1669,25 +1679,34 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                            : APInt::getSignedMinValue(bitwidth);
     APInt max = isUnsigned ? APInt::getMaxValue(bitwidth)
                            : APInt::getSignedMaxValue(bitwidth);
-
     double minI = isUnsigned ? static_cast<double>(min.getZExtValue())
                              : static_cast<double>(min.getSExtValue());
     double maxI = isUnsigned ? static_cast<double>(max.getZExtValue())
                              : static_cast<double>(max.getSExtValue());
-    Value minVal =
+    Value qmin =
         arith::ConstantOp::create(b, loc, b.getFloatAttr(valueTy, minI));
-    Value maxVal =
+    Value qmax =
         arith::ConstantOp::create(b, loc, b.getFloatAttr(valueTy, maxI));
-    value = arith::MaximumFOp::create(b, loc, value, minVal);
-    value = arith::MinimumFOp::create(b, loc, value, maxVal);
+    return emitQuantizePayload(value, quant.getScale(), quant.getZeroPoint(),
+                               qmin, qmax, destTy, isUnsigned);
+  }
 
-    if (isUnsigned) {
-      value = arith::FPToUIOp::create(b, loc, destTy, value);
-    } else {
-      value = arith::FPToSIOp::create(b, loc, destTy, value);
-    }
-
-    return value;
+  if (auto q = dyn_cast<QuantizedDecomposedQuantizePerTensorOp>(op)) {
+    Value value = payloadArgs[0];
+    auto valueTy = value.getType();
+    auto destTy = payloadArgs[1].getType();
+    bool isUnsigned = torch_to_linalg::isUnsignedTorchType(
+        cast<BaseTensorType>(q.getResult().getType()).getDtype());
+    // qmin/qmax are explicit Torch int operands; convert to float for clamping.
+    auto toFloat = [&](Value v) -> Value {
+      v = converter->materializeTargetConversion(
+          b, loc, converter->convertType(v.getType()), v);
+      return arith::SIToFPOp::create(b, loc, valueTy, v);
+    };
+    Value qmin = toFloat(q.getQuantMin());
+    Value qmax = toFloat(q.getQuantMax());
+    return emitQuantizePayload(value, q.getScale(), q.getZeroPoint(), qmin,
+                               qmax, destTy, isUnsigned);
   }
 
   if (auto isClose = dyn_cast<AtenIscloseOp>(op)) {
@@ -1792,7 +1811,9 @@ public:
              AtenFillScalarOp, AtenFillTensorOp, AtenAtanOp, AtenAcosOp,
              AtenAtanhOp, AtenAcoshOp, AtenAsinOp, AtenAsinhOp, AtenRealOp,
              AtenImagOp, AtenDequantizeSelfOp, AtenDequantizeTensorOp,
-             AtenQuantizePerTensorOp, AtenIscloseOp>(op))
+             AtenQuantizePerTensorOp, AtenIscloseOp,
+             QuantizedDecomposedDequantizePerTensorOp,
+             QuantizedDecomposedQuantizePerTensorOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -4125,7 +4146,16 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenTrilOp, AtenRemainderScalarOp, AtenRemainderTensorOp,
       AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp,
       AtenRealOp, AtenImagOp, AtenDequantizeSelfOp, AtenDequantizeTensorOp,
-      AtenQuantizePerTensorOp, AtenIscloseOp>();
+      AtenQuantizePerTensorOp, AtenIscloseOp,
+      QuantizedDecomposedQuantizePerTensorOp>();
+  // Only dq needs dynamic legality. The fusion reuses dq's integer input and
+  // ignores its result, so without this ConvertElementwiseOp would lower dq
+  // into a linalg.generic left dead once the fusion erases the matmul. q is the
+  // fusion's anchor (replaced directly), so it can't be lowered both ways.
+  target.addDynamicallyLegalOp<QuantizedDecomposedDequantizePerTensorOp>(
+      [](QuantizedDecomposedDequantizePerTensorOp op) {
+        return Torch::feedsFusableQDQMatmul(op);
+      });
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);

@@ -641,13 +641,16 @@ class AtenMmQint8(torch.nn.Module):
         ]
     )
     def forward(self, x, y):
-        x = torch.torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+        x = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
             x, 0.0215, -25, -128, 127, torch.int8
         )
-        y = torch.torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+        y = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
             y, 0.0176, 18, -128, 127, torch.int8
         )
         z = torch.mm(x, y)
+        z = torch.ops.quantized_decomposed.quantize_per_tensor.default(
+            z, 0.05, 0, -128, 127, torch.int8
+        )
         return z
 
 
@@ -675,13 +678,16 @@ class AtenMmQuint8(torch.nn.Module):
         ]
     )
     def forward(self, x, y):
-        x = torch.torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+        x = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
             x, 0.199, 65, 0, 255, torch.uint8
         )
-        y = torch.torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+        y = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
             y, 0.0215, 160, 0, 255, torch.uint8
         )
         z = torch.mm(x, y)
+        z = torch.ops.quantized_decomposed.quantize_per_tensor.default(
+            z, 0.05, 0, -128, 127, torch.int8
+        )
         return z
 
 
@@ -709,13 +715,16 @@ class AtenMmQMixedSigni8(torch.nn.Module):
         ]
     )
     def forward(self, x, y):
-        x = torch.torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+        x = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
             x, 0.03, -66, -128, 127, torch.int8
         )
-        y = torch.torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+        y = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
             y, 0.025, 160, 0, 255, torch.uint8
         )
         z = torch.mm(x, y)
+        z = torch.ops.quantized_decomposed.quantize_per_tensor.default(
+            z, 0.05, 0, -128, 127, torch.int8
+        )
         return z
 
 
@@ -770,13 +779,16 @@ class AtenMatmulQint8VM(torch.nn.Module):
         ]
     )
     def forward(self, x, y):
-        x = torch.torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+        x = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
             x, 0.0215, -25, -128, 127, torch.int8
         )
-        y = torch.torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+        y = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
             y, 0.0176, 18, -128, 127, torch.int8
         )
         z = torch.matmul(x, y)
+        z = torch.ops.quantized_decomposed.quantize_per_tensor.default(
+            z, 0.05, 0, -128, 127, torch.int8
+        )
         return z
 
 
@@ -802,13 +814,16 @@ class AtenMatmulQint8VV(torch.nn.Module):
         ]
     )
     def forward(self, x, y):
-        x = torch.torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+        x = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
             x, 0.0215, -25, -128, 127, torch.int8
         )
-        y = torch.torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+        y = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
             y, 0.0176, 18, -128, 127, torch.int8
         )
         z = torch.matmul(x, y)
+        z = torch.ops.quantized_decomposed.quantize_per_tensor.default(
+            z, 0.05, 0, -128, 127, torch.int8
+        )
         return z
 
 
@@ -834,13 +849,16 @@ class AtenMatmulQint8MV(torch.nn.Module):
         ]
     )
     def forward(self, x, y):
-        x = torch.torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+        x = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
             x, 0.0215, -25, -128, 127, torch.int8
         )
-        y = torch.torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+        y = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
             y, 0.0176, 18, -128, 127, torch.int8
         )
         z = torch.matmul(x, y)
+        z = torch.ops.quantized_decomposed.quantize_per_tensor.default(
+            z, 0.05, 0, -128, 127, torch.int8
+        )
         return z
 
 
@@ -866,13 +884,16 @@ class AtenMatmulQint8(torch.nn.Module):
         ]
     )
     def forward(self, x, y):
-        x = torch.torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+        x = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
             x, 0.0215, -25, -128, 127, torch.int8
         )
-        y = torch.torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+        y = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
             y, 0.0176, 18, -128, 127, torch.int8
         )
         z = torch.matmul(x, y)
+        z = torch.ops.quantized_decomposed.quantize_per_tensor.default(
+            z, 0.05, 0, -128, 127, torch.int8
+        )
         return z
 
 
@@ -885,8 +906,6 @@ def AtenMatmulQint8_basic(module, tu: TestUtils):
 
 
 # ==============================================================================
-
-
 class AtenMatmulQMixedSigni8(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -900,13 +919,16 @@ class AtenMatmulQMixedSigni8(torch.nn.Module):
         ]
     )
     def forward(self, x, y):
-        x = torch.torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+        x = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
             x, 0.03, -66, -128, 127, torch.int8
         )
-        y = torch.torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+        y = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
             y, 0.025, 160, 0, 255, torch.uint8
         )
         z = torch.matmul(x, y)
+        z = torch.ops.quantized_decomposed.quantize_per_tensor.default(
+            z, 0.05, 0, -128, 127, torch.int8
+        )
         return z
 
 
@@ -919,8 +941,6 @@ def AtenMatmulQMixedSigni8_basic(module, tu: TestUtils):
 
 
 # ==============================================================================
-
-
 class AtenMatmulQMixedSigni8Transpose(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -934,14 +954,17 @@ class AtenMatmulQMixedSigni8Transpose(torch.nn.Module):
         ]
     )
     def forward(self, x, y):
-        x = torch.torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+        x = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
             x, 0.03, -66, -128, 127, torch.int8
         )
-        y = torch.torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+        y = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
             y, 0.025, 160, 0, 255, torch.uint8
         )
         y = torch.transpose(y, 1, 2)
         z = torch.matmul(x, y)
+        z = torch.ops.quantized_decomposed.quantize_per_tensor.default(
+            z, 0.05, 0, -128, 127, torch.int8
+        )
         return z
 
 
@@ -950,6 +973,180 @@ def AtenMatmulQMixedSigni8Transpose_basic(module, tu: TestUtils):
     module.forward(
         tu.randint(7, 2, 3, 4, low=-128, high=127).to(torch.int8),
         tu.randint(2, 6, 4, low=0, high=255).to(torch.uint8),
+    )
+
+
+# ==============================================================================
+
+
+class AtenMatmulQint8BMM(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 4, 8], torch.int8, True),
+            ([2, 8, 4], torch.int8, True),
+        ]
+    )
+    def forward(self, x, y):
+        x = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            x, 0.0215, -25, -128, 127, torch.int8
+        )
+        y = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            y, 0.0176, 18, -128, 127, torch.int8
+        )
+        z = torch.matmul(x, y)
+        z = torch.ops.quantized_decomposed.quantize_per_tensor.default(
+            z, 0.05, 0, -128, 127, torch.int8
+        )
+        return z
+
+
+@register_test_case(module_factory=lambda: AtenMatmulQint8BMM())
+def AtenMatmulQint8BMM_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(2, 4, 8, low=-128, high=127).to(torch.int8),
+        tu.randint(2, 8, 4, low=-128, high=127).to(torch.int8),
+    )
+
+
+# ==============================================================================
+
+
+class AtenBmmQint8(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 4, 8], torch.int8, True),
+            ([2, 8, 4], torch.int8, True),
+        ]
+    )
+    def forward(self, x, y):
+        x = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            x, 0.0215, -25, -128, 127, torch.int8
+        )
+        y = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            y, 0.0176, 18, -128, 127, torch.int8
+        )
+        z = torch.bmm(x, y)
+        z = torch.ops.quantized_decomposed.quantize_per_tensor.default(
+            z, 0.05, 0, -128, 127, torch.int8
+        )
+        return z
+
+
+@register_test_case(module_factory=lambda: AtenBmmQint8())
+def AtenBmmQint8_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(2, 4, 8, low=-128, high=127).to(torch.int8),
+        tu.randint(2, 8, 4, low=-128, high=127).to(torch.int8),
+    )
+
+
+# ==============================================================================
+
+
+# Mixed-rank quantized matmuls (3D x 2D, 2D x 3D, 4D x 2D).  These rank
+# combinations are NOT supported by the fused linalg.quantized_matmul path, so
+# they must fall back to the decomposed dequantize -> aten.matmul -> quantize
+# route and still produce numerically correct results.
+class AtenMatmulQint8_3D2D(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 4, 8], torch.int8, True),
+            ([8, 16], torch.int8, True),
+        ]
+    )
+    def forward(self, x, y):
+        x = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            x, 0.0215, -25, -128, 127, torch.int8
+        )
+        y = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            y, 0.0176, 18, -128, 127, torch.int8
+        )
+        z = torch.matmul(x, y)
+        z = torch.ops.quantized_decomposed.quantize_per_tensor.default(
+            z, 0.05, 0, -128, 127, torch.int8
+        )
+        return z
+
+
+@register_test_case(module_factory=lambda: AtenMatmulQint8_3D2D())
+def AtenMatmulQint8_3D2D_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(2, 4, 8, low=-128, high=127).to(torch.int8),
+        tu.randint(8, 16, low=-128, high=127).to(torch.int8),
+    )
+
+
+# ==============================================================================
+
+
+class AtenMatmulQint8_2D3D(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 8], torch.int8, True),
+            ([2, 8, 16], torch.int8, True),
+        ]
+    )
+    def forward(self, x, y):
+        x = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            x, 0.0215, -25, -128, 127, torch.int8
+        )
+        y = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            y, 0.0176, 18, -128, 127, torch.int8
+        )
+        z = torch.matmul(x, y)
+        z = torch.ops.quantized_decomposed.quantize_per_tensor.default(
+            z, 0.05, 0, -128, 127, torch.int8
+        )
+        return z
+
+
+@register_test_case(module_factory=lambda: AtenMatmulQint8_2D3D())
+def AtenMatmulQint8_2D3D_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(4, 8, low=-128, high=127).to(torch.int8),
+        tu.randint(2, 8, 16, low=-128, high=127).to(torch.int8),
+    )
+
+
+# ==============================================================================
+
+
+class AtenMatmulQint8_4D2D(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 2, 4, 8], torch.int8, True),
+            ([8, 16], torch.int8, True),
+        ]
+    )
+    def forward(self, x, y):
+        x = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            x, 0.0215, -25, -128, 127, torch.int8
+        )
+        y = torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            y, 0.0176, 18, -128, 127, torch.int8
+        )
+        z = torch.matmul(x, y)
+        z = torch.ops.quantized_decomposed.quantize_per_tensor.default(
+            z, 0.05, 0, -128, 127, torch.int8
+        )
+        return z
+
+
+@register_test_case(module_factory=lambda: AtenMatmulQint8_4D2D())
+def AtenMatmulQint8_4D2D_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(3, 2, 4, 8, low=-128, high=127).to(torch.int8),
+        tu.randint(8, 16, low=-128, high=127).to(torch.int8),
     )
 
 
