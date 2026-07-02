@@ -3491,6 +3491,11 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewriteImpl(
     return rewriter.notifyMatchFailure(op, "dilation rank mismatch");
 
   if (was1D) {
+    if (!inputTy.hasStaticShape() || !outputTy.hasStaticShape()) {
+      return rewriter.notifyMatchFailure(
+          op, "dynamic Conv1D input/output shapes are unsupported");
+    }
+
     // TOSA has no Conv1D op, so normalize Conv1D to fake rank-4 Conv2D and
     // reuse the existing 2D convolution lowering.
     SmallVector<int64_t> fakeInputShape = {inputShape[0], inputShape[1], 1,
