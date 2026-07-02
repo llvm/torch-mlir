@@ -131,3 +131,14 @@ func.func @elementwise_add_non_broadcast_unit_dims(%arg0: !torch.vtensor<[6,1],b
   %11 = torch.aten.add.Tensor %arg0, %arg1, %int1_13 : !torch.vtensor<[6,1],bf16>, !torch.vtensor<[1],bf16>, !torch.int -> !torch.vtensor<[6,1],bf16>
   return %11 : !torch.vtensor<[6,1],bf16>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_user_attrs(
+// CHECK:           linalg.generic
+// CHECK-SAME:        mlir.user.domain_lower = -1.000000e+00 : f64
+// CHECK-NOT:         other.attr
+func.func @elementwise_user_attrs(%arg0: !torch.vtensor<[3],f32>) -> !torch.vtensor<[3],f32> {
+  %0 = torch.aten.tanh %arg0 {mlir.user.domain_lower = -1.0 : f64, other.attr = 1 : i64} : !torch.vtensor<[3],f32> -> !torch.vtensor<[3],f32>
+  return %0 : !torch.vtensor<[3],f32>
+}

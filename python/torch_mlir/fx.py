@@ -103,6 +103,7 @@ def export_and_import(
     enable_ir_printing: bool = False,
     backend_legal_ops: Optional[list[str]] = None,
     allow_non_finites: bool = True,
+    annotate: Optional[Callable[[ExportedProgram], None]] = None,
     **kwargs,
 ):
     context = ir.Context()
@@ -124,6 +125,10 @@ def export_and_import(
         decomposition_table = get_decomposition_table()
     if decomposition_table:
         prog = prog.run_decompositions(decomposition_table)
+    # Annotations attach to `node.meta`; run after decomposition so the writes
+    # land on the nodes the importer will actually see.
+    if annotate is not None:
+        annotate(prog)
     if enable_graph_printing:
         prog.graph_module.print_readable()
     if experimental_support_mutation:

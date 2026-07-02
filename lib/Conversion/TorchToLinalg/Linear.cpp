@@ -189,6 +189,8 @@ public:
                                         ValueRange{lhs, rhs}, zeroFill)
                    .getResult(0);
     }
+    if (auto matmulOp = matmul.getDefiningOp())
+      forwardUserDiscardableAttrs(op, matmulOp);
 
     if (accumulatorDType != resultType.getElementType()) {
       matmul = torch_to_linalg::convertTensorToElementType(

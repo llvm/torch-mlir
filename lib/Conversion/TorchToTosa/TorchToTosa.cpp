@@ -2827,13 +2827,13 @@ public:
     auto mmOutputTy = RankedTensorType::get(
         makeShapeLLVMCompatible(matmulOutputShape), accElemTy);
 
-    Value mmOpResult =
-        tosa::MatMulOp::create(
-            rewriter, op->getLoc(),
-            OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-                mmOutputTy),
-            matmulLhs, matmulRhs, lhsZp, rhsZp)
-            .getResult();
+    auto matmulOp = tosa::MatMulOp::create(
+        rewriter, op->getLoc(),
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            mmOutputTy),
+        matmulLhs, matmulRhs, lhsZp, rhsZp);
+    forwardUserDiscardableAttrs(op, matmulOp);
+    Value mmOpResult = matmulOp.getResult();
 
     // Perform the reshape to output shape. This is always required unless max
     // input rank=3 and there was no broadcasting, in which case the tosa.matmul
