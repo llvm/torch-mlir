@@ -1119,6 +1119,37 @@ def Conv_Transpose2dStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 2, 5, 6), tu.rand(2, 5, 2, 2))
 
 
+class Conv_Transpose2dDepthwiseModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, inputVec, weight):
+        # groups == in_channels: depthwise transposed conv2d
+        return torch.ops.aten.conv_transpose2d(
+            inputVec,
+            weight,
+            bias=None,
+            stride=[1, 1],
+            padding=[0, 0],
+            dilation=[1, 1],
+            output_padding=[0, 0],
+            groups=4,
+        )
+
+
+@register_test_case(module_factory=lambda: Conv_Transpose2dDepthwiseModule())
+def Conv_Transpose2dDepthwiseModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4, 5, 6), tu.rand(4, 1, 3, 3))
+
+
 class Conv_Transpose3dModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
