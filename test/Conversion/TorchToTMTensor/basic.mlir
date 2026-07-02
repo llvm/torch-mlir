@@ -16,7 +16,7 @@ func.func @sdpa_scale_none(%query: !torch.vtensor<[1,4,8,64],f32>, %key: !torch.
 
 // Test scale = 1/sqrt(64) = 0.125 which is the default PyTorch scale for headDim=64
 // CHECK-LABEL: @sdpa_scale_rsqrt_head_dim
-// CHECK: tm_tensor.attention
+// CHECK: tm_tensor.attention {scale = {{(1\.250000e-01|0\.125)}} : f64}
 func.func @sdpa_scale_rsqrt_head_dim(%query: !torch.vtensor<[1,4,8,64],f32>, %key: !torch.vtensor<[1,4,8,64],f32>, %value: !torch.vtensor<[1,4,8,64],f32>) -> !torch.vtensor<[1,4,8,64],f32> {
   %float0 = torch.constant.float 0.000000e+00
   // 1/sqrt(64) = 1/8 = 0.125
@@ -31,7 +31,7 @@ func.func @sdpa_scale_rsqrt_head_dim(%query: !torch.vtensor<[1,4,8,64],f32>, %ke
 
 // Test scale = 1/sqrt(128) ≈ 0.0883883 for headDim=128
 // CHECK-LABEL: @sdpa_scale_rsqrt_head_dim_128
-// CHECK: tm_tensor.attention
+// CHECK: tm_tensor.attention {scale = 0.0883883{{[0-9]*}} : f64}
 func.func @sdpa_scale_rsqrt_head_dim_128(%query: !torch.vtensor<[1,4,8,128],f32>, %key: !torch.vtensor<[1,4,8,128],f32>, %value: !torch.vtensor<[1,4,8,128],f32>) -> !torch.vtensor<[1,4,8,128],f32> {
   %float0 = torch.constant.float 0.000000e+00
   // 1/sqrt(128) ≈ 0.0883883476483184
@@ -112,14 +112,14 @@ func.func @sdpa_scale_just_outside_tolerance(%query: !torch.vtensor<[1,4,8,64],f
 
 // -----
 
-// Test that any scale with dynamic head dimension is rejected
-// (we cannot verify scale matches 1/sqrt(headDim) without knowing headDim)
+// Test that a constant scale with dynamic head dimension is propagated.
+// CHECK-LABEL: @sdpa_scale_dynamic_head_dim
+// CHECK: tm_tensor.attention {scale = {{(1\.250000e-01|0\.125)}} : f64}
 func.func @sdpa_scale_dynamic_head_dim(%query: !torch.vtensor<[1,4,8,?],f32>, %key: !torch.vtensor<[1,4,8,?],f32>, %value: !torch.vtensor<[1,4,8,?],f32>) -> !torch.vtensor<[1,4,8,?],f32> {
   %float0 = torch.constant.float 0.000000e+00
   %scale = torch.constant.float 1.250000e-01
   %false = torch.constant.bool false
   %none = torch.constant.none
-  // expected-error @+1 {{failed to legalize operation 'torch.aten.scaled_dot_product_attention'}}
   %0 = torch.aten.scaled_dot_product_attention %query, %key, %value, %none, %float0, %false, %scale, %false : !torch.vtensor<[1,4,8,?],f32>, !torch.vtensor<[1,4,8,?],f32>, !torch.vtensor<[1,4,8,?],f32>, !torch.none, !torch.float, !torch.bool, !torch.float, !torch.bool -> !torch.vtensor<[1,4,8,?],f32>
   return %0 : !torch.vtensor<[1,4,8,?],f32>
 }
