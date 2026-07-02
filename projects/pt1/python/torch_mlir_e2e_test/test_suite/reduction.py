@@ -858,6 +858,123 @@ def ReduceSumDimIntListKeepDimIntModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ReduceLogSumExpDimIntListFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.logsumexp(a, [0, 1], False)
+
+
+@register_test_case(module_factory=lambda: ReduceLogSumExpDimIntListFloatModule())
+def ReduceLogSumExpDimIntListFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+
+# ==============================================================================
+
+
+class ReduceLogSumExpDimIntListEmptyDimKeepDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.logsumexp(a, [], True)
+
+
+@register_test_case(
+    module_factory=lambda: ReduceLogSumExpDimIntListEmptyDimKeepDimModule()
+)
+def ReduceLogSumExpDimIntListEmptyDimKeepDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+
+# ==============================================================================
+
+
+class ReduceLogSumExpDimIntListNegativeDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.logsumexp(a, [-1], True)
+
+
+@register_test_case(module_factory=lambda: ReduceLogSumExpDimIntListNegativeDimModule())
+def ReduceLogSumExpDimIntListNegativeDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5))
+
+
+# ==============================================================================
+
+
+class ReduceLogSumExpDimIntListIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.int64, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.logsumexp(a, [-1], False)
+
+
+@register_test_case(module_factory=lambda: ReduceLogSumExpDimIntListIntModule())
+def ReduceLogSumExpDimIntListIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, 5, low=0, high=100))
+
+
+# ==============================================================================
+
+
+class ReduceLogSumExpDimIntListBoolModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.bool, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.logsumexp(a, [-1], False)
+
+
+@register_test_case(module_factory=lambda: ReduceLogSumExpDimIntListBoolModule())
+def ReduceLogSumExpDimIntListBoolModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, 5, high=2).to(torch.bool))
+
+
+# ==============================================================================
+
+
 class ReduceProdDimIntFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
