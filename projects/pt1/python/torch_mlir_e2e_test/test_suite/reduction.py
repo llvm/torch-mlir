@@ -1453,6 +1453,29 @@ def ReduceAmaxOutOfOrderDim_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ReduceAmaxOutOfOrderWithNegDim(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.amax(a, (2, 1, -1))
+
+
+@register_test_case(module_factory=lambda: ReduceAmaxOutOfOrderWithNegDim())
+def ReduceAmaxOutOfOrderWithNegDim_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5, 6, high=100))
+
+
+# ==============================================================================
+
+
 class ReduceAmaxKeepDim(torch.nn.Module):
     def __init__(self):
         super().__init__()
