@@ -4605,8 +4605,8 @@ func.func @torch.aten.convolution$depthwise_conv1d(%arg0: !torch.vtensor<[2,3,9]
 // CHECK:           %[[NHWC_INPUT:.*]] = tosa.transpose %[[FAKE_INPUT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<1x1x1x7xf32>) -> tensor<1x1x7x1xf32>
 // CHECK:           %[[OHWI_WEIGHT:.*]] = tosa.transpose %[[FAKE_WEIGHT]] {perms = array<i32: 1, 2, 3, 0>} : (tensor<1x2x1x3xf32>) -> tensor<2x1x3x1xf32>
 // CHECK:           %[[TRANSPOSED:.*]] = tosa.transpose_conv2d %[[NHWC_INPUT]], %[[OHWI_WEIGHT]], %[[BIAS]], %[[INPUT_ZP]], %[[WEIGHT_ZP]] {acc_type = f32, out_pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 1, 4>} : (tensor<1x1x7x1xf32>, tensor<2x1x3x1xf32>, tensor<2xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x1x27x2xf32>
-// CHECK:           %[[SLICE_START:.*]] = tosa.const_shape  {values = dense<[0, 0, 3, 0]> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK:           %[[SLICE_SIZE:.*]] = tosa.const_shape  {values = dense<[1, 1, 21, 2]> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK-DAG:       %[[SLICE_START:.*]] = tosa.const_shape  {values = dense<[0, 0, 3, 0]> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK-DAG:       %[[SLICE_SIZE:.*]] = tosa.const_shape  {values = dense<[1, 1, 21, 2]> : tensor<4xindex>} : () -> !tosa.shape<4>
 // CHECK:           %[[SLICED:.*]] = tosa.slice %[[TRANSPOSED]], %[[SLICE_START]], %[[SLICE_SIZE]] : (tensor<1x1x27x2xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<1x1x21x2xf32>
 // CHECK:           %[[NCHW_OUTPUT:.*]] = tosa.transpose %[[SLICED]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<1x1x21x2xf32>) -> tensor<1x2x1x21xf32>
 // CHECK:           %[[OUTPUT_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 2, 21]> : tensor<3xindex>} : () -> !tosa.shape<3>
