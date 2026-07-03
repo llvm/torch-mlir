@@ -786,6 +786,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     )
     emit("aten::kl_div : (Tensor, Tensor, int, bool) -> (Tensor)")
     emit("aten::bincount : (Tensor, Tensor?, int) -> (Tensor)")
+    emit("aten::histc : (Tensor, int, Scalar, Scalar) -> (Tensor)")
     emit("aten::linalg_vector_norm : (Tensor, Scalar, int[]?, bool, int?) -> (Tensor)")
     emit("aten::linalg_norm : (Tensor, Scalar?, int[]?, bool, int?) -> (Tensor)")
     emit("aten::linalg_qr : (Tensor, str) -> (Tensor, Tensor)")
