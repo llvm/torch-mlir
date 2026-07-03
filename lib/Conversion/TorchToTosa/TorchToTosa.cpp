@@ -8805,11 +8805,11 @@ ConvertAtenOp<Aten__InterpolateSizeListScaleListOp>::matchAndRewriteImpl(
   return success();
 }
 
-// Template to create supporting tril mask tensor for aten.tril
+// Template to create supporting mask tensor for aten.tril/triu
 template <typename T>
-Value createTrilMask(PatternRewriter &rewriter, Operation *op,
-                     ArrayRef<int64_t> shape, int64_t h, int64_t w,
-                     int64_t diagonal) {
+Value createTrilOrTriuMask(PatternRewriter &rewriter, Operation *op,
+                           ArrayRef<int64_t> shape, int64_t h, int64_t w,
+                           int64_t diagonal, bool isTril) {
   SmallVector<T> vec;
 
   for (int64_t i = 0; i < h; i++) {
@@ -8817,7 +8817,8 @@ Value createTrilMask(PatternRewriter &rewriter, Operation *op,
       // Positive diagonal value includes as many diagonals above the main
       // diagonal, while negative diagonal value excludes as many diagonals
       // below the main diagonal.
-      if (i >= j - diagonal) {
+      auto cmp = isTril ? i >= j - diagonal : i <= j - diagonal;
+      if (cmp) {
         vec.push_back(static_cast<T>(1));
       } else {
         vec.push_back(static_cast<T>(0));
@@ -8828,13 +8829,11 @@ Value createTrilMask(PatternRewriter &rewriter, Operation *op,
   return tosa::getConstTensor<T>(rewriter, op, vec, shape).value();
 }
 
-// Legalization for aten.tril
-template <>
-LogicalResult ConvertAtenOp<AtenTrilOp>::matchAndRewriteImpl(
-    AtenTrilOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-  auto self = adaptor.getSelf();
-
+template <typename AtenOpT>
+static LogicalResult
+convertTrilOrTriuTosa(AtenOpT op, Value self, Value diagonalVal, bool isTril,
+                      const TypeConverter *typeConverter,
+                      ConversionPatternRewriter &rewriter) {
   // Not a ranked tensor type
   auto selfType = dyn_cast<RankedTensorType>(self.getType());
   if (!selfType)
@@ -8851,27 +8850,33 @@ LogicalResult ConvertAtenOp<AtenTrilOp>::matchAndRewriteImpl(
     return rewriter.notifyMatchFailure(
         op, "Currently only static shapes are supported");
 
-  const TypeConverter *typeConverter = this->getTypeConverter();
   RankedTensorType resultType = cast<RankedTensorType>(
       typeConverter->convertType(op->getResult(0).getType()));
   if (!resultType)
     return rewriter.notifyMatchFailure(op, "Result type cannot be empty");
 
+  // clang-format off
   // Get height, width of input tensor, and diagonal arg to create
   // a const mask tensor to multiply with input.
   // This mask tensor has the same height and width of input tensor
-  // and consists of 1's for the lower triangle part and 0's for the rest.
-  // For example, with h=4, w=6, diagonal=1:
+  // and consists of 1's for the lower/higher triangle part and 0's for the rest.
+  // For tril with h=4, w=6, diagonal=1:
   // tensor([[1, 1, 0, 0, 0, 0],
   //         [1, 1, 1, 0, 0, 0],
   //         [1, 1, 1, 1, 0, 0],
   //         [1, 1, 1, 1, 1, 0]])
+  // For triu with h=4, w=6, diagonal=1:
+  // tensor([[0, 1, 1, 1, 1, 1],
+  //         [0, 0, 1, 1, 1, 1],
+  //         [0, 0, 0, 1, 1, 1],
+  //         [0, 0, 0, 0, 1, 1]])
+  // clang-format on
   auto selfShape = selfType.getShape();
   int64_t h = selfShape[selfRank - 2];
   int64_t w = selfShape[selfRank - 1];
   int64_t diagonal;
 
-  if (!matchPattern(op.getDiagonal(), m_TorchConstantInt(&diagonal)))
+  if (!matchPattern(diagonalVal, m_TorchConstantInt(&diagonal)))
     return rewriter.notifyMatchFailure(op, "Diagonal value is not an integer");
 
   // Define shape for mask tensor based on rank
@@ -8881,37 +8886,54 @@ LogicalResult ConvertAtenOp<AtenTrilOp>::matchAndRewriteImpl(
   maskShape.push_back(h);
   maskShape.push_back(w);
 
-  Value trilMask = TypeSwitch<Type, Value>(resultType.getElementType())
-                       .Case<mlir::FloatType>([&](auto) {
-                         return createTrilMask<float>(rewriter, op, maskShape,
-                                                      h, w, diagonal);
-                       })
-                       .Case<mlir::IntegerType>([&](auto intType) {
-                         switch (intType.getWidth()) {
-                         case 1:
-                           return createTrilMask<bool>(rewriter, op, maskShape,
-                                                       h, w, diagonal);
-                         case 32:
-                           return createTrilMask<int32_t>(
-                               rewriter, op, maskShape, h, w, diagonal);
-                         case 64:
-                           return createTrilMask<int64_t>(
-                               rewriter, op, maskShape, h, w, diagonal);
-                         }
-                         llvm_unreachable("Invalid integer width");
-                       });
+  Value mask =
+      TypeSwitch<Type, Value>(resultType.getElementType())
+          .Case<mlir::FloatType>([&](auto) {
+            return createTrilOrTriuMask<float>(rewriter, op, maskShape, h, w,
+                                               diagonal, isTril);
+          })
+          .template Case<mlir::IntegerType>([&](auto intType) {
+            switch (intType.getWidth()) {
+            case 1:
+              return createTrilOrTriuMask<bool>(rewriter, op, maskShape, h, w,
+                                                diagonal, isTril);
+            case 32:
+              return createTrilOrTriuMask<int32_t>(rewriter, op, maskShape, h,
+                                                   w, diagonal, isTril);
+            case 64:
+              return createTrilOrTriuMask<int64_t>(rewriter, op, maskShape, h,
+                                                   w, diagonal, isTril);
+            }
+            llvm_unreachable("Invalid integer width");
+          });
 
-  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, trilMask)
-          .failed())
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, mask).failed())
     return rewriter.notifyMatchFailure(
         op, "Failed to equalize ranks among operands and result");
 
-  auto result =
-      tosa::createMulOpAndCast(rewriter, op, resultType, self, trilMask,
-                               /*shift=*/0);
+  auto result = tosa::createMulOpAndCast(rewriter, op, resultType, self, mask,
+                                         /*shift=*/0);
   rewriter.replaceOp(op, result.getResult());
 
   return success();
+}
+
+// Legalization for aten.triu
+template <>
+LogicalResult ConvertAtenOp<AtenTriuOp>::matchAndRewriteImpl(
+    AtenTriuOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  return convertTrilOrTriuTosa(op, adaptor.getSelf(), op.getDiagonal(),
+                               /*isTril=*/false, getTypeConverter(), rewriter);
+}
+
+// Legalization for aten.tril
+template <>
+LogicalResult ConvertAtenOp<AtenTrilOp>::matchAndRewriteImpl(
+    AtenTrilOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  return convertTrilOrTriuTosa(op, adaptor.getSelf(), op.getDiagonal(),
+                               /*isTril=*/true, getTypeConverter(), rewriter);
 }
 
 // Legalization for aten.flip
@@ -11766,6 +11788,7 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
   INSERT_ATENOP_PATTERN(AtenIscloseOp);
   INSERT_ATENOP_PATTERN(Aten__InterpolateSizeListScaleListOp);
   INSERT_ATENOP_PATTERN(AtenTrilOp);
+  INSERT_ATENOP_PATTERN(AtenTriuOp);
   INSERT_ATENOP_PATTERN(AtenDiagonalOp);
   INSERT_ATENOP_PATTERN(AtenIndexSelectOp);
   INSERT_ATENOP_PATTERN(AtenFlipOp);

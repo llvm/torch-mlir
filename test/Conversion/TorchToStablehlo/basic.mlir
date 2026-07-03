@@ -360,3 +360,25 @@ func.func @torch.aten.sort(%arg0: !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<
   %values, %indices = torch.aten.sort %arg0, %int-1, %true : !torch.vtensor<[2,3],f32>, !torch.int, !torch.bool -> !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],si64>
   return %values, %indices : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],si64>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.triu(
+// CHECK-SAME:                   %[[ARG_0:.*]]: !torch.vtensor<[2,3,5],f32>,
+// CHECK-SAME:                   %[[ARG_1:.*]]: !torch.int) -> !torch.vtensor<[2,3,5],f32>
+// CHECK-DAG:       %[[VAL_0:.*]] = torch_c.to_builtin_tensor %[[ARG_0]] : !torch.vtensor<[2,3,5],f32> -> tensor<2x3x5xf32>
+// CHECK-DAG:       %[[VAL_1:.*]] = torch_c.to_i64 %[[ARG_1]]
+// CHECK:           %[[VAL_2:.*]] = stablehlo.iota dim = 1 : tensor<3x5xi64>
+// CHECK:           %[[VAL_3:.*]] = stablehlo.iota dim = 0 : tensor<3x5xi64>
+// CHECK:           %[[VAL_4:.*]] = tensor.from_elements %[[VAL_1]] : tensor<1xi64>
+// CHECK:           %[[VAL_5:.*]] = chlo.broadcast_add %[[VAL_3]], %[[VAL_4]] {broadcast_dimensions = array<i64: 1>} : (tensor<3x5xi64>, tensor<1xi64>) -> tensor<3x5xi64>
+// CHECK:           %[[VAL_6:.*]] = stablehlo.compare  GE, %[[VAL_2]], %[[VAL_5]],  SIGNED : (tensor<3x5xi64>, tensor<3x5xi64>) -> tensor<3x5xi1>
+// CHECK:           %[[VAL_7:.*]] = stablehlo.broadcast_in_dim %[[VAL_6]], dims = [1, 2] : (tensor<3x5xi1>) -> tensor<2x3x5xi1>
+// CHECK:           %[[VAL_8:.*]] = stablehlo.constant dense<0.000000e+00> : tensor<2x3x5xf32>
+// CHECK:           %[[VAL_9:.*]] = stablehlo.select %[[VAL_7]], %[[VAL_0]], %[[VAL_8]] : tensor<2x3x5xi1>, tensor<2x3x5xf32>
+// CHECK:           %[[VAL_10:.*]] = torch_c.from_builtin_tensor %[[VAL_9]] : tensor<2x3x5xf32> -> !torch.vtensor<[2,3,5],f32>
+// CHECK:           return %[[VAL_10:.*]] : !torch.vtensor<[2,3,5],f32>
+func.func @torch.aten.triu(%arg0: !torch.vtensor<[2,3,5],f32>, %arg1: !torch.int) -> !torch.vtensor<[2,3,5],f32> {
+  %0 = torch.aten.triu %arg0, %arg1:!torch.vtensor<[2,3,5],f32>, !torch.int -> !torch.vtensor<[2,3,5],f32>
+  return %0 : !torch.vtensor<[2,3,5],f32>
+}
