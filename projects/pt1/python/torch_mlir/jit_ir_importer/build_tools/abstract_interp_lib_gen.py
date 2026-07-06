@@ -295,6 +295,9 @@ def aten〇rsqrt〡shape(self: List[int]) -> List[int]:
 def aten〇abs〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇absolute〡shape(self: List[int]) -> List[int]:
+  return upstream_shape_functions.unary(self)
+
 def aten〇reciprocal〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -3146,6 +3149,15 @@ def prims〇prod〡dtype(inp_rank_dtype: Tuple[int, int], dims: Optional[List[in
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇abs〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    if self_dtype == torch.complex128:
+        return torch.float64
+    elif self_dtype == torch.complex64:
+        return torch.float32
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇absolute〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
     self_rank, self_dtype = self_rank_dtype
     if self_dtype == torch.complex128:
         return torch.float64
