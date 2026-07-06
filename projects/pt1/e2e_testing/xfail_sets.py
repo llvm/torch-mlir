@@ -1160,6 +1160,8 @@ STABLEHLO_PASS_SET = {
     "AtenOuterInt_basic",
     "AtenOuterFloat_basic",
     "AtenOuterF32F64_basic",
+    "AddbmmBroadcast1DInputModule_basic",
+    "AddbmmStaticModule_basic",
     "BaddbmmBroadcast1DInputModule_basic",
     "BaddbmmBroadcast2DInputModule_basic",
     "BaddbmmStaticModule_basic",
@@ -2223,6 +2225,8 @@ TOSA_PASS_SET = {
     "AtenToDeviceModule_basic",
     "Aten_CastFloatModule_basic",
     "TrueFalseOrBoolOpModule_basic",
+    "AddbmmBroadcast1DInputModule_basic",
+    "AddbmmStaticModule_basic",
     "BaddbmmBroadcast1DInputModule_basic",
     "BaddbmmBroadcast2DInputModule_basic",
     "BaddbmmDynamicModule_basic",
@@ -2836,6 +2840,12 @@ LTC_XFAIL_SET = {
 }
 
 ONNX_XFAIL_SET = {
+    "AddbmmBroadcast1DInputModule_basic",
+    "AddbmmModule_basic",
+    "AddbmmStaticModule_basic",
+    "AddbmmWithAlphaBetaModule_basic",
+    "AddbmmWithAlphaModule_basic",
+    "AddbmmWithBetaModule_basic",
     # ONNX export applies explicit offset to materialized slice storage.
     "AtenAsStridedAfterAliasDetachModule_basic",
     # ONNX transpose materializes movedim before gather, so indexing uses new storage.
@@ -4199,6 +4209,12 @@ ONNX_TOSA_CRASHING_SET = {
 }
 
 ONNX_TOSA_XFAIL_SET = {
+    "AddbmmBroadcast1DInputModule_basic",
+    "AddbmmModule_basic",
+    "AddbmmStaticModule_basic",
+    "AddbmmWithAlphaBetaModule_basic",
+    "AddbmmWithAlphaModule_basic",
+    "AddbmmWithBetaModule_basic",
     # ONNX export applies explicit offset to materialized slice storage.
     "AtenAsStridedAfterAliasDetachModule_basic",
     # ONNX export gathers from the materialized empty slice.
