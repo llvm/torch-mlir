@@ -2278,6 +2278,8 @@ TOSA_PASS_SET = {
     "EinsumStaticWithEllipsisSlicingAndBroadcastModule_basic",
     "ElementwiseAbsFloatModule_basic",
     "ElementwiseAbsIntModule_basic",
+    "ElementwiseAbsoluteFloatModule_basic",
+    "ElementwiseAbsoluteIntModule_basic",
     "ElementwiseAddModule_basic",
     "ElementwiseAddScalarFloatModule_basic",
     "ElementwiseAddScalarInt64Module_basic",
