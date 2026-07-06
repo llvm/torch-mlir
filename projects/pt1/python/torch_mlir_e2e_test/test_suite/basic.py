@@ -4366,10 +4366,12 @@ class HistcModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([-1], torch.float32, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+        ]
+    )
     def forward(self, x):
         return torch.ops.aten.histc(x, bins=4, min=1.0, max=5.0)
 
@@ -4384,10 +4386,12 @@ class HistcZeroBoundsModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([-1], torch.float32, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+        ]
+    )
     def forward(self, x):
         return torch.ops.aten.histc(x, bins=4, min=0.0, max=0.0)
 
@@ -4396,15 +4400,18 @@ class HistcZeroBoundsModule(torch.nn.Module):
 def HistcZeroBoundsModule_basic(module, tu: TestUtils):
     module.forward(torch.tensor([1.0, 2.0, 4.0, 5.0, 6.0]))
 
+
 class HistcDefaultBoundsModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([-1], torch.float32, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+        ]
+    )
     def forward(self, x):
         return torch.ops.aten.histc(x, bins=4)
 
@@ -4419,10 +4426,12 @@ class Histc2DModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([
-        None,
-        ([-1, -1], torch.float32, True),
-    ])
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
     def forward(self, x):
         return torch.ops.aten.histc(x, bins=4, min=1.0, max=5.0)
 
