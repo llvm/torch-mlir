@@ -598,6 +598,7 @@ static void markDecomposedOpsAsIllegal(MLIRContext *context,
   target.addIllegalOp<AtenUpsampleNearest1dVecOp>();
   target.addIllegalOp<AtenUpsampleNearest2dVecOp>();
   target.addIllegalOp<AtenHistcOp>();
+  target.addIllegalOp<AtenAbsoluteOp>();
 
   for (auto &opName : backendLegalOpsSet) {
     target.addLegalOp(

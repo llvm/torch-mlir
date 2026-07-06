@@ -421,6 +421,21 @@ func.func @torch.aten._scaled_mm$invalid_blockwise_scale_numel(
 
 // -----
 
+func.func @torch.aten._scaled_mm$invalid_self_dtype(
+    %arg0: !torch.vtensor<[128,128],f32>,
+    %arg1: !torch.vtensor<[128,128],f8E4M3FN>,
+    %arg2: !torch.vtensor<[512],f8E8M0FNU>,
+    %arg3: !torch.vtensor<[512],f8E8M0FNU>) -> !torch.vtensor<[128,128],bf16> {
+  %false = torch.constant.bool false
+  %int15 = torch.constant.int 15
+  %none = torch.constant.none
+  // expected-error @+1 {{'torch.aten._scaled_mm' op expected self to have an FP8 or FP4 dtype}}
+  %0 = torch.aten._scaled_mm %arg0, %arg1, %arg2, %arg3, %none, %none, %int15, %false : !torch.vtensor<[128,128],f32>, !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[512],f8E8M0FNU>, !torch.vtensor<[512],f8E8M0FNU>, !torch.none, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}
+
+// -----
+
 func.func @torch.aten._scaled_mm$invalid_mat2_non_contracting_dim(
     %arg0: !torch.vtensor<[128,128],f8E4M3FN>,
     %arg1: !torch.vtensor<[128,127],f8E4M3FN>,

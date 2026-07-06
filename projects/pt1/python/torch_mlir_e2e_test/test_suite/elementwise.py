@@ -4226,6 +4226,52 @@ def ElementwiseAbsIntModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseAbsoluteFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.absolute(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAbsoluteFloatModule())
+def ElementwiseAbsoluteFloatModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([[[-1.0, 0.0, 1.0]]]))
+
+
+# ==============================================================================
+
+
+class ElementwiseAbsoluteIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.int64, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.absolute(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAbsoluteIntModule())
+def ElementwiseAbsoluteIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([[[-1, 0, 1]]]))
+
+
+# ==============================================================================
+
+
 class ElementwiseReciprocalModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
