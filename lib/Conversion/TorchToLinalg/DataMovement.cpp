@@ -26,6 +26,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/APInt.h"
 
+#include <limits>
 #include <numeric>
 
 using namespace mlir;
@@ -82,17 +83,26 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
   if (isa<Torch::NoneType>(torchTypeEnd.getType())) {
     end = dimSize;
   } else {
-    end = castIntToIndex(rewriter, loc, end);
-    Value endcmp = arith::CmpIOp::create(rewriter, loc,
-                                         arith::CmpIPredicate::slt, end, zero);
-    Value endadd = arith::AddIOp::create(rewriter, loc, end, dimSize);
-    end = arith::SelectOp::create(rewriter, loc, endcmp, endadd, end);
-    endcmp = arith::CmpIOp::create(rewriter, loc, arith::CmpIPredicate::slt,
-                                   end, zero);
-    end = arith::SelectOp::create(rewriter, loc, endcmp, negone, end);
-    endcmp = arith::CmpIOp::create(rewriter, loc, arith::CmpIPredicate::sgt,
-                                   end, dimSize);
-    end = arith::SelectOp::create(rewriter, loc, endcmp, dimSize, end);
+    // If end is INT64_MAX (PyTorch sentinel for "slice to the end"), use
+    // dimSize directly to avoid materializing a large index constant that
+    // downstream targets with 32-bit index cannot represent.
+    int64_t endConst;
+    if (matchPattern(torchTypeEnd, m_TorchConstantInt(&endConst)) &&
+        endConst == std::numeric_limits<int64_t>::max()) {
+      end = dimSize;
+    } else {
+      end = castIntToIndex(rewriter, loc, end);
+      Value endcmp = arith::CmpIOp::create(
+          rewriter, loc, arith::CmpIPredicate::slt, end, zero);
+      Value endadd = arith::AddIOp::create(rewriter, loc, end, dimSize);
+      end = arith::SelectOp::create(rewriter, loc, endcmp, endadd, end);
+      endcmp = arith::CmpIOp::create(rewriter, loc, arith::CmpIPredicate::slt,
+                                     end, zero);
+      end = arith::SelectOp::create(rewriter, loc, endcmp, negone, end);
+      endcmp = arith::CmpIOp::create(rewriter, loc, arith::CmpIPredicate::sgt,
+                                     end, dimSize);
+      end = arith::SelectOp::create(rewriter, loc, endcmp, dimSize, end);
+    }
   }
 
   // Slice logic: resultSize = floordiv(end - start + step - 1,  step)

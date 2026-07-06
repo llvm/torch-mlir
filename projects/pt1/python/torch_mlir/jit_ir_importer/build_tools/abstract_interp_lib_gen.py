@@ -295,6 +295,9 @@ def aten〇rsqrt〡shape(self: List[int]) -> List[int]:
 def aten〇abs〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
+def aten〇absolute〡shape(self: List[int]) -> List[int]:
+  return upstream_shape_functions.unary(self)
+
 def aten〇reciprocal〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
 
@@ -950,6 +953,10 @@ def aten〇_scaled_mm〡shape(self: List[int], mat2: List[int], scale_a: List[in
 
 def aten〇_int_mm〡shape(self: List[int], mat2: List[int]) -> List[int]:
     return upstream_shape_functions.mm(self, mat2)
+
+def aten〇_scaled_mm_v2〡shape(self: List[int], mat2: List[int], scale_a: List[List[int]], recipe_a: List[int], swizzle_a: List[int], scale_b: List[List[int]], recipe_b: List[int], swizzle_b: List[int], bias: Optional[List[int]], out_dtype: Optional[int], contraction_dim: List[int] = (), use_fast_accum: bool = False) -> List[int]:
+    return upstream_shape_functions.mm(self, mat2)
+
 
 def aten〇addmm〡shape(self: List[int], mat1: List[int], mat2: List[int], beta: float = 1, alpha: float = 1) -> List[int]:
     return upstream_shape_functions.addmm(self, mat1, mat2, beta, alpha)
@@ -3149,6 +3156,15 @@ def aten〇abs〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
         return torch.float32
     return self_dtype
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇absolute〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    if self_dtype == torch.complex128:
+        return torch.float64
+    elif self_dtype == torch.complex64:
+        return torch.float32
+    return self_dtype
+
 @check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3, 7)], output_size=[2]))
 def aten〇adaptive_avg_pool1d〡dtype(self_rank_dtype: Tuple[int, int], output_size: List[int]) -> int:
     self_rank, self_dtype = self_rank_dtype
@@ -4772,6 +4788,12 @@ def aten〇mm〡dtype(self_rank_dtype: Tuple[int, int], mat2_rank_dtype: Tuple[i
     ),
 ])
 def aten〇_scaled_mm〡dtype(self_rank_dtype: Tuple[int, int], mat2_rank_dtype: Tuple[int, int], scale_a_rank_dtype: Tuple[int, int], scale_b_rank_dtype: Tuple[int, int], bias_rank_dtype: Optional[Tuple[int, int]] = None, scale_result_rank_dtype: Optional[Tuple[int, int]] = None, out_dtype: Optional[int] = None, use_fast_accum: bool = False) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    if out_dtype is not None:
+        return out_dtype
+    return self_dtype
+
+def aten〇_scaled_mm_v2〡dtype(self_rank_dtype: Tuple[int, int], mat2_rank_dtype: Tuple[int, int], scale_a_rank_dtype: List[Tuple[int, int]], recipe_a: List[int], swizzle_a: List[int], scale_b_rank_dtype: List[Tuple[int, int]], recipe_b: List[int], swizzle_b: List[int], bias_rank_dtype: Optional[Tuple[int, int]], out_dtype: Optional[int], contraction_dim: List[int] = (), use_fast_accum: bool = False) -> int:
     self_rank, self_dtype = self_rank_dtype
     if out_dtype is not None:
         return out_dtype

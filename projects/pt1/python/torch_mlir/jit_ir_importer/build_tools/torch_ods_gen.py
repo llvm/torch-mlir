@@ -359,6 +359,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::logit : (Tensor, float?) -> (Tensor)",
         "aten::rsqrt : (Tensor) -> (Tensor)",
         "aten::abs : (Tensor) -> (Tensor)",
+        "aten::absolute : (Tensor) -> (Tensor)",
         "aten::reciprocal : (Tensor) -> (Tensor)",
         "aten::bitwise_and.Tensor : (Tensor, Tensor) -> (Tensor)",
         "aten::bitwise_and.Scalar : (Tensor, Scalar) -> (Tensor)",
@@ -576,6 +577,10 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::mm : (Tensor, Tensor) -> (Tensor)")
     emit(
         "aten::_scaled_mm : (Tensor, Tensor, Tensor, Tensor, Tensor?, Tensor?, int?, bool) -> (Tensor)",
+        has_verifier=True,
+    )
+    emit(
+        "aten::_scaled_mm_v2 : (Tensor, Tensor, Tensor[], int[], int[], Tensor[], int[], int[], Tensor?, int?, int[], bool) -> (Tensor)",
         has_verifier=True,
     )
     emit("aten::_int_mm : (Tensor, Tensor) -> (Tensor)")

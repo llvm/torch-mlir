@@ -10,12 +10,17 @@
 # (this includes down into lower parts of the stack, where a side table
 # might be used to keep more elaborate sets of testing configurations).
 
-from torch_mlir_e2e_test.test_suite import COMMON_TORCH_MLIR_LOWERING_XFAILS
 from torch_mlir._version import torch_version_for_comparison, version
+from torch_mlir_e2e_test.test_suite import COMMON_TORCH_MLIR_LOWERING_XFAILS
 
 print(f"TORCH_VERSION_FOR_COMPARISON =", torch_version_for_comparison())
 
 LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
+    # TorchScript importer fails: required keyword attribute 'unused' is undefined
+    "AtenEmbeddingBagLastBagBoundaryModule_basic",
+    "AtenEmbeddingBagStaticModule_basic",
+    "AtenEmbeddingBagSumExample_basic",
+    "Aten_EmbeddingBagExample_basic",
     # lowering to torch backend IR fails due to unsupported op: aten.upsample_[mode/dims].vec
     # these interpolate tests are added specifically to test onnx.Resize.
     "InterpolateDynamicModule_sizes_bilinear",
@@ -67,9 +72,6 @@ LINALG_CRASHING_SET = {
     "AtenDiagEmbedNonDefault4DDiag_basic",
     "AtenDiagEmbedOffsetDiag_basic",
     "AtenDiagEmbedRevDimDiag_basic",
-    "AtenEmbeddingBagStaticModule_basic",
-    "AtenEmbeddingBagSumExample_basic",
-    "Aten_EmbeddingBagExample_basic",
     # Runtime op verification: subview is out-of-bounds of the base memref
     "Conv_Transpose1dModule_basic",
     "Conv_Transpose1dStaticModule_basic",
@@ -88,6 +90,7 @@ LINALG_CRASHING_SET = {
     "SliceCopyStartGreaterThanDimSize_Module_basic",
     # unimplemented: for conversion to byte or char type dstOriginalDtype has to be passed to convertScalarToDtype
     "AtenMmInt8Types_basic",
+    "AtenMmInt8ZeroK_basic",
     # Hanging tests:
     "ConvolutionBackwardModule2DDilated_basic",
     "ConvolutionBackwardModule2DStridedPaddedDilatedGrouped_basic",
@@ -125,6 +128,7 @@ TORCHDYNAMO_XFAIL_SET = {
     # %6:4 = torch.operator "aten._embedding_bag_forward_only"(%1, %3, %5, %false, %int0, %false, %none, %false, %int-1) : (!torch.tensor<*,f32>, !torch.tensor<*,si64>, !torch.tensor<*,si64>, !torch.bool, !torch.int, !torch.bool, !torch.none, !torch.bool, !torch.int) -> (!torch.tensor, !torch.tensor, !torch.tensor, !torch.tensor)
     # See also: https://github.com/pytorch/torchdynamo/issues/327
     "AtenEmbeddingBagSumExample_basic",
+    "AtenEmbeddingBagLastBagBoundaryModule_basic",
     "ElementwiseAtanTensorBFloat16SpecialValuesModule_basic",
     # error: unsupported by backend contract: tensor with unknown rank
     # note: see current operation: %1 = "torch.tensor_static_info_cast"(%arg0) : (!torch.vtensor<[5,4,3,2,1],f32>) -> !torch.vtensor<*,f32>
@@ -422,6 +426,12 @@ FX_IMPORTER_XFAIL_SET = {
     "AtenIntBoolOpModule_basic",
     "AtenIntMM_basic",
     "AtenNonzero1DDynamicModule_basic",  # no lowering for torch.aten.sym_constrain_range_for_size
+    "AtenScaledMmBlockScaledFp8Module_basic",
+    "AtenScaledMmBlockScaledFp8SwizzledModule_basic",
+    "AtenScaledMmPerTensorE5M2Module_basic",
+    "AtenScaledMmPerTensorF16Module_basic",
+    "AtenScaledMmPerTensorF32Module_basic",
+    "AtenScaledMmPerTensorModule_basic",
     "Aten_TrilinearModuleVaryingRanks_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
     "QuantizedReluInt32_basic",
@@ -567,6 +577,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ElementwiseRemainderTensorModule_Int_Float_NegativeDivisor_basic",
     "ElementwiseRemainderTensorModule_Int_NegativeDividend_basic",
     "ElementwiseRemainderTensorModule_Int_NegativeDivisor_basic",
+    "LinalgVectorNormRank0Module_basic",
     "MaxPool1dCeilModeTrueModule_basic",
     "MaxPool1dStaticCeilModeTrueModule_basic",
     "MaxUnpool3dModulePad0_basic",
@@ -632,6 +643,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenDiagEmbedOffsetDiag_basic",
     "AtenDiagEmbedRevDimDiag_basic",
     "AtenEmbeddingBagSumExample_basic",
+    "AtenEmbeddingBagLastBagBoundaryModule_basic",
     "AtenFftRfft2DLastDim_basic",
     "AtenFftRfft2DMiddleDim_basic",
     "AtenFloatScalarModule_basic",
@@ -653,6 +665,12 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenMmQuint8_basic",
     "AtenRealView128Module_basic",
     "AtenRealView64Module_basic",
+    "AtenScaledMmBlockScaledFp8Module_basic",
+    "AtenScaledMmBlockScaledFp8SwizzledModule_basic",
+    "AtenScaledMmPerTensorE5M2Module_basic",
+    "AtenScaledMmPerTensorF16Module_basic",
+    "AtenScaledMmPerTensorF32Module_basic",
+    "AtenScaledMmPerTensorModule_basic",
     "AtenStftCenter1D_basic",
     "AtenStftCenter1DUnkSigLen_basic",
     "AtenStftCenter2D_basic",
@@ -690,8 +708,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ChannelShuffleTrailingOnes_basic",
     "ChannelShuffleDynamicDims_basic",
     "ConstantBoolParameterModule_basic",
-    "ConstantInt32ParameterModule_basic",
-    "ConstantInt64ParameterModule_basic",
     "ContainsIntList_False",
     "ContainsIntList_True",
     "Conv2dFP16NoBiasModule_basic",
@@ -989,12 +1005,8 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenSymConstrainRange_basic",
     "AtenSymConstrainRangeForSize_basic",
     "Aten_AssertScalar_basic",
-    "NativeGroupNormModule_basic",
     "AvgPool2dCeilModeFullDimIndivisibleByStrideModule_basic",
     "MaxPool2dCeilModeFullDimIndivisibleByStrideModule_basic",
-    "AtenAsStridedModule_basic",
-    "AtenAsStridedNoStorageOffsetModule_basic",
-    "AtenAsStridedUnknownSizeModule_basic",
     # error: argument must be a memref of f32, f64, i32, i64, i8, i1, c32, c64, but got 'memref<3x5xbf16>'
     "ElementwiseClampMaxModule_bfloat16",
     "ElementwiseClampMinModule_bfloat16",
@@ -1032,6 +1044,32 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
 }
 
 STABLEHLO_PASS_SET = {
+    "AtenAsStridedAfterAliasDetachModule_basic",
+    "AtenAsStridedAfterBroadcastToModule_basic",
+    "AtenAsStridedAfterChainedViewsModule_basic",
+    "AtenAsStridedAfterDiagonalModule_basic",
+    "AtenAsStridedAfterExpandAsModule_basic",
+    "AtenAsStridedAfterExpandLeadingSingletonSliceModule_basic",
+    "AtenAsStridedAfterExpandModule_basic",
+    "AtenAsStridedAfterMovedimModule_basic",
+    "AtenAsStridedAfterNarrowModule_basic",
+    "AtenAsStridedAfterNestedAsStridedExplicitOffsetModule_basic",
+    "AtenAsStridedAfterNumpyTModule_basic",
+    "AtenAsStridedAfterPermuteModule_basic",
+    "AtenAsStridedAfterReshapeAliasModule_basic",
+    "AtenAsStridedAfterReshapeFlattenModule_basic",
+    "AtenAsStridedAfterSelectModule_basic",
+    "AtenAsStridedAfterSliceModule_basic",
+    "AtenAsStridedAfterSliceWithExplicitOffsetModule_basic",
+    "AtenAsStridedAfterSqueezeUnsqueezeModule_basic",
+    "AtenAsStridedAfterTModule_basic",
+    "AtenAsStridedAfterTransposeModule_basic",
+    "AtenAsStridedAfterUnflattenModule_basic",
+    "AtenAsStridedAfterUnfoldModule_basic",
+    "AtenAsStridedAfterUnsafeViewModule_basic",
+    "AtenAsStridedAfterViewModule_basic",
+    "AtenAsStridedModule_basic",
+    "AtenAsStridedNoStorageOffsetModule_basic",
     "ReduceAminmaxSingleDim_basic",
     "ReduceAminmaxAllDims_basic",
     "ReduceAmaxEmptyDim_basic",
@@ -1119,6 +1157,9 @@ STABLEHLO_PASS_SET = {
     "AvgPool2dStaticModule_basic",
     "AvgPool2dCountIncludePadFalseStaticModule_basic",
     "AvgPool3dStaticModule_basic",
+    "AtenOuterInt_basic",
+    "AtenOuterFloat_basic",
+    "AtenOuterF32F64_basic",
     "BaddbmmBroadcast1DInputModule_basic",
     "BaddbmmBroadcast2DInputModule_basic",
     "BaddbmmStaticModule_basic",
@@ -1175,6 +1216,8 @@ STABLEHLO_PASS_SET = {
     "DropoutEvalIntModule_basic",
     "ElementwiseAbsFloatModule_basic",
     "ElementwiseAbsIntModule_basic",
+    "ElementwiseAbsoluteFloatModule_basic",
+    "ElementwiseAbsoluteIntModule_basic",
     "ElementwiseAcoshIntModule_basic",
     "ElementwiseAcoshModule_basic",
     "ElementwiseAsinhIntModule_basic",
@@ -1606,7 +1649,6 @@ STABLEHLO_PASS_SET = {
     "ZerosModuleFloat3D_basic",
     "ZerosModuleInt2D_basic",
     "ZerosModuleInt3D_basic",
-    "AtenEmbeddingBagStaticModule_basic",
     "AtenEyeMModuleCPUDevice_basic",
     "AtenEyeMModuleDefaultDtype_basic",
     "AtenEyeMModuleFalsePinMemory_basic",
@@ -1802,6 +1844,32 @@ FX_IMPORTER_TOSA_CRASHING_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "AtenAsStridedAfterAliasDetachModule_basic",
+    "AtenAsStridedAfterBroadcastToModule_basic",
+    "AtenAsStridedAfterChainedViewsModule_basic",
+    "AtenAsStridedAfterDiagonalModule_basic",
+    "AtenAsStridedAfterExpandAsModule_basic",
+    "AtenAsStridedAfterExpandLeadingSingletonSliceModule_basic",
+    "AtenAsStridedAfterExpandModule_basic",
+    "AtenAsStridedAfterMovedimModule_basic",
+    "AtenAsStridedAfterNarrowModule_basic",
+    "AtenAsStridedAfterNestedAsStridedExplicitOffsetModule_basic",
+    "AtenAsStridedAfterNumpyTModule_basic",
+    "AtenAsStridedAfterPermuteModule_basic",
+    "AtenAsStridedAfterReshapeAliasModule_basic",
+    "AtenAsStridedAfterReshapeFlattenModule_basic",
+    "AtenAsStridedAfterSelectModule_basic",
+    "AtenAsStridedAfterSliceModule_basic",
+    "AtenAsStridedAfterSliceWithExplicitOffsetModule_basic",
+    "AtenAsStridedAfterSqueezeUnsqueezeModule_basic",
+    "AtenAsStridedAfterTModule_basic",
+    "AtenAsStridedAfterTransposeModule_basic",
+    "AtenAsStridedAfterUnflattenModule_basic",
+    "AtenAsStridedAfterUnfoldModule_basic",
+    "AtenAsStridedAfterUnsafeViewModule_basic",
+    "AtenAsStridedAfterViewModule_basic",
+    "AtenAsStridedModule_basic",
+    "AtenAsStridedNoStorageOffsetModule_basic",
     "ConvolutionBackwardModule2DStatic_basic",
     "AtenEyeMModuleInt2D_basic",
     "AtenEyeModuleInt2D_basic",
@@ -2214,6 +2282,8 @@ TOSA_PASS_SET = {
     "EinsumStaticWithEllipsisSlicingAndBroadcastModule_basic",
     "ElementwiseAbsFloatModule_basic",
     "ElementwiseAbsIntModule_basic",
+    "ElementwiseAbsoluteFloatModule_basic",
+    "ElementwiseAbsoluteIntModule_basic",
     "ElementwiseAddModule_basic",
     "ElementwiseAddScalarFloatModule_basic",
     "ElementwiseAddScalarInt64Module_basic",
@@ -2408,6 +2478,7 @@ TOSA_PASS_SET = {
     "LiftFreshCopyModule_basic",
     "LinalgVectorNormKeepDimModule_basic",
     "LinalgVectorNormModule_basic",
+    "LinalgVectorNormRank0Module_basic",
     "LinalgNormKeepDimModule_basic",
     "MaskedFillScalarDefaultModule_basic",
     "MaskedFillScalarIntValueModule_basic",
@@ -2422,6 +2493,8 @@ TOSA_PASS_SET = {
     "MaxPool2dStaticCeilModeTrueReduceOutputModule_basic",
     "MaxPool2dStaticModule_basic",
     "MeanModule_basic",
+    "MeanDimRank0Module_basic",
+    "MeanDimRank0DtypeModule_basic",
     "MmDagModule_basic",
     "MoveDimIntModule_basic",
     "MoveDimIntModule_basic",
@@ -2480,6 +2553,9 @@ TOSA_PASS_SET = {
     "ReduceSumDimIntListKeepDimFloatModule_basic",
     "ReduceSumDimIntListKeepDimIntModule_basic",
     "ReduceSumDimIntListKeepDimNegativeDimStaticModule_basic",
+    "ReduceSumDimIntListRank0FloatModule_basic",
+    "ReduceSumDimIntListRank0DtypeFloatModule_basic",
+    "ReduceSumDimIntListRank0NegativeDimFloatModule_basic",
     "ReduceSumFloatModule_basic",
     "ReduceSumSignedIntModule_basic",
     "ReduceSumUnsignedIntModule_basic",
@@ -2607,7 +2683,8 @@ LTC_CRASHING_SET = {
 }
 
 LTC_XFAIL_SET = {
-    "TorchPrimLoopForLikeTensorArgModule_basic" "CollapseAllDimensionsModule_basic",
+    "TorchPrimLoopForLikeTensorArgModule_basic",
+    "CollapseAllDimensionsModule_basic",
     "TorchPrimLoopWhileLikeHOPModule_basic",
     "CollapseRank1DynamicModule_basic",
     "CollapseStaticModule_basic",
@@ -2763,6 +2840,35 @@ LTC_XFAIL_SET = {
 }
 
 ONNX_XFAIL_SET = {
+    # ONNX export applies explicit offset to materialized slice storage.
+    "AtenAsStridedAfterAliasDetachModule_basic",
+    # ONNX transpose materializes movedim before gather, so indexing uses new storage.
+    "AtenAsStridedAfterMovedimModule_basic",
+    # ONNX export lowers nested as_strided as two gathers, losing base storage offset.
+    "AtenAsStridedAfterNestedAsStridedExplicitOffsetModule_basic",
+    # ONNX transpose materializes numpy_T before gather, so indexing uses new storage.
+    "AtenAsStridedAfterNumpyTModule_basic",
+    # ONNX transpose materializes permute before gather, so indexing uses new storage.
+    "AtenAsStridedAfterPermuteModule_basic",
+    # ONNX _reshape_alias path creates an invalid 24-to-1 reshape/collapse.
+    "AtenAsStridedAfterReshapeAliasModule_basic",
+    # ONNX export lowers channels-last as_strided to flatten/gather over the
+    # logical NCHW tensor, losing channels-last storage order.
+    "AtenAsStridedAfterToChannelsLastModule_basic",
+    "AtenAsStridedChannelsLastInputModule_basic",
+    "AtenAsStridedChannelsLastParameterModule_basic",
+    # ONNX export applies explicit offset to the slice, not to base storage.
+    "AtenAsStridedAfterSliceWithExplicitOffsetModule_basic",
+    # ONNX transpose materializes t() before gather, so indexing uses new storage.
+    "AtenAsStridedAfterTModule_basic",
+    # ONNX transpose materializes transpose before gather, so indexing uses new storage.
+    "AtenAsStridedAfterTransposeModule_basic",
+    # ONNX unflatten path creates an invalid 24-to-1 reshape/collapse.
+    "AtenAsStridedAfterUnflattenModule_basic",
+    # ONNX unfold export materializes windows before gather, losing view storage.
+    "AtenAsStridedAfterUnfoldModule_basic",
+    # ONNX _unsafe_view path creates an invalid reshape/collapse after slice.
+    "AtenAsStridedAfterUnsafeViewModule_basic",
     "ToDtypeIntFromFloatModule_basic",
     # This test is expected to time out
     "TimeOutModule_basic",
@@ -2863,6 +2969,7 @@ ONNX_XFAIL_SET = {
     "AtenDiagEmbedRevDimDiag_basic",
     "AtenEmbeddingBagStaticModule_basic",
     "AtenEmbeddingBagSumExample_basic",
+    "AtenEmbeddingBagLastBagBoundaryModule_basic",
     "AtenFftRfft2DLastDim_basic",
     "AtenFftRfft2DMiddleDim_basic",
     "AtenStftCenter1D_basic",
@@ -2899,6 +3006,13 @@ ONNX_XFAIL_SET = {
     "AtenMmQMixedSigni8_basic",
     "AtenMmQint8_basic",
     "AtenMmQuint8_basic",
+    "AtenScaledMmBlockScaledFp8Module_basic",
+    "AtenScaledMmBlockScaledFp8SwizzledModule_basic",
+    "AtenScaledMmPerTensorE5M2Module_basic",
+    "AtenScaledMmPerTensorF16Module_basic",
+    "AtenScaledMmPerTensorF32Module_basic",
+    "AtenScaledMmPerTensorModule_basic",
+    "AtenOuterF32F64_basic",
     "AtenPolarFloatModule_basic",
     "AtenPolarDoubleModule_basic",
     "AtenRealView128Module_basic",
@@ -3107,6 +3221,7 @@ ONNX_XFAIL_SET = {
     "LiftFreshCopyModule_basic",
     "LinalgNormKeepDimComplexModule_basic",
     "LinalgVectorNormComplexModule_basic",
+    "LinalgVectorNormRank0Module_basic",
     "LogSoftmaxBackwardModule_basic",
     "LogCumsumExpModule_basic",
     "LogCumsumExpStaticNegativeDimModule_basic",
@@ -3146,6 +3261,7 @@ ONNX_XFAIL_SET = {
     "MaxUnpool2dModule_basic",
     "MaxUnpool2dModule_3dInput_basic",
     "MeanDimEmptyDimModule_basic",
+    "MeanDimRank0DtypeModule_basic",
     "Mlp1LayerModule_basic",
     "Mlp2LayerModuleNoBias_basic",
     "Mlp2LayerModule_basic",
@@ -3245,6 +3361,7 @@ ONNX_XFAIL_SET = {
     "RandIntDtypeModule_basic",
     "RandIntModule_basic",
     "RandIntPinMemoryModule_basic",
+    "ReduceSumDimIntListRank0DtypeFloatModule_basic",
     "ReduceFrobeniusNormComplexModule_basic",
     "ReduceL1NormComplexModule_basic",
     "ReduceL2NormComplexModule_basic",
@@ -3574,6 +3691,16 @@ if torch_version_for_comparison() > version.parse("2.4.0.dev"):
 
 
 ONNX_CRASHING_SET = LINALG_CRASHING_SET | {
+    # ONNX-imported diagonal/as_strided hits SIGABRT before report_results runs.
+    "AtenAsStridedAfterDiagonalModule_basic",
+    # ONNX empty-slice/as_strided gathers from a 0-length tensor and aborts.
+    "AtenAsStridedAfterExpandLeadingSingletonSliceModule_basic",
+    # ONNX-imported narrow/as_strided hits SIGABRT before report_results runs.
+    "AtenAsStridedAfterNarrowModule_basic",
+    # ONNX-imported select/as_strided hits SIGABRT before report_results runs.
+    "AtenAsStridedAfterSelectModule_basic",
+    # ONNX-imported stepped slice/as_strided hits SIGABRT before report_results runs.
+    "AtenAsStridedAfterSliceStepModule_basic",
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
     "ElementwisePreluModule_basic",
@@ -3620,6 +3747,17 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenSymConstrainRangeForSize_basic",
     "AtenSymConstrainRange_basic",
     "Aten_AssertScalar_basic",
+    # These import through FX and lower to TOSA. To enable them end-to-end, the
+    # TOSA execution backend needs support for loading the FP8 input tensors and
+    # float8_e8m0fnu blocked-scale tensors used by matmul_t_block_scaled. The
+    # e2e framework also needs a non-CPU reference path because PyTorch CPU does
+    # not execute blocked-scale _scaled_mm.
+    "AtenScaledMmBlockScaledFp8Module_basic",
+    "AtenScaledMmBlockScaledFp8SwizzledModule_basic",
+    "AtenScaledMmPerTensorE5M2Module_basic",
+    "AtenScaledMmPerTensorF16Module_basic",
+    "AtenScaledMmPerTensorF32Module_basic",
+    "AtenScaledMmPerTensorModule_basic",
     "ScatterAddDynamicModule_basic",
     "UniformModule_basic",
     "UniformStaticShapeModule_basic",
@@ -3665,8 +3803,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AvgPool3dCountIncludePadFalse_basic",
     "AvgPool3dCountIncludePadFalseWithoutPadding_basic",
     "AvgPool3dSingleIntTupleStrideModule_basic",
-    "Conv_Transpose1dModule_basic",
-    "Conv_Transpose1dStaticModule_basic",
     "IndexPutWithNoneAndBroadcastModule_basic",
     "MaxUnpool3dModulePad0_basic",
     "MaxUnpool3dModule_basic",
@@ -3714,6 +3850,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenComplexViewModule_basic",
     "AtenEmbeddingBagStaticModule_basic",
     "AtenEmbeddingBagSumExample_basic",
+    "AtenEmbeddingBagLastBagBoundaryModule_basic",
     "AtenFloatScalarModule_basic",
     # TODO: The values are extremely close to the golden values, but the test fails because of strict rtol/atol.
     "AtenInstanceNormModuleFp16_basic",
@@ -3756,10 +3893,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "CeilFloatModule_basic",
     "ContainsIntList_False",
     "ContainsIntList_True",
-    "Conv1dModule_basic",
-    "Conv1dDepthwiseWithPaddingDilationStrideStaticModule_basic",
-    "Conv1dWithSamePaddingModule_basic",
-    "Conv1dWithValidPaddingModule_basic",
     "Conv1dGroupModule_basic",
     "Conv2dQInt8Module_grouped",
     "Conv2dQInt8PerChannelModule_grouped",
@@ -4003,8 +4136,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "TorchPrimLoopWhileLikeHOPModule_basic",
     "TraceModule_empty",
     "TraceUnsignedIntModule_empty",
-    "TransposedConv1dNegativePadding_basic",
-    "TransposedConv1dNegativePaddingUnitStrideDyn_basic",
     "TransposedConv1dNegativePaddingLarge_basic",
     "TransposedConv3dNegativePadding_basic",
     "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
@@ -4051,10 +4182,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ReplicationPad1dModule_3DInput_basic",
     "ReplicationPad3dModule_basic",
     "ReplicationPad3dModuleSingleIntPad_basic",
-    "AtenAsStridedModule_basic",
-    "AtenAsStridedNoStorageOffsetModule_basic",
-    "AtenAsStridedUnknownSizeModule_basic",
-    "NativeGroupNormModule_basic",
     # error: argument must be a memref of f32, f64, i32, i64, i8, i1, c32, c64, but got 'memref<3x5xbf16>'
     "ElementwiseClampMaxModule_bfloat16",
     "ElementwiseClampMinModule_bfloat16",
@@ -4063,6 +4190,10 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
 }
 
 ONNX_TOSA_CRASHING_SET = {
+    # ONNX-TOSA narrow/as_strided hits SIGABRT before report_results runs.
+    "AtenAsStridedAfterNarrowModule_basic",
+    # ONNX-TOSA select/as_strided hits SIGABRT before report_results runs.
+    "AtenAsStridedAfterSelectModule_basic",
     "ScatterSrcStaticModule_basic",
     "StdCorrectionEmptyDimModule_basic",
     "StdDimEmptyDimModule_basic",
@@ -4072,6 +4203,35 @@ ONNX_TOSA_CRASHING_SET = {
 }
 
 ONNX_TOSA_XFAIL_SET = {
+    # ONNX export applies explicit offset to materialized slice storage.
+    "AtenAsStridedAfterAliasDetachModule_basic",
+    # ONNX export gathers from the materialized empty slice.
+    "AtenAsStridedAfterExpandLeadingSingletonSliceModule_basic",
+    # ONNX diagonal emits aten.item from ConstantOfShape, which TOSA rejects.
+    "AtenAsStridedAfterDiagonalModule_basic",
+    # ONNX transpose materializes movedim before gather, so indexing uses new storage.
+    "AtenAsStridedAfterMovedimModule_basic",
+    # ONNX export lowers nested as_strided as two gathers, losing base storage offset.
+    "AtenAsStridedAfterNestedAsStridedExplicitOffsetModule_basic",
+    # ONNX transpose materializes numpy_T before gather, so indexing uses new storage.
+    "AtenAsStridedAfterNumpyTModule_basic",
+    # ONNX transpose materializes permute before gather, so indexing uses new storage.
+    "AtenAsStridedAfterPermuteModule_basic",
+    # ONNX _reshape_alias path creates an invalid 24-to-1 TOSA reshape.
+    "AtenAsStridedAfterReshapeAliasModule_basic",
+    # ONNX export applies explicit offset to the slice, not to base storage.
+    "AtenAsStridedAfterSliceWithExplicitOffsetModule_basic",
+    # ONNX transpose materializes t() before gather, so indexing uses new storage.
+    "AtenAsStridedAfterTModule_basic",
+    # ONNX transpose materializes transpose before gather, so indexing uses new storage.
+    "AtenAsStridedAfterTransposeModule_basic",
+    # ONNX unflatten path creates an invalid 24-to-1 TOSA reshape.
+    "AtenAsStridedAfterUnflattenModule_basic",
+    # ONNX unfold export materializes windows before gather, losing view storage.
+    "AtenAsStridedAfterUnfoldModule_basic",
+    # ONNX _unsafe_view path creates an invalid TOSA reshape after slice.
+    "AtenAsStridedAfterUnsafeViewModule_basic",
+    "AtenAsStridedUnknownSizeModule_basic",
     "AtenFftRfft2DLastDim_basic",
     "AtenFftRfft2DMiddleDim_basic",
     "AtenStftCenter1D_basic",
@@ -4277,6 +4437,7 @@ ONNX_TOSA_XFAIL_SET = {
     "AtenDiagEmbedRevDimDiag_basic",
     "AtenEmbeddingBagStaticModule_basic",
     "AtenEmbeddingBagSumExample_basic",
+    "AtenEmbeddingBagLastBagBoundaryModule_basic",
     "AtenFloatScalarModule_basic",
     "AtenIntBoolOpConstFalseModule_basic",
     "AtenIntBoolOpConstTrueModule_basic",
@@ -4317,6 +4478,9 @@ ONNX_TOSA_XFAIL_SET = {
     "AtenTriuWithNegDiagonalModule_basic",
     "AtenTriuWithPosDiagonalModule_basic",
     "Aten_EmbeddingBagExample_basic",
+    "AtenOuterInt_basic",
+    "AtenOuterFloat_basic",
+    "AtenOuterF32F64_basic",
     "AvgPool1dFloatModule_basic",
     "AvgPool1dIntModule_basic",
     "AvgPool1dStaticModule_basic",

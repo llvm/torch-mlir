@@ -466,6 +466,68 @@ def ElementwiseAtenWhereSelfModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseAtenWhereSelfDifferentDtypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 5, 5], torch.bool, True),
+            ([1, 12, 5, 5], torch.int64, True),
+            ([1, 12, 5, 5], torch.int32, True),
+        ]
+    )
+    def forward(self, a, b, c):
+        return torch.ops.aten.where(a, b, c)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseAtenWhereSelfDifferentDtypeModule()
+)
+def ElementwiseAtenWhereSelfDifferentDtypeModule_basic(module, tu: TestUtils):
+    module.forward(
+        torch.zeros(1, 1, 5, 5, dtype=torch.bool),
+        tu.randint(1, 12, 5, 5, dtype=torch.int64),
+        tu.randint(1, 12, 5, 5, dtype=torch.int32),
+    )
+
+
+# ==============================================================================
+
+
+class ElementwiseAtenWhereSelfDifferentDtypeAndRankModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 5, 5], torch.bool, True),
+            ([], torch.int64, True),
+            ([1, 12, 5, 5], torch.int32, True),
+        ]
+    )
+    def forward(self, a, b, c):
+        return torch.ops.aten.where(a, b, c)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseAtenWhereSelfDifferentDtypeAndRankModule()
+)
+def ElementwiseAtenWhereSelfDifferentDtypeAndRankModule_basic(module, tu: TestUtils):
+    module.forward(
+        torch.zeros(1, 1, 5, 5, dtype=torch.bool),
+        tu.randint(),
+        tu.randint(1, 12, 5, 5, dtype=torch.int32),
+    )
+
+
+# ==============================================================================
+
+
 class ElementwiseWhereSelfModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -4158,6 +4220,52 @@ class ElementwiseAbsIntModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: ElementwiseAbsIntModule())
 def ElementwiseAbsIntModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([[[-1, 0, 1]]]))
+
+
+# ==============================================================================
+
+
+class ElementwiseAbsoluteFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.absolute(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAbsoluteFloatModule())
+def ElementwiseAbsoluteFloatModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([[[-1.0, 0.0, 1.0]]]))
+
+
+# ==============================================================================
+
+
+class ElementwiseAbsoluteIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.int64, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.absolute(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAbsoluteIntModule())
+def ElementwiseAbsoluteIntModule_basic(module, tu: TestUtils):
     module.forward(torch.tensor([[[-1, 0, 1]]]))
 
 
