@@ -267,7 +267,7 @@ setup(
     include_package_data=True,
     cmdclass={
         "build": CustomBuild,
-        "built_ext": NoopBuildExtension,
+        "build_ext": NoopBuildExtension,
         "build_py": CMakeBuild,
     },
     ext_modules=EXT_MODULES,
@@ -291,4 +291,9 @@ setup(
         ],
     },
     zip_safe=False,
+    options={
+        'bdist_wheel': {
+            'py_limited_api': 'cp312'
+        }
+    },
 )
