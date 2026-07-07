@@ -40,6 +40,24 @@ func.func @torch.aten.assert_tensor_metadata() {
   return
 }
 
+// CHECK-LABEL:   func.func @torch.aten.assert_tensor_metadata$complex64
+// CHECK-NEXT:      return
+func.func @torch.aten.assert_tensor_metadata$complex64(%arg0: !torch.vtensor<[4],complex<f32>>) {
+  %int9 = torch.constant.int 9
+  %none = torch.constant.none
+  torch.aten._assert_tensor_metadata %arg0, %none, %none, %int9, %none, %none : !torch.vtensor<[4],complex<f32>>, !torch.none, !torch.none, !torch.int, !torch.none, !torch.none
+  return
+}
+
+// CHECK-LABEL:   func.func @torch.aten.assert_tensor_metadata$complex128
+// CHECK-NEXT:      return
+func.func @torch.aten.assert_tensor_metadata$complex128(%arg0: !torch.vtensor<[4],complex<f64>>) {
+  %int10 = torch.constant.int 10
+  %none = torch.constant.none
+  torch.aten._assert_tensor_metadata %arg0, %none, %none, %int10, %none, %none : !torch.vtensor<[4],complex<f64>>, !torch.none, !torch.none, !torch.int, !torch.none, !torch.none
+  return
+}
+
 // CHECK-LABEL:   func.func @torch.aten.ones_item
 // CHECK:           %[[CONST:.*]] = torch.constant.int 1
 // CHECK:           return %[[CONST]] : !torch.int
