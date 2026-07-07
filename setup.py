@@ -270,6 +270,12 @@ setup(
         "build_py": CMakeBuild,
     },
     ext_modules=EXT_MODULES,
+    # The Python package contents are placed into the build dir by the custom
+    # CMake `build_py` above; there are no source-tree packages to discover.
+    # An explicit empty list disables setuptools auto-discovery (which would
+    # otherwise trip over top-level non-Python dirs like lib/, include/,
+    # projects/, ...).
+    packages=[],
     python_requires=">=3.8",
     install_requires=INSTALL_REQUIRES,
     extras_require={
