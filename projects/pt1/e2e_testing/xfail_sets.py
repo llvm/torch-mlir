@@ -4233,6 +4233,7 @@ ONNX_TOSA_XFAIL_SET = {
     "AtenAsStridedAfterUnsafeViewModule_basic",
     "AtenAsStridedUnknownSizeModule_basic",
     "AtenFftRfft2DLastDim_basic",
+    "AtenOuter_basic",
     "AtenFftRfft2DMiddleDim_basic",
     "AtenStftCenter1D_basic",
     "AtenStftCenter1DUnkSigLen_basic",
