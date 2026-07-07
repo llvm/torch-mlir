@@ -29,6 +29,7 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 #include "llvm/Support/ErrorHandling.h"
+#include <mlir/IR/BuiltinAttributes.h>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -1934,32 +1935,12 @@ public:
     // Verify the scale matches the expected 1/sqrt(headDim).
     // See:
     // https://pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+    mlir::FloatAttr scaleAttr{};
     if (!isa<Torch::NoneType>(scale.getType())) {
       double scaleFloat;
       if (!matchPattern(scale, m_TorchConstantFloat(&scaleFloat)))
         return rewriter.notifyMatchFailure(loc, "scale must be a constant");
-
-      int64_t headDim = queryTy.getDimSize(queryTy.getRank() - 1);
-      if (headDim == ShapedType::kDynamic) {
-        // With dynamic head dimension, we cannot verify the scale matches
-        // 1/sqrt(headDim).
-        return rewriter.notifyMatchFailure(
-            loc, "cannot verify scale with dynamic head dimension; use "
-                 "scale=None or use static head dimension");
-      }
-      double expectedScale = 1.0 / std::sqrt(static_cast<double>(headDim));
-      // Use relative tolerance for floating point comparison to handle
-      // varying magnitudes across different head dimensions consistently.
-      // 1e-6 relative tolerance is ~10x float32 machine epsilon, which
-      // provides a safe margin for:
-      // - Different computation orders (a*b vs b*a can differ slightly)
-      // - Float64 -> float32 -> float64 round-trips through serialization
-      double relativeError =
-          std::abs(scaleFloat - expectedScale) / expectedScale;
-      if (relativeError > 1e-6) {
-        return rewriter.notifyMatchFailure(
-            loc, "scale must be None or 1/sqrt(headDim)");
-      }
+      scaleAttr = rewriter.getF64FloatAttr(scaleFloat);
     }
 
     if (queryTy.getRank() != valueTy.getRank() ||
@@ -2040,7 +2021,7 @@ public:
 
     // Overwrite with tm_tensor::attention
     Value attention = AttentionOp::create(rewriter, loc, outType, inputs,
-                                          SmallVector<Value>{output})
+                                          SmallVector<Value>{output}, scaleAttr)
                           .getResult()[0];
 
     if (opTy != outType) {

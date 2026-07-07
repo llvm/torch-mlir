@@ -260,17 +260,21 @@ def TMTensor_AttentionOp : TMTensor_Op<"attention",
     shapes, B represents the batch dimension, M represents sequence length, N
     represents head dimension, and K1 and K2 are hidden dimensions.
     Attention is defined as matmul(softmax(matmul(Q, transpose(K))+M), V) and
-    has shape BxMxN. Usually, this operator also performs scaling, masking and
-    dropout, but we leave that out of the current implementation.
+    has shape BxMxN. This also performs scaling based on the optional attribute
+    value, or through a default scale of 1/sqrt(head_dim).
+    Usually, this operator also performs masking and dropout, but we leave that
+    out of the current implementation.
   }];
 
   let arguments = (ins Variadic<AnyShaped>:$inputs,
-                       Variadic<AnyShaped>:$outputs
+                       Variadic<AnyShaped>:$outputs,
+                       OptionalAttr<F64Attr>:$scale
   );
 
   let builders = [
-    OpBuilder<(ins "ValueRange":$inputs, "ValueRange":$outputs), [{
-        build($_builder, $_state, TypeRange(outputs), inputs, outputs);
+    OpBuilder<(ins "ValueRange":$inputs, "ValueRange":$outputs,
+               CArg<"FloatAttr", "{}">:$scale), [{
+      build($_builder, $_state, TypeRange(outputs), inputs, outputs, scale);
     }]>
   ];
 
