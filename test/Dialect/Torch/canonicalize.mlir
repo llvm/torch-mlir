@@ -3760,6 +3760,65 @@ func.func @torch.aten.full$int_fold() -> !torch.vtensor<[2,1,4],si64> {
 }
 
 // -----
+
+// CHECK-LABEL:   func.func @torch.aten.ones$non_value_tensor_no_fold() -> !torch.tensor<[2,3],f32> {
+// CHECK-DAG:       %[[INT2:.*]] = torch.constant.int 2
+// CHECK-DAG:       %[[INT3:.*]] = torch.constant.int 3
+// CHECK-DAG:       %[[NONE:.*]] = torch.constant.none
+// CHECK:           %[[SIZE:.*]] = torch.prim.ListConstruct %[[INT2]], %[[INT3]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[ONES:.*]] = torch.aten.ones %[[SIZE]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.tensor<[2,3],f32>
+// CHECK:           return %[[ONES]] : !torch.tensor<[2,3],f32>
+// CHECK:         }
+func.func @torch.aten.ones$non_value_tensor_no_fold() -> !torch.tensor<[2,3],f32> {
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %int2, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.ones %0, %none, %none, %none, %none : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.tensor<[2,3],f32>
+  return %1 : !torch.tensor<[2,3],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.zeros$non_value_tensor_no_fold() -> !torch.tensor<[2,3],f32> {
+// CHECK-DAG:       %[[INT2:.*]] = torch.constant.int 2
+// CHECK-DAG:       %[[INT3:.*]] = torch.constant.int 3
+// CHECK-DAG:       %[[NONE:.*]] = torch.constant.none
+// CHECK:           %[[SIZE:.*]] = torch.prim.ListConstruct %[[INT2]], %[[INT3]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[ZEROS:.*]] = torch.aten.zeros %[[SIZE]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.tensor<[2,3],f32>
+// CHECK:           return %[[ZEROS]] : !torch.tensor<[2,3],f32>
+// CHECK:         }
+func.func @torch.aten.zeros$non_value_tensor_no_fold() -> !torch.tensor<[2,3],f32> {
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %int2, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.zeros %0, %none, %none, %none, %none : !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.tensor<[2,3],f32>
+  return %1 : !torch.tensor<[2,3],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.full$non_value_tensor_no_fold() -> !torch.tensor<[2,3],f32> {
+// CHECK-DAG:       %[[FILL:.*]] = torch.constant.float 3.000000e+00
+// CHECK-DAG:       %[[INT2:.*]] = torch.constant.int 2
+// CHECK-DAG:       %[[INT3:.*]] = torch.constant.int 3
+// CHECK-DAG:       %[[NONE:.*]] = torch.constant.none
+// CHECK:           %[[SIZE:.*]] = torch.prim.ListConstruct %[[INT2]], %[[INT3]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[FULL:.*]] = torch.aten.full %[[SIZE]], %[[FILL]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.list<int>, !torch.float, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.tensor<[2,3],f32>
+// CHECK:           return %[[FULL]] : !torch.tensor<[2,3],f32>
+// CHECK:         }
+func.func @torch.aten.full$non_value_tensor_no_fold() -> !torch.tensor<[2,3],f32> {
+  %float3 = torch.constant.float 3.0
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %int2, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.full %0, %float3, %none, %none, %none, %none : !torch.list<int>, !torch.float, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.tensor<[2,3],f32>
+  return %1 : !torch.tensor<[2,3],f32>
+}
+
+// -----
 // CHECK-LABEL:   func.func @torch.aten.avg_pool2d.single_int_tuple(
 // CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[2,4,20,20],f32>) -> !torch.vtensor<[2,4,9,9],f32> {
 // CHECK:           %[[NONE:.*]] = torch.constant.none
