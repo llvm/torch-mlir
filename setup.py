@@ -125,6 +125,7 @@ class CMakeBuild(build_py):
             f"-DCMAKE_CXX_VISIBILITY_PRESET=hidden",
             f"-DTORCH_MLIR_ENABLE_LTC={'ON' if TORCH_MLIR_ENABLE_LTC else 'OFF'}",
             f"-DTORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS={'OFF' if TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else 'ON'}",
+            "-DMLIR_ENABLE_PYTHON_STABLE_ABI=ON",
         ]
         if LLVM_INSTALL_DIR:
             cmake_config_args += [
@@ -214,7 +215,7 @@ class CMakeBuild(build_py):
 
 class CMakeExtension(Extension):
     def __init__(self, name, sourcedir=""):
-        Extension.__init__(self, name, sources=[])
+        Extension.__init__(self, name, sources=[], py_limited_api=True)
         self.sourcedir = os.path.abspath(sourcedir)
 
 

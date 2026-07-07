@@ -31,7 +31,7 @@ target-version = ['py38']
 # "`project` must contain ['version'] properties".
 
 [tool.cibuildwheel]
-build = "cp311-* cp312-* cp313-*"
+build = "cp312-*"
 skip = "*-musllinux* *_i686 *-win32 *-win_amd64"
 build-frontend = "build[uv]"
 test-command = "python -c \"import torch_mlir; print('torch_mlir', torch_mlir.__file__)\""
