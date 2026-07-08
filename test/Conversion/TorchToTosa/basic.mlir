@@ -6235,3 +6235,14 @@ func.func @torch.aten.avg_pool2d$encoded_stride_with_non_unit_dilation(%arg0: !t
   %0 = torch.aten.avg_pool2d %arg0, %kernel, %stride, %padding, %false, %false, %none : !torch.vtensor<[1,64,16,16],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,64,7,7],f32>
   return %0 : !torch.vtensor<[1,64,7,7],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @test_unsqueeze_user_attrs(
+// CHECK:           tosa.reshape
+// CHECK-SAME:        {mlir.user.tag = "unsqueeze_tag"}
+func.func @test_unsqueeze_user_attrs(%arg0: !torch.vtensor<[4,3],si32>) -> !torch.vtensor<[4,3,1],si32> {
+  %int2 = torch.constant.int 2
+  %0 = torch.aten.unsqueeze %arg0, %int2 {mlir.user.tag = "unsqueeze_tag"} : !torch.vtensor<[4,3],si32>, !torch.int -> !torch.vtensor<[4,3,1],si32>
+  return %0 : !torch.vtensor<[4,3,1],si32>
+}
