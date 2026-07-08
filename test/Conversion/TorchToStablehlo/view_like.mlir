@@ -542,3 +542,14 @@ func.func @torch.aten.unsqueeze$from_end(%arg0: !torch.vtensor<[?,?,?,?],f32>) -
   %0 = torch.aten.unsqueeze %arg0, %int-2 : !torch.vtensor<[?,?,?,?],f32>, !torch.int -> !torch.vtensor<[?,?,?,1,?],f32>
   return %0 : !torch.vtensor<[?,?,?,1,?],f32>
 }
+
+// -----
+
+// CHECK-LABEL:  func.func @test_unsqueeze_user_attrs(
+// CHECK:         stablehlo.dynamic_reshape
+// CHECK-SAME:    {mlir.user.tag = "unsqueeze_tag"}
+func.func @test_unsqueeze_user_attrs(%arg0: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?,?,?,1,?],f32> {
+  %int-2 = torch.constant.int -2
+  %0 = torch.aten.unsqueeze %arg0, %int-2 {mlir.user.tag = "unsqueeze_tag"} : !torch.vtensor<[?,?,?,?],f32>, !torch.int -> !torch.vtensor<[?,?,?,1,?],f32>
+  return %0 : !torch.vtensor<[?,?,?,1,?],f32>
+}

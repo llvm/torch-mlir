@@ -20,6 +20,7 @@
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 #include "mlir/Pass/Pass.h"
 #include "torch-mlir/Conversion/Passes.h"
+#include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 
@@ -90,6 +91,8 @@ public:
         typeConverter, patterns, target);
     torch_to_linalg::populateTensorConstructorsPatternsAndLegality(
         typeConverter, patterns, target);
+
+    wrapPatternsWithForwarding(patterns);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns))))
