@@ -674,7 +674,10 @@ public:
   ForwardingOpNamePatternWrapper(std::unique_ptr<RewritePattern> inner)
       : RewritePattern(inner->getRootKind()->getStringRef(),
                        inner->getBenefit(), inner->getContext()),
-        innerPattern(std::move(inner)) {}
+        innerPattern(std::move(inner)) {
+    setDebugName(innerPattern->getDebugName());
+    addDebugLabels(innerPattern->getDebugLabels());
+  }
 
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
@@ -689,7 +692,10 @@ public:
   ForwardingAnyOpPatternWrapper(std::unique_ptr<RewritePattern> inner)
       : RewritePattern(MatchAnyOpTypeTag(), inner->getBenefit(),
                        inner->getContext()),
-        innerPattern(std::move(inner)) {}
+        innerPattern(std::move(inner)) {
+    setDebugName(innerPattern->getDebugName());
+    addDebugLabels(innerPattern->getDebugLabels());
+  }
 
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
@@ -704,7 +710,10 @@ public:
   ForwardingInterfacePatternWrapper(std::unique_ptr<RewritePattern> inner)
       : RewritePattern(MatchInterfaceOpTypeTag(), *inner->getRootInterfaceID(),
                        inner->getBenefit(), inner->getContext()),
-        innerPattern(std::move(inner)) {}
+        innerPattern(std::move(inner)) {
+    setDebugName(innerPattern->getDebugName());
+    addDebugLabels(innerPattern->getDebugLabels());
+  }
 
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
@@ -719,7 +728,10 @@ public:
   ForwardingTraitPatternWrapper(std::unique_ptr<RewritePattern> inner)
       : RewritePattern(MatchTraitOpTypeTag(), *inner->getRootTraitID(),
                        inner->getBenefit(), inner->getContext()),
-        innerPattern(std::move(inner)) {}
+        innerPattern(std::move(inner)) {
+    setDebugName(innerPattern->getDebugName());
+    addDebugLabels(innerPattern->getDebugLabels());
+  }
 
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
