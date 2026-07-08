@@ -39,6 +39,14 @@
 # CMAKE_GENERATOR=Ninja CMAKE_C_COMPILER_LAUNCHER=ccache CMAKE_CXX_COMPILER_LAUNCHER=ccache
 # ```
 #
+# For release builds, use cibuildwheel. Except for
+# TORCH_MLIR_PYTHON_PACKAGE_VERSION, the environment variables needed for
+# cibuildwheel are set in pyproject.toml. For an example local run:
+#
+# ```
+# CIBW_BUILD="cp312-manylinux_x86_64" cibuildwheel --platform linux
+# ```
+#
 # Implementation notes:
 # The contents of the wheel is just the contents of the `python_packages`
 # directory that our CMake build produces. We go through quite a bit of effort
