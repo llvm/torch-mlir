@@ -12276,6 +12276,8 @@ public:
       target.addIllegalOp(OperationName(op, context));
     }
 
+    wrapPatternsWithForwarding(patterns);
+
     auto frozenPatterns = FrozenRewritePatternSet(
         std::move(patterns), this->disabledPatterns, this->enabledPatterns);
 
