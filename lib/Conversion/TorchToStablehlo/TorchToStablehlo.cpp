@@ -18,6 +18,7 @@
 #include "stablehlo/dialect/ChloOps.h"
 #include "stablehlo/dialect/StablehloOps.h"
 #include "torch-mlir/Conversion/Passes.h"
+#include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 
@@ -78,6 +79,8 @@ public:
         typeConverter, patterns, target, options);
     torch_to_stablehlo::populateUncategorizedPatternsAndLegality(
         typeConverter, patterns, target, options);
+
+    wrapPatternsWithForwarding(patterns);
 
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(patterns)))) {
