@@ -6695,9 +6695,7 @@ class AtenTopKSmallestNaNInfStaticModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenTopKSmallestNaNInfStaticModule())
 def AtenTopKSmallestNaNInfStaticModule_basic(module, tu: TestUtils):
     module.forward(
-        torch.tensor(
-            [[0.0, torch.nan, torch.inf, -torch.inf, 2.0, -1.0, -2.0, 1.0]]
-        )
+        torch.tensor([[0.0, torch.nan, torch.inf, -torch.inf, 2.0, -1.0, -2.0, 1.0]])
     )
 
 

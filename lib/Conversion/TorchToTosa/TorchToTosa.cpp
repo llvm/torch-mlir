@@ -1972,12 +1972,12 @@ LogicalResult ConvertAtenOp<AtenSortOp>::matchAndRewriteImpl(
       return rewriter.notifyMatchFailure(
           op, "expected ranked tensor types for topk slice results");
     if (sliceUsers->k == 0) {
-      Value emptyValues = tensor::EmptyOp::create(
-          rewriter, loc, valuesResultTy.getShape(),
-          valuesResultTy.getElementType());
-      Value emptyIndices = tensor::EmptyOp::create(
-          rewriter, loc, indicesResultTy.getShape(),
-          indicesResultTy.getElementType());
+      Value emptyValues =
+          tensor::EmptyOp::create(rewriter, loc, valuesResultTy.getShape(),
+                                  valuesResultTy.getElementType());
+      Value emptyIndices =
+          tensor::EmptyOp::create(rewriter, loc, indicesResultTy.getShape(),
+                                  indicesResultTy.getElementType());
       rewriter.replaceOp(sliceUsers->valuesSlice, emptyValues);
       rewriter.replaceOp(sliceUsers->indicesSlice, emptyIndices);
       rewriter.eraseOp(op);
