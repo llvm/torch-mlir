@@ -13245,7 +13245,7 @@ public:
         flattenedSize *= dim;
       }
     }
-    SmallVector<int64_t> flattenedShape  = {flattenedSize};
+    SmallVector<int64_t> flattenedShape = {flattenedSize};
 
     Type boolType = rewriter.getType<ValueTensorType>(
         llvm::ArrayRef<int64_t>(flattenedShape), rewriter.getI1Type());
@@ -13257,8 +13257,8 @@ public:
         ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(-1));
     Value flatSelf = AtenFlattenUsingIntsOp::create(
         rewriter, loc,
-        rewriter.getType<ValueTensorType>(llvm::ArrayRef<int64_t>(flattenedShape),
-                                          selfType.getDtype()),
+        rewriter.getType<ValueTensorType>(
+            llvm::ArrayRef<int64_t>(flattenedShape), selfType.getDtype()),
         self, cstZero, cstMinusOne);
 
     // Mask of values >= min and <= max
@@ -13352,7 +13352,8 @@ public:
     int64_t binsInt;
     bool binsIsConst = matchPattern(bins, m_TorchConstantInt(&binsInt));
     Type countsType = rewriter.getType<ValueTensorType>(
-        llvm::ArrayRef<int64_t>{binsIsConst ? binsInt + 1 : Torch::kUnknownSize},
+        llvm::ArrayRef<int64_t>{binsIsConst ? binsInt + 1
+                                            : Torch::kUnknownSize},
         rewriter.getIntegerType(64, /*isSigned=*/true));
     Type slicedType = rewriter.getType<ValueTensorType>(
         llvm::ArrayRef<int64_t>{binsIsConst ? binsInt : Torch::kUnknownSize},
