@@ -15,3 +15,14 @@ func.func @torch.aten.squeeze.dim$dynamic(%arg0: !torch.vtensor<[?,?,?],f32>) ->
   %1 = torch.aten.squeeze.dim %arg0, %int0 : !torch.vtensor<[?,?,?],f32>, !torch.int -> !torch.vtensor<[?,?],f32>
   return %1 : !torch.vtensor<[?,?],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.squeeze.dim$user_attrs(
+// CHECK:         tensor.collapse_shape
+// CHECK-SAME:    {mlir.user.tag = "squeeze_tag"}
+func.func @torch.aten.squeeze.dim$user_attrs(%arg0: !torch.vtensor<[2,1,3],f32>) -> !torch.vtensor<[2,3],f32> {
+  %int1 = torch.constant.int 1
+  %0 = torch.aten.squeeze.dim %arg0, %int1 {mlir.user.tag = "squeeze_tag"} : !torch.vtensor<[2,1,3],f32>, !torch.int -> !torch.vtensor<[2,3],f32>
+  return %0 : !torch.vtensor<[2,3],f32>
+}
