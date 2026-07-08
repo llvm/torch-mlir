@@ -13233,11 +13233,22 @@ public:
                                           none, none, none);
     }
 
-    // Ranked-dynamic ([?]) shape for intermediate tensors
-    SmallVector<int64_t> dynamicShape = {Torch::kUnknownSize};
+    // Static size if all input dims are known, else dynamic ([?])
+    int64_t flattenedSize = Torch::kUnknownSize;
+    if (selfType.hasSizes()) {
+      flattenedSize = 1;
+      for (int64_t dim : selfType.getSizes()) {
+        if (dim == Torch::kUnknownSize) {
+          flattenedSize = Torch::kUnknownSize;
+          break;
+        }
+        flattenedSize *= dim;
+      }
+    }
+    SmallVector<int64_t> flattenedShape  = {flattenedSize};
 
     Type boolType = rewriter.getType<ValueTensorType>(
-        llvm::ArrayRef<int64_t>(dynamicShape), rewriter.getI1Type());
+        llvm::ArrayRef<int64_t>(flattenedShape), rewriter.getI1Type());
 
     // flatten self
     Value cstZero =
@@ -13246,7 +13257,7 @@ public:
         ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(-1));
     Value flatSelf = AtenFlattenUsingIntsOp::create(
         rewriter, loc,
-        rewriter.getType<ValueTensorType>(llvm::ArrayRef<int64_t>(dynamicShape),
+        rewriter.getType<ValueTensorType>(llvm::ArrayRef<int64_t>(flattenedShape),
                                           selfType.getDtype()),
         self, cstZero, cstMinusOne);
 
@@ -13301,7 +13312,7 @@ public:
                               rewriter.getI64IntegerAttr(static_cast<int64_t>(
                                   torch_upstream::ScalarType::Long)));
     Type indexType = rewriter.getType<ValueTensorType>(
-        llvm::ArrayRef<int64_t>(dynamicShape),
+        llvm::ArrayRef<int64_t>(flattenedShape),
         rewriter.getIntegerType(64, /*isSigned=*/true));
     Value index = AtenToDtypeOp::create(rewriter, loc, indexType, indexFloat,
                                         longDtype, cstFalse, cstFalse, none);
@@ -13336,11 +13347,22 @@ public:
     // for the extra bin values
     Value binsPlusOne = AtenAddIntOp::create(
         rewriter, loc, rewriter.getType<Torch::IntType>(), bins, cstOneInt);
-    Value counts = AtenBincountOp::create(rewriter, loc, indexType, finalIndex,
+
+    // Create static shape for bincount/slice ops
+    int64_t binsInt;
+    bool binsIsConst = matchPattern(bins, m_TorchConstantInt(&binsInt));
+    Type countsType = rewriter.getType<ValueTensorType>(
+        llvm::ArrayRef<int64_t>{binsIsConst ? binsInt + 1 : Torch::kUnknownSize},
+        rewriter.getIntegerType(64, /*isSigned=*/true));
+    Type slicedType = rewriter.getType<ValueTensorType>(
+        llvm::ArrayRef<int64_t>{binsIsConst ? binsInt : Torch::kUnknownSize},
+        rewriter.getIntegerType(64, /*isSigned=*/true));
+
+    Value counts = AtenBincountOp::create(rewriter, loc, countsType, finalIndex,
                                           none, binsPlusOne);
 
     // Drop the overflow bin, leaving exactly `bins` counts.
-    Value sliced = AtenSliceTensorOp::create(rewriter, loc, indexType, counts,
+    Value sliced = AtenSliceTensorOp::create(rewriter, loc, slicedType, counts,
                                              cstZero, cstZero, bins, cstOneInt);
 
     // Convert int64 counts to the same dtype as the input tensor
