@@ -2561,6 +2561,102 @@ def L1LossSumReductionModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class SmoothL1LossNoneReductionModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, input, target):
+        return torch.ops.aten.smooth_l1_loss(input, target, reduction=0, beta=1.0)
+
+
+@register_test_case(module_factory=lambda: SmoothL1LossNoneReductionModule())
+def SmoothL1LossNoneReductionModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4), tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class SmoothL1LossMeanReductionModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, input, target):
+        return torch.ops.aten.smooth_l1_loss(input, target, reduction=1, beta=1.0)
+
+
+@register_test_case(module_factory=lambda: SmoothL1LossMeanReductionModule())
+def SmoothL1LossMeanReductionModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4), tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class SmoothL1LossSumReductionModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, input, target):
+        return torch.ops.aten.smooth_l1_loss(input, target, reduction=2, beta=1.0)
+
+
+@register_test_case(module_factory=lambda: SmoothL1LossSumReductionModule())
+def SmoothL1LossSumReductionModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4), tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+class SmoothL1LossNonDefaultBetaModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, input, target):
+        return torch.ops.aten.smooth_l1_loss(input, target, reduction=1, beta=0.5)
+
+
+@register_test_case(module_factory=lambda: SmoothL1LossNonDefaultBetaModule())
+def SmoothL1LossNonDefaultBetaModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4), tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
 class CrossEntropyLossModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

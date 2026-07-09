@@ -13290,6 +13290,81 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenSmoothL1LossOp
+    : public OpRewritePattern<AtenSmoothL1LossOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenSmoothL1LossOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value target = op.getTarget();
+    Value beta = op.getBeta();
+
+    // Check if the input tensor has sizes and dtype
+    auto selfType = cast<BaseTensorType>(self.getType());
+    if (!selfType.hasDtype() || !selfType.hasSizes())
+      return rewriter.notifyMatchFailure(
+          op, "expected input tensor to have sizes and dtype");
+
+    // Check if the reduction is a constant int
+    int64_t reduction;
+    if (!matchPattern(op.getReduction(), m_TorchConstantInt(&reduction)))
+      return rewriter.notifyMatchFailure(op,
+                                         "reduction must be a constant int");
+
+    Value one =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
+    Value half =
+        ConstantFloatOp::create(rewriter, loc, rewriter.getF64FloatAttr(0.5));
+
+    // diff = self - target
+    Value diff =
+        AtenSubTensorOp::create(rewriter, loc, selfType, self, target, one);
+    // abs_diff = abs(diff)
+    Value absDiff = AtenAbsOp::create(rewriter, loc, selfType, diff);
+
+    // mask = abs_diff < beta
+    Type maskType = selfType.getWithSizesAndDtype(selfType.getSizes(),
+                                                  rewriter.getI1Type());
+    Value mask = AtenLtScalarOp::create(rewriter, loc, maskType, absDiff, beta);
+
+    // quadratic = 0.5 * diff^2 / beta
+    Value diffSq = AtenMulTensorOp::create(rewriter, loc, selfType, diff, diff);
+    Value halfOverBeta = AtenDivFloatOp::create(rewriter, loc, half, beta);
+    Value quadratic =
+        AtenMulScalarOp::create(rewriter, loc, selfType, diffSq, halfOverBeta);
+
+    // linear = abs_diff - 0.5 * beta
+    Value halfBeta = AtenMulFloatOp::create(rewriter, loc, half, beta);
+    Value linear = AtenSubScalarOp::create(rewriter, loc, selfType, absDiff,
+                                           halfBeta, one);
+
+    // loss = where(mask, quadratic, linear)
+    Value loss = AtenWhereSelfOp::create(rewriter, loc, selfType, mask,
+                                         quadratic, linear);
+
+    if (reduction == 0) {
+      // Reduction::None
+      rewriter.replaceOp(op, loss);
+      return success();
+    }
+
+    Value dtype = ConstantNoneOp::create(rewriter, loc);
+
+    if (reduction == 1) {
+      // Reduction::Mean
+      rewriter.replaceOpWithNewOp<AtenMeanOp>(op, op.getType(), loss, dtype);
+    } else {
+      // Reduction::Sum
+      rewriter.replaceOpWithNewOp<AtenSumOp>(op, op.getType(), loss, dtype);
+    }
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 
 class DecomposeComplexOpsPass
     : public impl::DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
@@ -13626,6 +13701,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAten_AssertScalarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRoundDecimalsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAbsoluteOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenSmoothL1LossOp>(patterns);
 
     GreedyRewriteConfig config;
     config.setUseTopDownTraversal(true);
