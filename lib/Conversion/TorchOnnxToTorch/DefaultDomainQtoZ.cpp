@@ -487,6 +487,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           // Then, we compute the dequantized weight:
           // weight = weight.to(dtype=torch.float32)
           // weight_dequant = (weight - weight_zero_point) * weight_scale
+          Value weightScalePerChannel = weightScale;
           int64_t diffRank = weightShape.size() - weightScaleShape.size();
           for (int i = 1; i <= diffRank; i++) {
             Value cstDim = Torch::ConstantIntOp::create(
@@ -532,6 +533,14 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                                                 /*non_blocking=*/cstFalse,
                                                 /*copy=*/cstFalse,
                                                 /*memory_format=*/none);
+            // Per the ONNX spec, the int32 bias is quantized with
+            // scale = input_scale * weight_scale[c] and zero_point = 0. Since
+            // the convolution is performed on the dequantized input and
+            // weight, the bias must be dequantized the same way.
+            bias = Torch::AtenMulTensorOp::create(rewriter, loc, f32BiasType,
+                                                  bias, weightScalePerChannel);
+            bias = Torch::AtenMulScalarOp::create(rewriter, loc, f32BiasType,
+                                                  bias, inputScale);
           }
 
         } else {
@@ -552,7 +561,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         for (auto namedAttr : binder.op->getAttrDictionary()) {
           if (namedAttr.getName().getValue().compare("name") == 0)
             continue;
-          llvm::errs() << namedAttr.getName() << "\n";
           newAttributes.push_back(namedAttr);
         }
 
