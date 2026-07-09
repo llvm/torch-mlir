@@ -32,7 +32,7 @@ target-version = ['py38']
 
 [tool.cibuildwheel]
 build = "cp312-*"
-skip = "*-musllinux* *_i686 *-win32 *-win_amd64"
+skip = "*-musllinux* *_i686 *-win32"
 build-frontend = "build[uv]"
 before-test = "pip install -r {project}/pytorch-requirements.txt"
 test-command = "python {project}/build_tools/smoke_test.py"
@@ -53,3 +53,8 @@ environment = { TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS = "1", TORCH_MLIR_EN
 archs = "auto64"
 before-all = "brew install ccache ninja"
 environment = { MACOSX_DEPLOYMENT_TARGET = "11.0", TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS = "1", TORCH_MLIR_ENABLE_JIT_IR_IMPORTER = "0", TORCH_MLIR_ENABLE_LTC = "0", CMAKE_GENERATOR = "Ninja", CMAKE_C_COMPILER_LAUNCHER = "ccache", CMAKE_CXX_COMPILER_LAUNCHER = "ccache" }
+
+[tool.cibuildwheel.windows]
+before-build = "pip install delvewheel"
+repair-wheel-command = "delvewheel repair --add-path {project}/build/cmake_build/tools/torch-mlir/python_packages/torch_mlir/torch_mlir/_mlir_libs --add-dll TorchMLIRAggregateCAPI.dll --no-dll \"c10.dll;torch_python.dll;torch_cpu.dll\" -w {dest_dir} {wheel}"
+environment = { TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS = "1", TORCH_MLIR_ENABLE_JIT_IR_IMPORTER = "0", TORCH_MLIR_ENABLE_LTC = "0", CMAKE_GENERATOR = "Ninja", TORCH_MLIR_CMAKE_BUILD_DIR = "build/cmake_build" }
