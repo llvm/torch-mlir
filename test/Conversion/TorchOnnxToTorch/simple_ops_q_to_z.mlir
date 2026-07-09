@@ -3884,6 +3884,25 @@ func.func @test_qlinearglobalavgpool(%arg0: !torch.vtensor<[1,1000,13,13],ui8>, 
 
 // -----
 
+// A statically unknown result dim must not feed the kernel-size arithmetic
+// (kernel = in - out + 1 with out = kUnknownSize gave kernel > input and an
+// invalid tensor type downstream); the kernel must come from the input dims.
+// CHECK-LABEL: @test_qlinearglobalavgpool_dynamic_result(
+// CHECK-SAME:                   %[[X:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !torch.vtensor<[1,1000,13,13],ui8>,
+func.func @test_qlinearglobalavgpool_dynamic_result(%arg0: !torch.vtensor<[1,1000,13,13],ui8>, %arg1: !torch.vtensor<[],f32>, %arg2: !torch.vtensor<[],ui8>, %arg3: !torch.vtensor<[],f32>, %arg4: !torch.vtensor<[],ui8>) -> !torch.vtensor<[?,?,?,?],ui8> attributes {torch.onnx_meta.ir_version = 5 : si64, torch.onnx_meta.opset_version = 10 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  %0 = torch.operator "onnx.QLinearGlobalAveragePool"(%arg0, %arg1, %arg2, %arg3, %arg4) {torch.onnx.channels_last = 0 : si64} : (!torch.vtensor<[1,1000,13,13],ui8>, !torch.vtensor<[],f32>, !torch.vtensor<[],ui8>, !torch.vtensor<[],f32>, !torch.vtensor<[],ui8>) -> !torch.vtensor<[?,?,?,?],ui8>
+  // CHECK: %[[X_F32:.+]] = torch.aten.dequantize.self
+  // CHECK: %[[C2:.*]] = torch.constant.int 2
+  // CHECK: %[[DIM2:.*]] = torch.aten.size.int %[[X_F32]], %[[C2]] : !torch.vtensor<[1,1000,13,13],f32>, !torch.int -> !torch.int
+  // CHECK: %[[C3:.*]] = torch.constant.int 3
+  // CHECK: %[[DIM3:.*]] = torch.aten.size.int %[[X_F32]], %[[C3]] : !torch.vtensor<[1,1000,13,13],f32>, !torch.int -> !torch.int
+  // CHECK: %[[KERNELSIZE:.*]] = torch.prim.ListConstruct %[[DIM2]], %[[DIM3]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: torch.aten.avg_pool2d %[[X_F32]], %[[KERNELSIZE]]
+  return %0 : !torch.vtensor<[?,?,?,?],ui8>
+}
+
+// -----
+
 // CHECK-LABEL: @test_qlinear_sigmoid(
 // CHECK-SAME:                   %[[X:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !torch.vtensor<[?,?],ui8>,
 // CHECK-SAME:                   %[[X_SCALE:[0-9]+|[a-zA-Z$._-][a-zA-Z0-9$._-]*]]: !torch.vtensor<[],f32>,
