@@ -34,7 +34,8 @@ target-version = ['py38']
 build = "cp312-*"
 skip = "*-musllinux* *_i686 *-win32 *-win_amd64"
 build-frontend = "build[uv]"
-test-command = "python -c \"import torch_mlir; print('torch_mlir', torch_mlir.__file__)\""
+before-test = "pip install -r {project}/pytorch-requirements.txt"
+test-command = "python {project}/build_tools/smoke_test.py"
 
 # Build with the manylinux default gcc toolchain. ccache reuses the LLVM/MLIR
 # object cache across the per-Python-version builds; CMake reads the
