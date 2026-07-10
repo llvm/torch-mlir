@@ -2571,22 +2571,34 @@ public:
               // on offset
               Value dim1IdxAdjusted;
               Value dim2IdxAdjusted;
+              Value lastInputIdx;
               if (offset < 0) {
                 Value absOffset =
                     arith::ConstantIndexOp::create(b, loc, -offset);
                 dim1IdxAdjusted = dim1Index;
                 dim2IdxAdjusted =
                     arith::AddIOp::create(b, loc, dim2Index, absOffset);
-                inputIndices.push_back(linalg::IndexOp::create(b, loc, dim2));
+                lastInputIdx = linalg::IndexOp::create(b, loc, dim2);
               } else {
                 Value constOffset =
                     arith::ConstantIndexOp::create(b, loc, offset);
                 dim1IdxAdjusted =
                     arith::AddIOp::create(b, loc, dim1Index, constOffset);
                 dim2IdxAdjusted = dim2Index;
-                inputIndices.push_back(linalg::IndexOp::create(b, loc, dim1));
+                lastInputIdx = linalg::IndexOp::create(b, loc, dim1);
               }
-
+              // Clamp the last input index to prevent out-of-bounds access.
+              // The loop iterates over the output dimensions which are larger
+              // than the input's last dimension when offset != 0. The
+              // out-of-bounds elements are discarded by the select below, but
+              // the extract itself must not read past the end of the tensor.
+              Value lastDimSize = getDimOp(b, loc, input, inputRank - 1);
+              Value lastDimSizeMinusOne = arith::SubIOp::create(
+                  b, loc, lastDimSize,
+                  arith::ConstantIndexOp::create(b, loc, 1));
+              Value clampedIdx = arith::MinUIOp::create(b, loc, lastInputIdx,
+                                                        lastDimSizeMinusOne);
+              inputIndices.push_back(clampedIdx);
               Value isDiagonal =
                   arith::CmpIOp::create(b, loc, arith::CmpIPredicate::eq,
                                         dim1IdxAdjusted, dim2IdxAdjusted);

@@ -67,13 +67,6 @@ if torch_version_for_comparison() < version.parse("2.5.0.dev"):
     }
 
 LINALG_CRASHING_SET = {
-    # Runtime op verification: Out of bounds access
-    "AtenDiagEmbedNegOffsetDiag_basic",
-    "AtenDiagEmbedNonDefault4DDiag_basic",
-    "AtenDiagEmbedOffsetDiag_basic",
-    "AtenDiagEmbedRevDimDiag_basic",
-    "DiagModule1D_negative_offset",
-    "DiagModule1D_positive_offset",
     # Runtime op verification: subview is out-of-bounds of the base memref
     "Conv_Transpose1dModule_basic",
     "Conv_Transpose1dStaticModule_basic",
@@ -4620,14 +4613,6 @@ ONNX_TOSA_XFAIL_SET = {
     "DeterminantModule_F32",
     "DeterminantBatchedModule_F32",
     "DeterminantDynamicModule_F32",
-    "DeterminantModule_F32",
-    "DiagModule1D_basic",
-    "DiagModule1D_negative_offset",
-    "DiagModule1D_positive_offset",
-    "DiagModule2D_basic",
-    "DiagModule2D_negative_offset",
-    "DiagModule2D_nonsquare",
-    "DiagModule2D_positive_offset",
     "DiagonalModule_basic",
     "DiagonalModule_nonsquare",
     "DiagonalModule_transposed",

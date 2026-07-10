@@ -195,3 +195,20 @@ func.func @torch.aten.slice.Tensor$negative_step(%arg0: !torch.vtensor<[10],f32>
   %0 = torch.aten.slice.Tensor %arg0, %int0, %int9, %int0, %int_neg1 : !torch.vtensor<[10],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[9],f32>
   return %0 : !torch.vtensor<[9],f32>
 }
+
+// -----
+
+// Verify that diag_embed with non-zero offset clamps the extract index
+// to prevent out-of-bounds access on the input tensor.
+
+// CHECK-LABEL:   func.func @torch.aten.diag_embed$positive_offset(
+// CHECK:           %[[C2:.*]] = arith.constant 2 : index
+// CHECK:           %[[CLAMPED:.*]] = arith.minui %{{.*}}, %[[C2]] : index
+// CHECK:           %[[EXTRACTED:.*]] = tensor.extract %{{.*}}[%[[CLAMPED]]] : tensor<3xf32>
+func.func @torch.aten.diag_embed$positive_offset(%arg0: !torch.vtensor<[3],f32>) -> !torch.vtensor<[4,4],f32> {
+  %int1 = torch.constant.int 1
+  %int0 = torch.constant.int 0
+  %int_neg1 = torch.constant.int -1
+  %0 = torch.aten.diag_embed %arg0, %int1, %int0, %int_neg1 : !torch.vtensor<[3],f32>, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,4],f32>
+  return %0 : !torch.vtensor<[4,4],f32>
+}

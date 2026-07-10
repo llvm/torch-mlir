@@ -1231,7 +1231,7 @@ func.func @mean_dim_scalar_negative_dim(%arg0: !torch.vtensor<[],f32>) -> !torch
  }
 
 // -----
- 
+
 // CHECK-LABEL: func.func @torch.aten.diag_1d
 // CHECK: %[[OFFSET:.*]] = torch.constant.int 0
 // CHECK: %[[DIM1:.*]] = torch.constant.int -2
@@ -1245,6 +1245,7 @@ func.func @torch.aten.diag_1d(%arg0: !torch.vtensor<[3],f32>) -> !torch.vtensor<
 }
 
 // -----
+
 // CHECK-LABEL: func.func @torch.aten.diag_2d
 // CHECK: %[[ZERO:.*]] = torch.constant.int 0
 // CHECK: %[[DIM2:.*]] = torch.constant.int 1
