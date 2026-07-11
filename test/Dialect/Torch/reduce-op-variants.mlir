@@ -203,14 +203,3 @@ func.func @scaled_dot_product_flash_attention_for_cpu(%arg0: !torch.vtensor<[1,1
   %0:2 = torch.operator "torch.aten._scaled_dot_product_flash_attention_for_cpu"(%arg0, %arg1, %arg2, %float0.000000e00, %false, %none, %none_0) : (!torch.vtensor<[1,1,5,5],f32>, !torch.vtensor<[1,1,5,5],f32>, !torch.vtensor<[1,1,5,5],f32>, !torch.float, !torch.bool, !torch.none, !torch.none) -> (!torch.vtensor<[1,1,5,5],f32>, !torch.vtensor<[1,1,5],f32>)
   return %0#0 : !torch.vtensor<[1,1,5,5],f32>
 }
-
-// -----
-
-// CHECK-LABEL: func.func @torch_operator_aten_bilinear
-// CHECK-SAME: %[[INPUT1:.+]]: !torch.vtensor<[2,4],f32>, %[[INPUT2:.+]]: !torch.vtensor<[2,5],f32>, %[[WEIGHT:.+]]: !torch.vtensor<[3,4,5],f32>, %[[BIAS:.+]]: !torch.vtensor<[3],f32>
-// CHECK:      %[[RESULT:.+]] = torch.aten.bilinear %[[INPUT1]], %[[INPUT2]], %[[WEIGHT]], %[[BIAS]]
-// CHECK:      return %[[RESULT]]
-func.func @torch_operator_aten_bilinear(%arg0: !torch.vtensor<[2,4],f32>, %arg1: !torch.vtensor<[2,5],f32>, %arg2: !torch.vtensor<[3,4,5],f32>, %arg3: !torch.vtensor<[3],f32>) -> !torch.vtensor<[2,3],f32> {
-  %0 = torch.operator "torch.aten.bilinear"(%arg0, %arg1, %arg2, %arg3) : (!torch.vtensor<[2,4],f32>, !torch.vtensor<[2,5],f32>, !torch.vtensor<[3,4,5],f32>, !torch.vtensor<[3],f32>) -> !torch.vtensor<[2,3],f32>
-  return %0 : !torch.vtensor<[2,3],f32>
-}

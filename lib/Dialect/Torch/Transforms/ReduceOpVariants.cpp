@@ -242,22 +242,6 @@ private:
 void TorchMatchSpecializedBackendOp::populateSpecializedConversions(
     TorchMatchSpecializedBackendOp &matcher) {
   matcher.populate(
-      "torch.aten.bilinear",
-      [](Torch::OperatorOp op,
-         ConversionPatternRewriter &rewriter) -> LogicalResult {
-        if (op->getNumOperands() != 4 || op->getNumResults() != 1)
-          return rewriter.notifyMatchFailure(
-              op, "expected torch.aten.bilinear to have 4 operands and 1 "
-                  "result");
-
-        auto newOp = Torch::AtenBilinearOp::create(
-            rewriter, op.getLoc(), op->getResultTypes()[0], op->getOperand(0),
-            op->getOperand(1), op->getOperand(2), op->getOperand(3));
-        rewriter.replaceOp(op, newOp.getResult());
-        return success();
-      });
-
-  matcher.populate(
       "torch.aten._scaled_dot_product_flash_attention_for_cpu",
       [](Torch::OperatorOp op,
          ConversionPatternRewriter &rewriter) -> LogicalResult {
