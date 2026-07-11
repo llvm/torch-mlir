@@ -339,3 +339,24 @@ func.func @torch.aten.tril(%arg0: !torch.vtensor<[2,3,5],f32>, %arg1: !torch.int
   %0 = torch.aten.tril %arg0, %arg1:!torch.vtensor<[2,3,5],f32>, !torch.int -> !torch.vtensor<[2,3,5],f32>
   return %0 : !torch.vtensor<[2,3,5],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.sort(
+// CHECK-SAME:                  %[[ARG_0:.*]]: !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],si64>) {
+// CHECK:           %[[VAL_0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[2,3],f32> -> tensor<2x3xf32>
+// CHECK:           %[[VAL_1:.*]] = stablehlo.iota dim = 1 : tensor<2x3xi64>
+// CHECK:           %[[VAL_2:.*]]:2 = "stablehlo.sort"(%[[VAL_0]], %[[VAL_1]]) <{dimension = 1 : i64, is_stable = false}> ({
+// CHECK:           ^bb0(%[[ARG1:.*]]: tensor<f32>, %[[ARG2:.*]]: tensor<f32>, %[[ARG3:.*]]: tensor<i64>, %[[ARG4:.*]]: tensor<i64>):
+// CHECK:             %[[VAL_3:.*]] = stablehlo.compare GT, %[[ARG1]], %[[ARG2]], FLOAT : (tensor<f32>, tensor<f32>) -> tensor<i1>
+// CHECK:             stablehlo.return %[[VAL_3]] : tensor<i1>
+// CHECK:           }) : (tensor<2x3xf32>, tensor<2x3xi64>) -> (tensor<2x3xf32>, tensor<2x3xi64>)
+// CHECK:           %[[VAL_4:.*]] = torch_c.from_builtin_tensor %[[VAL_2]]#1 : tensor<2x3xi64> -> !torch.vtensor<[2,3],si64>
+// CHECK:           %[[VAL_5:.*]] = torch_c.from_builtin_tensor %[[VAL_2]]#0 : tensor<2x3xf32> -> !torch.vtensor<[2,3],f32>
+// CHECK:           return %[[VAL_5]], %[[VAL_4]] : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],si64>
+func.func @torch.aten.sort(%arg0: !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],si64>) {
+  %int-1 = torch.constant.int -1
+  %true = torch.constant.bool true
+  %values, %indices = torch.aten.sort %arg0, %int-1, %true : !torch.vtensor<[2,3],f32>, !torch.int, !torch.bool -> !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],si64>
+  return %values, %indices : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],si64>
+}

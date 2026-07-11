@@ -2204,6 +2204,111 @@ LogicalResult ConvertAtenOp<AtenIsfiniteOp>::matchAndRewrite(
   return success();
 }
 
+// AtenSortOp
+template <>
+LogicalResult ConvertAtenOp<AtenSortOp>::matchAndRewrite(
+    AtenSortOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value self = adaptor.getSelf();
+  auto selfType = dyn_cast<RankedTensorType>(self.getType());
+  if (!selfType)
+    return rewriter.notifyMatchFailure(op, "expected ranked tensor for self");
+
+  // Values and indices return types
+  RankedTensorType valuesType = dyn_cast<RankedTensorType>(
+      getTypeConverter()->convertType(op.getResult(0).getType()));
+  RankedTensorType indicesType = dyn_cast<RankedTensorType>(
+      getTypeConverter()->convertType(op.getResult(1).getType()));
+  if (!valuesType || !indicesType)
+    return rewriter.notifyMatchFailure(op,
+                                       "expected ranked tensor output types");
+
+  Location loc = op.getLoc();
+  Value dimVal = op.getDim();
+  Value descendingVal = op.getDescending();
+
+  int64_t dim;
+  if (auto constantOp = dimVal.getDefiningOp<ConstantIntOp>()) {
+    dim = constantOp.getValueAttr().getInt();
+  } else {
+    return rewriter.notifyMatchFailure(op, "non-constant dim parameter");
+  }
+  int64_t rank = selfType.getRank();
+  if (dim < -rank || dim >= rank) {
+    return rewriter.notifyMatchFailure(op, "dimension out of range");
+  }
+  if (dim < 0) {
+    dim += rank;
+  }
+
+  bool descending;
+  if (auto constantOp = descendingVal.getDefiningOp<ConstantBoolOp>()) {
+    descending = constantOp.getValue();
+  } else {
+    return rewriter.notifyMatchFailure(op, "non-constant descending parameter");
+  }
+
+  // 1. Generate indices tensor using stablehlo.iota
+  Value indices = stablehlo::IotaOp::create(rewriter, loc, indicesType,
+                                            rewriter.getI64IntegerAttr(dim));
+
+  // 2. Create stablehlo.sort op
+  auto sortOp = stablehlo::SortOp::create(
+      rewriter, loc, TypeRange{valuesType, indicesType},
+      ValueRange{self, indices}, rewriter.getI64IntegerAttr(dim),
+      rewriter.getBoolAttr(false));
+
+  // 3. Build comparator block
+  Block &block = sortOp.getComparator().emplaceBlock();
+
+  auto blockValArgumentType =
+      RankedTensorType::get({}, valuesType.getElementType());
+  auto blockIdxArgumentType =
+      RankedTensorType::get({}, indicesType.getElementType());
+
+  block.addArgument(blockValArgumentType, loc);
+  block.addArgument(blockValArgumentType, loc);
+  block.addArgument(blockIdxArgumentType, loc);
+  block.addArgument(blockIdxArgumentType, loc);
+
+  auto *firstValArg = block.args_begin();
+  auto *secondValArg = std::next(firstValArg);
+
+  OpBuilder::InsertionGuard guard(rewriter);
+  rewriter.setInsertionPointToStart(&block);
+
+  auto compareDirectionAttr = stablehlo::ComparisonDirectionAttr::get(
+      rewriter.getContext(), descending ? stablehlo::ComparisonDirection::GT
+                                        : stablehlo::ComparisonDirection::LT);
+
+  stablehlo::ComparisonTypeAttr compareTypeAttr;
+  Type elemTy = valuesType.getElementType();
+
+  if (isa<mlir::FloatType>(valuesType.getElementType())) {
+    compareTypeAttr = stablehlo::ComparisonTypeAttr::get(
+        rewriter.getContext(), stablehlo::ComparisonType::FLOAT);
+  } else if (isa<mlir::IntegerType>(valuesType.getElementType())) {
+    if (elemTy.isInteger(1)) {
+      compareTypeAttr = stablehlo::ComparisonTypeAttr::get(
+          rewriter.getContext(), stablehlo::ComparisonType::UNSIGNED);
+    } else {
+      compareTypeAttr = stablehlo::ComparisonTypeAttr::get(
+          rewriter.getContext(), stablehlo::ComparisonType::SIGNED);
+    }
+  }
+
+  auto compareResultType = RankedTensorType::get({}, rewriter.getI1Type());
+
+  Value compareResult = stablehlo::CompareOp::create(
+      rewriter, loc, compareResultType, *firstValArg, *secondValArg,
+      compareDirectionAttr, compareTypeAttr);
+
+  stablehlo::ReturnOp::create(rewriter, loc, compareResult);
+
+  rewriter.replaceOp(op, sortOp.getResults());
+  return success();
+}
+
 void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target, const TorchToStablehloOptions &options) {
@@ -2380,6 +2485,8 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
 
   INSERT_ATENOP_PATTERN(AtenTrilOp);
   INSERT_ATENOP_PATTERN(AtenIsfiniteOp);
+  INSERT_ATENOP_PATTERN(AtenSortOp);
+
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_BINARY_BROADCAST_PATTERN(AtenOp, StablehloOp)                   \
