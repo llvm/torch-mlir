@@ -1,4 +1,4 @@
-// RUN: torch-mlir-opt -torch-decompose-complex-ops -split-input-file %s | FileCheck %s
+// RUN: torch-mlir-opt -torch-decompose-complex-ops -split-input-file -verify-diagnostics %s | FileCheck %s
 
 // CHECK-LABEL:   func.func @matmul_no_decompose
 // CHECK:           torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[?,?,?,?,?],f32>, !torch.vtensor<[?,?,?],f32> -> !torch.tensor
@@ -404,6 +404,67 @@ func.func @emptyLikeNoneDtype(%arg0: !torch.vtensor<[200,200,26],f64>) -> !torch
     %none_2 = torch.constant.none
     %0 = torch.aten.empty_like %arg0, %none, %none_0, %none_1, %false, %none_2 : !torch.vtensor<[200,200,26],f64>, !torch.none, !torch.none, !torch.none, !torch.bool, !torch.none -> !torch.vtensor<[200,200,26],f64>
     return %0 : !torch.vtensor<[200,200,26],f64>
+}
+
+// -----
+// CHECK-LABEL:   func.func @emptyPermutedDefaultPhysicalLayout
+// CHECK-DAG:       %[[DTYPE:.*]] = torch.constant.int 6
+// CHECK-DAG:       %[[C2:.*]] = torch.constant.int 2
+// CHECK-DAG:       %[[C3:.*]] = torch.constant.int 3
+// CHECK-DAG:       %[[C4:.*]] = torch.constant.int 4
+// CHECK:           %[[SIZE:.*]] = torch.prim.ListConstruct %[[C2]], %[[C3]], %[[C4]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:           %[[MEM_FMT:.*]] = torch.aten.empty.memory_format %[[SIZE]], %[[DTYPE]], {{%.*}}, {{%.*}}, {{%.*}}, {{%.*}} : !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[2,3,4],f32>
+// CHECK:           return %[[MEM_FMT]] : !torch.vtensor<[2,3,4],f32>
+func.func @emptyPermutedDefaultPhysicalLayout() -> !torch.vtensor<[2,3,4],f32> {
+    %int0 = torch.constant.int 0
+    %int1 = torch.constant.int 1
+    %int2 = torch.constant.int 2
+    %int3 = torch.constant.int 3
+    %int4 = torch.constant.int 4
+    %size = torch.prim.ListConstruct %int2, %int3, %int4 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+    %physical_layout = torch.prim.ListConstruct %int0, %int1, %int2 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+    %none = torch.constant.none
+    %none_0 = torch.constant.none
+    %none_1 = torch.constant.none
+    %none_2 = torch.constant.none
+    %0 = torch.aten.empty_permuted %size, %physical_layout, %none, %none_0, %none_1, %none_2 : !torch.list<int>, !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[2,3,4],f32>
+    return %0 : !torch.vtensor<[2,3,4],f32>
+}
+
+// -----
+// CHECK-LABEL:   func.func @emptyPermutedDynamicPhysicalLayout
+// CHECK:           torch.runtime.assert {{.*}}, "not all physical layout entries are default"
+// CHECK:           torch.aten.empty.memory_format
+func.func @emptyPermutedDynamicPhysicalLayout(%arg0: !torch.int, %arg1: !torch.int, %arg2: !torch.int) -> !torch.vtensor<[2,3,4],f32> {
+    %int2 = torch.constant.int 2
+    %int3 = torch.constant.int 3
+    %int4 = torch.constant.int 4
+    %size = torch.prim.ListConstruct %int2, %int3, %int4 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+    %physical_layout = torch.prim.ListConstruct %arg0, %arg1, %arg2 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+    %none = torch.constant.none
+    %none_0 = torch.constant.none
+    %none_1 = torch.constant.none
+    %none_2 = torch.constant.none
+    %0 = torch.aten.empty_permuted %size, %physical_layout, %none, %none_0, %none_1, %none_2 : !torch.list<int>, !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[2,3,4],f32>
+    return %0 : !torch.vtensor<[2,3,4],f32>
+}
+
+// -----
+func.func @emptyPermutedNonDefaultPhysicalLayout() -> !torch.vtensor<[2,3,4],f32> {
+    %int0 = torch.constant.int 0
+    %int1 = torch.constant.int 1
+    %int2 = torch.constant.int 2
+    %int3 = torch.constant.int 3
+    %int4 = torch.constant.int 4
+    %size = torch.prim.ListConstruct %int2, %int3, %int4 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+    %physical_layout = torch.prim.ListConstruct %int0, %int2, %int1 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+    %none = torch.constant.none
+    %none_0 = torch.constant.none
+    %none_1 = torch.constant.none
+    %none_2 = torch.constant.none
+    // expected-error @+1 {{only default physical layout supported for empty_permuted op}}
+    %0 = torch.aten.empty_permuted %size, %physical_layout, %none, %none_0, %none_1, %none_2 : !torch.list<int>, !torch.list<int>, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[2,3,4],f32>
+    return %0 : !torch.vtensor<[2,3,4],f32>
 }
 
 // -----

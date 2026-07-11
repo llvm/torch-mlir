@@ -1965,6 +1965,31 @@ def EmptyStridedModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class EmptyPermutedModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 3, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        x = torch.ops.aten.empty_permuted(a.size(), physical_layout=[0, 1, 2])
+        y = x.copy_(a)
+        return y
+
+
+@register_test_case(module_factory=lambda: EmptyPermutedModule())
+def EmptyPermutedModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 3, 4))
+
+
+# ==============================================================================
+
+
 class EmptyStridedSizeIntStrideModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

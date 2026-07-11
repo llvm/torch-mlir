@@ -130,6 +130,13 @@ LogicalResult checkDefaultStrideHelper(Operation *op, PatternRewriter &rewriter,
                                        Value opSize, Value opStride,
                                        Location loc);
 
+// Helper function for AtenEmptyPermuted that checks if the physical layout is
+// the default logical layout. Throws a runtime assert for dynamic values.
+LogicalResult checkDefaultPermutationHelper(Operation *op,
+                                            PatternRewriter &rewriter,
+                                            int64_t rank, Value perm,
+                                            Location loc);
+
 // Helper to create a tensor filled with the given scalar. Scalar would be
 // converted the to the element type of the given tensor type.
 Value createInitTensor(PatternRewriter &rewriter, Location loc,

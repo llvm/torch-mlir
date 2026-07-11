@@ -10837,6 +10837,39 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenEmptyPermutedOp
+    : public OpRewritePattern<AtenEmptyPermutedOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenEmptyPermutedOp op,
+                                PatternRewriter &rewriter) const override {
+    auto ty = dyn_cast<BaseTensorType>(op.getType());
+    if (!ty || !ty.hasSizes()) {
+      return rewriter.notifyMatchFailure(
+          op, "Unimplemented: unranked output tensor");
+    }
+    const auto rank = ty.getSizes().size();
+
+    if (failed(checkDefaultPermutationHelper(
+            op, rewriter, rank, op.getPhysicalLayout(), op.getLoc()))) {
+      return rewriter.notifyMatchFailure(
+          op, "unable to determine if physical layout is default");
+    }
+
+    auto dtype = getDtypeFromOp(rewriter, op);
+    if (failed(dtype)) {
+      return rewriter.notifyMatchFailure(
+          op, "could not determine dtype from the op");
+    }
+    rewriter.replaceOpWithNewOp<AtenEmptyMemoryFormatOp>(
+        op, op.getType(), op.getSize(), *dtype, op.getLayout(), op.getDevice(),
+        op.getPinMemory(), ConstantNoneOp::create(rewriter, op.getLoc()));
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposePrimsSqueezeOp : public OpRewritePattern<PrimsSqueezeOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -13444,6 +13477,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenLerpTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNewEmptyStridedOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEmptyStridedOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenEmptyPermutedOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBucketizeTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposePrimTolistOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposePrimsSqueezeOp>(patterns);
