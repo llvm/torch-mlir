@@ -2202,11 +2202,33 @@ public:
       input3 = *unsqueezeTensor(rewriter, op, input3, expandDim);
     }
 
+    // Given `result = input1 * input2`, infer the result type from
+    // the types of input1 and input2.
+    auto inferMulType = [&](BaseTensorType opType, Value input1,
+                            Value input2) -> Type {
+      // Return unranked tensor type if the trilinear op has unranked tensor
+      // type.
+      if (!opType.hasSizes())
+        return opType;
+
+      SmallVector<int64_t> resultShape;
+      SmallVector<Value> resultShapeValue;
+      computeBroadcastShape(rewriter, loc, {input1, input2}, resultShape,
+                            resultShapeValue);
+      BaseTensorType inputType1 = cast<BaseTensorType>(input1.getType());
+      return inputType1.getWithSizesAndDtype(resultShape,
+                                             inputType1.getOptionalDtype());
+    };
+
     // Apply multiplication operation.
-    auto mul1 =
-        AtenMulTensorOp::create(rewriter, loc, op.getType(), input1, input2);
-    auto mul2 =
-        AtenMulTensorOp::create(rewriter, loc, op.getType(), mul1, input3);
+    // The intermediate multiply results have higher rank than the op's result
+    // type, because the subsequent sum operations in this decomposition reduce
+    // dimensions.
+    BaseTensorType opType = cast<BaseTensorType>(op.getType());
+    Type type = inferMulType(opType, input1, input2);
+    auto mul1 = AtenMulTensorOp::create(rewriter, loc, type, input1, input2);
+    type = inferMulType(opType, mul1, input3);
+    auto mul2 = AtenMulTensorOp::create(rewriter, loc, type, mul1, input3);
 
     // Apply sum operation.
     // Parse sumDim in descending order to avoid any issues with the
@@ -8925,6 +8947,85 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.bilinear` op into `aten._trilinear` and `aten.add` ops.
+class DecomposeAtenBilinearOp : public OpRewritePattern<AtenBilinearOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenBilinearOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input1 = op.getInput1();
+    Value input2 = op.getInput2();
+    Value weight = op.getWeight();
+    Value bias = op.getBias();
+
+    BaseTensorType inputType1 = cast<BaseTensorType>(input1.getType());
+    BaseTensorType inputType2 = cast<BaseTensorType>(input2.getType());
+    if (!inputType1.hasSizes() || !inputType2.hasSizes())
+      return rewriter.notifyMatchFailure(op, "expected input to have sizes");
+    if (inputType1.getSizes().empty() || inputType2.getSizes().empty())
+      return rewriter.notifyMatchFailure(op,
+                                         "expected input to have rank >= 1");
+
+    BaseTensorType weightType = cast<BaseTensorType>(weight.getType());
+    if (!weightType.hasSizes())
+      return rewriter.notifyMatchFailure(op, "expected weight to have sizes");
+    // `weight` must be a rank 3 matrix.
+    ArrayRef<int64_t> weightSizes = weightType.getSizes();
+    if (weightSizes.size() != 3)
+      return rewriter.notifyMatchFailure(op, "expected weight to be a rank 3");
+
+    if (!isa<Torch::NoneType>(bias.getType())) {
+      BaseTensorType biasType = cast<BaseTensorType>(bias.getType());
+      if (!biasType.hasSizes() || biasType.getSizes().size() != 1)
+        return rewriter.notifyMatchFailure(op, "expected bias to be rank 1");
+    }
+
+    // Generate `aten._trilinear` op. `aten.bilinear` is a special case of
+    // `aten._trilinear`:
+    // aten._trilinear(input1, weight, input2, {n,n+2}, {0,...,n-1}, {n,n+1},
+    // {n+1,n+2}) where `n` equals rank(input1) - 1.
+    unsigned n = inputType1.getSizes().size() - 1;
+    Type intListType =
+        Torch::ListType::get(Torch::IntType::get(op.getContext()));
+    Value n0 =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(n));
+    Value n1 =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(n + 1));
+    Value n2 =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(n + 2));
+    Value expand1 = PrimListConstructOp::create(rewriter, loc, intListType,
+                                                SmallVector<Value>{n0, n2});
+    Value expand2 = PrimListConstructOp::create(rewriter, loc, intListType,
+                                                SmallVector<Value>{n0, n1});
+    SmallVector<Value> expandWeightValue;
+    for (unsigned i = 0; i < n; i++) {
+      Value value =
+          ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(i));
+      expandWeightValue.push_back(value);
+    }
+    Value expandWeight = PrimListConstructOp::create(rewriter, loc, intListType,
+                                                     expandWeightValue);
+    Value sumDimList = PrimListConstructOp::create(rewriter, loc, intListType,
+                                                   SmallVector<Value>{n1, n2});
+    Value constOne =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
+    Value trilinear = Aten_TrilinearOp::create(
+        rewriter, loc, op.getType(), input1, weight, input2, expand1,
+        expandWeight, expand2, sumDimList, constOne);
+
+    if (isa<Torch::NoneType>(bias.getType())) {
+      rewriter.replaceOp(op, trilinear);
+      return success();
+    }
+    rewriter.replaceOpWithNewOp<AtenAddTensorOp>(op, op.getType(), trilinear,
+                                                 bias, constOne);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.mish` op into `aten.tanh` and `aten.softplus` ops.
 // Mish(x) = x * Tanh(Softplus(x))
 class DecomposeAtenMishOp : public OpRewritePattern<AtenMishOp> {
@@ -13372,6 +13473,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenFullOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHeaviside>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLinearOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenBilinearOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMishOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFullLikeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNewFullOp>(patterns);

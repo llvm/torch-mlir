@@ -1081,6 +1081,68 @@ def AtenLinear3DBias_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class AtenBilinear2DBiasModule(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 4], torch.float32, True),
+            ([2, 5], torch.float32, True),
+            ([3, 4, 5], torch.float32, True),
+            ([3], torch.float32, True),
+        ]
+    )
+    def forward(self, input1, input2, weight, bias):
+        return torch.ops.aten.bilinear(input1, input2, weight, bias)
+
+
+@register_test_case(module_factory=lambda: AtenBilinear2DBiasModule())
+def AtenBilinear2DBiasModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4), tu.rand(2, 5), tu.rand(3, 4, 5), tu.rand(3))
+
+
+class AtenBilinear2DNoBiasModule(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 4], torch.float32, True),
+            ([2, 5], torch.float32, True),
+            ([3, 4, 5], torch.float32, True),
+        ]
+    )
+    def forward(self, input1, input2, weight):
+        return torch.ops.aten.bilinear(input1, input2, weight)
+
+
+@register_test_case(module_factory=lambda: AtenBilinear2DNoBiasModule())
+def AtenBilinear2DNoBiasModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4), tu.rand(2, 5), tu.rand(3, 4, 5))
+
+
+class AtenBilinear3DBiasModule(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3, 4], torch.float32, True),
+            ([2, 3, 5], torch.float32, True),
+            ([6, 4, 5], torch.float32, True),
+            ([6], torch.float32, True),
+        ]
+    )
+    def forward(self, input1, input2, weight, bias):
+        return torch.ops.aten.bilinear(input1, input2, weight, bias)
+
+
+@register_test_case(module_factory=lambda: AtenBilinear3DBiasModule())
+def AtenBilinear3DBiasModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4), tu.rand(2, 3, 5), tu.rand(6, 4, 5), tu.rand(6))
+
+
+# ==============================================================================
+
+
 class AtenLinalgCrossInt(torch.nn.Module):
     @export
     @annotate_args(
