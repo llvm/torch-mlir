@@ -9026,6 +9026,138 @@ public:
 } // namespace
 
 namespace {
+// Decompose the 2D-by-3D offsets form of `aten._grouped_mm` into a loop of
+// slices and matrix multiplications.
+class DecomposeAten_GroupedMmOp : public OpRewritePattern<Aten_GroupedMmOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(Aten_GroupedMmOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.getSelf();
+    Value weight = op.getMat2();
+    Value offsets = op.getOffs();
+
+    auto inputType = dyn_cast<BaseTensorType>(input.getType());
+    auto weightType = dyn_cast<BaseTensorType>(weight.getType());
+    auto offsetsType = dyn_cast<BaseTensorType>(offsets.getType());
+    auto resultType = dyn_cast<BaseTensorType>(op.getType());
+    if (!inputType || !weightType || !offsetsType || !resultType)
+      return rewriter.notifyMatchFailure(
+          op, "expected tensor input, weight, offsets, and result");
+    if (!inputType.hasSizes() || inputType.getSizes().size() != 2 ||
+        !weightType.hasSizes() || weightType.getSizes().size() != 3 ||
+        !offsetsType.hasSizes() || offsetsType.getSizes().size() != 1 ||
+        !resultType.hasSizes() || resultType.getSizes().size() != 2) {
+      return rewriter.notifyMatchFailure(
+          op, "expected input, weight, offsets, and result ranks 2, 3, 1, "
+              "and 2");
+    }
+    if (!isa<Torch::NoneType>(op.getBias().getType()) ||
+        !isa<Torch::NoneType>(op.getOutDtype().getType())) {
+      return rewriter.notifyMatchFailure(
+          op, "expected bias and out_dtype to be None");
+    }
+    if (!inputType.hasDtype() || !weightType.hasDtype() ||
+        !offsetsType.hasDtype() || !resultType.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "expected all tensors to have a "
+                                             "dtype");
+    }
+    if (!offsetsType.getDtype().isSignedInteger(32))
+      return rewriter.notifyMatchFailure(op, "expected int32 offsets");
+    if (inputType.getDtype() != weightType.getDtype() ||
+        inputType.getDtype() != resultType.getDtype()) {
+      return rewriter.notifyMatchFailure(
+          op, "expected input, weight, and result to have the same dtype");
+    }
+
+    ArrayRef<int64_t> inputSizes = inputType.getSizes();
+    ArrayRef<int64_t> weightSizes = weightType.getSizes();
+    ArrayRef<int64_t> offsetsSizes = offsetsType.getSizes();
+    ArrayRef<int64_t> resultSizes = resultType.getSizes();
+    auto areCompatibleSizes = [](int64_t lhs, int64_t rhs) {
+      return lhs == kUnknownSize || rhs == kUnknownSize || lhs == rhs;
+    };
+    if (!areCompatibleSizes(inputSizes[1], weightSizes[1]) ||
+        !areCompatibleSizes(inputSizes[0], resultSizes[0]) ||
+        !areCompatibleSizes(weightSizes[2], resultSizes[1]) ||
+        !areCompatibleSizes(weightSizes[0], offsetsSizes[0])) {
+      return rewriter.notifyMatchFailure(op, "incompatible grouped_mm sizes");
+    }
+
+    Value cstNone = ConstantNoneOp::create(rewriter, loc);
+    Value cstZero =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
+    Value cstOne =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
+    Value cstTrue = ConstantBoolOp::create(rewriter, loc, true);
+
+    Value outputSizes = PrimListConstructOp::create(
+        rewriter, loc, ListType::get(IntType::get(op.getContext())),
+        ValueRange({getTensorDimSize(rewriter, input, 0),
+                    getTensorDimSize(rewriter, weight, 2)}));
+    Value resultDtype =
+        getDtypeIntValueForType(rewriter, loc, resultType.getDtype());
+    Value initialOutput =
+        AtenZerosOp::create(rewriter, loc, resultType, outputSizes, resultDtype,
+                            cstNone, cstNone, cstNone);
+
+    Type intType = rewriter.getType<IntType>();
+    Value numGroups = getTensorDimSize(rewriter, weight, 0);
+    auto groupLoop = PrimLoopOp::create(
+        rewriter, loc, TypeRange({resultType, intType}), numGroups, cstTrue,
+        ValueRange({initialOutput, cstZero}));
+
+    {
+      PatternRewriter::InsertionGuard guard(rewriter);
+      Block *loopBody = rewriter.createBlock(
+          &groupLoop.getRegion(), groupLoop.getRegion().begin(),
+          TypeRange({intType, resultType, intType}), {loc, loc, loc});
+      Value groupIndex = loopBody->getArgument(0);
+      Value currentOutput = loopBody->getArgument(1);
+      Value groupStart = loopBody->getArgument(2);
+
+      Type offsetElementType = offsetsType.getWithSizesAndDtype(
+          SmallVector<int64_t>{}, offsetsType.getOptionalDtype());
+      Value groupEndTensor = AtenSelectIntOp::create(
+          rewriter, loc, offsetElementType, offsets, /*dim=*/cstZero,
+          /*index=*/groupIndex);
+      Value groupEnd =
+          AtenItemOp::create(rewriter, loc, intType, groupEndTensor);
+
+      Type inputSliceType = inputType.getWithSizesAndDtype(
+          SmallVector<int64_t>{kUnknownSize, inputSizes[1]},
+          inputType.getOptionalDtype());
+      Value inputSlice = AtenSliceTensorOp::create(
+          rewriter, loc, inputSliceType, input, /*dim=*/cstZero,
+          /*start=*/groupStart, /*end=*/groupEnd, /*step=*/cstOne);
+
+      Type weightSliceType = weightType.getWithSizesAndDtype(
+          SmallVector<int64_t>{weightSizes[1], weightSizes[2]},
+          weightType.getOptionalDtype());
+      Value weightSlice = AtenSelectIntOp::create(
+          rewriter, loc, weightSliceType, weight, /*dim=*/cstZero,
+          /*index=*/groupIndex);
+
+      Type partialType = resultType.getWithSizesAndDtype(
+          SmallVector<int64_t>{kUnknownSize, resultSizes[1]},
+          resultType.getOptionalDtype());
+      Value partial =
+          AtenMmOp::create(rewriter, loc, partialType, inputSlice, weightSlice);
+      Value updatedOutput = AtenSliceScatterOp::create(
+          rewriter, loc, resultType, currentOutput, partial, /*dim=*/cstZero,
+          /*start=*/groupStart, /*end=*/groupEnd, /*step=*/cstOne);
+      PrimLoopConditionOp::create(rewriter, loc, cstTrue,
+                                  ValueRange({updatedOutput, groupEnd}));
+    }
+
+    rewriter.replaceOp(op, groupLoop.getResult(0));
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.mish` op into `aten.tanh` and `aten.softplus` ops.
 // Mish(x) = x * Tanh(Softplus(x))
 class DecomposeAtenMishOp : public OpRewritePattern<AtenMishOp> {
@@ -13474,6 +13606,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenHeaviside>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLinearOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBilinearOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAten_GroupedMmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMishOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFullLikeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNewFullOp>(patterns);

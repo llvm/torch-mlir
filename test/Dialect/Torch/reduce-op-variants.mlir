@@ -203,3 +203,18 @@ func.func @scaled_dot_product_flash_attention_for_cpu(%arg0: !torch.vtensor<[1,1
   %0:2 = torch.operator "torch.aten._scaled_dot_product_flash_attention_for_cpu"(%arg0, %arg1, %arg2, %float0.000000e00, %false, %none, %none_0) : (!torch.vtensor<[1,1,5,5],f32>, !torch.vtensor<[1,1,5,5],f32>, !torch.vtensor<[1,1,5,5],f32>, !torch.float, !torch.bool, !torch.none, !torch.none) -> (!torch.vtensor<[1,1,5,5],f32>, !torch.vtensor<[1,1,5],f32>)
   return %0#0 : !torch.vtensor<[1,1,5,5],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @reduce_grouped_mm_fallback
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[4,1024],f32>, %[[WEIGHT:.*]]: !torch.vtensor<[16,1024,512],f32>, %[[OFFS:.*]]: !torch.vtensor<[16],si64>
+// CHECK-NOT:  torch.operator
+// CHECK:      %[[OFFS_I32:.*]] = torch.aten.to.dtype %[[OFFS]]
+// CHECK-SAME:   -> !torch.vtensor<[16],si32>
+// CHECK:      %[[NONE:.*]] = torch.constant.none
+// CHECK:      %[[RESULT:.*]] = torch.aten._grouped_mm %[[INPUT]], %[[WEIGHT]], %[[OFFS_I32]], %[[NONE]], %[[NONE]]
+// CHECK:      return %[[RESULT]]
+func.func @reduce_grouped_mm_fallback(%input: !torch.vtensor<[4,1024],f32>, %weight: !torch.vtensor<[16,1024,512],f32>, %offs: !torch.vtensor<[16],si64>) -> !torch.vtensor<[4,512],f32> {
+  %result = torch.operator "torch.transformers.grouped_mm_fallback"(%input, %weight, %offs) : (!torch.vtensor<[4,1024],f32>, !torch.vtensor<[16,1024,512],f32>, !torch.vtensor<[16],si64>) -> !torch.vtensor<[4,512],f32>
+  return %result : !torch.vtensor<[4,512],f32>
+}
