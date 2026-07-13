@@ -419,6 +419,8 @@ FX_IMPORTER_XFAIL_SET = {
     "AnyBoolTrueModule_basic",
     "ArangeStartOutViewModule_basic",
     "AtenFloatScalarModule_basic",
+    # RefBackend JIT fails to resolve the compiled BF16 grouped_mm function on x86 CI.
+    "AtenGroupedMm2D3DOffsetsModule_basic",
     # TODO: The values are extremely close to the golden values, but the test fails because of strict rtol/atol.
     "AtenInstanceNormModuleFp16_basic",
     "AtenIntBoolOpConstFalseModule_basic",
