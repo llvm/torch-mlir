@@ -112,6 +112,9 @@ class CustomBuild(_build):
         self.run_command("build_scripts")
 
 
+use_stable_abi = sys.version_info >= (3, 12)
+
+
 class CMakeBuild(build_py):
     def cmake_build(self, cmake_build_dir):
         llvm_dir = str(SRC_DIR / "externals" / "llvm-project" / "llvm")
@@ -133,7 +136,7 @@ class CMakeBuild(build_py):
             f"-DCMAKE_CXX_VISIBILITY_PRESET=hidden",
             f"-DTORCH_MLIR_ENABLE_LTC={'ON' if TORCH_MLIR_ENABLE_LTC else 'OFF'}",
             f"-DTORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS={'OFF' if TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else 'ON'}",
-            "-DMLIR_ENABLE_PYTHON_STABLE_ABI=ON",
+            f"-DMLIR_ENABLE_PYTHON_STABLE_ABI={'ON' if use_stable_abi else 'OFF'}",
         ]
         if LLVM_INSTALL_DIR:
             cmake_config_args += [
@@ -223,7 +226,7 @@ class CMakeBuild(build_py):
 
 class CMakeExtension(Extension):
     def __init__(self, name, sourcedir=""):
-        Extension.__init__(self, name, sources=[], py_limited_api=True)
+        Extension.__init__(self, name, sources=[], py_limited_api=use_stable_abi)
         self.sourcedir = os.path.abspath(sourcedir)
 
 
@@ -264,6 +267,10 @@ if not TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS:
     )
 
 
+setup_options = {}
+if use_stable_abi:
+    setup_options["bdist_wheel"] = {"py_limited_api": "cp312"}
+
 setup(
     name=NAME,
     version=f"{PACKAGE_VERSION}",
@@ -299,5 +306,5 @@ setup(
         ],
     },
     zip_safe=False,
-    options={"bdist_wheel": {"py_limited_api": "cp312"}},
+    options=setup_options,
 )
