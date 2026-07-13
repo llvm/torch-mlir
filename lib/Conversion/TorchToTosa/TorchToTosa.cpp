@@ -3761,40 +3761,30 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewriteImpl(
         weight, weightShape, weightElemTy, transposedWeightPermutation,
         getTypeConverter(), rewriter, op->getLoc());
 
-    // TOSA 'out_pad' is a 4D array {top,bottom,left,right}.
-    // Map from PyTorch's (padding, output_padding):
-    //   out_pad_total(H/W) = output_padding(H/W) - 2*padding(H/W)
-    // Negative values need to be handled by cropping the output.
-    int64_t outPadH = outPaddingList[0] - 2 * paddingList[0];
-    int64_t outPadW = outPaddingList[1] - 2 * paddingList[1];
-
-    // Track if we need to slice to crop the output
-    bool needSlicing = (outPadH < 0 || outPadW < 0);
-
-    auto calculatePaddingOrCropping =
-        [](int64_t outPad) -> std::tuple<int64_t, int64_t, int64_t, int64_t> {
-      // Calculates padding or cropping for a single dimension
-      // in transposed convolution
-      // Returns {padBegin, padEnd, cropBegin, cropEnd}
-      if (outPad >= 0) {
-        int64_t padBegin = outPad / 2;
-        int64_t padEnd = outPad - padBegin;
-        return {padBegin, padEnd, 0, 0};
-      } else {
-        // Negative padding means we need to crop
-        int64_t totalCrop = -outPad;
-        int64_t cropBegin = (totalCrop + 1) / 2; // Crop more from begin if odd
-        int64_t cropEnd = totalCrop / 2;
-        return {0, 0, cropBegin, cropEnd};
-      }
+    // Map PyTorch's (padding, output_padding) to a TOSA out_pad plus an
+    // optional crop, per spatial dim. `padding` crops both sides; the end side
+    // is then shifted by (output_padding - padding): a positive delta pads the
+    // conv (out_pad_bottom), a negative delta crops the end.
+    // Returns {padBegin, padEnd, cropBegin, cropEnd}.
+    auto calculatePaddingOrCropping = [](int64_t padding, int64_t outputPadding)
+        -> std::tuple<int64_t, int64_t, int64_t, int64_t> {
+      int64_t cropBegin = padding;
+      int64_t endDelta = outputPadding - padding;
+      int64_t padEnd = endDelta > 0 ? endDelta : 0;
+      int64_t cropEnd = endDelta < 0 ? -endDelta : 0;
+      return {/*padBegin=*/0, padEnd, cropBegin, cropEnd};
     };
 
     // Determine cropping and actual padding
     auto [outPadTop, outPadBottom, cropTopH, cropBottomH] =
-        calculatePaddingOrCropping(outPadH);
+        calculatePaddingOrCropping(paddingList[0], outPaddingList[0]);
 
     auto [outPadLeft, outPadRight, cropTopW, cropBottomW] =
-        calculatePaddingOrCropping(outPadW);
+        calculatePaddingOrCropping(paddingList[1], outPaddingList[1]);
+
+    // We must slice whenever either dimension crops the conv output.
+    bool needSlicing =
+        (cropTopH > 0 || cropBottomH > 0 || cropTopW > 0 || cropBottomW > 0);
 
     SmallVector<int64_t, 4> outPad(
         {outPadTop, outPadBottom, outPadLeft, outPadRight});
