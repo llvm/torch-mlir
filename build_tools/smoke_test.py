@@ -19,9 +19,6 @@ class MLPModule(torch.nn.Module):
 
 
 module_to_compile = MLPModule()
-# Fix the weights
-torch.manual_seed(0)
-
 backends = ["linalg-on-tensors", "tosa", "stablehlo"]
 
 for backend in backends:
