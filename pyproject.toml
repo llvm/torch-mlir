@@ -34,7 +34,7 @@ target-version = ['py38']
 build = "cp310-* cp311-* cp312-*"
 skip = "*-musllinux* *_i686 *-win32"
 build-frontend = "build[uv]"
-before-test = "pip install -r {project}/pytorch-requirements.txt"
+test-requires = ["-r pytorch-requirements.txt"]
 test-command = "python {project}/build_tools/smoke_test.py"
 
 # Build with the manylinux default gcc toolchain. ccache reuses the LLVM/MLIR
