@@ -2341,3 +2341,35 @@ class TransposedConv3dNegativePadding(torch.nn.Module):
 @register_test_case(module_factory=lambda: TransposedConv3dNegativePadding())
 def TransposedConv3dNegativePadding_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 1, 8, 13, 17), tu.rand(1, 1, 3, 7, 3), tu.rand(1))
+
+
+class TransposedConv2dAsymmetricCrop(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 64, 57], torch.float32, True),
+            ([1, 1, 11, 7], torch.float32, True),
+            ([1], torch.float32, True),
+        ]
+    )
+    def forward(self, inputVec, weight, bias):
+        return torch.ops.aten.convolution(
+            inputVec,
+            weight,
+            bias=bias,
+            stride=[3, 4],
+            padding=[2, 3],
+            dilation=[1, 1],
+            transposed=True,
+            output_padding=[2, 1],
+            groups=1,
+        )
+
+
+@register_test_case(module_factory=lambda: TransposedConv2dAsymmetricCrop())
+def TransposedConv2dAsymmetricCrop_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 64, 57), tu.rand(1, 1, 11, 7), tu.rand(1))

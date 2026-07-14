@@ -947,6 +947,9 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "TraceSignedIntModule_basic",
     "TraceUnsignedIntModule_basic",
     "TraceUnsignedIntModule_empty",
+    # Transposed conv with nonzero output_padding: stablehlo infers a shape one
+    # element short in each spatial dim (197x227 vs 198x226).
+    "TransposedConv2dAsymmetricCrop_basic",
     "UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule_basic",
     "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
     "UpSampleNearest1dVecNoneScales_basic",
