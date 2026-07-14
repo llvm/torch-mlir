@@ -2847,12 +2847,13 @@ public:
       dims = llvm::to_vector(llvm::seq<int64_t>(0, inputTy.getSizes().size()));
     }
 
+    int64_t inputRank = inputTy.getSizes().size();
+    llvm::for_each(dims, [&](int64_t &d) { d = toPositiveDim(d, inputRank); });
+
     // For every dimension included in `dim` of the op, iterated over in
     // reverse order, we create a call to aten.max.dim.
     std::sort(dims.rbegin(), dims.rend());
     for (int64_t dimInt : dims) {
-      int64_t inputRank = inputTy.getSizes().size();
-      dimInt = toPositiveDim(dimInt, inputRank);
       if (!isValidDim(dimInt, inputRank))
         return rewriter.notifyMatchFailure(op, "dim is statically invalid");
       Value dim = Torch::ConstantIntOp::create(
