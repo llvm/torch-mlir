@@ -244,9 +244,9 @@ TORCH_DTYPE_TO_INT = {
     torch.float16: 5,
     torch.float32: 6,
     torch.float64: 7,
-    # torch.complex_half 8
-    torch.complex32: 9,
-    torch.complex64: 10,
+    torch.complex32: 8,  # ComplexHalf
+    torch.complex64: 9,  # ComplexFloat
+    torch.complex128: 10,  # ComplexDouble
     torch.bool: 11,
     # torch.qint8: 12, # quantized dtypes are not supported in all backends, currently we do not support them
     # torch.quint8: 13,
