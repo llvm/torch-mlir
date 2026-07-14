@@ -2215,8 +2215,8 @@ func.func @torch.aten.tril$basic(%arg0: !torch.vtensor<[2,4], si32>) -> !torch.v
 // CHECK:           return %[[VAL_6]] : !torch.vtensor<[2,4],si32>
 // CHECK:         }
 func.func @torch.aten.triu$basic(%arg0: !torch.vtensor<[2,4], si32>) -> !torch.vtensor<[2,4], si32> {
-  %int0 = torch.constant.int 1
-  %0 = torch.aten.triu %arg0, %int0 : !torch.vtensor<[2,4],si32>, !torch.int -> !torch.vtensor<[2,4],si32>
+  %int1 = torch.constant.int 1
+  %0 = torch.aten.triu %arg0, %int1 : !torch.vtensor<[2,4],si32>, !torch.int -> !torch.vtensor<[2,4],si32>
   return %0 : !torch.vtensor<[2,4],si32>
 }
 

@@ -8830,10 +8830,9 @@ Value createTrilOrTriuMask(PatternRewriter &rewriter, Operation *op,
 }
 
 template <typename AtenOpT>
-static LogicalResult
-convertTrilOrTriuTosa(AtenOpT op, Value self, Value diagonalVal, bool isTril,
-                      const TypeConverter *typeConverter,
-                      ConversionPatternRewriter &rewriter) {
+LogicalResult convertTrilOrTriu(AtenOpT op, Value self, Value diagonalVal,
+                                bool isTril, const TypeConverter *typeConverter,
+                                ConversionPatternRewriter &rewriter) {
   // Not a ranked tensor type
   auto selfType = dyn_cast<RankedTensorType>(self.getType());
   if (!selfType)
@@ -8923,8 +8922,8 @@ template <>
 LogicalResult ConvertAtenOp<AtenTriuOp>::matchAndRewriteImpl(
     AtenTriuOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  return convertTrilOrTriuTosa(op, adaptor.getSelf(), op.getDiagonal(),
-                               /*isTril=*/false, getTypeConverter(), rewriter);
+  return convertTrilOrTriu(op, adaptor.getSelf(), op.getDiagonal(),
+                           /*isTril=*/false, getTypeConverter(), rewriter);
 }
 
 // Legalization for aten.tril
@@ -8932,8 +8931,8 @@ template <>
 LogicalResult ConvertAtenOp<AtenTrilOp>::matchAndRewriteImpl(
     AtenTrilOp op, OpAdaptor adaptor,
     ConversionPatternRewriter &rewriter) const {
-  return convertTrilOrTriuTosa(op, adaptor.getSelf(), op.getDiagonal(),
-                               /*isTril=*/true, getTypeConverter(), rewriter);
+  return convertTrilOrTriu(op, adaptor.getSelf(), op.getDiagonal(),
+                           /*isTril=*/true, getTypeConverter(), rewriter);
 }
 
 // Legalization for aten.flip

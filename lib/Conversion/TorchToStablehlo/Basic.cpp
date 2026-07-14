@@ -2110,10 +2110,10 @@ LogicalResult ConvertAtenOp<AtenBitwiseRightShiftTensorOp>::matchAndRewrite(
 }
 
 template <typename AtenOpT>
-static LogicalResult convertTrilOrTriu(AtenOpT op, Value self, Value diagonal,
-                                       stablehlo::ComparisonDirection dir,
-                                       const TypeConverter *typeConverter,
-                                       ConversionPatternRewriter &rewriter) {
+LogicalResult convertTrilOrTriu(AtenOpT op, Value self, Value diagonal,
+                                stablehlo::ComparisonDirection dir,
+                                const TypeConverter *typeConverter,
+                                ConversionPatternRewriter &rewriter) {
   Location loc = op.getLoc();
 
   auto selfTy = cast<RankedTensorType>(self.getType());
