@@ -24,6 +24,16 @@ def import_module(module, *args):
     print(str(imported).split("{-#", 1)[0])
 
 
+def import_module_mutation(module, *args):
+    # experimental_support_mutation=True routes through import_program (the
+    # ExportedProgram path), which reads graph_signature output specs by node
+    # name. The default path (import_frozen_program) does not, so the mutation
+    # path is the one that exercises signature fixup after the as_strided
+    # rewrite erases nodes.
+    imported = fx.export_and_import(module, *args, experimental_support_mutation=True)
+    print(str(imported).split("{-#", 1)[0])
+
+
 def expect_reject(module, *args, **kwargs):
     try:
         fx.export_and_import(module, *args, **kwargs)
@@ -272,3 +282,26 @@ def test_as_strided_rejects_unmappable_program_input():
         M(),
         torch.arange(8, dtype=torch.float32)[::2],
     )
+
+
+@run
+# CHECK-LABEL: test_as_strided_output_mutation_path
+# CHECK: func.func @main(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[2,2],f32>
+# CHECK: %[[M_INDEX0:.*]] = torch.vtensor.literal{{.*}}tensor<2x2xsi64>
+# CHECK: %[[M_INDEX1:.*]] = torch.vtensor.literal{{.*}}tensor<2x2xsi64>
+# CHECK: %[[M_INDICES:.*]] = torch.prim.ListConstruct %[[M_INDEX0]], %[[M_INDEX1]] : (!torch.vtensor<[2,2],si64>, !torch.vtensor<[2,2],si64>) -> !torch.list<optional<vtensor>>
+# CHECK-NOT: torch.aten.as_strided
+# CHECK: %[[M_RESULT:.*]] = torch.aten.index.Tensor %arg0, %[[M_INDICES]] : !torch.vtensor<[3,4],f32>, !torch.list<optional<vtensor>> -> !torch.vtensor<[2,2],f32>
+# CHECK-NOT: torch.aten.as_strided
+# CHECK: return %[[M_RESULT]] : !torch.vtensor<[2,2],f32>
+def test_as_strided_output_mutation_path():
+    # Regression: when as_strided is a graph output and import goes through the
+    # ExportedProgram path (experimental_support_mutation=True), the rewrite
+    # erases the as_strided node but its output spec still referenced it by
+    # name, raising KeyError. The importer must remap the signature to the
+    # replacement node.
+    class M(nn.Module):
+        def forward(self, x):
+            return torch.ops.aten.as_strided.default(x, [2, 2], [4, 1], 0)
+
+    import_module_mutation(M(), torch.arange(12, dtype=torch.float32).reshape(3, 4))
