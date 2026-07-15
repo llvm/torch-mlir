@@ -111,13 +111,14 @@ def main():
     if not mlir_requirements:
         if is_ci:
             print(
-                "Error: Could not obtain MLIR requirements (local file missing and GitHub fetch failed) on CI.",
+                "Error: Could not obtain MLIR requirements (local file missing "
+                "and GitHub fetch failed) on CI.",
                 file=sys.stderr,
             )
             return 1
         else:
             print(
-                "Warning: Could not obtain MLIR requirements. Skipping sync check.",
+                "Warning: Could not obtain MLIR requirements. " "Skipping sync check.",
                 file=sys.stderr,
             )
             return 0
@@ -130,7 +131,9 @@ def main():
 
     if missing_or_mismatched:
         print(
-            f"Error: The following requirements from {requirements_path} (or GitHub equivalent) are missing or mismatched in {pyproject_path} [build-system].requires:",
+            f"Error: The following requirements from {requirements_path}"
+            " (or GitHub equivalent) are missing or mismatched in"
+            f" {pyproject_path} [build-system].requires:",
             file=sys.stderr,
         )
         for req in missing_or_mismatched:
