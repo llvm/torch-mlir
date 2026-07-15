@@ -27,5 +27,5 @@ repos:
         entry: python build_tools/check_requirements.py
         language: python
         additional_dependencies: ["tomli"]
-        files: ^(pyproject\.toml|externals/llvm-project/mlir/python/requirements\.txt)$
+        always_run: true
         pass_filenames: false
