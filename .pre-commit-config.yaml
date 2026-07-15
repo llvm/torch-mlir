@@ -19,3 +19,13 @@ repos:
     rev: 'v18.1.4'
     hooks:
     -   id: clang-format
+
+-   repo: local
+    hooks:
+    -   id: check-requirements-sync
+        name: Check pyproject.toml and MLIR requirements sync
+        entry: python build_tools/check_requirements.py
+        language: python
+        additional_dependencies: ["tomli"]
+        always_run: true
+        pass_filenames: false
