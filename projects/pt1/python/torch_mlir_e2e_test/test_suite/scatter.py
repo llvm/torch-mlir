@@ -1352,3 +1352,172 @@ def IndexPutWithNoneAndBroadcastModule_basic(module, tu: TestUtils):
         tu.randint(7, high=5),
         tu.rand(1, 6, 7),  # broadcasted to (2, 3, 6, 7)
     )
+
+
+# ==============================================================================
+
+
+class IndexAdd1DFloatBasicModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+            ([-1], torch.int64, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, input, index, source):
+        return torch.ops.aten.index_add(input, 0, index, source)
+
+
+@register_test_case(module_factory=lambda: IndexAdd1DFloatBasicModule())
+def IndexAdd1DFloatBasicModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(100), tu.randint(50, high=100), tu.rand(50))
+
+
+class IndexAdd2DFloatBasicModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1], torch.int64, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, input, index, source):
+        return torch.ops.aten.index_add(input, 0, index, source)
+
+
+@register_test_case(module_factory=lambda: IndexAdd2DFloatBasicModule())
+def IndexAdd2DFloatBasicModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(10, 8), tu.randint(5, high=10), tu.rand(5, 8))
+
+
+class IndexAdd2DFloatDim1Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1], torch.int64, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, input, index, source):
+        return torch.ops.aten.index_add(input, 1, index, source)
+
+
+@register_test_case(module_factory=lambda: IndexAdd2DFloatDim1Module())
+def IndexAdd2DFloatDim1Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(10, 8), tu.randint(4, high=8), tu.rand(10, 4))
+
+
+class IndexAdd1DFloatWithAlphaModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+            ([-1], torch.int64, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, input, index, source):
+        return torch.ops.aten.index_add(input, 0, index, source, alpha=2.0)
+
+
+@register_test_case(module_factory=lambda: IndexAdd1DFloatWithAlphaModule())
+def IndexAdd1DFloatWithAlphaModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(100), tu.randint(50, high=100), tu.rand(50))
+
+
+class IndexAdd1DIntBasicModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.int64, True),
+            ([-1], torch.int64, True),
+            ([-1], torch.int64, True),
+        ]
+    )
+    def forward(self, input, index, source):
+        return torch.ops.aten.index_add(input, 0, index, source)
+
+
+@register_test_case(module_factory=lambda: IndexAdd1DIntBasicModule())
+def IndexAdd1DIntBasicModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(100, high=1000),
+        tu.randint(50, high=100),
+        tu.randint(50, high=10000),
+    )
+
+
+class IndexAdd3DIntBasicModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.int64, True),
+            ([-1], torch.int64, True),
+            ([-1, -1, -1], torch.int64, True),
+        ]
+    )
+    def forward(self, input, index, source):
+        return torch.ops.aten.index_add(input, 0, index, source)
+
+
+@register_test_case(module_factory=lambda: IndexAdd3DIntBasicModule())
+def IndexAdd3DIntBasicModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(10, 8, 6, high=1000),
+        tu.randint(5, high=10),
+        tu.randint(5, 8, 6, high=10000),
+    )
+
+
+class IndexAdd4DIntBasicModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.int64, True),
+            ([-1], torch.int64, True),
+            ([-1, -1, -1, -1], torch.int64, True),
+        ]
+    )
+    def forward(self, input, index, source):
+        return torch.ops.aten.index_add(input, 0, index, source)
+
+
+@register_test_case(module_factory=lambda: IndexAdd4DIntBasicModule())
+def IndexAdd4DIntBasicModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(6, 5, 4, 3, high=1000),
+        tu.randint(3, high=6),
+        tu.randint(3, 5, 4, 3, high=10000),
+    )
