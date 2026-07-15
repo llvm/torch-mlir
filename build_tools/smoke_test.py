@@ -24,16 +24,10 @@ backends = ["linalg-on-tensors", "tosa", "stablehlo"]
 for backend in backends:
     print(f"Compiling MLPModule via FX to {backend}...")
     try:
-        module = torch_mlir.fx.export_and_import(
+        torch_mlir.fx.export_and_import(
             module_to_compile, torch.ones(2, 4), output_type=backend
         )
         print(f"Compilation to {backend} successful!")
-        asm = module.operation.get_asm(large_elements_limit=10)
-        lines = asm.splitlines()
-        print(f"Generated ASM (first 10 lines of {backend}):")
-        for line in lines[:10]:
-            print("  ", line)
-        print("-" * 40)
     except Exception as e:
         print(f"Compilation to {backend} FAILED!")
         raise e
