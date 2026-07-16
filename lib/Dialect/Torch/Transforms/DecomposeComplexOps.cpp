@@ -11720,6 +11720,63 @@ public:
 } // namespace
 
 namespace {
+template <typename AtenOpT>
+class SimplifyZeroKMatmulOp : public OpRewritePattern<AtenOpT> {
+public:
+  using OpRewritePattern<AtenOpT>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(AtenOpT op,
+                                PatternRewriter &rewriter) const override {
+    Value lhs = op.getSelf();
+    Value rhs;
+    if constexpr (std::is_same_v<AtenOpT, AtenMatmulOp>)
+      rhs = op.getOther();
+    else
+      rhs = op.getMat2();
+
+    auto lhsType = dyn_cast<ValueTensorType>(lhs.getType());
+    auto rhsType = dyn_cast<ValueTensorType>(rhs.getType());
+    auto resultType = dyn_cast<ValueTensorType>(op.getType());
+    if (!lhsType || !rhsType || !resultType || !lhsType.hasSizes() ||
+        !rhsType.hasSizes() || !resultType.hasSizes() ||
+        llvm::is_contained(lhsType.getSizes(), kUnknownSize) ||
+        llvm::is_contained(rhsType.getSizes(), kUnknownSize) ||
+        llvm::is_contained(resultType.getSizes(), kUnknownSize) ||
+        lhsType.getSizes().size() < 2 || rhsType.getSizes().size() < 2 ||
+        lhsType.getSizes().back() != 0 ||
+        rhsType.getSizes()[rhsType.getSizes().size() - 2] != 0 ||
+        llvm::is_contained(resultType.getSizes(), 0)) {
+      return failure();
+    }
+
+    Location loc = op.getLoc();
+    MLIRContext *context = op.getContext();
+    SmallVector<Value> shape;
+    for (int64_t size : resultType.getSizes()) {
+      shape.push_back(ConstantIntOp::create(rewriter, loc,
+                                            rewriter.getI64IntegerAttr(size)));
+    }
+    Value shapeList = PrimListConstructOp::create(
+        rewriter, loc, ListType::get(IntType::get(context)), shape);
+    Value none = ConstantNoneOp::create(rewriter, loc);
+    Operation *lhsCast = lhs.getDefiningOp();
+    Operation *rhsCast = rhs.getDefiningOp();
+    if (!isa_and_nonnull<AtenToDtypeOp, PrimsConvertElementTypeOp>(lhsCast))
+      lhsCast = nullptr;
+    if (!isa_and_nonnull<AtenToDtypeOp, PrimsConvertElementTypeOp>(rhsCast))
+      rhsCast = nullptr;
+    rewriter.replaceOpWithNewOp<AtenZerosOp>(op, op.getType(), shapeList, none,
+                                             none, none, none);
+    if (lhsCast && lhsCast->use_empty())
+      rewriter.eraseOp(lhsCast);
+    if (rhsCast && rhsCast != lhsCast && rhsCast->use_empty())
+      rewriter.eraseOp(rhsCast);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // decompose aten.argsort to aten.sort
 class DecomposeAtenArgsortOp : public OpRewritePattern<AtenArgsortOp> {
 public:
@@ -13603,6 +13660,13 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAten_AssertScalarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRoundDecimalsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAbsoluteOp>(patterns);
+
+    // Eliminate zero-contraction matrix multiplications before zero-sized
+    // operands reach a backend that cannot represent operations on empty
+    // tensors.
+    patterns.add<SimplifyZeroKMatmulOp<AtenMmOp>,
+                 SimplifyZeroKMatmulOp<AtenMatmulOp>,
+                 SimplifyZeroKMatmulOp<AtenBmmOp>>(context);
 
     GreedyRewriteConfig config;
     config.setUseTopDownTraversal(true);
