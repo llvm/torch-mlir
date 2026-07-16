@@ -2109,14 +2109,12 @@ LogicalResult ConvertAtenOp<AtenBitwiseRightShiftTensorOp>::matchAndRewrite(
   return success();
 }
 
-template <>
-LogicalResult ConvertAtenOp<AtenTrilOp>::matchAndRewrite(
-    AtenTrilOp op, OpAdaptor adaptor,
-    ConversionPatternRewriter &rewriter) const {
-
+template <typename AtenOpT>
+LogicalResult convertTrilOrTriu(AtenOpT op, Value self, Value diagonal,
+                                stablehlo::ComparisonDirection dir,
+                                const TypeConverter *typeConverter,
+                                ConversionPatternRewriter &rewriter) {
   Location loc = op.getLoc();
-
-  Value self = adaptor.getSelf();
 
   auto selfTy = cast<RankedTensorType>(self.getType());
   if (!selfTy.hasStaticShape()) {
@@ -2133,7 +2131,6 @@ LogicalResult ConvertAtenOp<AtenTrilOp>::matchAndRewrite(
   Value rowIdxTensor =
       stablehlo::IotaOp::create(rewriter, loc, iotaTy, 0).getResult();
 
-  Value diagonal = adaptor.getDiagonal();
   Value diagonalTensor =
       tensor::FromElementsOp::create(rewriter, loc, diagonal).getResult();
 
@@ -2141,8 +2138,8 @@ LogicalResult ConvertAtenOp<AtenTrilOp>::matchAndRewrite(
   Value shiftedRowIdxTensor = chlo::BroadcastAddOp::create(
       rewriter, loc, rowIdxTensor, diagonalTensor, bcastDimensions);
 
-  auto cmpDirectionAttr = stablehlo::ComparisonDirectionAttr::get(
-      rewriter.getContext(), stablehlo::ComparisonDirection::LE);
+  auto cmpDirectionAttr =
+      stablehlo::ComparisonDirectionAttr::get(rewriter.getContext(), dir);
   auto cmpTypeAttr = stablehlo::ComparisonTypeAttr::get(
       rewriter.getContext(), stablehlo::ComparisonType::SIGNED);
   auto cmpTy = iotaTy.clone(rewriter.getI1Type());
@@ -2150,8 +2147,7 @@ LogicalResult ConvertAtenOp<AtenTrilOp>::matchAndRewrite(
                                               colIdxTensor, shiftedRowIdxTensor,
                                               cmpDirectionAttr, cmpTypeAttr);
 
-  auto resTy =
-      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  auto resTy = cast<RankedTensorType>(typeConverter->convertType(op.getType()));
 
   auto bcastTy = resTy.clone(rewriter.getI1Type());
   auto bcastAttr = rewriter.getDenseI64ArrayAttr({selfRank - 2, selfRank - 1});
@@ -2162,8 +2158,9 @@ LogicalResult ConvertAtenOp<AtenTrilOp>::matchAndRewrite(
   Value zeroTensor;
   if (isa<mlir::FloatType>(resElemTy)) {
     auto constAttr = SplatElementsAttr::get(
-        resTy, llvm::APFloat::getZero(
-                   cast<FloatType>(resElemTy).getFloatSemantics(), false));
+        resTy,
+        llvm::APFloat::getZero(
+            cast<mlir::FloatType>(resElemTy).getFloatSemantics(), false));
     zeroTensor = stablehlo::ConstantOp::create(rewriter, loc, resTy, constAttr);
   } else if (isa<mlir::IntegerType>(resElemTy)) {
     auto constAttr = SplatElementsAttr::get(
@@ -2171,13 +2168,31 @@ LogicalResult ConvertAtenOp<AtenTrilOp>::matchAndRewrite(
         llvm::APInt::getZero(cast<mlir::IntegerType>(resElemTy).getWidth()));
     zeroTensor = stablehlo::ConstantOp::create(rewriter, loc, resTy, constAttr);
   } else {
-    return op.emitError("element type is not float or integer");
+    return op->emitError("element type is not float or integer");
   }
 
   rewriter.replaceOpWithNewOp<stablehlo::SelectOp>(
       op.getOperation(), resTy, bcastedCmpRes, self, zeroTensor);
 
   return success();
+}
+
+template <>
+LogicalResult ConvertAtenOp<AtenTrilOp>::matchAndRewrite(
+    AtenTrilOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  return convertTrilOrTriu(op, adaptor.getSelf(), adaptor.getDiagonal(),
+                           stablehlo::ComparisonDirection::LE,
+                           getTypeConverter(), rewriter);
+}
+
+template <>
+LogicalResult ConvertAtenOp<AtenTriuOp>::matchAndRewrite(
+    AtenTriuOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  return convertTrilOrTriu(op, adaptor.getSelf(), adaptor.getDiagonal(),
+                           stablehlo::ComparisonDirection::GE,
+                           getTypeConverter(), rewriter);
 }
 
 template <>
@@ -2484,6 +2499,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenBitwiseRightShiftTensorOp);
 
   INSERT_ATENOP_PATTERN(AtenTrilOp);
+  INSERT_ATENOP_PATTERN(AtenTriuOp);
   INSERT_ATENOP_PATTERN(AtenIsfiniteOp);
   INSERT_ATENOP_PATTERN(AtenSortOp);
 

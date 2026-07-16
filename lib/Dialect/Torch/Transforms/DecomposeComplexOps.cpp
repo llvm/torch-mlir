@@ -769,75 +769,6 @@ static Value performLastReduceAndPermute(PatternRewriter &rewriter,
   return out;
 }
 
-namespace {
-class DecomposeAtenTriuOp : public OpRewritePattern<AtenTriuOp> {
-public:
-  using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenTriuOp op,
-                                PatternRewriter &rewriter) const override {
-    Location loc = op.getLoc();
-    Value input = op.getSelf();
-    auto inputType = cast<BaseTensorType>(input.getType());
-    if (!inputType.hasSizes() || !inputType.hasDtype()) {
-      return rewriter.notifyMatchFailure(op, "should have shape and dtype");
-    }
-    if (inputType.getSizes().size() < 2) {
-      return rewriter.notifyMatchFailure(op, "the rank of tensor should >= 2");
-    }
-
-    Value cstZero =
-        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
-    Value cstOne =
-        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
-    Value none = ConstantNoneOp::create(rewriter, loc);
-
-    Value rowSize = getTensorDimSize(rewriter, input, -2);
-    Value colSize = getTensorDimSize(rewriter, input, -1);
-
-    auto si64Type = rewriter.getIntegerType(/*width=*/64, /*isSigned*/ true);
-    auto int64DtypeInt = getDtypeIntValueForType(rewriter, loc, si64Type);
-    auto rowArrangeType = getTensorTypeFromShapeValues({rowSize}, si64Type);
-    auto colArrangeType = getTensorTypeFromShapeValues({colSize}, si64Type);
-
-    Value rowArange =
-        AtenArangeOp::create(rewriter, loc, rowArrangeType, rowSize,
-                             /*dtype=*/int64DtypeInt, /*layout=*/none,
-                             /*device=*/none, /*pin_memory=*/none);
-    Value colArange =
-        AtenArangeOp::create(rewriter, loc, colArrangeType, colSize,
-                             /*dtype=*/int64DtypeInt, /*layout=*/none,
-                             /*device=*/none, /*pin_memory=*/none);
-
-    auto unsqueezeRowArangeInfo =
-        unsqueezeTensor(rewriter, op, rowArange, cstOne);
-    auto unsqueezeColArangeInfo =
-        unsqueezeTensor(rewriter, op, colArange, cstZero);
-
-    if (failed(unsqueezeRowArangeInfo) || failed(unsqueezeColArangeInfo)) {
-      return rewriter.notifyMatchFailure(op,
-                                         "cannot generate unsqueeze tensor");
-    }
-
-    Value unsqueezeRowArange = unsqueezeRowArangeInfo.value();
-    Value unsqueezeColArange = unsqueezeColArangeInfo.value();
-
-    Value unsqueezeRowArangePlusDiagonal =
-        AtenAddScalarOp::create(rewriter, loc, unsqueezeRowArange.getType(),
-                                unsqueezeRowArange, op.getDiagonal(), cstOne);
-
-    auto boolType = rewriter.getI1Type();
-    auto condType = getTensorTypeFromShapeValues({rowSize, colSize}, boolType);
-    Value condTensor =
-        AtenGeTensorOp::create(rewriter, loc, condType, unsqueezeColArange,
-                               unsqueezeRowArangePlusDiagonal);
-
-    rewriter.replaceOpWithNewOp<AtenWhereScalarOtherOp>(
-        op, op.getResult().getType(), condTensor, input, cstZero);
-    return success();
-  }
-};
-} // namespace
-
 /*
  This function calculates the number of elements in the lower triangle (below
  the main diagonal) of a tensor with dimensions [row, col]. The main diagonal
@@ -13583,7 +13514,6 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenTypeAsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTileOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenReshapeAsOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenTriuOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTriuIndicesOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTrilIndicesOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenDeg2radOp>(patterns);
