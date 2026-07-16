@@ -2631,6 +2631,19 @@ func.func @torch.aten.pow.Tensor_Tensor$basic(%arg0: !torch.vtensor<[?,?],f32>, 
 
 // -----
 
+// CHECK-LABEL: func.func @torch.aten.pow.Tensor_Tensor$empty_broadcast(
+// CHECK-SAME:      %[[SELF:.*]]: !torch.vtensor<[0,1,3],f32>, %[[EXPONENT:.*]]: !torch.vtensor<[0,10,3],f32>
+// CHECK-NOT:     tosa.pow
+// CHECK:         return %[[EXPONENT]] : !torch.vtensor<[0,10,3],f32>
+func.func @torch.aten.pow.Tensor_Tensor$empty_broadcast(
+    %arg0: !torch.vtensor<[0,1,3],f32>,
+    %arg1: !torch.vtensor<[0,10,3],f32>) -> !torch.vtensor<[0,10,3],f32> {
+  %0 = torch.aten.pow.Tensor_Tensor %arg0, %arg1 : !torch.vtensor<[0,1,3],f32>, !torch.vtensor<[0,10,3],f32> -> !torch.vtensor<[0,10,3],f32>
+  return %0 : !torch.vtensor<[0,10,3],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.erf$basic(
 // CHECK-SAME:                                    %[[VAL_0:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>

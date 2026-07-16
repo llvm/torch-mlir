@@ -821,6 +821,8 @@ public:
     const TypeConverter *typeConverter = this->getTypeConverter();
     bool canHandleZeroDimInputOperands =
         canHandleZeroDimInputs(op, adaptor, typeConverter);
+    bool canHandleZeroDimOutputResults =
+        canHandleZeroDimOutputs(op, adaptor, typeConverter);
 
     // Pre-check: all tensor operands and outputs must have no zero-sized
     // dimensions.
@@ -840,7 +842,8 @@ public:
     for (auto res : op->getResults()) {
       auto rankedOutputType =
           dyn_cast<RankedTensorType>(typeConverter->convertType(res.getType()));
-      if (rankedOutputType && mlir::tosa::typeHasZeroDim(rankedOutputType)) {
+      if (rankedOutputType && mlir::tosa::typeHasZeroDim(rankedOutputType) &&
+          !canHandleZeroDimOutputResults) {
         return rewriter.notifyMatchFailure(
             op,
             "TOSA lowering does not support output tensors with a zero-sized "
@@ -854,6 +857,12 @@ protected:
   virtual bool
   canHandleZeroDimInputs(AtenOpT op, OpAdaptor adaptor,
                          const TypeConverter *typeConverter) const {
+    return false;
+  }
+
+  virtual bool
+  canHandleZeroDimOutputs(AtenOpT op, OpAdaptor adaptor,
+                          const TypeConverter *typeConverter) const {
     return false;
   }
 
@@ -2278,6 +2287,13 @@ public:
       return rewriter.notifyMatchFailure(
           op, "Only floating-point datatype result types are supported");
 
+    if (Value replacement =
+            getEmptyTensorTensorReplacement(op, adaptor,
+                                            this->getTypeConverter())) {
+      rewriter.replaceOp(op, replacement);
+      return success();
+    }
+
     Value selfTensor;
     if constexpr (std::is_same<AtenOpT, AtenPowScalarOp>()) {
       Value selfScalar = op.getSelf();
@@ -2334,6 +2350,42 @@ public:
     rewriter.replaceOp(op, powOp.getResult());
 
     return success();
+  }
+
+protected:
+  bool
+  canHandleZeroDimInputs(AtenOpT op, OpAdaptor adaptor,
+                         const TypeConverter *typeConverter) const override {
+    return getEmptyTensorTensorReplacement(op, adaptor, typeConverter) !=
+           nullptr;
+  }
+
+  bool
+  canHandleZeroDimOutputs(AtenOpT op, OpAdaptor adaptor,
+                          const TypeConverter *typeConverter) const override {
+    return getEmptyTensorTensorReplacement(op, adaptor, typeConverter) !=
+           nullptr;
+  }
+
+private:
+  static Value
+  getEmptyTensorTensorReplacement(AtenOpT op, OpAdaptor adaptor,
+                                  const TypeConverter *typeConverter) {
+    if constexpr (!std::is_same_v<AtenOpT, AtenPowTensorTensorOp>) {
+      return nullptr;
+    } else {
+      auto resultType = dyn_cast<RankedTensorType>(
+          typeConverter->convertType(op.getType()));
+      if (!resultType || !resultType.hasStaticShape() ||
+          !mlir::tosa::typeHasZeroDim(resultType))
+        return nullptr;
+
+      for (Value operand : {adaptor.getSelf(), adaptor.getExponent()}) {
+        if (operand.getType() == resultType)
+          return operand;
+      }
+      return nullptr;
+    }
   }
 };
 
