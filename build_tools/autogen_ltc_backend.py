@@ -3,8 +3,8 @@ import hashlib
 import importlib.util
 import logging
 import os
+import platform
 import re
-import subprocess
 import warnings
 from collections import defaultdict
 from dataclasses import dataclass
@@ -226,20 +226,13 @@ class GenTorchMlirLTC:
         # List of non-native ops to do IR codegen for
         non_native = config.get("non_native", [])
 
-        # use ripgrep if available as its much faster
-        if which("rg") is not None:
-            cmd = ["rg", "-o", "-N", r"aten::[0-9a-zA-Z_\.]+"]
-        else:
-            cmd = ["grep", "-o", r"aten::[0-9a-zA-Z_\.]\+"]
-
+        # ops set
         torch_ops = set(
             op[6:]
-            for op in subprocess.check_output(
-                cmd + [str(self.torch_ops_file)],
-                encoding="utf-8",
-            )
-            .strip()
-            .split(os.linesep)
+            for op in [
+                re.search("aten::[\w\.]+", line).group() for line in open(self.torch_ops_file, "r")
+                if re.search("aten::", line)
+            ]
         )
         torch_opnames = get_opnames(torch_ops)
 
