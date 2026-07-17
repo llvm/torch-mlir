@@ -4975,6 +4975,32 @@ def ElementwiseDivTensorFloatModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseDivTensorEmptyBroadcastModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([0, 1, 3], torch.float32, True),
+            ([0, 10, 3], torch.float32, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.true_divide(a, b)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseDivTensorEmptyBroadcastModule()
+)
+def ElementwiseDivTensorEmptyBroadcastModule_basic(module, tu: TestUtils):
+    module.forward(torch.empty(0, 1, 3), torch.empty(0, 10, 3))
+
+
+# ==============================================================================
+
+
 class ElementwiseDivTensorIntegerModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
