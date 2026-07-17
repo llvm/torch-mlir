@@ -1148,6 +1148,31 @@ func.func @torch.aten.mish$f8E8M0FNU(%arg0: !torch.vtensor<[2,3],f8E8M0FNU>) -> 
 
 // -----
 
+// CHECK-LABEL: func.func @repeat_shape_preserving_empty(
+// CHECK-NOT:     torch.aten.repeat
+// CHECK:         return %arg0 : !torch.vtensor<[0],f32>
+func.func @repeat_shape_preserving_empty(%arg0: !torch.vtensor<[0],f32>) -> !torch.vtensor<[0],f32> {
+  %int0 = torch.constant.int 0
+  %repeats = torch.prim.ListConstruct %int0 : (!torch.int) -> !torch.list<int>
+  %0 = torch.aten.repeat %arg0, %repeats : !torch.vtensor<[0],f32>, !torch.list<int> -> !torch.vtensor<[0],f32>
+  return %0 : !torch.vtensor<[0],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @repeat_shape_preserving_empty_dynamic(
+// CHECK-NOT:     return %arg0
+// CHECK:         return %{{.*}} : !torch.vtensor<[?,0],f32>
+func.func @repeat_shape_preserving_empty_dynamic(%arg0: !torch.vtensor<[?,0],f32>) -> !torch.vtensor<[?,0],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %repeats = torch.prim.ListConstruct %int0, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.repeat %arg0, %repeats : !torch.vtensor<[?,0],f32>, !torch.list<int> -> !torch.vtensor<[?,0],f32>
+  return %0 : !torch.vtensor<[?,0],f32>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @repeat_mixed_dims_broadcast_singletons
 // CHECK-SAME: (%[[ARG0:.*]]: !torch.vtensor<[1,2,1],f32>) -> !torch.vtensor<[3,8,5],f32>
 // CHECK-DAG: %[[CNEG1:.*]] = torch.constant.int -1

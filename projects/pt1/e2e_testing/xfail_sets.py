@@ -3759,6 +3759,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "CrossEntropyLossNoReductionModule_basic",
     "NumpyTRank0Module_basic",
     "Permute0RankModule_basic",
+    "RepeatShapePreservingEmptyModule_basic",
     "ArgsortTensor_basic",
     "ArgsortTensorInteger_basic",
     "AtenSymConstrainRangeForSize_basic",

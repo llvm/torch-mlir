@@ -2630,6 +2630,24 @@ def RepeatModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class RepeatShapePreservingEmptyModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None])
+    def forward(self):
+        return torch.empty(0).repeat(0)
+
+
+@register_test_case(module_factory=lambda: RepeatShapePreservingEmptyModule())
+def RepeatShapePreservingEmptyModule_basic(module, tu: TestUtils):
+    module.forward()
+
+
+# ==============================================================================
+
+
 class RepeatInterleaveSelfIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
