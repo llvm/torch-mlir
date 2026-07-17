@@ -1872,6 +1872,22 @@ func.func @torch.aten.clamp.tensor_broadcast(
 }
 
 
+// -----
+// CHECK-LABEL: func.func @torch.aten.clamp.tensor_empty_broadcast(
+// CHECK-SAME:      %[[SELF:.*]]: !torch.vtensor<[0,1,3],f32>, %[[BOUND:.*]]: !torch.vtensor<[0,10,3],f32>
+// CHECK-NOT:     tosa.minimum
+// CHECK-NOT:     tosa.maximum
+// CHECK:         return %[[BOUND]], %[[BOUND]]
+func.func @torch.aten.clamp.tensor_empty_broadcast(
+    %arg0: !torch.vtensor<[0,1,3],f32>,
+    %arg1: !torch.vtensor<[0,10,3],f32>) -> (!torch.vtensor<[0,10,3],f32>, !torch.vtensor<[0,10,3],f32>) {
+  %none = torch.constant.none
+  %0 = torch.aten.clamp.Tensor %arg0, %none, %arg1 : !torch.vtensor<[0,1,3],f32>, !torch.none, !torch.vtensor<[0,10,3],f32> -> !torch.vtensor<[0,10,3],f32>
+  %1 = torch.aten.clamp.Tensor %arg0, %arg1, %none : !torch.vtensor<[0,1,3],f32>, !torch.vtensor<[0,10,3],f32>, !torch.none -> !torch.vtensor<[0,10,3],f32>
+  return %0, %1 : !torch.vtensor<[0,10,3],f32>, !torch.vtensor<[0,10,3],f32>
+}
+
+
 
 // -----
 // CHECK-LABEL:   func.func @torch.aten.clamp.float(
