@@ -537,6 +537,8 @@ FX_IMPORTER_XFAIL_SET = {
 
 FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
     "HBC_basic",
+    # Zero-extent memref argument verification fails on a stride mismatch.
+    "SoftmaxIntEmptyModule_basic",
     # Runtime op verification: out-of-bounds access
     "_SoftmaxModule_basic",
     "UpSampleNearest2dDynamicFactor_basic",
@@ -1818,6 +1820,8 @@ TOSA_CRASHING_SET = {
 }
 
 FX_IMPORTER_TOSA_CRASHING_SET = {
+    # Zero-extent memref argument verification fails on a stride mismatch.
+    "SoftmaxIntEmptyModule_basic",
     "Aten_TrilinearModuleSumAllDims_basic",
     "Aten_TrilinearModuleSumdims_basic",
     "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",

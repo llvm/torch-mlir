@@ -1,5 +1,29 @@
 // RUN: torch-mlir-opt -torch-decompose-complex-ops -split-input-file %s | FileCheck %s
 
+// CHECK-LABEL: func.func @softmax_shape_preserving_empty(
+// CHECK-NOT:     torch.aten.max.dim
+// CHECK:         return %arg0
+func.func @softmax_shape_preserving_empty(%arg0: !torch.vtensor<[5,0,0],f32>) -> !torch.vtensor<[5,0,0],f32> {
+  %int-1 = torch.constant.int -1
+  %none = torch.constant.none
+  %0 = torch.aten.softmax.int %arg0, %int-1, %none : !torch.vtensor<[5,0,0],f32>, !torch.int, !torch.none -> !torch.vtensor<[5,0,0],f32>
+  return %0 : !torch.vtensor<[5,0,0],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @_softmax_shape_preserving_empty(
+// CHECK-NOT:     torch.aten.max.dim
+// CHECK:         return %arg0
+func.func @_softmax_shape_preserving_empty(%arg0: !torch.vtensor<[5,0,0],f32>) -> !torch.vtensor<[5,0,0],f32> {
+  %int-1 = torch.constant.int -1
+  %false = torch.constant.bool false
+  %0 = torch.aten._softmax %arg0, %int-1, %false : !torch.vtensor<[5,0,0],f32>, !torch.int, !torch.bool -> !torch.vtensor<[5,0,0],f32>
+  return %0 : !torch.vtensor<[5,0,0],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @matmul_no_decompose
 // CHECK:           torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[?,?,?,?,?],f32>, !torch.vtensor<[?,?,?],f32> -> !torch.tensor
 func.func @matmul_no_decompose(%arg0: !torch.vtensor<[?,?,?,?,?],f32>, %arg1: !torch.vtensor<[?,?,?],f32>) -> !torch.tensor {

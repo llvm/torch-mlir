@@ -2148,6 +2148,23 @@ def SoftmaxIntModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 2, 4))
 
 
+class SoftmaxIntEmptyModule(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([0], torch.float32, True),
+        ]
+    )
+    def forward(self, tensor):
+        return torch.softmax(tensor, dim=-1)
+
+
+@register_test_case(module_factory=lambda: SoftmaxIntEmptyModule())
+def SoftmaxIntEmptyModule_basic(module, tu: TestUtils):
+    module.forward(torch.empty(0))
+
+
 class SoftmaxIntNonNoneDtypeModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
