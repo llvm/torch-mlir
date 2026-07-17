@@ -3394,6 +3394,12 @@ ONNX_XFAIL_SET = {
     "ReshapeAliasCollapseModule_basic",
     "ReshapeAliasExpandModule_basic",
     "ReshapeExpandModule_basic",
+    # The ONNX test configuration replaces annotated integer inputs with
+    # zero-filled placeholders. Their sums do not match these tests' fixed
+    # nonzero output_size values, so eager repeat_interleave rejects them
+    # before ONNX export.
+    "RepeatInterleaveTensorInt64Module_basic",
+    "RepeatInterleaveTensorModule_basic",
     "Rot90DynamicDimsModule_basic",
     "SafeSoftmaxModule_basic",
     "SafeSoftmaxNonNoneDtypeModule_basic",
@@ -4323,6 +4329,12 @@ ONNX_TOSA_XFAIL_SET = {
     "RreluWithNoiseBackwardTrainModule_basic",
     "RreluWithNoiseBackwardTrainStaticModule_basic",
     "RreluWithNoiseForwardBackwardModule_basic",
+    # The ONNX test configuration replaces annotated integer inputs with
+    # zero-filled placeholders. Their sums do not match these tests' fixed
+    # nonzero output_size values, so eager repeat_interleave rejects them
+    # before ONNX export.
+    "RepeatInterleaveTensorInt64Module_basic",
+    "RepeatInterleaveTensorModule_basic",
     "Unfold_Module_Dynamic_basic",
     "Unfold_Module_Rank_4",
     "Unfold_Module_Rank_Zero_Size_Zero_basic",

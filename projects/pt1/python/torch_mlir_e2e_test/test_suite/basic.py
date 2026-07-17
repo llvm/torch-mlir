@@ -2676,6 +2676,49 @@ def RepeatInterleaveSelfIntNoDimModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class RepeatInterleaveTensorModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2], torch.int32, True),
+        ]
+    )
+    def forward(self, repeats):
+        return torch.ops.aten.repeat_interleave.Tensor(repeats, output_size=200)
+
+
+@register_test_case(module_factory=lambda: RepeatInterleaveTensorModule())
+def RepeatInterleaveTensorModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([100, 100], dtype=torch.int32))
+
+
+class RepeatInterleaveTensorInt64Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4], torch.int64, True),
+        ]
+    )
+    def forward(self, repeats):
+        return torch.ops.aten.repeat_interleave.Tensor(repeats, output_size=6)
+
+
+@register_test_case(module_factory=lambda: RepeatInterleaveTensorInt64Module())
+def RepeatInterleaveTensorInt64Module_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([0, 1, 2, 3], dtype=torch.int64))
+
+
+# ==============================================================================
+
+
 class TileSmallDimsSizeModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
