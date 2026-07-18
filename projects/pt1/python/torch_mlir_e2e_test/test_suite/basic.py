@@ -5206,6 +5206,147 @@ def BaddbmmBroadcast2DInputModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class AddbmmModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, input, batch1, batch2):
+        return torch.ops.aten.addbmm(input, batch1, batch2)
+
+
+@register_test_case(module_factory=lambda: AddbmmModule())
+def AddbmmModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 7), tu.rand(5, 2, 9), tu.rand(5, 9, 7))
+
+
+class AddbmmStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 7], torch.float32, True),
+            ([5, 2, 9], torch.float32, True),
+            ([5, 9, 7], torch.float32, True),
+        ]
+    )
+    def forward(self, input, batch1, batch2):
+        return torch.ops.aten.addbmm(input, batch1, batch2)
+
+
+@register_test_case(module_factory=lambda: AddbmmStaticModule())
+def AddbmmStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 7), tu.rand(5, 2, 9), tu.rand(5, 9, 7))
+
+
+class AddbmmWithAlphaModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, input, batch1, batch2):
+        return torch.ops.aten.addbmm(input, batch1, batch2, alpha=5)
+
+
+@register_test_case(module_factory=lambda: AddbmmWithAlphaModule())
+def AddbmmWithAlphaModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 7), tu.rand(5, 2, 9), tu.rand(5, 9, 7))
+
+
+class AddbmmWithBetaModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, input, batch1, batch2):
+        return torch.ops.aten.addbmm(input, batch1, batch2, beta=0.5)
+
+
+@register_test_case(module_factory=lambda: AddbmmWithBetaModule())
+def AddbmmWithBetaModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 7), tu.rand(5, 2, 9), tu.rand(5, 9, 7))
+
+
+class AddbmmWithAlphaBetaModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, input, batch1, batch2):
+        return torch.ops.aten.addbmm(input, batch1, batch2, beta=6, alpha=2.4)
+
+
+@register_test_case(module_factory=lambda: AddbmmWithAlphaBetaModule())
+def AddbmmWithAlphaBetaModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 7), tu.rand(5, 2, 9), tu.rand(5, 9, 7))
+
+
+class AddbmmBroadcast1DInputModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1], torch.float32, True),
+            ([5, 2, 9], torch.float32, True),
+            ([5, 9, 7], torch.float32, True),
+        ]
+    )
+    def forward(self, input, batch1, batch2):
+        return torch.ops.aten.addbmm(input, batch1, batch2)
+
+
+@register_test_case(module_factory=lambda: AddbmmBroadcast1DInputModule())
+def AddbmmBroadcast1DInputModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(
+            1,
+        ),
+        tu.rand(5, 2, 9),
+        tu.rand(5, 9, 7),
+    )
+
+
+# ==============================================================================
+
+
 class NumpyTRankNStaticModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

@@ -9931,6 +9931,80 @@ class DecomposeAtenBaddbmmOp : public OpRewritePattern<AtenBaddbmmOp> {
 } // namespace
 
 namespace {
+// Decompose aten.addbmm into:
+//   out = beta * input + alpha * sum(bmm(batch1, batch2), dim=0)
+class DecomposeAtenAddbmmOp : public OpRewritePattern<AtenAddbmmOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenAddbmmOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value input = op.getSelf();
+    Value batch1 = op.getBatch1();
+    Value batch2 = op.getBatch2();
+    Value beta = op.getBeta();
+    Value alpha = op.getAlpha();
+
+    // Check that batch1 and batch2 are ranked 3D tensors.
+    auto batch1Type = cast<BaseTensorType>(batch1.getType());
+    auto batch2Type = cast<BaseTensorType>(batch2.getType());
+    if (!batch1Type.hasSizes() || batch1Type.getSizes().size() != 3)
+      return rewriter.notifyMatchFailure(op,
+                                         "batch1 must be a ranked 3D tensor");
+    if (!batch2Type.hasSizes() || batch2Type.getSizes().size() != 3)
+      return rewriter.notifyMatchFailure(op,
+                                         "batch2 must be a ranked 3D tensor");
+
+    // Extract the element type
+    Type elementType = batch1Type.getOptionalDtype();
+
+    // Create a result shape for bmm(batch1, batch2) -> shape (b, n, p)
+    SmallVector<int64_t> bmmSizes = {batch1Type.getSizes()[0],
+                                     batch1Type.getSizes()[1],
+                                     batch2Type.getSizes()[2]};
+    Type bmmResultType = batch1Type.getWithSizesAndDtype(bmmSizes, elementType);
+    Value bmmResult =
+        AtenBmmOp::create(rewriter, loc, bmmResultType, batch1, batch2);
+
+    // Create a result shape for the sum over dim 0 (the batch dim) -> shape
+    // (n,p)
+    SmallVector<int64_t> sumSizes = {bmmSizes[1], bmmSizes[2]};
+    Type sumResultType = batch1Type.getWithSizesAndDtype(sumSizes, elementType);
+
+    Value dimZero = Torch::ConstantIntOp::create(rewriter, loc,
+                                                 rewriter.getI64IntegerAttr(0));
+    Value dimList = Torch::PrimListConstructOp::create(
+        rewriter, loc,
+        Torch::ListType::get(Torch::IntType::get(op->getContext())),
+        ValueRange{dimZero});
+    Value keepdimFalse = Torch::ConstantBoolOp::create(rewriter, loc, false);
+    Value noneVal = Torch::ConstantNoneOp::create(rewriter, loc);
+
+    Value sumResult =
+        AtenSumDimIntListOp::create(rewriter, loc, sumResultType, bmmResult,
+                                    dimList, keepdimFalse, noneVal);
+
+    // alpha * sumResult
+    Value alphaMul =
+        AtenMulScalarOp::create(rewriter, loc, sumResultType, sumResult, alpha);
+
+    // beta * input
+    Value betaMul =
+        AtenMulScalarOp::create(rewriter, loc, input.getType(), input, beta);
+
+    // betaMul + alphaMul
+    Value cstOne = Torch::ConstantIntOp::create(rewriter, loc,
+                                                rewriter.getI64IntegerAttr(1));
+    Value result = AtenAddTensorOp::create(rewriter, loc, op.getType(), betaMul,
+                                           alphaMul, cstOne);
+
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.floorDivide` op into `aten.div.TensorMode` op.
 class DecomposeAtenFloorDivideOp : public OpRewritePattern<AtenFloorDivideOp> {
   using OpRewritePattern::OpRewritePattern;
@@ -13447,6 +13521,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenLdexpTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFmodTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBaddbmmOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenAddbmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideScalarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNumpyTOp>(patterns);
