@@ -13,6 +13,7 @@
 #include "llvm/Support/Debug.h"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
 #include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -20,7 +21,6 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "mlir/Support/LLVM.h"
-#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/StringMap.h"
@@ -141,6 +141,108 @@ bool mlir::torch::Torch::potentiallyMutatesListOperands(Operation *op) {
 
   // Conservatively assume that an op might mutate any list operands.
   return true;
+}
+
+// Helper function to squeeze the input tensor at given dim.
+// Return the squeezed tensor or failure.
+FailureOr<Value> Torch::squeezeTensor(PatternRewriter &rewriter, Operation *op,
+                                      Location loc, int64_t dim, Value input) {
+  BaseTensorType inputType = cast<BaseTensorType>(input.getType());
+  if (!inputType.hasSizes()) {
+    return rewriter.notifyMatchFailure(loc, "input tensor must have size");
+  }
+  SmallVector<int64_t> inputShape{inputType.getSizes()};
+  unsigned inputRank = inputShape.size();
+  dim = toPositiveDim(dim, inputRank);
+  if (!isValidDim(dim, inputRank)) {
+    return rewriter.notifyMatchFailure(
+        op, "dimension to be squeezed is an invalid dim");
+  }
+  inputShape.erase(inputShape.begin() + dim);
+  Type squeezedType =
+      inputType.getWithSizesAndDtype(inputShape, inputType.getOptionalDtype());
+
+  Value cstDim = Torch::ConstantIntOp::create(rewriter, loc,
+                                              rewriter.getI64IntegerAttr(dim));
+  // Adding a check to verify if the dimension to be squeezed has size 1 or not.
+  Value cstOne = Torch::ConstantIntOp::create(rewriter, loc,
+                                              rewriter.getI64IntegerAttr(1));
+  Value dimSize = AtenSizeIntOp::create(rewriter, loc, input, cstDim);
+  Value cmp = Torch::AtenEqIntOp::create(rewriter, loc, dimSize, cstOne);
+  Torch::RuntimeAssertOp::create(
+      rewriter, loc, cmp,
+      "squeeze operation possible for dim only when input_shape[dim] == 1.");
+
+  Value result =
+      AtenSqueezeDimOp::create(rewriter, loc, squeezedType, input, cstDim);
+  return result;
+}
+
+// Helper function to unsqueeze the input tensor at given dim.
+// Return the unsqueezed tensor or failure.
+FailureOr<Value> Torch::unsqueezeTensor(PatternRewriter &rewriter,
+                                        Operation *op, Value input, Value dim) {
+  BaseTensorType inputType = cast<BaseTensorType>(input.getType());
+  if (!inputType.hasSizes()) {
+    return rewriter.notifyMatchFailure(op, "input tensor must have size");
+  }
+  FailureOr<Attribute> enc =
+      getSparsityWithDenseLTAtDim(inputType.getOptionalSparsity(), dim);
+  if (failed(enc)) {
+    return failure();
+  }
+
+  SmallVector<int64_t> unsqueezedShape;
+  ArrayRef<int64_t> inputShape = inputType.getSizes();
+  // `input` has a reduced rank. Hence add 1.
+  int64_t unsqueezedRank = inputShape.size() + 1;
+  int64_t dimInt = 0;
+  if (matchPattern(dim, m_TorchConstantInt(&dimInt))) {
+    dimInt = toPositiveDim(dimInt, unsqueezedRank);
+    if (!isValidDim(dimInt, unsqueezedRank)) {
+      return rewriter.notifyMatchFailure(op, "dim is not a valid dim");
+    }
+    unsqueezedShape.append(inputShape.begin(), inputShape.end());
+    unsqueezedShape.insert(unsqueezedShape.begin() + dimInt, 1);
+  } else {
+    unsqueezedShape.resize(unsqueezedRank, kUnknownSize);
+  }
+  Type unsqueezedType = inputType.getWithSizesAndDtypeAndSparsity(
+      unsqueezedShape, inputType.getOptionalDtype(), enc.value());
+  Value unsqueezed = AtenUnsqueezeOp::create(rewriter, op->getLoc(),
+                                             unsqueezedType, input, dim);
+  return unsqueezed;
+}
+
+FailureOr<Attribute> Torch::getSparsityWithDenseLTAtDim(Attribute attr,
+                                                        Value dim) {
+  if (!attr)
+    return Attribute();
+
+  auto enc = cast<sparse_tensor::SparseTensorEncodingAttr>(attr);
+  int64_t dimInt = 0;
+  int64_t rank = enc.getDimRank() + 1;
+  if (matchPattern(dim, m_TorchConstantInt(&dimInt))) {
+    dimInt = toPositiveDim(dimInt, rank);
+    if (!isValidDim(dimInt, rank)) {
+      return failure();
+    }
+    if (!enc.isIdentity()) {
+      // TODO: support block sparsity and permutation (CSC).
+      return failure();
+    }
+    auto denseLT = *sparse_tensor::LevelType::buildLvlType(
+        sparse_tensor::LevelFormat::Dense, true, true);
+    SmallVector<sparse_tensor::LevelType> lvlTps =
+        llvm::to_vector(enc.getLvlTypes());
+    lvlTps.insert(lvlTps.begin() + dimInt, denseLT);
+    auto dim2Lvl = AffineMap::getMultiDimIdentityMap(rank, attr.getContext());
+    return sparse_tensor::SparseTensorEncodingAttr::get(
+        enc.getContext(), lvlTps, dim2Lvl, AffineMap(), enc.getPosWidth(),
+        enc.getCrdWidth(), enc.getExplicitVal(), enc.getImplicitVal());
+  }
+  // Do not know how to handle dynamic dimension.
+  return failure();
 }
 
 static IntegerAttr getI64IntegerAttr(MLIRContext *context, int64_t value) {

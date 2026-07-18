@@ -10,10 +10,12 @@ add_mlir_conversion_library(TorchMLIRTorchToSCF
   LINK_LIBS PUBLIC
   MLIRIR
   MLIRPass
+  MLIRRewrite
   MLIRSCFDialect
   MLIRFuncDialect
+  MLIRTransformUtils
+  TorchMLIRTorchConversionPasses
   TorchMLIRTorchDialect
-  TorchMLIRTorchConversionDialect
 )
 
 torch_mlir_target_includes(TorchMLIRTorchToSCF)
