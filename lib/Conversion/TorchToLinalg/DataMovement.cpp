@@ -1870,15 +1870,15 @@ public:
     // If stride is negative, then flip the input tensor corresponding to that
     // dim, update the stride for flipped tensor by multiplying it by -1, and
     // update the offset as follows:
-    // flipped_offset = input_shape[dim] - (result_shape[dim] * flipped_stride)
+    // flipped_offset[dim] = input_shape[dim] - 1 - offsets[dim]
     //
     // For example:
     // Input = [0, 1, 2, 3, 4, 5]
-    // stride = [-2], result_shape = [2], offset = [3]
+    // stride = [-2], offset = [3]
     // Result = [3, 1]
     // After flipping:
     // Input = [5, 4, 3, 2, 1, 0]
-    // stride = [2], result_shape = [2], offset = [6 - (2 * 2)] = [2]
+    // stride = [2], offset = [6 - 1 - 3] = [2]
     // Result = [3, 1]
 
     Value flippedInput = torch_to_linalg::flipTensor(rewriter, loc, input,
@@ -1888,11 +1888,12 @@ public:
     Value isNegativeStride = arith::CmpIOp::create(
         rewriter, loc, arith::CmpIPredicate::slt, strides[dim], zero);
     strides[dim] = math::AbsIOp::create(rewriter, loc, strides[dim]);
-    Value resShapeMulStride =
-        arith::MulIOp::create(rewriter, loc, resultShape[dim], strides[dim]);
+    Value one = arith::ConstantIndexOp::create(rewriter, loc, 1);
     Value inputDim = tensor::DimOp::create(rewriter, loc, input, cstDim);
+    Value inputDimMinusOne =
+        arith::SubIOp::create(rewriter, loc, inputDim, one);
     Value flippedOffset =
-        arith::SubIOp::create(rewriter, loc, inputDim, resShapeMulStride);
+        arith::SubIOp::create(rewriter, loc, inputDimMinusOne, offsets[dim]);
     offsets[dim] = arith::SelectOp::create(rewriter, loc, isNegativeStride,
                                            flippedOffset, offsets[dim]);
 

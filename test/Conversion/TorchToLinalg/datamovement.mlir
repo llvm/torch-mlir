@@ -177,3 +177,21 @@ func.func @torch.aten.slice$end_int64_max_dynamic_step2(%arg0: !torch.vtensor<[4
   %0 = torch.aten.slice.Tensor %arg0, %int1, %int2, %intmax, %int2 : !torch.vtensor<[4,?],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,?],f32>
   return %0 : !torch.vtensor<[4,?],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.slice.Tensor$negative_step(
+// CHECK-SAME:                                                     %[[ARG0:.*]]: !torch.vtensor<[10],f32>) -> !torch.vtensor<[9],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[10],f32> -> tensor<10xf32>
+// CHECK:           %[[VAL_4:.*]] = linalg.generic
+// CHECK:           %[[VAL_5:.*]] = tensor.extract_slice %[[VAL_4]][0] [9] [1] : tensor<10xf32> to tensor<9xf32>
+// CHECK:           %[[VAL_6:.*]] = torch_c.from_builtin_tensor %[[VAL_5]] : tensor<9xf32> -> !torch.vtensor<[9],f32>
+// CHECK:           return %[[VAL_6]] : !torch.vtensor<[9],f32>
+// CHECK:         }
+func.func @torch.aten.slice.Tensor$negative_step(%arg0: !torch.vtensor<[10],f32>) -> !torch.vtensor<[9],f32> {
+  %int0 = torch.constant.int 0
+  %int9 = torch.constant.int 9
+  %int_neg1 = torch.constant.int -1
+  %0 = torch.aten.slice.Tensor %arg0, %int0, %int9, %int0, %int_neg1 : !torch.vtensor<[10],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[9],f32>
+  return %0 : !torch.vtensor<[9],f32>
+}
