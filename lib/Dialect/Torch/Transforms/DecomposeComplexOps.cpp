@@ -8988,6 +8988,71 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.xlogy.Tensor` op into `aten.eq.Scalar`, `aten.log`,
+// `aten.mul.Tensor`, `aten.isnan` and `aten.where.ScalarSelf` ops.
+//   xlogy(x, y) = NaN         if y == NaN
+//               = 0           if x == 0
+//               = x * log(y)  otherwise
+// The NaN-in-y check is applied LAST (outermost where) so it takes
+// precedence over the x==0 convention: xlogy(0, NaN) == NaN, not 0.
+// Note: `eq.Scalar`, `log` and `isnan` are shape-preserving, so their result
+// types must be derived from their operand's sizes, NOT the (possibly
+// broadcast) result sizes. Only `mul.Tensor` and `where` broadcast.
+class DecomposeAtenXlogyTensorOp : public OpRewritePattern<AtenXlogyTensorOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenXlogyTensorOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    MLIRContext *context = op.getContext();
+    auto resultType = cast<BaseTensorType>(op.getType());
+    auto selfType = cast<BaseTensorType>(op.getSelf().getType());
+    auto otherType = cast<BaseTensorType>(op.getOther().getType());
+    if (!resultType.hasDtype())
+      return rewriter.notifyMatchFailure(op, "result dtype not present");
+    if (!selfType.hasSizes() || !otherType.hasSizes())
+      return rewriter.notifyMatchFailure(op, "operand sizes not present");
+
+    Type boolDtype = IntegerType::get(context, 1);
+    // `x == 0` is elementwise on x.
+    auto selfBoolType = cast<BaseTensorType>(
+        selfType.getWithSizesAndDtype(selfType.getOptionalSizes(), boolDtype));
+    // `isnan(y)` is elementwise on y.
+    auto otherBoolType = cast<BaseTensorType>(otherType.getWithSizesAndDtype(
+        otherType.getOptionalSizes(), boolDtype));
+    // `log(y)` keeps y's sizes but takes the result dtype (log promotes
+    // integer inputs to float).
+    auto logType = cast<BaseTensorType>(otherType.getWithSizesAndDtype(
+        otherType.getOptionalSizes(), resultType.getOptionalDtype()));
+
+    Value constZero =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
+
+    // rhs = (x == 0) ? 0 : x * log(y)
+    Value eqTensor = AtenEqScalarOp::create(rewriter, loc, selfBoolType,
+                                            op.getSelf(), constZero);
+    Value logOther = AtenLogOp::create(rewriter, loc, logType, op.getOther());
+    Value selfMulLogOther = AtenMulTensorOp::create(rewriter, loc, resultType,
+                                                    op.getSelf(), logOther);
+    Value rhs = AtenWhereScalarSelfOp::create(
+        rewriter, loc, resultType, eqTensor, constZero, selfMulLogOther);
+
+    // res = isnan(y) ? NaN : rhs
+    Value isnan =
+        AtenIsnanOp::create(rewriter, loc, otherBoolType, op.getOther());
+    Value constantNan = ConstantFloatOp::create(
+        rewriter, loc,
+        rewriter.getF64FloatAttr(std::numeric_limits<double>::quiet_NaN()));
+    Value res = AtenWhereScalarSelfOp::create(rewriter, loc, resultType, isnan,
+                                              constantNan, rhs);
+
+    rewriter.replaceOp(op, res);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.fullLike` op into `aten.emptyLike` and `aten.fill` ops.
 class DecomposeAtenFullLikeOp : public OpRewritePattern<AtenFullLikeOp> {
 public:
@@ -13406,6 +13471,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenLinearOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBilinearOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMishOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenXlogyTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFullLikeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNewFullOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenExpandAsOp>(patterns);

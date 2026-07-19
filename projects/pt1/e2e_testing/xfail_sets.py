@@ -399,12 +399,6 @@ TORCHDYNAMO_CRASHING_SET = {
     "MaxPool3dStaticModule_basic",
     # Looks like incorrect fx graph conversion
     "ElementwiseAddScalar_TensorLiteralInt32_Module_basic",
-    # error: failed to legalize operation 'torch.aten.xlogy.Tensor'
-    "KlDivLossModule_default_basic",
-    "KlDivLossModule_reduction_is_none_basic",
-    "KlDivLossModule_mean_reduction_basic",
-    "KlDivLossModule_sum_reduction_basic",
-    "KlDivLossModule_batchmean_reduction_basic",
     # Hanging tests:
     "ConvolutionBackwardModule2DDilated_basic",
     "ConvolutionBackwardModule2DStridedPaddedDilatedGrouped_basic",
@@ -3172,6 +3166,10 @@ ONNX_XFAIL_SET = {
     "ElementwiseRreluWithNoiseTrainModule_basic",
     "ElementwiseRreluWithNoiseTrainStaticModule_basic",
     "ElementwiseSgnModule_basic",
+    "ElementwiseXlogyTensorBroadcastModule_basic",
+    "ElementwiseXlogyTensorIntModule_basic",
+    "ElementwiseXlogyTensorModule_basic",
+    "ElementwiseXlogyTensorZeroAndNanModule_basic",
     "EmptyStridedModule_basic",
     "EmptyStridedSizeIntStrideModule_basic",
     "EluBackwardIsResultModule_basic",
