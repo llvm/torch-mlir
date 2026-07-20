@@ -1522,6 +1522,22 @@ func.func @torch.aten.to.dtype$boolToFloat(%arg0: !torch.vtensor<[3,4],i1>) -> !
   return %0 : !torch.vtensor<[3,4],f32>
 }
 
+// -----
+// CHECK-LABEL:   func.func @torch.aten.to.dtype$float16ToBfloat16(
+// CHECK-SAME:                                                        %[[ARG:.*]]: !torch.vtensor<[3,4],f16>) -> !torch.vtensor<[3,4],bf16> {
+// CHECK:           %[[BUILTIN:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[3,4],f16> -> tensor<3x4xf16>
+// CHECK:           %[[F32:.*]] = tosa.cast %[[BUILTIN]] : (tensor<3x4xf16>) -> tensor<3x4xf32>
+// CHECK:           %[[BF16:.*]] = tosa.cast %[[F32]] : (tensor<3x4xf32>) -> tensor<3x4xbf16>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[BF16]] : tensor<3x4xbf16> -> !torch.vtensor<[3,4],bf16>
+// CHECK:           return %[[RESULT]] : !torch.vtensor<[3,4],bf16>
+func.func @torch.aten.to.dtype$float16ToBfloat16(%arg0: !torch.vtensor<[3,4],f16>) -> !torch.vtensor<[3,4],bf16> {
+  %int15 = torch.constant.int 15
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %0 = torch.aten.to.dtype %arg0, %int15, %false, %false, %none : !torch.vtensor<[3,4],f16>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[3,4],bf16>
+  return %0 : !torch.vtensor<[3,4],bf16>
+}
+
 
 // -----
 // CHECK-LABEL:   func.func @torch.aten.gather(

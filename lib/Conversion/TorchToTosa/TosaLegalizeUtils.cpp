@@ -375,6 +375,15 @@ std::optional<Value> tosaCastTensorToType(PatternRewriter &rewriter, Value src,
   if (srcElemTy == destElemTy)
     return src;
 
+  if (srcElemTy.isF16() && destElemTy.isBF16()) {
+    // The TOSA reference model rejects a direct f16-to-bf16 cast. Widen to f32
+    // first, which preserves every f16 value exactly, then narrow to bf16.
+    TensorType f32Type = srcType.clone(rewriter.getF32Type());
+    Value f32 = tosa::CastOp::create(rewriter, op->getLoc(), f32Type, src);
+    return tosa::CastOp::create(rewriter, op->getLoc(),
+                                srcType.clone(destElemTy), f32);
+  }
+
   if (llvm::isa<FloatType>(srcElemTy) && destElemTy.isInteger() &&
       !destElemTy.isInteger(1)) {
     // For float->int conversion, tosa.cast performs round-to-nearest.
