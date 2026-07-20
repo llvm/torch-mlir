@@ -1849,6 +1849,7 @@ FX_IMPORTER_TOSA_CRASHING_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "AddbmmWithAlphaBetaModule_basic",
     "AtenAsStridedAfterAliasDetachModule_basic",
     "AtenAsStridedAfterBroadcastToModule_basic",
     "AtenAsStridedAfterChainedViewsModule_basic",
@@ -2845,6 +2846,8 @@ LTC_XFAIL_SET = {
 }
 
 ONNX_XFAIL_SET = {
+    # PyTorch's ONNX exporter does not support aten::addbmm.
+    "AddbmmWithAlphaBetaModule_basic",
     # ONNX export applies explicit offset to materialized slice storage.
     "AtenAsStridedAfterAliasDetachModule_basic",
     # ONNX transpose materializes movedim before gather, so indexing uses new storage.
@@ -4234,6 +4237,8 @@ ONNX_TOSA_CRASHING_SET = {
 }
 
 ONNX_TOSA_XFAIL_SET = {
+    # PyTorch's ONNX exporter does not support aten::addbmm.
+    "AddbmmWithAlphaBetaModule_basic",
     # ONNX export applies explicit offset to materialized slice storage.
     "AtenAsStridedAfterAliasDetachModule_basic",
     # ONNX export gathers from the materialized empty slice.

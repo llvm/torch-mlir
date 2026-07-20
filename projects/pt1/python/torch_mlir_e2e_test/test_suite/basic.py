@@ -5043,6 +5043,31 @@ def IsInfiniteModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class AddbmmWithAlphaBetaModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 7], torch.float32, True),
+            ([5, 2, 9], torch.float32, True),
+            ([5, 9, 7], torch.float32, True),
+        ]
+    )
+    def forward(self, input, batch1, batch2):
+        return torch.ops.aten.addbmm(input, batch1, batch2, beta=0.5, alpha=2.0)
+
+
+@register_test_case(module_factory=lambda: AddbmmWithAlphaBetaModule())
+def AddbmmWithAlphaBetaModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 7), tu.rand(5, 2, 9), tu.rand(5, 9, 7))
+
+
+# ==============================================================================
+
+
 class BaddbmmDynamicModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

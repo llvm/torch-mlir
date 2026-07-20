@@ -9950,6 +9950,61 @@ class DecomposeAtenFmodTensorOp : public OpRewritePattern<AtenFmodTensorOp> {
 } // namespace
 
 namespace {
+// Decompose `aten.addbmm` into a batched matrix multiplication, a reduction
+// over the batch dimension, and a scaled addition.
+class DecomposeAtenAddbmmOp : public OpRewritePattern<AtenAddbmmOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenAddbmmOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto inputType = cast<BaseTensorType>(op.getSelf().getType());
+    auto batch1Type = cast<BaseTensorType>(op.getBatch1().getType());
+    auto batch2Type = cast<BaseTensorType>(op.getBatch2().getType());
+    auto resultType = cast<BaseTensorType>(op.getType());
+    if (!inputType.hasDtype() || !batch1Type.hasDtype() ||
+        !batch2Type.hasDtype() || !resultType.hasDtype() ||
+        !inputType.getDtype().isF32() || !batch1Type.getDtype().isF32() ||
+        !batch2Type.getDtype().isF32() || !resultType.getDtype().isF32())
+      return rewriter.notifyMatchFailure(
+          op, "expected all tensor operands and the result to be float32");
+    Type resultDtype = resultType.getDtype();
+    Value input = op.getSelf();
+    Value batch1 = op.getBatch1();
+    Value batch2 = op.getBatch2();
+
+    std::optional<ArrayRef<int64_t>> bmmSizes;
+    SmallVector<int64_t> staticBmmSizes;
+    if (batch1Type.hasSizes() && batch2Type.hasSizes()) {
+      ArrayRef<int64_t> batch1Sizes = batch1Type.getSizes();
+      ArrayRef<int64_t> batch2Sizes = batch2Type.getSizes();
+      if (batch1Sizes.size() != 3 || batch2Sizes.size() != 3) {
+        return rewriter.notifyMatchFailure(
+            op, "expected batch1 and batch2 to have rank 3");
+      }
+      staticBmmSizes = {batch1Sizes[0], batch1Sizes[1], batch2Sizes[2]};
+      bmmSizes = ArrayRef<int64_t>(staticBmmSizes);
+    }
+
+    Type bmmType = resultType.getWithSizesAndDtype(bmmSizes, resultDtype);
+    Value bmm = AtenBmmOp::create(rewriter, loc, bmmType, batch1, batch2);
+    Value dim = ConstantIntOp::create(rewriter, loc, 0);
+    Value dimList = PrimListConstructOp::create(
+        rewriter, loc, ListType::get(dim.getType()), dim);
+    Value keepDim = ConstantBoolOp::create(rewriter, loc, false);
+    Value dtype = ConstantNoneOp::create(rewriter, loc);
+    Value sum = AtenSumDimIntListOp::create(rewriter, loc, op.getType(), bmm,
+                                            dimList, keepDim, dtype);
+    Value scaledInput = AtenMulScalarOp::create(rewriter, loc, input.getType(),
+                                                input, op.getBeta());
+    Value result = AtenAddTensorOp::create(rewriter, loc, op.getType(),
+                                           scaledInput, sum, op.getAlpha());
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.baddbmm` op into `aten.bmm`, `aten.mul.Scalar`, and
 // `aten.add.Tensor` op.
 class DecomposeAtenBaddbmmOp : public OpRewritePattern<AtenBaddbmmOp> {
@@ -13493,6 +13548,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenCopysignTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLdexpTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFmodTensorOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenAddbmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBaddbmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideScalarOp>(patterns);
