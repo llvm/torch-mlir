@@ -327,3 +327,37 @@ func.func @forward_avgpool_2d_ceil_dilated(%arg0: !torch.vtensor<[1,1,7,7],f32>)
   %3 = torch.aten.avg_pool2d %arg0, %0, %2, %1, %true, %false, %none : !torch.vtensor<[1,1,7,7],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1,2,2],f32>
   return %3 : !torch.vtensor<[1,1,2,2],f32>
 }
+
+// -----
+
+// CHECK: #[[$MAP:.*]] = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>
+// CHECK-LABEL: func @forward_avgpool_2d_count_include_pad_dilated
+func.func @forward_avgpool_2d_count_include_pad_dilated(%arg0: !torch.vtensor<[1,1,7,7],f32>) -> !torch.vtensor<[1,1,3,3],f32> {
+  // CHECK: linalg.pooling_nchw_sum {dilations = dense<2> : vector<2xi64>, strides = dense<2> : vector<2xi64>}
+
+  // count_include_pad=true with dilation: divisor uses unclamped range / dilation.
+  // CHECK: linalg.generic {indexing_maps = [#[[$MAP]], #[[$MAP]]], iterator_types = ["parallel", "parallel", "parallel", "parallel"]}
+  // CHECK:   %[[C5:.*]] = arith.constant 5 : i64
+  // CHECK:   arith.addi %{{.*}}, %[[C5]] : i64
+  // CHECK:   arith.divsi {{.*}} : i64
+  // CHECK:   arith.divf
+  // CHECK:   linalg.yield
+
+  %int3 = torch.constant.int 3
+  %int3_0 = torch.constant.int 3
+  %int1 = torch.constant.int 1
+  %int1_1 = torch.constant.int 1
+  %int2_s = torch.constant.int 2
+  %int2_s2 = torch.constant.int 2
+  %int2_d = torch.constant.int 2
+  %int2_d2 = torch.constant.int 2
+  // stride list = [stride_h, stride_w, dilation_h, dilation_w]
+  %0 = torch.prim.ListConstruct %int3, %int3_0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.prim.ListConstruct %int1, %int1_1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.prim.ListConstruct %int2_s, %int2_s2, %int2_d, %int2_d2 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %false = torch.constant.bool false
+  %true = torch.constant.bool true
+  %none = torch.constant.none
+  %3 = torch.aten.avg_pool2d %arg0, %0, %2, %1, %false, %true, %none : !torch.vtensor<[1,1,7,7],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1,3,3],f32>
+  return %3 : !torch.vtensor<[1,1,3,3],f32>
+}
