@@ -755,6 +755,28 @@ def RMSNormModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(8, 9, 1, 2, 4), tu.rand(1, 2, 4))
 
 
+class RMSNormZeroExtentModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([0, 1], torch.float32, True),
+            ([1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, weight):
+        list = [1]
+        return torch.ops.aten.rms_norm(x, list, weight, eps=0.5)
+
+
+@register_test_case(module_factory=lambda: RMSNormZeroExtentModule())
+def RMSNormZeroExtentModule_basic(module, tu: TestUtils):
+    module.forward(torch.empty(0, 1), tu.rand(1))
+
+
 class RMSNormWithoutEpsModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

@@ -52,6 +52,45 @@ namespace mlir::torch {
 
 namespace {
 
+static bool hasStaticZeroExtentTensorType(Type type) {
+  if (auto rankedTensorTy = dyn_cast<RankedTensorType>(type))
+    return llvm::is_contained(rankedTensorTy.getShape(), 0);
+
+  auto valueTensorTy = dyn_cast<Torch::ValueTensorType>(type);
+  return valueTensorTy && valueTensorTy.hasSizes() &&
+         llvm::is_contained(valueTensorTy.getSizes(), 0);
+}
+
+static LogicalResult checkNoStaticZeroExtentTensorTypes(func::FuncOp func) {
+  for (Type type : func.getFunctionType().getInputs()) {
+    if (hasStaticZeroExtentTensorType(type))
+      return func.emitError()
+             << "TOSA conversion does not support zero-extent tensor type "
+             << type;
+  }
+
+  for (Type type : func.getFunctionType().getResults()) {
+    if (hasStaticZeroExtentTensorType(type))
+      return func.emitError()
+             << "TOSA conversion does not support zero-extent tensor type "
+             << type;
+  }
+
+  WalkResult result = func.walk([&](Operation *op) {
+    for (Type type : op->getResultTypes()) {
+      if (hasStaticZeroExtentTensorType(type)) {
+        op->emitError()
+            << "TOSA conversion does not support zero-extent tensor type "
+            << type;
+        return WalkResult::interrupt();
+      }
+    }
+    return WalkResult::advance();
+  });
+
+  return failure(result.wasInterrupted());
+}
+
 // Runs an in-place inclusive prefix sum along the middle dimension (K) of
 // `running` using a binary lifting scheme. The input must have shape [N, K, C].
 // After the loop, `running` holds the cumsum result with respect to axis=1.
@@ -11374,6 +11413,9 @@ public:
   }
 
   void runOnOperation() override {
+    if (failed(checkNoStaticZeroExtentTensorTypes(getOperation())))
+      return signalPassFailure();
+
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
     target.addLegalDialect<tosa::TosaDialect, tensor::TensorDialect,
