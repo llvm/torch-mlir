@@ -291,3 +291,39 @@ func.func @forward_avgpool_2d_ceil(%arg0: !torch.vtensor<[1,1,4,4],f32>) -> !tor
   %3 = torch.aten.avg_pool2d %arg0, %0, %2, %1, %true, %false, %none : !torch.vtensor<[1,1,4,4],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1,2,2],f32>
   return %3 : !torch.vtensor<[1,1,2,2],f32>
 }
+
+// -----
+
+// CHECK: #[[$MAP:.*]] = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>
+// CHECK-LABEL: func @forward_avgpool_2d_ceil_dilated
+func.func @forward_avgpool_2d_ceil_dilated(%arg0: !torch.vtensor<[1,1,7,7],f32>) -> !torch.vtensor<[1,1,2,2],f32> {
+  // Sum pool uses dilation=2:
+  // CHECK: linalg.pooling_nchw_sum {dilations = dense<2> : vector<2xi64>, strides = dense<3> : vector<2xi64>}
+
+  // The divisor generic uses dilation to count valid taps per dim:
+  // effectiveKernel = (3-1)*2+1 = 5, then divides range by dilation.
+  // CHECK: linalg.generic {indexing_maps = [#[[$MAP]], #[[$MAP]]], iterator_types = ["parallel", "parallel", "parallel", "parallel"]}
+  // CHECK:   %[[C5:.*]] = arith.constant 5 : i64
+  // CHECK:   arith.addi %{{.*}}, %[[C5]] : i64
+  // CHECK:   arith.divsi {{.*}} : i64
+  // CHECK:   arith.divf
+  // CHECK:   linalg.yield
+
+  %int3 = torch.constant.int 3
+  %int3_0 = torch.constant.int 3
+  %int0 = torch.constant.int 0
+  %int0_1 = torch.constant.int 0
+  %int3_s = torch.constant.int 3
+  %int3_s2 = torch.constant.int 3
+  %int2_d = torch.constant.int 2
+  %int2_d2 = torch.constant.int 2
+  // stride list = [stride_h, stride_w, dilation_h, dilation_w]
+  %0 = torch.prim.ListConstruct %int3, %int3_0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.prim.ListConstruct %int0, %int0_1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.prim.ListConstruct %int3_s, %int3_s2, %int2_d, %int2_d2 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %true = torch.constant.bool true
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %3 = torch.aten.avg_pool2d %arg0, %0, %2, %1, %true, %false, %none : !torch.vtensor<[1,1,7,7],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1,2,2],f32>
+  return %3 : !torch.vtensor<[1,1,2,2],f32>
+}

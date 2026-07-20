@@ -960,7 +960,8 @@ public:
   // height and width labels in variables.
   Value getPoolSize(OpBuilder &b, SmallVectorImpl<Value> &kernelSizeIntValues,
                     SmallVectorImpl<int64_t> &strideInts,
-                    SmallVectorImpl<int64_t> &paddingInts);
+                    SmallVectorImpl<int64_t> &paddingInts,
+                    SmallVectorImpl<int64_t> &dilationInts);
 
 private:
   int64_t SumPoolTypeDimIndex[NumOfDims];
@@ -994,12 +995,14 @@ PoolSizeCalculator<NumOfDims>::PoolSizeCalculator(
 template <int NumOfDims>
 Value PoolSizeCalculator<NumOfDims>::getPoolSize(
     OpBuilder &b, SmallVectorImpl<Value> &kernelDimSizes,
-    SmallVectorImpl<int64_t> &strideInts,
-    SmallVectorImpl<int64_t> &paddingInts) {
+    SmallVectorImpl<int64_t> &strideInts, SmallVectorImpl<int64_t> &paddingInts,
+    SmallVectorImpl<int64_t> &dilationInts) {
   Value poolSize;
 
   Value cstZero =
       b.createOrFold<arith::ConstantOp>(location, b.getI64IntegerAttr(0));
+  Value cstOne =
+      b.createOrFold<arith::ConstantOp>(location, b.getI64IntegerAttr(1));
 
   for (int i = 0; i < NumOfDims; ++i) {
     // See the link below for the PyTorch implementation where this is
@@ -1016,11 +1019,21 @@ Value PoolSizeCalculator<NumOfDims>::getPoolSize(
         location, b.getI64IntegerAttr(strideInts[i]));
     Value PadDim = b.createOrFold<arith::ConstantOp>(
         location, b.getI64IntegerAttr(paddingInts[i]));
+    Value DilDim = b.createOrFold<arith::ConstantOp>(
+        location, b.getI64IntegerAttr(dilationInts[i]));
     Value ODimDDim = b.createOrFold<arith::MulIOp>(location, ODim, DDim);
     Value IDim0 = b.createOrFold<arith::SubIOp>(location, ODimDDim, PadDim);
     Value IDim = castIndexToInt64(b, location, InputSpatialDimSizes[i]);
+
+    // Effective window end: IDim0 + (kernel - 1) * dilation + 1
+    Value KernelM1 =
+        b.createOrFold<arith::SubIOp>(location, kernelDimSizes[i], cstOne);
+    Value KernelM1Dil =
+        b.createOrFold<arith::MulIOp>(location, KernelM1, DilDim);
+    Value EffectiveKernel =
+        b.createOrFold<arith::AddIOp>(location, KernelM1Dil, cstOne);
     Value IDim0KDim =
-        b.createOrFold<arith::AddIOp>(location, IDim0, kernelDimSizes[i]);
+        b.createOrFold<arith::AddIOp>(location, IDim0, EffectiveKernel);
     Value IDimPadDim = b.createOrFold<arith::AddIOp>(location, IDim, PadDim);
     Value IDim1 =
         b.createOrFold<arith::MinSIOp>(location, IDim0KDim, IDimPadDim);
@@ -1028,13 +1041,26 @@ Value PoolSizeCalculator<NumOfDims>::getPoolSize(
     Value IDim0Clamped =
         b.createOrFold<arith::MaxSIOp>(location, IDim0, cstZero);
     Value IDim1Clamped = b.createOrFold<arith::MinSIOp>(location, IDim1, IDim);
+
+    // Count valid taps: floor((clampedEnd - clampedStart - 1) / dilation) + 1
     Value IDim1_IDim0_Clamped =
         b.createOrFold<arith::SubIOp>(location, IDim1Clamped, IDim0Clamped);
+    Value RangeM1 =
+        b.createOrFold<arith::SubIOp>(location, IDim1_IDim0_Clamped, cstOne);
+    Value TapCount = b.createOrFold<arith::DivSIOp>(location, RangeM1, DilDim);
+    Value ValidTaps = b.createOrFold<arith::AddIOp>(location, TapCount, cstOne);
 
-    Value poolSizeDim =
-        !isCountIncludePad
-            ? IDim1_IDim0_Clamped
-            : b.createOrFold<arith::SubIOp>(location, IDim1, IDim0);
+    // For count_include_pad: count all positions in the effective window
+    // (IDim1 - IDim0) / dilation, accounting for dilation spacing
+    Value FullRange = b.createOrFold<arith::SubIOp>(location, IDim1, IDim0);
+    Value FullRangeM1 =
+        b.createOrFold<arith::SubIOp>(location, FullRange, cstOne);
+    Value FullTapCount =
+        b.createOrFold<arith::DivSIOp>(location, FullRangeM1, DilDim);
+    Value FullTaps =
+        b.createOrFold<arith::AddIOp>(location, FullTapCount, cstOne);
+
+    Value poolSizeDim = !isCountIncludePad ? ValidTaps : FullTaps;
     if (i == 0) {
       poolSize = poolSizeDim;
     } else {
@@ -1060,7 +1086,8 @@ public:
   static bool
   doesAvgPoolDivisorNeedsClamping(bool ceilMode, bool countIncludePad,
                                   SmallVectorImpl<int64_t> &strideInts,
-                                  SmallVectorImpl<int64_t> &paddingInts);
+                                  SmallVectorImpl<int64_t> &paddingInts,
+                                  SmallVectorImpl<int64_t> &dilationInts);
 
   // Creates the average pooling operation value with a clamped
   // divisor. The clamped divisor is the product of kernel
@@ -1073,6 +1100,7 @@ public:
       SmallVectorImpl<Value> &kernelDimSizes,
       SmallVectorImpl<int64_t> &strideInts,
       SmallVectorImpl<int64_t> &paddingInts,
+      SmallVectorImpl<int64_t> &dilationInts,
       SmallVector<AffineMap> &indexingMapsAvg,
       SmallVector<utils::IteratorType> &iteratorTypesAvg);
 
@@ -1147,11 +1175,11 @@ LogicalResult ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::matchAndRewrite(
       Dim + 2, utils::IteratorType::parallel);
 
   if (doesAvgPoolDivisorNeedsClamping(ceilMode, countIncludePad, strideInts,
-                                      paddingInts)) {
+                                      paddingInts, dilationInts)) {
     return createAveragePoolValueWithClampedDivisor(
         ceilMode, countIncludePad, op, adaptor, rewriter, self, sumPool,
         outputTensor, resultType, kernelSizeIntValues, strideInts, paddingInts,
-        indexingMapsAvg, iteratorTypesAvg);
+        dilationInts, indexingMapsAvg, iteratorTypesAvg);
   }
 
   return createAveragePoolValueWithRegularDivisor(
@@ -1163,7 +1191,8 @@ template <typename OpTy, typename PoolingOpTy, int Dim>
 bool ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::
     doesAvgPoolDivisorNeedsClamping(bool ceilMode, bool countIncludePad,
                                     SmallVectorImpl<int64_t> &strideInts,
-                                    SmallVectorImpl<int64_t> &paddingInts) {
+                                    SmallVectorImpl<int64_t> &paddingInts,
+                                    SmallVectorImpl<int64_t> &dilationInts) {
   // Determines whether the average pooling divisor needs to be clamped
   // (i.e., adjusted to exclude padded or out-of-bounds elements).
   //
@@ -1193,8 +1222,11 @@ bool ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::
       !llvm::all_of(paddingInts, [](int64_t p) { return p == 0; });
   bool allStridesUnitary =
       llvm::all_of(strideInts, [](int64_t s) { return s == 1; });
+  bool allDilationsUnitary =
+      llvm::all_of(dilationInts, [](int64_t d) { return d == 1; });
 
-  return (!countIncludePad && hasPadding) || (ceilMode && !allStridesUnitary);
+  return (!countIncludePad && hasPadding) || (ceilMode && !allStridesUnitary) ||
+         !allDilationsUnitary;
 }
 
 template <typename OpTy, typename PoolingOpTy, int Dim>
@@ -1206,6 +1238,7 @@ LogicalResult ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::
         SmallVectorImpl<Value> &kernelDimSizes,
         SmallVectorImpl<int64_t> &strideInts,
         SmallVectorImpl<int64_t> &paddingInts,
+        SmallVectorImpl<int64_t> &dilationInts,
         SmallVector<AffineMap> &indexingMapsAvg,
         SmallVector<utils::IteratorType> &iteratorTypesAvg) {
   Location loc = op->getLoc();
@@ -1241,7 +1274,7 @@ LogicalResult ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::
           [&](OpBuilder &b, Location loc, ValueRange args) {
             if (!poolSize) {
               poolSize = poolSizeCalculator.getPoolSize(
-                  b, kernelDimSizes, strideInts, paddingInts);
+                  b, kernelDimSizes, strideInts, paddingInts, dilationInts);
             }
             Value divisor =
                 convertScalarToDtype(b, loc, poolSize, resultElementType);
