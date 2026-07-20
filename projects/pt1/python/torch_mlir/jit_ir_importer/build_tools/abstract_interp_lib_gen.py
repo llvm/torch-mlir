@@ -3590,9 +3590,9 @@ def aten〇hardswish〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 @check_dtype_function(_check_two_tensor_op(min_val=0.2, max_val=0.5))
 def aten〇hardtanh_backward〡dtype(grad_output_rank_dtype: Tuple[int, int], self_rank_dtype: Tuple[int, int], min_val: Union[int, float, complex], max_val: Union[int, float, complex]) -> int:
     grad_output_rank, grad_output_dtype = grad_output_rank_dtype
-    if is_integer_dtype(grad_output_dtype):
-        return torch.float32
-    return grad_output_dtype
+    self_rank, self_dtype = self_rank_dtype
+    ranks: List[Optional[int]] = [grad_output_rank, self_rank]
+    return promote_dtypes(ranks, [grad_output_dtype, self_dtype])
 
 @check_dtype_function(_check_two_tensor_op(beta=1.0, threshold=20.0))
 def aten〇softplus_backward〡dtype(grad_output_rank_dtype: Tuple[int, int], self_rank_dtype: Tuple[int, int], beta: Union[int, float, complex], threshold: Union[int, float, complex]) -> int:
@@ -4340,8 +4340,7 @@ def aten〇add〡dtype(a: Union[int, float, complex], b: Union[int, float, compl
     dtypes = [get_dtype_of_scalar(a), get_dtype_of_scalar(b)]
     return promote_dtypes(ranks, dtypes)
 
-@check_dtype_function(
-    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bfloat16}))
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇fft_fft〡dtype(self_rank_dtype: Tuple[int, int], n: Optional[int] = None, dim: int = -1, norm: Optional[str] = None) -> int:
     self_rank, self_dtype = self_rank_dtype
     if is_complex_dtype(self_dtype):
@@ -4349,6 +4348,8 @@ def aten〇fft_fft〡dtype(self_rank_dtype: Tuple[int, int], n: Optional[int] = 
     elif self_dtype == torch.float16:
         return torch.complex32
     elif self_dtype == torch.float32:
+        return torch.complex64
+    elif self_dtype == torch.bfloat16:
         return torch.complex64
     elif self_dtype == torch.float64:
         return torch.complex128
@@ -4358,12 +4359,14 @@ def aten〇fft_fft〡dtype(self_rank_dtype: Tuple[int, int], n: Optional[int] = 
         assert False, "Unsupported dtype"
 
 @check_dtype_function(
-    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex32, torch.complex64, torch.complex128, torch.bfloat16}))
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex32, torch.complex64, torch.complex128}))
 def aten〇fft_rfft〡dtype(self_rank_dtype: Tuple[int, int], n: Optional[int] = None, dim: int = -1, norm: Optional[str] = None) -> int:
     self_rank, self_dtype = self_rank_dtype
     if self_dtype == torch.float16:
         return torch.complex32
     elif self_dtype == torch.float32:
+        return torch.complex64
+    elif self_dtype == torch.bfloat16:
         return torch.complex64
     elif self_dtype == torch.float64:
         return torch.complex128
@@ -4436,8 +4439,7 @@ def aten〇stft〇center〡dtype(self_rank_dtype: Tuple[int, int], n_fft: int, h
 
     assert False, "Unsupported dtype"
 
-@check_dtype_function(
-    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bfloat16}))
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇fft_ifft〡dtype(self_rank_dtype: Tuple[int, int], n: Optional[int] = None, dim: int = -1, norm: Optional[str] = None) -> int:
     self_rank, self_dtype = self_rank_dtype
     if is_complex_dtype(self_dtype):
@@ -4445,6 +4447,8 @@ def aten〇fft_ifft〡dtype(self_rank_dtype: Tuple[int, int], n: Optional[int] =
     elif self_dtype == torch.float16:
         return torch.complex32
     elif self_dtype == torch.float32:
+        return torch.complex64
+    elif self_dtype == torch.bfloat16:
         return torch.complex64
     elif self_dtype == torch.float64:
         return torch.complex128
