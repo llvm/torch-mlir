@@ -284,8 +284,7 @@ class NodeImporter:
                 cc.type_proto_to_type(inp.type) for inp in graph_info.input_map.values()
             ]
             output_types = [
-                cc.type_proto_to_type(out.type)
-                for out in graph_info.output_map.values()
+                cc.type_proto_to_type(out.type) for out in graph_info.graph_proto.output
             ]
             ftype = FunctionType.get(input_types, output_types)
             func_op = func_dialect.FuncOp(
@@ -354,12 +353,12 @@ class NodeImporter:
             self.import_node(node)
 
         outputs = []
-        for output_name in self._gi.output_map.keys():
+        for out in self._gi.graph_proto.output:
             try:
-                outputs.append(self._nv_map[output_name])
+                outputs.append(self._nv_map[out.name])
             except KeyError:
                 raise OnnxImportError(
-                    f"Non topologically produced ONNX graph output '{output_name}'"
+                    f"Non topologically produced ONNX graph output '{out.name}'"
                 )
         with InsertionPoint(self._b), Location.unknown():
             if func:
