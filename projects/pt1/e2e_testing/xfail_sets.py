@@ -1818,6 +1818,8 @@ TOSA_CRASHING_SET = {
 }
 
 FX_IMPORTER_TOSA_CRASHING_SET = {
+    # Zero-extent memref argument verification aborts on a stride mismatch.
+    "MatmulEmptyOutput_basic",
     "Aten_TrilinearModuleSumAllDims_basic",
     "Aten_TrilinearModuleSumdims_basic",
     "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",

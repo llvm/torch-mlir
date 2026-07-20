@@ -3354,8 +3354,57 @@ public:
 };
 } // namespace
 
-// Decompose aten.matmul into: aten.mm and aten.bmm according to ranks.
 namespace {
+static Value stripTypePreservingMatmulShapeOps(Value operand,
+                                               Type resultType) {
+  while (Operation *definingOp = operand.getDefiningOp()) {
+    Value source;
+    if (auto view = dyn_cast<AtenViewOp>(definingOp))
+      source = view.getSelf();
+    else if (auto expand = dyn_cast<AtenExpandOp>(definingOp))
+      source = expand.getSelf();
+    else if (auto broadcast = dyn_cast<AtenBroadcastToOp>(definingOp))
+      source = broadcast.getSelf();
+    else
+      break;
+
+    if (source.getType() != resultType)
+      return nullptr;
+    operand = source;
+  }
+  return operand;
+}
+
+static Value getEmptyMatmulReplacement(Type resultType, Value lhs, Value rhs) {
+  auto resultTensorType = dyn_cast<BaseTensorType>(resultType);
+  if (!resultTensorType || !resultTensorType.hasSizes() ||
+      !llvm::is_contained(resultTensorType.getSizes(), 0))
+    return nullptr;
+
+  // Prefer the right operand because FX matmul decomposition broadcasts the
+  // left operand even when the right operand already has the result type.
+  for (Value operand : {rhs, lhs}) {
+    if (operand.getType() == resultTensorType) {
+      if (Value replacement =
+              stripTypePreservingMatmulShapeOps(operand, resultType))
+        return replacement;
+    }
+  }
+  return nullptr;
+}
+
+static void eraseDeadMatmulShapeOps(PatternRewriter &rewriter, Value operand) {
+  while (Operation *definingOp = operand.getDefiningOp()) {
+    if (!operand.use_empty() ||
+        !isa<AtenViewOp, AtenExpandOp, AtenBroadcastToOp>(definingOp))
+      break;
+    Value source = definingOp->getOperand(0);
+    rewriter.eraseOp(definingOp);
+    operand = source;
+  }
+}
+
+// Decompose aten.matmul into: aten.mm and aten.bmm according to ranks.
 class DecomposeAtenMatmulOp : public OpRewritePattern<AtenMatmulOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -3363,6 +3412,12 @@ public:
                                 PatternRewriter &rewriter) const override {
     Value lhs = op.getSelf();
     Value rhs = op.getOther();
+
+    if (Value replacement =
+            getEmptyMatmulReplacement(op.getType(), lhs, rhs)) {
+      rewriter.replaceOp(op, replacement);
+      return success();
+    }
 
     std::optional<unsigned> maybeLhsRank = getTensorRank(lhs);
     std::optional<unsigned> maybeRhsRank = getTensorRank(rhs);
@@ -3403,6 +3458,38 @@ public:
       return failure();
     }
 
+    return success();
+  }
+};
+
+class SimplifyEmptyBmmOp : public OpRewritePattern<AtenBmmOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenBmmOp op,
+                                PatternRewriter &rewriter) const override {
+    Value lhs = op.getSelf();
+    Value rhs = op.getMat2();
+    Value replacement = getEmptyMatmulReplacement(op.getType(), lhs, rhs);
+    if (!replacement)
+      return failure();
+    rewriter.replaceOp(op, replacement);
+    eraseDeadMatmulShapeOps(rewriter, lhs);
+    eraseDeadMatmulShapeOps(rewriter, rhs);
+    return success();
+  }
+};
+
+class SimplifyEmptyViewOp : public OpRewritePattern<AtenViewOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenViewOp op,
+                                PatternRewriter &rewriter) const override {
+    auto resultType = dyn_cast<BaseTensorType>(op.getType());
+    if (!resultType || !resultType.hasSizes() ||
+        !llvm::is_contained(resultType.getSizes(), 0) ||
+        op.getSelf().getType() != resultType)
+      return failure();
+    rewriter.replaceOp(op, op.getSelf());
     return success();
   }
 };
@@ -13311,6 +13398,8 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenStftCenterOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSelectIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMatmulOp>(patterns);
+    addPatternIfTargetOpIsIllegal<SimplifyEmptyBmmOp>(patterns);
+    addPatternIfTargetOpIsIllegal<SimplifyEmptyViewOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMvOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRenormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLinalgCrossOp>(patterns);

@@ -10,6 +10,29 @@ func.func @matmul_no_decompose(%arg0: !torch.vtensor<[?,?,?,?,?],f32>, %arg1: !t
 
 // -----
 
+// CHECK-LABEL: func.func @matmul_empty_output
+// CHECK-SAME: %[[LHS:.*]]: !torch.vtensor<[0,0],f32>, %[[RHS:.*]]: !torch.vtensor<[5,0,0],f32>
+// CHECK-NOT: torch.aten.broadcast_to
+// CHECK-NOT: torch.aten.view
+// CHECK-NOT: torch.aten.bmm
+// CHECK: return %[[RHS]] : !torch.vtensor<[5,0,0],f32>
+func.func @matmul_empty_output(%arg0: !torch.vtensor<[0,0],f32>, %arg1: !torch.vtensor<[5,0,0],f32>) -> !torch.vtensor<[5,0,0],f32> {
+  %int5 = torch.constant.int 5
+  %int0 = torch.constant.int 0
+  %shape = torch.prim.ListConstruct %int5, %int0, %int0 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %false = torch.constant.bool false
+  %lhs = torch.aten.expand %arg0, %shape, %false : !torch.vtensor<[0,0],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[5,0,0],f32>
+  %lhs_view = torch.aten.view %lhs, %shape : !torch.vtensor<[5,0,0],f32>, !torch.list<int> -> !torch.vtensor<[5,0,0],f32>
+  %rhs = torch.aten.expand %arg1, %shape, %false : !torch.vtensor<[5,0,0],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[5,0,0],f32>
+  %rhs_view = torch.aten.view %rhs, %shape : !torch.vtensor<[5,0,0],f32>, !torch.list<int> -> !torch.vtensor<[5,0,0],f32>
+  %bmm = torch.aten.bmm %lhs_view, %rhs_view : !torch.vtensor<[5,0,0],f32>, !torch.vtensor<[5,0,0],f32> -> !torch.vtensor<[5,0,0],f32>
+  %result = torch.aten.view %bmm, %shape : !torch.vtensor<[5,0,0],f32>, !torch.list<int> -> !torch.vtensor<[5,0,0],f32>
+  return %result : !torch.vtensor<[5,0,0],f32>
+}
+
+
+// -----
+
 // CHECK-LABEL:   func.func @matmul_decompose_2d
 // CHECK:           torch.aten.mm %arg0, %arg1 : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],f32> -> !torch.tensor
 func.func @matmul_decompose_2d(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.vtensor<[?,?],f32>) -> !torch.tensor {
