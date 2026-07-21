@@ -2127,6 +2127,33 @@ def EmbeddingModule1DIndices_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class EmbeddingForwardFlagsModule(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([10, 4], torch.float32, True),
+            ([2, 2], torch.int32, True),
+        ]
+    )
+    def forward(self, weight, indices):
+        scale_grad_by_freq = torch.nn.functional.embedding(
+            indices, weight, padding_idx=-1, scale_grad_by_freq=True
+        )
+        sparse = torch.nn.functional.embedding(
+            indices, weight, padding_idx=-1, sparse=True
+        )
+        return scale_grad_by_freq, sparse
+
+
+@register_test_case(module_factory=lambda: EmbeddingForwardFlagsModule())
+def EmbeddingForwardFlagsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(10, 4), tu.randint(2, 2, high=10).to(torch.int32))
+
+
+# ==============================================================================
+
+
 class SoftmaxIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
