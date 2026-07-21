@@ -12433,6 +12433,94 @@ public:
 } // namespace
 
 namespace {
+// Decompose aten.index_add into aten.scatter_add.
+class DecomposeAtenIndexAddOp : public OpRewritePattern<AtenIndexAddOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenIndexAddOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value index = op.getIndex();
+    Value source = op.getSource();
+
+    auto selfType = cast<BaseTensorType>(self.getType());
+    auto sourceType = cast<BaseTensorType>(source.getType());
+    if (!selfType.hasSizes() || !sourceType.hasSizes())
+      return rewriter.notifyMatchFailure(
+          op, "self and source must have known sizes");
+
+    int64_t dim;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+      return rewriter.notifyMatchFailure(op, "dim must be constant");
+
+    int64_t sourceRank = sourceType.getSizes().size();
+    dim = toPositiveDim(dim, sourceRank);
+    if (!isValidDim(dim, sourceRank))
+      return rewriter.notifyMatchFailure(op, "dim out of range");
+
+    auto indexType = cast<BaseTensorType>(index.getType());
+    if (!indexType.hasSizes() || indexType.getSizes().size() != 1)
+      return rewriter.notifyMatchFailure(op, "index must be rank-1");
+
+    // If alpha is present, multiply source by alpha before scatter_add.
+    if (!isa<Torch::NoneType>(op.getAlpha().getType())) {
+      source = AtenMulScalarOp::create(rewriter, loc, sourceType, source,
+                                       op.getAlpha());
+    }
+
+    // Pad index to the same rank as source, with 1s in all dimensions except
+    // dim.
+    SmallVector<Value> reshapeSizes(
+        sourceRank, Torch::ConstantIntOp::create(
+                        rewriter, loc, rewriter.getI64IntegerAttr(1)));
+    Value indexLen = AtenSizeIntOp::create(
+        rewriter, loc, index,
+        Torch::ConstantIntOp::create(rewriter, loc,
+                                     rewriter.getI64IntegerAttr(0)));
+    reshapeSizes[dim] = indexLen;
+
+    SmallVector<int64_t> reshapeShape(sourceRank, 1);
+    reshapeShape[dim] = indexType.getSizes()[0];
+    Type reshapedIndexType = indexType.getWithSizesAndDtype(
+        reshapeShape, indexType.getOptionalDtype());
+
+    Value reshapeSizesList = Torch::PrimListConstructOp::create(
+        rewriter, loc,
+        Torch::ListType::get(Torch::IntType::get(rewriter.getContext())),
+        reshapeSizes);
+    Value indexReshaped = AtenViewOp::create(rewriter, loc, reshapedIndexType,
+                                             index, reshapeSizesList);
+
+    // Expand reshaped index out to source's shape.
+    SmallVector<Value> expandSizes;
+    for (int64_t i = 0; i < sourceRank; ++i) {
+      expandSizes.push_back(AtenSizeIntOp::create(
+          rewriter, loc, source,
+          Torch::ConstantIntOp::create(rewriter, loc,
+                                       rewriter.getI64IntegerAttr(i))));
+    }
+    Value expandSizesList = Torch::PrimListConstructOp::create(
+        rewriter, loc,
+        Torch::ListType::get(Torch::IntType::get(rewriter.getContext())),
+        expandSizes);
+    Type expandedIndexType = indexType.getWithSizesAndDtype(
+        sourceType.getSizes(), indexType.getOptionalDtype());
+    Value falseVal = Torch::ConstantBoolOp::create(rewriter, loc, false);
+    Value indexExpanded =
+        AtenExpandOp::create(rewriter, loc, expandedIndexType, indexReshaped,
+                             expandSizesList, falseVal);
+
+    // Perform the scatter_add operation.
+    Value result = AtenScatterAddOp::create(rewriter, loc, selfType, self,
+                                            op.getDim(), indexExpanded, source);
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Unconditionally decompose `aten.tile` into `aten.repeat`.
 class DecomposeAtenTileOp : public OpRewritePattern<AtenTileOp> {
 public:
@@ -13421,6 +13509,7 @@ public:
         DecomposeAtenIndexPutLikeOp<Aten_UnsafeIndexPutHackedTwinOp>>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeAtenIndexPutLikeOp<Aten_IndexPutImplOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenIndexAddOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenPadOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenToDtypeLayoutOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenToDeviceOp>(patterns);
