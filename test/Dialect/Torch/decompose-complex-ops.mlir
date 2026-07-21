@@ -1228,4 +1228,31 @@ func.func @mean_dim_scalar_negative_dim(%arg0: !torch.vtensor<[],f32>) -> !torch
   %dtype = torch.constant.none
   %0 = torch.aten.mean.dim %arg0, %dims, %keepdim, %dtype : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[],f32>
   return %0 : !torch.vtensor<[],f32>
+ }
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.diag_1d
+// CHECK: %[[OFFSET:.*]] = torch.constant.int 0
+// CHECK: %[[DIM1:.*]] = torch.constant.int -2
+// CHECK: %[[DIM2:.*]] = torch.constant.int -1
+// CHECK: %[[RESULT:.*]] = torch.aten.diag_embed %arg0, %[[OFFSET]], %[[DIM1]], %[[DIM2]] : !torch.vtensor<[3],f32>, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[3,3],f32>
+// CHECK: return %[[RESULT]]
+func.func @torch.aten.diag_1d(%arg0: !torch.vtensor<[3],f32>) -> !torch.vtensor<[3,3],f32> {
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.diag %arg0, %int0 : !torch.vtensor<[3],f32>, !torch.int -> !torch.vtensor<[3,3],f32>
+  return %0 : !torch.vtensor<[3,3],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.diag_2d
+// CHECK: %[[ZERO:.*]] = torch.constant.int 0
+// CHECK: %[[DIM2:.*]] = torch.constant.int 1
+// CHECK: %[[RESULT:.*]] = torch.aten.diagonal %arg0, %[[ZERO]], %[[ZERO]], %[[DIM2]] : !torch.vtensor<[3,4],f32>, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[3],f32>
+// CHECK: return %[[RESULT]]
+func.func @torch.aten.diag_2d(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3],f32> {
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.diag %arg0, %int0 : !torch.vtensor<[3,4],f32>, !torch.int -> !torch.vtensor<[3],f32>
+  return %0 : !torch.vtensor<[3],f32>
 }

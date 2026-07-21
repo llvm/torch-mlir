@@ -1555,6 +1555,23 @@ def aten〇diag_embed〡shape(self: List[int], offset: int = 0, dim1: int = -2, 
     return _diag_embed_shape_helper(self, offset, dim1, dim2)
 
 @check_shape_function([
+    Invocation(TensorOfShape(3), diagonal=0), # 1D input, no offset.
+    Invocation(TensorOfShape(3), diagonal=1), # 1D input, positive offset.
+    Invocation(TensorOfShape(3), diagonal=-1), # 1D input, negative offset.
+    Invocation(TensorOfShape(3, 4), diagonal=0), # 2D input, no offset.
+    Invocation(TensorOfShape(3, 4), diagonal=1), # 2D input, positive offset.
+    Invocation(TensorOfShape(3, 4), diagonal=-1), # 2D input, negative offset.
+    ErrorInvocation(TensorOfShape(2, 3, 4)), # Input must be 1D or 2D.
+])
+def aten〇diag〡shape(self: List[int], diagonal: int = 0) -> List[int]:
+    assert len(self) in (1, 2), "Input must be 1-d or 2-d"
+    if len(self) == 1:
+        n = self[0] + abs(diagonal)
+        return [n, n]
+    else:
+        return aten〇diagonal〡shape(self, offset=diagonal, dim1=0, dim2=1)
+
+@check_shape_function([
     Invocation(TensorOfShape(2, 3, 4)), # Basic case.
     Invocation(TensorOfShape(5, 3, 4), k = 5, dims=(1, 2,)), # multiple times rotation
     Invocation(TensorOfShape(3, 5, 2), k = -2), # neagtive direction, remainder=2
@@ -5953,6 +5970,11 @@ def aten〇new_empty_strided〡dtype(self_rank_dtype: Tuple[int, int], size: Lis
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇diag_embed〡dtype(self_rank_dtype: Tuple[int, int], offset: int = 0, dim1: int = -2, dim2: int = -1) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇diag〡dtype(self_rank_dtype: Tuple[int, int], diagonal: int = 0) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 

@@ -2201,6 +2201,52 @@ private:
 } // namespace
 
 namespace {
+// Decompose `aten.diag` into `aten.diagonal` (2D input) or
+// `aten.diag_embed` (1D input).
+//
+// For 1D input: creates a 2D matrix with the input on the diagonal.
+// For 2D input: extracts the diagonal of the matrix.
+class DecomposeAtenDiagOp : public OpRewritePattern<AtenDiagOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenDiagOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value diagonal = op.getDiagonal();
+
+    std::optional<unsigned> inRank = getTensorRank(self);
+    if (!inRank)
+      return rewriter.notifyMatchFailure(op, "Expected input to have a rank.");
+
+    if (*inRank == 1) {
+      // 1D -> 2D: use diag_embed with default dim1=-2, dim2=-1
+      Value minusTwo =
+          ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(-2));
+      Value minusOne =
+          ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(-1));
+      rewriter.replaceOpWithNewOp<AtenDiagEmbedOp>(
+          op, op.getType(), self, /*offset=*/diagonal, /*dim1=*/minusTwo,
+          /*dim2=*/minusOne);
+    } else if (*inRank == 2) {
+      // 2D -> 1D: use diagonal with dim1=0, dim2=1
+      Value zero =
+          ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
+      Value one =
+          ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
+      rewriter.replaceOpWithNewOp<AtenDiagonalOp>(
+          op, op.getType(), self, /*offset=*/diagonal, /*dim1=*/zero,
+          /*dim2=*/one);
+    } else {
+      return rewriter.notifyMatchFailure(
+          op, "Expected input tensor to have rank 1 or 2.");
+    }
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Calculate the trace of the input tensor as the sum over its diagonal
 // elements. This computation is performed as:
 //
@@ -13391,6 +13437,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenAtleast2dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenEinsumOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_TrilinearOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenDiagOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTraceOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardswishOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSoftplusOp>(patterns);
