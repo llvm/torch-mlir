@@ -4320,17 +4320,26 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               /*include_self=*/constTrue);
         }
 
-        // step 11. Unflatten the collapsed data dims of scatter result.
+        // step 11. Unflatten the collapsed indexed prefix of the scatter
+        // result to restore the original data shape. Step 9 flattened only
+        // dims [0 .. indicesLastDim-1] of data into a single leading axis;
+        // the trailing dims [indicesLastDim .. dataRank-1] were preserved
+        // through scatter and are already in place. The inverse is therefore
+        // an unflatten of axis 0 alone, splitting it back into
+        // dataDims[0:indicesLastDim].
         if (indicesLastDim == 1) {
           rewriter.replaceOp(binder.op, scatter);
           return success();
         }
+        SmallVector<Value> collapsedDataDims(dataDims.begin(),
+                                             dataDims.begin() + indicesLastDim);
         Value unflattenSizeList = Torch::PrimListConstructOp::create(
-            rewriter, loc, intListTy, dataDims);
+            rewriter, loc, intListTy, collapsedDataDims);
         rewriter.replaceOpWithNewOp<Torch::AtenUnflattenIntOp>(
             binder.op, resultType, scatter, constZero, unflattenSizeList);
         return success();
       });
+
   // split to sequence
   // Arguments:
   // - input: the tensor to split
