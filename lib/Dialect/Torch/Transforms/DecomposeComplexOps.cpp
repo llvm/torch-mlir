@@ -9189,51 +9189,34 @@ class DecomposeAtenPadOp : public OpRewritePattern<AtenPadOp> {
     }
 
     uint64_t numPadDims = usefulPadIndexEnd / 2;
+#define HANDLE_PAD_MODE(MODE, PAD_CLASS)                                       \
+  if (mode == #MODE) {                                                         \
+    switch (numPadDims) {                                                      \
+    case 1:                                                                    \
+      rewriter.replaceOpWithNewOp<PAD_CLASS##1dOp>(op, op.getType(),           \
+                                                   op.getSelf(), usefulPads);  \
+      break;                                                                   \
+    case 2:                                                                    \
+      rewriter.replaceOpWithNewOp<PAD_CLASS##2dOp>(op, op.getType(),           \
+                                                   op.getSelf(), usefulPads);  \
+      break;                                                                   \
+    case 3:                                                                    \
+      rewriter.replaceOpWithNewOp<PAD_CLASS##3dOp>(op, op.getType(),           \
+                                                   op.getSelf(), usefulPads);  \
+      break;                                                                   \
+    default:                                                                   \
+      return rewriter.notifyMatchFailure(                                      \
+          op, "unsupported number of dims for '" #MODE "' mode: " +            \
+                  std::to_string(numPadDims));                                 \
+    }                                                                          \
+    return success();                                                          \
+  }
 
-    if (mode == "reflect") {
-      // only support for relectionpad 1d and 2d
-      switch (numPadDims) {
-      case 1:
-        rewriter.replaceOpWithNewOp<AtenReflectionPad1dOp>(
-            op, op.getType(), op.getSelf(), usefulPads);
-        break;
-      case 2:
-        rewriter.replaceOpWithNewOp<AtenReflectionPad2dOp>(
-            op, op.getType(), op.getSelf(), usefulPads);
-        break;
-      case 3:
-        rewriter.replaceOpWithNewOp<AtenReflectionPad3dOp>(
-            op, op.getType(), op.getSelf(), usefulPads);
-        break;
-      default:
-        return rewriter.notifyMatchFailure(
-            op, "unsupported number of dims for 'reflect' mode: " +
-                    std::to_string(numPadDims));
-      }
-      return success();
-    }
+    HANDLE_PAD_MODE(reflect, AtenReflectionPad)
+    HANDLE_PAD_MODE(replicate, AtenReplicationPad)
+    HANDLE_PAD_MODE(circular, AtenCircularPad)
 
-    if (mode == "replicate") {
-      switch (numPadDims) {
-      case 1:
-        rewriter.replaceOpWithNewOp<AtenReplicationPad1dOp>(
-            op, op.getType(), op.getSelf(), usefulPads);
-        break;
-      case 2:
-        rewriter.replaceOpWithNewOp<AtenReplicationPad2dOp>(
-            op, op.getType(), op.getSelf(), usefulPads);
-        break;
-      case 3:
-        rewriter.replaceOpWithNewOp<AtenReplicationPad3dOp>(
-            op, op.getType(), op.getSelf(), usefulPads);
-        break;
-      default:
-        return rewriter.notifyMatchFailure(
-            op, "unsupported number of dims for 'replicate' mode: " +
-                    std::to_string(numPadDims));
-      }
-      return success();
-    }
+#undef HANDLE_PAD_MODE
 
     return rewriter.notifyMatchFailure(op, "unsupported mode: " + mode);
   }

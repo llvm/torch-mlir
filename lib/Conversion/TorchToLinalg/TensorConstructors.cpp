@@ -11,6 +11,7 @@
 
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/IR/Matchers.h"
@@ -27,6 +28,39 @@ using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
 enum sliceLoc { START = 0, END = 1 };
+
+static Value castToIndexType(OpBuilder &b, Location loc, OpFoldResult ofr) {
+  if (auto value = dyn_cast<Value>(ofr)) {
+    if (!isa<IndexType>(value.getType()))
+      return b.createOrFold<arith::IndexCastOp>(loc, b.getIndexType(), value);
+    return value;
+  }
+  auto attr = dyn_cast<IntegerAttr>(dyn_cast<Attribute>(ofr));
+  assert(attr && "expect the op fold result casts to an integer attribute");
+  return arith::ConstantIndexOp::create(b, loc, attr.getValue().getSExtValue())
+      .getResult();
+}
+
+static OpFoldResult addOFRs(OpBuilder &builder, Location loc, OpFoldResult lhs,
+                            OpFoldResult rhs) {
+  auto lhsIntAttr = getConstantIntValue(lhs);
+  auto rhsIntAttr = getConstantIntValue(rhs);
+
+  // Shortcut for special cases.
+  if (!lhsIntAttr && rhsIntAttr && rhsIntAttr.value() == 0)
+    return lhs;
+  if (!rhsIntAttr && lhsIntAttr && lhsIntAttr.value() == 0)
+    return rhs;
+
+  // Both lhs and rhs are constants, return result directly.
+  if (lhsIntAttr && rhsIntAttr)
+    return builder.getIndexAttr(lhsIntAttr.value() + rhsIntAttr.value());
+
+  // Otherwise, need to create instructions to calculate new attribute value.
+  auto lhsValue = castToIndexType(builder, loc, lhs);
+  auto rhsValue = castToIndexType(builder, loc, rhs);
+  return arith::AddIOp::create(builder, loc, lhsValue, rhsValue).getResult();
+}
 
 static Value extractSlice(ConversionPatternRewriter &rewriter, Location loc,
                           Value input, int64_t dimension, sliceLoc sliceLoc) {
@@ -570,6 +604,112 @@ public:
 };
 } // namespace
 
+namespace {
+template <typename OpTy, int64_t SpatialDims>
+class ConvertAtenCircularPadOp : public OpConversionPattern<OpTy> {
+  using OpConversionPattern<OpTy>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(OpTy op, typename OpTy::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter))) {
+      return failure();
+    }
+
+    SmallVector<int64_t> padInts;
+    if (!matchPattern(op.getPadding(), m_TorchListOfConstantInts(padInts))) {
+      return rewriter.notifyMatchFailure(
+          op, "only support constant int pad ranges");
+    }
+
+    SmallVector<int64_t> lowPadding, highPadding;
+    // padInts = [l, r, t, b] (or [l, r, t, b, f, bk] for 3D)
+    // Reverse iteration to get low=[t, l] and high=[b, r].
+    for (auto it = padInts.rbegin(); it != padInts.rend(); it += 2) {
+      highPadding.push_back(*it);
+      lowPadding.push_back(*(it + 1));
+    }
+
+    Value input = adaptor.getSelf();
+    auto outputType = cast<RankedTensorType>(
+        this->getTypeConverter()->convertType(op->getResult(0).getType()));
+
+    int64_t outputRank = outputType.getRank();
+    int64_t firstSpatialDim = outputRank - SpatialDims;
+
+    Location loc = op.getLoc();
+    SmallVector<OpFoldResult> inputMixedSizes =
+        tensor::getMixedSizes(rewriter, loc, input);
+    SmallVector<OpFoldResult> reifiedOutputDims;
+
+    for (const auto &[idx, inputDim, resultDim] :
+         llvm::enumerate(inputMixedSizes, outputType.getShape())) {
+      if (ShapedType::isStatic(resultDim)) {
+        reifiedOutputDims.push_back(rewriter.getIndexAttr(resultDim));
+        continue;
+      }
+      if (static_cast<int64_t>(idx) < firstSpatialDim) {
+        reifiedOutputDims.push_back(inputDim);
+        continue;
+      }
+
+      int64_t padDim = idx - firstSpatialDim;
+      reifiedOutputDims.push_back(
+          addOFRs(rewriter, loc,
+                  addOFRs(rewriter, loc, inputDim,
+                          rewriter.getIndexAttr(lowPadding[padDim])),
+                  rewriter.getIndexAttr(highPadding[padDim])));
+    }
+
+    Value output = tensor::EmptyOp::create(rewriter, loc, reifiedOutputDims,
+                                           outputType.getElementType());
+    SmallVector<AffineMap> indexingMaps(
+        1, rewriter.getMultiDimIdentityMap(outputRank));
+    SmallVector<utils::IteratorType> iteratorTypes(
+        outputRank, utils::IteratorType::parallel);
+
+    Value zero = arith::ConstantIndexOp::create(rewriter, loc, 0);
+
+    output =
+        linalg::GenericOp::create(
+            rewriter, loc, output.getType(), ValueRange{}, output,
+            /*indexingMaps=*/indexingMaps,
+            /*iteratorTypes=*/iteratorTypes,
+            [&](OpBuilder &b, Location loc, ValueRange args) {
+              SmallVector<Value> indices;
+              for (int64_t idx : llvm::seq<int64_t>(outputRank)) {
+                Value dim = linalg::IndexOp::create(b, loc, idx);
+                if (idx < firstSpatialDim) {
+                  indices.push_back(dim);
+                  continue;
+                }
+                int64_t padDim = idx - firstSpatialDim;
+                Value relativeCoord = arith::SubIOp::create(
+                    b, loc, dim,
+                    arith::ConstantIndexOp::create(b, loc, lowPadding[padDim]));
+                Value inputDimSize = getValueOrCreateConstantIndexOp(
+                    b, loc, inputMixedSizes[idx]);
+                Value modResult =
+                    arith::RemSIOp::create(b, loc, relativeCoord, inputDimSize);
+                Value addResult =
+                    arith::AddIOp::create(b, loc, relativeCoord, inputDimSize);
+                Value isNegative = arith::CmpIOp::create(
+                    b, loc, arith::CmpIPredicate::slt, relativeCoord, zero);
+                Value adjustedCoord = arith::SelectOp::create(
+                    b, loc, isNegative, addResult, modResult);
+                indices.push_back(adjustedCoord);
+              }
+              Value extract = tensor::ExtractOp::create(b, loc, input, indices);
+              linalg::YieldOp::create(b, loc, extract);
+            })
+            ->getResult(0);
+    Value cast = rewriter.createOrFold<tensor::CastOp>(loc, outputType, output);
+    rewriter.replaceOp(op, cast);
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::
     populateTensorConstructorsPatternsAndLegality(TypeConverter &typeConverter,
                                                   RewritePatternSet &patterns,
@@ -592,4 +732,12 @@ void mlir::torch::torch_to_linalg::
   patterns.add<ConvertAtenEmptyMemoryFormatOp>(typeConverter, context);
   patterns.add<ConvertAtenArangeStartStepOp>(typeConverter, context);
   target.addIllegalOp<AtenArangeStartStepOp>();
+  patterns.add<ConvertAtenCircularPadOp<AtenCircularPad1dOp, 1>>(typeConverter,
+                                                                 context);
+  patterns.add<ConvertAtenCircularPadOp<AtenCircularPad2dOp, 2>>(typeConverter,
+                                                                 context);
+  patterns.add<ConvertAtenCircularPadOp<AtenCircularPad3dOp, 3>>(typeConverter,
+                                                                 context);
+  target.addIllegalOp<AtenCircularPad1dOp, AtenCircularPad2dOp,
+                      AtenCircularPad3dOp>();
 }
