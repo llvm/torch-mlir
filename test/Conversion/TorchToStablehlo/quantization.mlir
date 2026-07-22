@@ -36,3 +36,125 @@ func.func @test_quantization_per_channel(%arg0: !torch.vtensor<[4,3,7,7],f32>) -
   %5 = torch.aten.dequantize.self %4 : !torch.vtensor<[4,3,7,7],!torch.qint8> -> !torch.vtensor<[4,3,7,7],f32>
   return %5 : !torch.vtensor<[4,3,7,7],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @quantize_per_tensor_basic
+// CHECK-SAME:    %[[ARG0:.+]]: !torch.vtensor<[4,8],f32>
+func.func @quantize_per_tensor_basic(%arg0: !torch.vtensor<[4,8],f32>) -> !torch.vtensor<[4,8],si8> {
+  %float0.03 = torch.constant.float 3.000000e-02
+  %int_neg10 = torch.constant.int -10
+  %int_neg128 = torch.constant.int -128
+  %int127 = torch.constant.int 127
+  %int1 = torch.constant.int 1
+  // CHECK: %[[INPUT:.+]] = torch_c.to_builtin_tensor %[[ARG0]]
+  // CHECK-SAME: !torch.vtensor<[4,8],f32> -> tensor<4x8xf32>
+  // CHECK-DAG: %[[INV_SCALE:.+]] = stablehlo.constant dense<33.333{{.+}}> : tensor<f32>
+  // CHECK: %[[INV_SCALE_BCAST:.+]] = stablehlo.broadcast_in_dim %[[INV_SCALE]], dims = []
+  // CHECK: %[[SCALED:.+]] = stablehlo.multiply %[[INPUT]], %[[INV_SCALE_BCAST]]
+  // CHECK: %[[ROUNDED:.+]] = stablehlo.round_nearest_even %[[SCALED]]
+  // CHECK-DAG: %[[ZP:.+]] = stablehlo.constant dense<-1.000000e+01> : tensor<f32>
+  // CHECK: %[[ZP_BCAST:.+]] = stablehlo.broadcast_in_dim %[[ZP]], dims = []
+  // CHECK: %[[SHIFTED:.+]] = stablehlo.add %[[ROUNDED]], %[[ZP_BCAST]]
+  // CHECK-DAG: %[[QMIN:.+]] = stablehlo.constant dense<-1.280000e+02> : tensor<f32>
+  // CHECK-DAG: %[[QMAX:.+]] = stablehlo.constant dense<1.270000e+02> : tensor<f32>
+  // CHECK: %[[CLAMPED:.+]] = stablehlo.clamp %[[QMIN]], %[[SHIFTED]], %[[QMAX]]
+  // CHECK: %{{.+}} = stablehlo.convert %[[CLAMPED]] : (tensor<4x8xf32>) -> tensor<4x8xi8>
+  %0 = torch.quantized_decomposed.quantize_per_tensor %arg0, %float0.03, %int_neg10, %int_neg128, %int127, %int1
+    : !torch.vtensor<[4,8],f32>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int
+    -> !torch.vtensor<[4,8],si8>
+  return %0 : !torch.vtensor<[4,8],si8>
+}
+
+// -----
+
+// Dynamic scale should fail to legalize (no CHECK-LABEL here as conversion fails).
+func.func @quantize_per_tensor_dynamic_scale(%arg0: !torch.vtensor<[4,8],f32>, %scale: !torch.float) -> !torch.vtensor<[4,8],si8> {
+  %int0 = torch.constant.int 0
+  %int_neg128 = torch.constant.int -128
+  %int127 = torch.constant.int 127
+  %int1 = torch.constant.int 1
+  // expected-error @+1 {{failed to legalize operation 'torch.quantized_decomposed.quantize_per_tensor' that was explicitly marked illegal}}
+  %0 = torch.quantized_decomposed.quantize_per_tensor %arg0, %scale, %int0, %int_neg128, %int127, %int1
+    : !torch.vtensor<[4,8],f32>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int
+    -> !torch.vtensor<[4,8],si8>
+  return %0 : !torch.vtensor<[4,8],si8>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @dequantize_per_tensor_basic
+// CHECK-SAME:    %[[ARG0:.+]]: !torch.vtensor<[4,8],si8>
+func.func @dequantize_per_tensor_basic(%arg0: !torch.vtensor<[4,8],si8>) -> !torch.vtensor<[4,8],f32> {
+  %float0.03 = torch.constant.float 3.000000e-02
+  %int_neg10 = torch.constant.int -10
+  %int_neg128 = torch.constant.int -128
+  %int127 = torch.constant.int 127
+  %int1 = torch.constant.int 1
+  %int6 = torch.constant.int 6
+  // CHECK: %[[INPUT:.+]] = torch_c.to_builtin_tensor %[[ARG0]]
+  // CHECK-SAME: !torch.vtensor<[4,8],si8> -> tensor<4x8xi8>
+  // CHECK: %[[INT_WIDE:.+]] = stablehlo.convert %[[INPUT]] : (tensor<4x8xi8>) -> tensor<4x8xi32>
+  // CHECK-DAG: %[[ZP:.+]] = stablehlo.constant dense<-10> : tensor<i32>
+  // CHECK: %[[ZP_BCAST:.+]] = stablehlo.broadcast_in_dim %[[ZP]], dims = []
+  // CHECK: %[[SUBTR:.+]] = stablehlo.subtract %[[INT_WIDE]], %[[ZP_BCAST]]
+  // CHECK: %[[AS_FLOAT:.+]] = stablehlo.convert %[[SUBTR]] : (tensor<4x8xi32>) -> tensor<4x8xf32>
+  // CHECK-DAG: %[[SCALE:.+]] = stablehlo.constant dense<3.000000e-02> : tensor<f32>
+  // CHECK: %[[SCALE_BCAST:.+]] = stablehlo.broadcast_in_dim %[[SCALE]], dims = []
+  // CHECK: %{{.+}} = stablehlo.multiply %[[AS_FLOAT]], %[[SCALE_BCAST]]
+  %0 = torch.quantized_decomposed.dequantize_per_tensor %arg0, %float0.03, %int_neg10, %int_neg128, %int127, %int1, %int6
+    : !torch.vtensor<[4,8],si8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int
+    -> !torch.vtensor<[4,8],f32>
+  return %0 : !torch.vtensor<[4,8],f32>
+}
+
+// -----
+
+// Dynamic scale should fail to legalize.
+func.func @dequantize_per_tensor_dynamic_scale(%arg0: !torch.vtensor<[4,8],si8>, %scale: !torch.float) -> !torch.vtensor<[4,8],f32> {
+  %int0 = torch.constant.int 0
+  %int_neg128 = torch.constant.int -128
+  %int127 = torch.constant.int 127
+  %int1 = torch.constant.int 1
+  %int6 = torch.constant.int 6
+  // expected-error @+1 {{failed to legalize operation 'torch.quantized_decomposed.dequantize_per_tensor' that was explicitly marked illegal}}
+  %0 = torch.quantized_decomposed.dequantize_per_tensor %arg0, %scale, %int0, %int_neg128, %int127, %int1, %int6
+    : !torch.vtensor<[4,8],si8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int
+    -> !torch.vtensor<[4,8],f32>
+  return %0 : !torch.vtensor<[4,8],f32>
+}
+
+// -----
+
+// Zero scale on quantize should fail to legalize (quantize divides by scale).
+func.func @quantize_per_tensor_zero_scale(%arg0: !torch.vtensor<[4,8],f32>) -> !torch.vtensor<[4,8],si8> {
+  %float0 = torch.constant.float 0.000000e+00
+  %int_neg10 = torch.constant.int -10
+  %int_neg128 = torch.constant.int -128
+  %int127 = torch.constant.int 127
+  %int1 = torch.constant.int 1
+  // expected-error @+1 {{failed to legalize operation 'torch.quantized_decomposed.quantize_per_tensor' that was explicitly marked illegal}}
+  %0 = torch.quantized_decomposed.quantize_per_tensor %arg0, %float0, %int_neg10, %int_neg128, %int127, %int1
+    : !torch.vtensor<[4,8],f32>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int
+    -> !torch.vtensor<[4,8],si8>
+  return %0 : !torch.vtensor<[4,8],si8>
+}
+
+// -----
+
+// Dequantize with a dynamic (SSA) quant_min still legalizes -- quant_min /
+// quant_max are metadata unused by the dequantize arithmetic.
+// CHECK-LABEL: func.func @dequantize_per_tensor_dynamic_quant_min
+func.func @dequantize_per_tensor_dynamic_quant_min(%arg0: !torch.vtensor<[4,8],si8>, %qmin: !torch.int) -> !torch.vtensor<[4,8],f32> {
+  %float0.03 = torch.constant.float 3.000000e-02
+  %int_neg10 = torch.constant.int -10
+  %int127 = torch.constant.int 127
+  %int1 = torch.constant.int 1
+  %int6 = torch.constant.int 6
+  // CHECK: stablehlo.subtract
+  // CHECK: stablehlo.multiply
+  %0 = torch.quantized_decomposed.dequantize_per_tensor %arg0, %float0.03, %int_neg10, %qmin, %int127, %int1, %int6
+    : !torch.vtensor<[4,8],si8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int
+    -> !torch.vtensor<[4,8],f32>
+  return %0 : !torch.vtensor<[4,8],f32>
+}
