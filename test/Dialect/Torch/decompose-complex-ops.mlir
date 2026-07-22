@@ -1,5 +1,75 @@
 // RUN: torch-mlir-opt -torch-decompose-complex-ops -split-input-file %s | FileCheck %s
 
+// CHECK-LABEL: func.func @zero_k_mm_after_empty_view(
+// CHECK-NOT:     torch.aten.mm
+// CHECK:         %[[ZERO:.*]] = torch.vtensor.literal(dense<0.000000e+00> : tensor<5x5x5xf32>) : !torch.vtensor<[5,5,5],f32>
+// CHECK:         return %[[ZERO]]
+func.func @zero_k_mm_after_empty_view(%arg0: !torch.vtensor<[5,5,0],f32>, %arg1: !torch.vtensor<[0,5],f32>) -> !torch.vtensor<[5,5,5],f32> {
+  %int25 = torch.constant.int 25
+  %int0 = torch.constant.int 0
+  %0 = torch.prim.ListConstruct %int25, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.view %arg0, %0 : !torch.vtensor<[5,5,0],f32>, !torch.list<int> -> !torch.vtensor<[25,0],f32>
+  %2 = torch.aten.mm %1, %arg1 : !torch.vtensor<[25,0],f32>, !torch.vtensor<[0,5],f32> -> !torch.vtensor<[25,5],f32>
+  %int5 = torch.constant.int 5
+  %result_shape = torch.prim.ListConstruct %int5, %int5, %int5 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %3 = torch.aten.view %2, %result_shape : !torch.vtensor<[25,5],f32>, !torch.list<int> -> !torch.vtensor<[5,5,5],f32>
+  return %3 : !torch.vtensor<[5,5,5],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @casted_zero_k_mm(
+// CHECK-NOT:     torch.aten.mm
+// CHECK:         %[[ZERO:.*]] = torch.vtensor.literal(dense<0.000000e+00> : tensor<5x10xf32>) : !torch.vtensor<[5,10],f32>
+// CHECK:         return %[[ZERO]]
+func.func @casted_zero_k_mm(%arg0: !torch.vtensor<[5,0],f16>, %arg1: !torch.vtensor<[0,10],f16>) -> !torch.vtensor<[5,10],f32> {
+  %int6 = torch.constant.int 6
+  %0 = torch.prims.convert_element_type %arg0, %int6 : !torch.vtensor<[5,0],f16>, !torch.int -> !torch.vtensor<[5,0],f32>
+  %1 = torch.prims.convert_element_type %arg1, %int6 : !torch.vtensor<[0,10],f16>, !torch.int -> !torch.vtensor<[0,10],f32>
+  %2 = torch.aten.mm %0, %1 : !torch.vtensor<[5,0],f32>, !torch.vtensor<[0,10],f32> -> !torch.vtensor<[5,10],f32>
+  return %2 : !torch.vtensor<[5,10],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @casted_zero_k_matmul(
+// CHECK-NOT:     torch.aten.matmul
+// CHECK-NOT:     torch.aten.mm
+// CHECK:         %[[ZERO:.*]] = torch.vtensor.literal(dense<0.000000e+00> : tensor<5x10xf32>) : !torch.vtensor<[5,10],f32>
+// CHECK:         return %[[ZERO]]
+func.func @casted_zero_k_matmul(%arg0: !torch.vtensor<[5,0],f16>, %arg1: !torch.vtensor<[0,10],f16>) -> !torch.vtensor<[5,10],f32> {
+  %int6 = torch.constant.int 6
+  %0 = torch.prims.convert_element_type %arg0, %int6 : !torch.vtensor<[5,0],f16>, !torch.int -> !torch.vtensor<[5,0],f32>
+  %1 = torch.prims.convert_element_type %arg1, %int6 : !torch.vtensor<[0,10],f16>, !torch.int -> !torch.vtensor<[0,10],f32>
+  %2 = torch.aten.matmul %0, %1 : !torch.vtensor<[5,0],f32>, !torch.vtensor<[0,10],f32> -> !torch.vtensor<[5,10],f32>
+  return %2 : !torch.vtensor<[5,10],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @casted_zero_k_bmm(
+// CHECK-NOT:     torch.aten.bmm
+// CHECK:         %[[ZERO:.*]] = torch.vtensor.literal(dense<0.000000e+00> : tensor<2x5x10xf32>) : !torch.vtensor<[2,5,10],f32>
+// CHECK:         return %[[ZERO]]
+func.func @casted_zero_k_bmm(%arg0: !torch.vtensor<[2,5,0],f16>, %arg1: !torch.vtensor<[2,0,10],f16>) -> !torch.vtensor<[2,5,10],f32> {
+  %int6 = torch.constant.int 6
+  %0 = torch.prims.convert_element_type %arg0, %int6 : !torch.vtensor<[2,5,0],f16>, !torch.int -> !torch.vtensor<[2,5,0],f32>
+  %1 = torch.prims.convert_element_type %arg1, %int6 : !torch.vtensor<[2,0,10],f16>, !torch.int -> !torch.vtensor<[2,0,10],f32>
+  %2 = torch.aten.bmm %0, %1 : !torch.vtensor<[2,5,0],f32>, !torch.vtensor<[2,0,10],f32> -> !torch.vtensor<[2,5,10],f32>
+  return %2 : !torch.vtensor<[2,5,10],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @dynamic_zero_k_mm(
+// CHECK:         torch.aten.mm
+func.func @dynamic_zero_k_mm(%arg0: !torch.vtensor<[?,0],f32>, %arg1: !torch.vtensor<[0,10],f32>) -> !torch.vtensor<[?,10],f32> {
+  %0 = torch.aten.mm %arg0, %arg1 : !torch.vtensor<[?,0],f32>, !torch.vtensor<[0,10],f32> -> !torch.vtensor<[?,10],f32>
+  return %0 : !torch.vtensor<[?,10],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @matmul_no_decompose
 // CHECK:           torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[?,?,?,?,?],f32>, !torch.vtensor<[?,?,?],f32> -> !torch.tensor
 func.func @matmul_no_decompose(%arg0: !torch.vtensor<[?,?,?,?,?],f32>, %arg1: !torch.vtensor<[?,?,?],f32>) -> !torch.tensor {

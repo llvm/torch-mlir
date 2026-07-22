@@ -515,6 +515,68 @@ def AtenMmZeroK_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class AtenMmZeroKAfterView(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([5, 5, 0], torch.float32, True),
+            ([0, 5], torch.float32, True),
+        ]
+    )
+    def forward(self, a, b):
+        result = torch.ops.aten.mm(a.view(25, 0), b)
+        return result.view(5, 5, 5)
+
+
+@register_test_case(module_factory=lambda: AtenMmZeroKAfterView())
+def AtenMmZeroKAfterView_basic(module, tu: TestUtils):
+    module.forward(torch.empty(5, 5, 0), torch.empty(0, 5))
+
+
+# ==============================================================================
+
+
+class AtenCastedZeroKMatmulVariants(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([5, 0], torch.float16, True),
+            ([0, 10], torch.float16, True),
+            ([2, 5, 0], torch.float16, True),
+            ([2, 0, 10], torch.float16, True),
+        ]
+    )
+    def forward(self, lhs, rhs, batched_lhs, batched_rhs):
+        lhs_f32 = torch.ops.prims.convert_element_type(lhs, dtype=torch.float32)
+        rhs_f32 = torch.ops.prims.convert_element_type(rhs, dtype=torch.float32)
+        batched_lhs_f32 = torch.ops.prims.convert_element_type(
+            batched_lhs, dtype=torch.float32
+        )
+        batched_rhs_f32 = torch.ops.prims.convert_element_type(
+            batched_rhs, dtype=torch.float32
+        )
+        return (
+            torch.ops.aten.mm(lhs_f32, rhs_f32),
+            torch.ops.aten.matmul(lhs_f32, rhs_f32),
+            torch.ops.aten.bmm(batched_lhs_f32, batched_rhs_f32),
+        )
+
+
+@register_test_case(module_factory=lambda: AtenCastedZeroKMatmulVariants())
+def AtenCastedZeroKMatmulVariants_basic(module, tu: TestUtils):
+    module.forward(
+        torch.empty(5, 0, dtype=torch.float16),
+        torch.empty(0, 10, dtype=torch.float16),
+        torch.empty(2, 5, 0, dtype=torch.float16),
+        torch.empty(2, 0, 10, dtype=torch.float16),
+    )
+
+
+# ==============================================================================
+
+
 class AtenBmmZeroK(torch.nn.Module):
     @export
     @annotate_args(
