@@ -183,6 +183,150 @@ def NllLossStaticModule_sum_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3), tu.randint(2, low=0, high=3))
 
 
+class NllLossKDimModule_mean(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.int64, True),
+        ]
+    )
+    # Here the 2nd index is ignored.
+    def forward(self, x, y):
+        return torch.nn.functional.nll_loss(
+            x, target=y, weight=None, reduction="mean", ignore_index=2
+        )
+
+
+@register_test_case(module_factory=lambda: NllLossKDimModule_mean())
+def NllLossKDimModule_mean_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4, 5), tu.randint(2, 4, 5, low=0, high=3))
+
+
+class NllLossKDimStaticModule_mean(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3, 4, 5], torch.float32, True),
+            ([2, 4, 5], torch.int64, True),
+        ]
+    )
+    # Here the 2nd index is ignored.
+    def forward(self, x, y):
+        return torch.nn.functional.nll_loss(
+            x, target=y, weight=None, reduction="mean", ignore_index=2
+        )
+
+
+@register_test_case(module_factory=lambda: NllLossKDimStaticModule_mean())
+def NllLossKDimStaticModule_mean_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4, 5), tu.randint(2, 4, 5, low=0, high=3))
+
+
+class NllLossKDimModule_sum(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.int64, True),
+        ]
+    )
+    # Here the 2nd index is ignored.
+    def forward(self, x, y):
+        return torch.nn.functional.nll_loss(
+            x, target=y, weight=None, reduction="sum", ignore_index=2
+        )
+
+
+@register_test_case(module_factory=lambda: NllLossKDimModule_sum())
+def NllLossKDimModule_sum_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4, 5), tu.randint(2, 4, 5, low=0, high=3))
+
+
+class NllLossKDimStaticModule_sum(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3, 4, 5], torch.float32, True),
+            ([2, 4, 5], torch.int64, True),
+        ]
+    )
+    # Here the 2nd index is ignored.
+    def forward(self, x, y):
+        return torch.nn.functional.nll_loss(
+            x, target=y, weight=None, reduction="sum", ignore_index=2
+        )
+
+
+@register_test_case(module_factory=lambda: NllLossKDimStaticModule_sum())
+def NllLossKDimStaticModule_sum_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4, 5), tu.randint(2, 4, 5, low=0, high=3))
+
+
+class NllLossKDimModule_reduction_none(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.int64, True),
+        ]
+    )
+    # Here the 2nd index is ignored.
+    def forward(self, x, y):
+        return torch.nn.functional.nll_loss(
+            x, target=y, weight=None, reduction="none", ignore_index=2
+        )
+
+
+@register_test_case(module_factory=lambda: NllLossKDimModule_reduction_none())
+def NllLossKDimModule_reduction_none_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4, 5), tu.randint(2, 4, 5, low=0, high=3))
+
+
+class NllLossKDimStaticModule_reduction_none(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3, 4, 5], torch.float32, True),
+            ([2, 4, 5], torch.int64, True),
+        ]
+    )
+    # Here the 2nd index is ignored.
+    def forward(self, x, y):
+        return torch.nn.functional.nll_loss(
+            x, target=y, weight=None, reduction="none", ignore_index=2
+        )
+
+
+@register_test_case(module_factory=lambda: NllLossKDimStaticModule_reduction_none())
+def NllLossKDimStaticModule_reduction_none_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4, 5), tu.randint(2, 4, 5, low=0, high=3))
+
+
 class NllLossModule_1D(torch.nn.Module):
     def __init__(self):
         super().__init__()

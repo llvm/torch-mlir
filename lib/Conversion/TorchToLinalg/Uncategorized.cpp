@@ -1879,21 +1879,14 @@ public:
 
     unsigned inputRank = cast<RankedTensorType>(input.getType()).getRank();
     unsigned targetRank = cast<RankedTensorType>(target.getType()).getRank();
-
-    // TODO: Add support for k-dim loss.
-    if (inputRank > 2) {
-      return rewriter.notifyMatchFailure(
-          op, "expected input and target to be rank <= 2");
-    }
     RankedTensorType resultType = cast<RankedTensorType>(
         getTypeConverter()->convertType(op->getResult(0).getType()));
-    Type elementType = resultType.getElementType();
+    Type resultEleType = resultType.getElementType();
 
-    Value zeroVal = arith::ConstantOp::create(
-        rewriter, loc, rewriter.getZeroAttr(elementType));
-
+    Value zeroResultVal = arith::ConstantOp::create(
+        rewriter, loc, rewriter.getZeroAttr(resultEleType));
     Value finalRes = torch_to_linalg::createElementwiseLinalgGeneric(
-        rewriter, loc, {target}, elementType,
+        rewriter, loc, {target}, resultEleType,
         [&](OpBuilder &b, Location loc, ValueRange args) {
           Value targetVal = args[0];
           Value indTarget = arith::IndexCastOp::create(
@@ -1905,120 +1898,97 @@ public:
           Value cmpEq =
               arith::CmpIOp::create(rewriter, loc, arith::CmpIPredicate::eq,
                                     indTarget, ignoreIndexVal);
-
-          SmallVector<Value> extractionIndices{indTarget};
-          if (inputRank == 2) {
-            Value indI = linalg::IndexOp::create(rewriter, loc, 0);
-            extractionIndices.insert(extractionIndices.begin(), indI);
+          SmallVector<Value> extractionIndices;
+          if (inputRank == 1) {
+            extractionIndices.push_back(indTarget);
+          } else {
+            extractionIndices.push_back(
+                linalg::IndexOp::create(rewriter, loc, 0));
+            extractionIndices.push_back(indTarget);
+            for (int64_t idx = 1; idx < targetRank; ++idx) {
+              extractionIndices.push_back(
+                  linalg::IndexOp::create(rewriter, loc, idx));
+            }
           }
 
           Value result = tensor::ExtractOp::create(rewriter, loc, input,
                                                    extractionIndices);
-
           Value negate =
-              arith::NegFOp::create(rewriter, loc, elementType, result);
-          Value selectFinal =
-              arith::SelectOp::create(rewriter, loc, cmpEq, zeroVal, negate);
+              arith::NegFOp::create(rewriter, loc, resultEleType, result);
+          Value selectFinal = arith::SelectOp::create(rewriter, loc, cmpEq,
+                                                      zeroResultVal, negate);
           linalg::YieldOp::create(b, loc, selectFinal);
         });
 
-    llvm::iota_range<int64_t> dimsToReduce(0, targetRank,
-                                           /*inclusive=*/false);
-    DenseSet<int64_t> dimSet(dimsToReduce.begin(), dimsToReduce.end());
-
-    if (reduction == torch_upstream::Reduction::Sum ||
-        reduction == torch_upstream::Reduction::Mean) {
-
-      Value zeroIVal = arith::ConstantOp::create(
-          rewriter, loc, rewriter.getZeroAttr(rewriter.getI32Type()));
-      auto countInfo = torch_to_linalg::ReductionOpInfo{false, target, dimSet};
-      Value numOfElems = torch_to_linalg::createReductionLinalgGeneric(
-          rewriter, loc, countInfo,
-          /*initElem=*/zeroIVal,
-          [&](OpBuilder &b, Location loc, ValueRange args) {
-            Value targetVal = args[0];
-            Value indTarget = arith::IndexCastOp::create(
-                rewriter, loc, rewriter.getIndexType(), targetVal);
-            Value cmpEq =
-                arith::CmpIOp::create(rewriter, loc, arith::CmpIPredicate::ne,
-                                      indTarget, ignoreIndexVal);
-            cmpEq = arith::ExtUIOp::create(rewriter, loc, rewriter.getI32Type(),
-                                           cmpEq);
-            Value add = arith::AddIOp::create(rewriter, loc, args[1], cmpEq);
-            linalg::YieldOp::create(rewriter, loc, add);
-          });
-
-      numOfElems = tensor::ExtractOp::create(
-          rewriter, loc, rewriter.getI32Type(), numOfElems, ArrayRef<Value>{});
-      numOfElems = convertScalarToDtype(rewriter, loc, numOfElems, elementType);
-
-      auto opInfo = torch_to_linalg::ReductionOpInfo{false, finalRes, dimSet};
-      finalRes = torch_to_linalg::createReductionLinalgGeneric(
-          rewriter, loc, opInfo,
-          /*initElem=*/zeroVal,
-          [&](OpBuilder &b, Location loc, ValueRange args) {
-            Value newVal = args[0];
-            Value accumulator = args[1];
-            if (reduction == torch_upstream::Reduction::Mean)
-              newVal = arith::DivFOp::create(b, loc, newVal, numOfElems);
-            Value result = arith::AddFOp::create(b, loc, newVal, accumulator);
-            linalg::YieldOp::create(b, loc, result);
-          });
-    }
-
-    // The implementation for the `total_weight` has been adopted from here:
-    // https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/LossNLL.cpp#L154-L294
-    // As per the ref link, the `total_weight` value when the `weight` is
-    // `None`, is equal to `total_weight = batch_size - num_ignored_index`,
-    // where `batch_size` is equal to `target.shape[0]` when rank(target) > 0,
-    // otherwise 1. The value `num_ignored_index` is the number of elements of
-    // the `target` tensors that have been ignored.
-
-    if (reduction == torch_upstream::Reduction::None && inputRank == 2) {
-      Value totalWeight = createZeroInitTensor(rewriter, loc, {}, elementType);
+    if (reduction == torch_upstream::Reduction::None) {
+      Value totalWeight =
+          createZeroInitTensor(rewriter, loc, {}, resultEleType);
       rewriter.replaceOp(op, {finalRes, totalWeight});
       return success();
     }
 
+    llvm::iota_range<int64_t> dimsToReduce(0, targetRank,
+                                           /*inclusive=*/false);
+    DenseSet<int64_t> dimSet(dimsToReduce.begin(), dimsToReduce.end());
+    auto opInfo = torch_to_linalg::ReductionOpInfo{false, finalRes, dimSet};
+    finalRes = torch_to_linalg::createReductionLinalgGeneric(
+        rewriter, loc, opInfo,
+        /*initElem=*/zeroResultVal,
+        [&](OpBuilder &b, Location loc, ValueRange args) {
+          Value result = arith::AddFOp::create(b, loc, args[0], args[1]);
+          linalg::YieldOp::create(b, loc, result);
+        });
+
+    // Count how many target elements equal `ignore_index` so they can be
+    // excluded from the total weight (and thus from the mean reduction).
     Value numIgnoredIndex;
+    Type ignoreIdxTy = ignoreIndex.getType();
+    Value zero = getConstant(rewriter, loc, 0, ignoreIdxTy);
+    Value one = getConstant(rewriter, loc, 1, ignoreIdxTy);
     if (targetRank == 0) {
       Value targetVal = tensor::ExtractOp::create(rewriter, loc, target);
-      numIgnoredIndex = arith::CmpIOp::create(
-          rewriter, loc, arith::CmpIPredicate::eq, targetVal, ignoreIndex);
-      numIgnoredIndex = convertScalarToDtype(rewriter, loc, numIgnoredIndex,
-                                             ignoreIndex.getType());
+      numIgnoredIndex = arith::SelectOp::create(
+          rewriter, loc,
+          arith::CmpIOp::create(rewriter, loc, arith::CmpIPredicate::eq,
+                                targetVal, ignoreIndex),
+          one, zero);
     } else {
-      Value zeroCstInt = arith::ConstantOp::create(
-          rewriter, loc, rewriter.getZeroAttr(ignoreIndex.getType()));
-
       auto opInfo =
           torch_to_linalg::ReductionOpInfo{/*keepDim=*/false, target, dimSet};
       numIgnoredIndex = torch_to_linalg::createReductionLinalgGeneric(
           rewriter, loc, opInfo,
-          /*initElem=*/zeroCstInt,
-          [&](OpBuilder &b, Location loc, ValueRange args) {
-            Value targetVal = args[0];
-            Value accumulator = args[1];
+          /*initElem=*/zero, [&](OpBuilder &b, Location loc, ValueRange args) {
             Value result = arith::CmpIOp::create(
-                b, loc, arith::CmpIPredicate::eq, targetVal, ignoreIndex);
-            result = arith::AddIOp::create(
-                b, loc,
-                convertScalarToDtype(rewriter, loc, result,
-                                     ignoreIndex.getType()),
-                accumulator);
+                b, loc, arith::CmpIPredicate::eq, args[0], ignoreIndex);
+            result = arith::SelectOp::create(b, loc, result, one, zero);
+            result = arith::AddIOp::create(b, loc, result, args[1]);
             linalg::YieldOp::create(b, loc, result);
           });
-
       numIgnoredIndex =
           tensor::ExtractOp::create(rewriter, loc, numIgnoredIndex);
     }
 
+    // The `weight` argument is not yet supported, so we follow the reference
+    // implementation at
+    // https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/LossNLL2d.cpp#L241
+    // where, with `weight == None`, the total weight reduces to the number of
+    // non-ignored targets: `total_weight = num_targets - num_ignored_index`.
     Value numtargetElems = getTensorSize(rewriter, loc, target);
-    Value totalWeightVal =
+    Value totalWeight =
         arith::SubIOp::create(rewriter, loc, numtargetElems, numIgnoredIndex);
-    Value totalWeight = createInitTensor(
-        rewriter, loc, {}, elementType,
-        convertScalarToDtype(rewriter, loc, totalWeightVal, elementType));
+    totalWeight = createInitTensor(
+        rewriter, loc, {}, resultEleType,
+        convertScalarToDtype(rewriter, loc, totalWeight, resultEleType));
+
+    if (reduction == torch_upstream::Reduction::Mean) {
+      // A single div after the reduction is sufficient.
+      finalRes = torch_to_linalg::createElementwiseLinalgGeneric(
+          rewriter, loc, {finalRes, totalWeight}, resultEleType,
+          [&](OpBuilder &b, Location loc, ValueRange args) {
+            Value mean = arith::DivFOp::create(b, loc, args[0], args[1]);
+            linalg::YieldOp::create(b, loc, mean);
+          });
+    }
 
     rewriter.replaceOp(op, {finalRes, totalWeight});
     return success();
