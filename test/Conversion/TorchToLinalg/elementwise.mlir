@@ -131,3 +131,31 @@ func.func @elementwise_add_non_broadcast_unit_dims(%arg0: !torch.vtensor<[6,1],b
   %11 = torch.aten.add.Tensor %arg0, %arg1, %int1_13 : !torch.vtensor<[6,1],bf16>, !torch.vtensor<[1],bf16>, !torch.int -> !torch.vtensor<[6,1],bf16>
   return %11 : !torch.vtensor<[6,1],bf16>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_sub_unsigned_extend(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: i32, %[[RHS:.*]]: i8, %{{.*}}: i32):
+// CHECK-NOT:         arith.extsi %[[RHS]]
+// CHECK:             %[[EXT:.*]] = arith.extui %[[RHS]] : i8 to i32
+// CHECK:             arith.subi %[[LHS]], %{{.*}} : i32
+func.func @elementwise_sub_unsigned_extend(%arg0: !torch.vtensor<[?],si32>, %arg1: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],si32> {
+  %int1 = torch.constant.int 1
+  %0 = torch.aten.sub.Tensor %arg0, %arg1, %int1 : !torch.vtensor<[?],si32>, !torch.vtensor<[?],ui8>, !torch.int -> !torch.vtensor<[?],si32>
+  return %0 : !torch.vtensor<[?],si32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_add_unsigned_extend(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: i32, %[[RHS:.*]]: i8, %{{.*}}: i32):
+// CHECK-NOT:         arith.extsi %[[RHS]]
+// CHECK:             %[[EXT:.*]] = arith.extui %[[RHS]] : i8 to i32
+// CHECK:             arith.addi %[[LHS]], %{{.*}} : i32
+func.func @elementwise_add_unsigned_extend(%arg0: !torch.vtensor<[?],si32>, %arg1: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],si32> {
+  %int1 = torch.constant.int 1
+  %0 = torch.aten.add.Tensor %arg0, %arg1, %int1 : !torch.vtensor<[?],si32>, !torch.vtensor<[?],ui8>, !torch.int -> !torch.vtensor<[?],si32>
+  return %0 : !torch.vtensor<[?],si32>
+}
