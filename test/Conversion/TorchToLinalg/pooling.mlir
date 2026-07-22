@@ -301,11 +301,11 @@ func.func @forward_avgpool_2d_ceil_dilated(%arg0: !torch.vtensor<[1,1,7,7],f32>)
   // CHECK: linalg.pooling_nchw_sum {dilations = dense<2> : vector<2xi64>, strides = dense<3> : vector<2xi64>}
 
   // The divisor generic uses dilation to count valid taps per dim:
-  // effectiveKernel = (3-1)*2+1 = 5, then divides range by dilation.
+  // effectiveKernel = (3-1)*2+1 = 5, then ceildivsi to count valid taps.
   // CHECK: linalg.generic {indexing_maps = [#[[$MAP]], #[[$MAP]]], iterator_types = ["parallel", "parallel", "parallel", "parallel"]}
   // CHECK:   %[[C5:.*]] = arith.constant 5 : i64
   // CHECK:   arith.addi %{{.*}}, %[[C5]] : i64
-  // CHECK:   arith.divsi {{.*}} : i64
+  // CHECK:   arith.ceildivsi {{.*}} : i64
   // CHECK:   arith.divf
   // CHECK:   linalg.yield
 
@@ -335,11 +335,11 @@ func.func @forward_avgpool_2d_ceil_dilated(%arg0: !torch.vtensor<[1,1,7,7],f32>)
 func.func @forward_avgpool_2d_count_include_pad_dilated(%arg0: !torch.vtensor<[1,1,7,7],f32>) -> !torch.vtensor<[1,1,3,3],f32> {
   // CHECK: linalg.pooling_nchw_sum {dilations = dense<2> : vector<2xi64>, strides = dense<2> : vector<2xi64>}
 
-  // count_include_pad=true with dilation: divisor uses unclamped range / dilation.
+  // count_include_pad=true with dilation: ValidTaps uses ceildivsi; FullTaps uses divsi.
   // CHECK: linalg.generic {indexing_maps = [#[[$MAP]], #[[$MAP]]], iterator_types = ["parallel", "parallel", "parallel", "parallel"]}
   // CHECK:   %[[C5:.*]] = arith.constant 5 : i64
   // CHECK:   arith.addi %{{.*}}, %[[C5]] : i64
-  // CHECK:   arith.divsi {{.*}} : i64
+  // CHECK:   arith.ceildivsi {{.*}} : i64
   // CHECK:   arith.divf
   // CHECK:   linalg.yield
 
@@ -360,4 +360,36 @@ func.func @forward_avgpool_2d_count_include_pad_dilated(%arg0: !torch.vtensor<[1
   %none = torch.constant.none
   %3 = torch.aten.avg_pool2d %arg0, %0, %2, %1, %false, %true, %none : !torch.vtensor<[1,1,7,7],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1,3,3],f32>
   return %3 : !torch.vtensor<[1,1,3,3],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func @forward_avgpool_2d_exclude_pad_dilated_edge
+func.func @forward_avgpool_2d_exclude_pad_dilated_edge(%arg0: !torch.vtensor<[1,1,11,11],f32>) -> !torch.vtensor<[1,1,1,1],f32> {
+  // kernel=4, dilation=4, padding=1, stride=1, count_include_pad=false.
+  // effective_kernel = (4-1)*4+1 = 13; output = (11+2-13)/1+1 = 1.
+  // At output position 0: start_idx = 0*1 - 1 = -1. Taps land at -1, 3, 7, 11.
+  // Valid taps (in [0,11)): 3 and 7 -> ValidTaps = 2.
+  // Correct divisor is 2.
+  // CHECK: linalg.pooling_nchw_sum {dilations = dense<4> : vector<2xi64>, strides = dense<1> : vector<2xi64>}
+  // CHECK: linalg.generic
+  // CHECK:   arith.ceildivsi
+  // CHECK:   arith.divf
+  // CHECK:   linalg.yield
+  %int4   = torch.constant.int 4
+  %int4_0 = torch.constant.int 4
+  %int1   = torch.constant.int 1
+  %int1_1 = torch.constant.int 1
+  %int1_s = torch.constant.int 1
+  %int1_s2 = torch.constant.int 1
+  %int4_d = torch.constant.int 4
+  %int4_d2 = torch.constant.int 4
+  %0 = torch.prim.ListConstruct %int4, %int4_0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.prim.ListConstruct %int1, %int1_1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.prim.ListConstruct %int1_s, %int1_s2, %int4_d, %int4_d2 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %false = torch.constant.bool false
+  %false_1 = torch.constant.bool false
+  %none = torch.constant.none
+  %3 = torch.aten.avg_pool2d %arg0, %0, %2, %1, %false, %false_1, %none : !torch.vtensor<[1,1,11,11],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1,1,1],f32>
+  return %3 : !torch.vtensor<[1,1,1,1],f32>
 }

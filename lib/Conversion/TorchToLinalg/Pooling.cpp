@@ -1038,27 +1038,39 @@ Value PoolSizeCalculator<NumOfDims>::getPoolSize(
     Value IDim1 =
         b.createOrFold<arith::MinSIOp>(location, IDim0KDim, IDimPadDim);
 
-    Value IDim0Clamped =
-        b.createOrFold<arith::MaxSIOp>(location, IDim0, cstZero);
     Value IDim1Clamped = b.createOrFold<arith::MinSIOp>(location, IDim1, IDim);
 
-    // Count valid taps: floor((clampedEnd - clampedStart - 1) / dilation) + 1
-    Value IDim1_IDim0_Clamped =
-        b.createOrFold<arith::SubIOp>(location, IDim1Clamped, IDim0Clamped);
-    Value RangeM1 =
-        b.createOrFold<arith::SubIOp>(location, IDim1_IDim0_Clamped, cstOne);
-    Value TapCount = b.createOrFold<arith::DivSIOp>(location, RangeM1, DilDim);
-    Value ValidTaps = b.createOrFold<arith::AddIOp>(location, TapCount, cstOne);
+    // Count valid taps using k_min/k_max approach:
+    // Tap k is valid when IDim0 + k*dilation is in [0, IDim1Clamped), where
+    // IDim1Clamped = min(window end, IDim) is the input extent clamped to the
+    // window.
+    // k_min = ceil(max(-IDim0, 0) / dilation)  -- first valid k
+    // k_max_excl = ceil((IDim1Clamped - IDim0) / dilation)  -- first k past the
+    // end ValidTaps = max(k_max_excl - k_min, 0)
+    Value NegIDim0 = b.createOrFold<arith::SubIOp>(location, cstZero, IDim0);
+    Value KMinNumer =
+        b.createOrFold<arith::MaxSIOp>(location, NegIDim0, cstZero);
+    Value KMin =
+        b.createOrFold<arith::CeilDivSIOp>(location, KMinNumer, DilDim);
+    Value IDim1ClampedMinusIDim0 =
+        b.createOrFold<arith::SubIOp>(location, IDim1Clamped, IDim0);
+    Value KMaxExcl = b.createOrFold<arith::CeilDivSIOp>(
+        location, IDim1ClampedMinusIDim0, DilDim);
+    Value KDiff = b.createOrFold<arith::SubIOp>(location, KMaxExcl, KMin);
+    Value ValidTaps = b.createOrFold<arith::MaxSIOp>(location, KDiff, cstZero);
 
-    // For count_include_pad: count all positions in the effective window
-    // (IDim1 - IDim0) / dilation, accounting for dilation spacing
+    // For count_include_pad: count every dilated tap position in the full
+    // effective window [IDim0, IDim1), including padded positions. Same as
+    // ValidTaps but WITHOUT the low-side clamp (padded taps are counted), so
+    // it reduces to k_min == 0:
+    //   FullTaps = max(ceil((IDim1 - IDim0) / dilation), 0)
+    // The max(.., 0) keeps this in agreement with ValidTaps on a degenerate
+    // empty window (range <= 0 => 0 taps).
     Value FullRange = b.createOrFold<arith::SubIOp>(location, IDim1, IDim0);
-    Value FullRangeM1 =
-        b.createOrFold<arith::SubIOp>(location, FullRange, cstOne);
-    Value FullTapCount =
-        b.createOrFold<arith::DivSIOp>(location, FullRangeM1, DilDim);
+    Value FullTapsRaw =
+        b.createOrFold<arith::CeilDivSIOp>(location, FullRange, DilDim);
     Value FullTaps =
-        b.createOrFold<arith::AddIOp>(location, FullTapCount, cstOne);
+        b.createOrFold<arith::MaxSIOp>(location, FullTapsRaw, cstZero);
 
     Value poolSizeDim = !isCountIncludePad ? ValidTaps : FullTaps;
     if (i == 0) {
