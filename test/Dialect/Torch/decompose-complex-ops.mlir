@@ -1148,6 +1148,24 @@ func.func @torch.aten.mish$f8E8M0FNU(%arg0: !torch.vtensor<[2,3],f8E8M0FNU>) -> 
 
 // -----
 
+// CHECK-LABEL: func.func @torch.aten.xlogy.Tensor
+// CHECK-DAG:     %[[NAN:.*]] = torch.vtensor.literal(dense<0x7FC00000> : tensor<f32>) : !torch.vtensor<[],f32>
+// CHECK-DAG:     %[[ZERO:.*]] = torch.vtensor.literal(dense<0.000000e+00> : tensor<f32>) : !torch.vtensor<[],f32>
+// CHECK-DAG:     %[[INT0:.*]] = torch.constant.int 0
+// CHECK:         %[[EQ:.*]] = torch.aten.eq.Scalar %arg0, %[[INT0]] : !torch.vtensor<[3,5],f32>, !torch.int -> !torch.vtensor<[3,5],i1>
+// CHECK:         %[[LOG:.*]] = torch.aten.log %arg1 : !torch.vtensor<[3,5],f32> -> !torch.vtensor<[3,5],f32>
+// CHECK:         %[[MUL:.*]] = torch.aten.mul.Tensor %arg0, %[[LOG]] : !torch.vtensor<[3,5],f32>, !torch.vtensor<[3,5],f32> -> !torch.vtensor<[3,5],f32>
+// CHECK:         %[[RHS:.*]] = torch.aten.where.self %[[EQ]], %[[ZERO]], %[[MUL]] : !torch.vtensor<[3,5],i1>, !torch.vtensor<[],f32>, !torch.vtensor<[3,5],f32> -> !torch.vtensor<[3,5],f32>
+// CHECK:         %[[ISNAN:.*]] = torch.aten.ne.Tensor %arg1, %arg1 : !torch.vtensor<[3,5],f32>, !torch.vtensor<[3,5],f32> -> !torch.vtensor<[3,5],i1>
+// CHECK:         %[[RES:.*]] = torch.aten.where.self %[[ISNAN]], %[[NAN]], %[[RHS]] : !torch.vtensor<[3,5],i1>, !torch.vtensor<[],f32>, !torch.vtensor<[3,5],f32> -> !torch.vtensor<[3,5],f32>
+// CHECK:         return %[[RES]]
+func.func @torch.aten.xlogy.Tensor(%arg0: !torch.vtensor<[3,5],f32>, %arg1: !torch.vtensor<[3,5],f32>) -> !torch.vtensor<[3,5],f32> {
+  %0 = torch.aten.xlogy.Tensor %arg0, %arg1 : !torch.vtensor<[3,5],f32>, !torch.vtensor<[3,5],f32> -> !torch.vtensor<[3,5],f32>
+  return %0 : !torch.vtensor<[3,5],f32>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @repeat_mixed_dims_broadcast_singletons
 // CHECK-SAME: (%[[ARG0:.*]]: !torch.vtensor<[1,2,1],f32>) -> !torch.vtensor<[3,8,5],f32>
 // CHECK-DAG: %[[CNEG1:.*]] = torch.constant.int -1

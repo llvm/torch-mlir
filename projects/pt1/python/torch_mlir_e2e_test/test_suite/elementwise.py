@@ -2669,6 +2669,122 @@ def ElementwiseMishModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseXlogyTensorModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.xlogy(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseXlogyTensorModule())
+def ElementwiseXlogyTensorModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5), tu.rand(3, 5))
+
+
+# ==============================================================================
+
+
+class ElementwiseXlogyTensorIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int64, True),
+            ([-1, -1], torch.int64, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.xlogy(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseXlogyTensorIntModule())
+def ElementwiseXlogyTensorIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 5, high=10), tu.randint(3, 5, high=10))
+
+
+# ==============================================================================
+
+
+class ElementwiseXlogyTensorZeroAndNanModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.xlogy(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseXlogyTensorZeroAndNanModule())
+def ElementwiseXlogyTensorZeroAndNanModule_basic(module, tu: TestUtils):
+    # Exercises every special path of xlogy in one shot:
+    #   x=0            -> 0           (zero convention)
+    #   y=nan          -> nan         (nan propagates)
+    #   x=0, y=nan     -> nan         (nan takes precedence over zero convention)
+    #   otherwise      -> x * log(y)
+    module.forward(
+        torch.tensor([0.0, 2.0, 0.0, 3.0, 1.0]),
+        torch.tensor([2.0, torch.nan, torch.nan, 4.0, 5.0]),
+    )
+
+
+# ==============================================================================
+
+
+class ElementwiseXlogyTensorBroadcastModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 1], torch.float32, True),
+            ([1, 5], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.xlogy(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseXlogyTensorBroadcastModule())
+def ElementwiseXlogyTensorBroadcastModule_basic(module, tu: TestUtils):
+    # Broadcast [3,1] x [1,5] -> [3,5]. Guards the type provenance in the
+    # decomposition: eq.Scalar, log and isnan are shape-preserving, so their
+    # result types must come from their operand's sizes, not the broadcast
+    # result's. Typing them with the result sizes produces IR that fails to
+    # lower ('cast incompatible').
+    # Shapes are annotated statically because aten.where.self's TorchToLinalg
+    # lowering only broadcasts when the size-1 dims are visible in the type.
+    # Also covers y=0 (log(0) = -inf) and y<0 (log(y) = nan, but isnan(y) is
+    # false, so the x==0 convention still applies).
+    module.forward(
+        torch.tensor([[0.0], [2.0], [3.0]]),
+        torch.tensor([[2.0, torch.nan, 4.0, 0.0, -1.0]]),
+    )
+
+
+# ==============================================================================
+
+
 class ElementwiseAtanTensorFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
