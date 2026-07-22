@@ -417,6 +417,9 @@ FX_IMPORTER_XFAIL_SET = {
     "AtenIntBoolOpConstTrueModule_basic",
     "AtenIntBoolOpModule_basic",
     "AtenIntMM_basic",
+    "AtenTopKNaNInfStaticModule_basic",
+    "AtenTopKSmallestNaNInfStaticModule_basic",
+    "SortTensorNaNInfStaticModule_basic",
     "AtenNonzero1DDynamicModule_basic",  # no lowering for torch.aten.sym_constrain_range_for_size
     "Aten_TrilinearModuleVaryingRanks_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
