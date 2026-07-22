@@ -5063,10 +5063,10 @@ public:
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     Value self = op.getSelf();
-    auto selfTy = cast<BaseTensorType>(self.getType());
-    if (!selfTy.hasSizes())
+    auto selfTy = dyn_cast<ValueTensorType>(self.getType());
+    if (!selfTy || !selfTy.hasSizes())
       return rewriter.notifyMatchFailure(
-          op, "Unimplemented: no implementation for rankless tensor");
+          op, "Unimplemented: expected a ranked value tensor");
 
     SmallVector<Value> repeats;
     if (!getListConstructElements(op.getRepeats(), repeats))
@@ -5079,11 +5079,18 @@ public:
           op, "repeats are not matched with self's rank");
     }
 
+    auto resultTy = dyn_cast<ValueTensorType>(op.getType());
+    if (resultTy && resultTy.hasSizes() &&
+        llvm::none_of(resultTy.getSizes(),
+                      [](int64_t size) { return size == kUnknownSize; }) &&
+        self.getType() == op.getType() &&
+        llvm::is_contained(resultTy.getSizes(), 0)) {
+      rewriter.replaceOp(op, self);
+      return success();
+    }
+
     int64_t repeatSz = repeats.size();
     int64_t batch = repeatSz - rank;
-
-    if (!selfTy.hasSizes())
-      return rewriter.notifyMatchFailure(op, "input sizes unknown");
 
     // Fold the constant values so that we know which we materialize:
     llvm::SmallVector<int64_t> repeatInts;
