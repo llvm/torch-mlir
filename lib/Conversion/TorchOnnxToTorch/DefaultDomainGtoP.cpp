@@ -2663,12 +2663,15 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         float epsilon;
         if (binder.tensorOperandAtIndex(x, 0) ||
             binder.tensorOperandAtIndex(scale, 1) ||
-            binder.tensorOperandAtIndex(b, 2) ||
             binder.tensorResultTypeAtIndex(yType, 0) ||
             binder.s64IntegerAttr(axis, "axis", -1) ||
             binder.f32FloatAttr(epsilon, "epsilon", 0.00001f) ||
             binder.s64IntegerAttr(stashType, "stash_type", 1))
           return failure();
+
+        // B (bias) is optional in ONNX LayerNormalization; bind None when it is
+        // absent so bias-less (RMS-style) norms still match.
+        bool hasBias = !binder.tensorOperandAtIndex(b, 2);
 
         std::optional<int64_t> stashTypeIntTorch =
             onnxDtypeIntToTorchDtypeInt(stashType);
@@ -2686,6 +2689,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         Value cstFalse =
             Torch::ConstantBoolOp::create(rewriter, binder.getLoc(), false);
         Value none = Torch::ConstantNoneOp::create(rewriter, binder.getLoc());
+        if (!hasBias)
+          b = none;
         if (*stashDtype != xType.getOptionalDtype()) {
           auto newXType =
               xType.getWithSizesAndDtype(xType.getOptionalSizes(), *stashDtype);
