@@ -111,6 +111,22 @@ public:
     getZeroPoint(op.getSelf(), lhsZeroPoint);
     getZeroPoint(op.getMat2(), rhsZeroPoint);
 
+    // Per-channel quantized weight (symmetric): the per-channel scale is
+    // applied by the dequantize on the i32 accumulator, so the matmul uses a
+    // scalar zero weight zero-point. Requires a constant all-zero zero-point.
+    if (auto make =
+            op.getMat2()
+                .getDefiningOp<Aten_MakePerChannelQuantizedTensorOp>()) {
+      DenseElementsAttr zpAttr;
+      if (!matchPattern(make.getZeroPoint(), m_Constant(&zpAttr)) ||
+          !llvm::all_of(zpAttr.getValues<APInt>(),
+                        [](const APInt &v) { return v.isZero(); }))
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: per-channel quantized mm requires a constant "
+                "all-zero zero-point");
+      rhsZeroPoint = Torch::ConstantIntOp::create(rewriter, loc, 0);
+    }
+
     if (static_cast<bool>(lhsZeroPoint) != static_cast<bool>(rhsZeroPoint)) {
       return rewriter.notifyMatchFailure(
           op, "unsupported: aten.mm with mixed quantization");
@@ -836,6 +852,28 @@ public:
           weightZp);
       weightZp = arith::TruncIOp::create(rewriter, loc, rewriter.getI32Type(),
                                          weightZp);
+      auto torchDtype = cast<ValueTensorType>(make.getType()).getDtype();
+      weightUnsigned = torch_to_linalg::isUnsignedTorchType(torchDtype);
+    } else if (auto make =
+                   op.getWeight()
+                       .getDefiningOp<Aten_MakePerChannelQuantizedTensorOp>()) {
+      // Per-channel quantized weights participate in the convolution
+      // exactly like per-tensor ones as long as the zero-point is zero for
+      // every channel (symmetric quantization): only the scale differs per
+      // channel, and the scale is applied by the dequantize that consumes the
+      // i32 accumulator, not here.
+      DenseElementsAttr zpAttr;
+      if (!matchPattern(make.getZeroPoint(), m_Constant(&zpAttr)) ||
+          !llvm::all_of(zpAttr.getValues<APInt>(),
+                        [](const APInt &v) { return v.isZero(); }))
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: per-channel quantized weight requires a "
+                "constant all-zero zero-point");
+      weight = make.getSelf();
+      weight = typeConverter->materializeTargetConversion(
+          rewriter, loc, typeConverter->convertType(weight.getType()), weight);
+      weightZp = arith::ConstantOp::create(rewriter, loc,
+                                           rewriter.getI32IntegerAttr(0));
       auto torchDtype = cast<ValueTensorType>(make.getType()).getDtype();
       weightUnsigned = torch_to_linalg::isUnsignedTorchType(torchDtype);
     }
