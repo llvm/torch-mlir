@@ -7691,6 +7691,29 @@ def ElementwiseBitwiseRightShiftInt8Module_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseRshiftScalarSignedInt8Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int8, True),
+        ]
+    )
+    def forward(self, x):
+        return x >> 1
+
+
+@register_test_case(module_factory=lambda: ElementwiseRshiftScalarSignedInt8Module())
+def ElementwiseRshiftScalarSignedInt8Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-100, high=100).to(torch.int8))
+
+
+# ==============================================================================
+
+
 class ElementwiseBitwiseLeftShiftInt64Module(torch.nn.Module):
     def __init__(self):
         super().__init__()

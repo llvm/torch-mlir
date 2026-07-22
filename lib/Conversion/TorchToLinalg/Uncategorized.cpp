@@ -535,6 +535,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     }
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
+    if (torch_to_linalg::isUnsignedTorchType(
+            bitwiseRightShiftTensor.getType()))
+      return arith::ShRUIOp::create(b, loc, lhs, rhs);
     return arith::ShRSIOp::create(b, loc, lhs, rhs);
   }
   if (auto bitwiseLeftShiftTensor =
@@ -1038,7 +1041,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
         convertScalarToDtype(b, loc, operands[1], dtype,
                              /*srcOriginalDtype=*/operands[1].getType(),
                              /*dstOriginalDtype=*/dtype);
-    return arith::ShRUIOp::create(b, loc, self, other);
+    if (torch_to_linalg::isUnsignedTorchType(rshiftScalar.getType()))
+      return arith::ShRUIOp::create(b, loc, self, other);
+    return arith::ShRSIOp::create(b, loc, self, other);
   }
   if (auto subScalar = dyn_cast<AtenSubScalarOp>(op)) {
     Type dtype =

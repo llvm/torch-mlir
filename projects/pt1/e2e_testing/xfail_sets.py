@@ -3142,6 +3142,11 @@ ONNX_XFAIL_SET = {
     "ElementwiseBitwiseRightShiftInt32Module_basic",
     "ElementwiseBitwiseRightShiftInt64Module_basic",
     "ElementwiseBitwiseRightShiftInt8Module_basic",
+    # The legacy (dynamo=False) ONNX exporter lowers a signed `>>` to a Div by
+    # 2**n, which truncates toward zero. aten.__rshift__.Scalar is an arithmetic
+    # shift that rounds toward negative infinity, so the two disagree on negative
+    # inputs. See https://github.com/pytorch/pytorch/issues/191014
+    "ElementwiseRshiftScalarSignedInt8Module_basic",
     "ElementwiseBitwiseXorModule_basic",
     "ElementwiseBitwiseXorStaticShapeModule_basic",
     "ElementwiseSinhIntModule_basic",

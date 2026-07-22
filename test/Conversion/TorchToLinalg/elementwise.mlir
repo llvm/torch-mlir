@@ -159,3 +159,41 @@ func.func @elementwise_add_unsigned_extend(%arg0: !torch.vtensor<[?],si32>, %arg
   %0 = torch.aten.add.Tensor %arg0, %arg1, %int1 : !torch.vtensor<[?],si32>, !torch.vtensor<[?],ui8>, !torch.int -> !torch.vtensor<[?],si32>
   return %0 : !torch.vtensor<[?],si32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @rshift_scalar_signed(
+// CHECK:           arith.shrsi
+func.func @rshift_scalar_signed(%arg0: !torch.vtensor<[4],si8>) -> !torch.vtensor<[4],si8> {
+  %int1 = torch.constant.int 1
+  %0 = torch.aten.__rshift__.Scalar %arg0, %int1 : !torch.vtensor<[4],si8>, !torch.int -> !torch.vtensor<[4],si8>
+  return %0 : !torch.vtensor<[4],si8>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @rshift_scalar_unsigned(
+// CHECK:           arith.shrui
+func.func @rshift_scalar_unsigned(%arg0: !torch.vtensor<[4],ui8>) -> !torch.vtensor<[4],ui8> {
+  %int1 = torch.constant.int 1
+  %0 = torch.aten.__rshift__.Scalar %arg0, %int1 : !torch.vtensor<[4],ui8>, !torch.int -> !torch.vtensor<[4],ui8>
+  return %0 : !torch.vtensor<[4],ui8>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @bitwise_right_shift_tensor_signed(
+// CHECK:           arith.shrsi
+func.func @bitwise_right_shift_tensor_signed(%arg0: !torch.vtensor<[4],si8>, %arg1: !torch.vtensor<[4],si8>) -> !torch.vtensor<[4],si8> {
+  %0 = torch.aten.bitwise_right_shift.Tensor %arg0, %arg1 : !torch.vtensor<[4],si8>, !torch.vtensor<[4],si8> -> !torch.vtensor<[4],si8>
+  return %0 : !torch.vtensor<[4],si8>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @bitwise_right_shift_tensor_unsigned(
+// CHECK:           arith.shrui
+func.func @bitwise_right_shift_tensor_unsigned(%arg0: !torch.vtensor<[4],ui8>, %arg1: !torch.vtensor<[4],ui8>) -> !torch.vtensor<[4],ui8> {
+  %0 = torch.aten.bitwise_right_shift.Tensor %arg0, %arg1 : !torch.vtensor<[4],ui8>, !torch.vtensor<[4],ui8> -> !torch.vtensor<[4],ui8>
+  return %0 : !torch.vtensor<[4],ui8>
+}
