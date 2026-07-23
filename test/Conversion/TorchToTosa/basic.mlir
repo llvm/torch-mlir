@@ -5207,6 +5207,17 @@ func.func @torch.aten.mm$f32(%arg0: !torch.vtensor<[1,22],f32>, %arg1: !torch.vt
 }
 
 // -----
+
+// CHECK-LABEL:   func.func @test_tosa_matmul_user_attrs(
+// CHECK:           tosa.matmul
+// CHECK-SAME:        {mlir.user.tag = "attn_proj"}
+// CHECK-NOT:       internal.flag
+func.func @test_tosa_matmul_user_attrs(%arg0: !torch.vtensor<[1,22],f32>, %arg1: !torch.vtensor<[22,10],f32>) -> !torch.vtensor<[1,10],f32> {
+  %0 = torch.aten.mm %arg0, %arg1 {mlir.user.tag = "attn_proj", internal.flag = 1 : i64} : !torch.vtensor<[1,22],f32>, !torch.vtensor<[22,10],f32> -> !torch.vtensor<[1,10],f32>
+  return %0 : !torch.vtensor<[1,10],f32>
+}
+
+// -----
 // CHECK-LABEL:   func.func @torch.aten.mm$si8
 // CHECK: tosa.matmul
 // CHECK-SAME: (tensor<1x1x22xi8>, tensor<1x22x10xi8>, tensor<1xi8>, tensor<1xi8>) -> tensor<1x1x10xi32>
@@ -6223,4 +6234,15 @@ func.func @torch.aten.avg_pool2d$encoded_stride_with_non_unit_dilation(%arg0: !t
   // expected-error @+1 {{failed to legalize operation 'torch.aten.avg_pool2d' that was explicitly marked illegal}}
   %0 = torch.aten.avg_pool2d %arg0, %kernel, %stride, %padding, %false, %false, %none : !torch.vtensor<[1,64,16,16],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,64,7,7],f32>
   return %0 : !torch.vtensor<[1,64,7,7],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @test_unsqueeze_user_attrs(
+// CHECK:           tosa.reshape
+// CHECK-SAME:        {mlir.user.tag = "unsqueeze_tag"}
+func.func @test_unsqueeze_user_attrs(%arg0: !torch.vtensor<[4,3],si32>) -> !torch.vtensor<[4,3,1],si32> {
+  %int2 = torch.constant.int 2
+  %0 = torch.aten.unsqueeze %arg0, %int2 {mlir.user.tag = "unsqueeze_tag"} : !torch.vtensor<[4,3],si32>, !torch.int -> !torch.vtensor<[4,3,1],si32>
+  return %0 : !torch.vtensor<[4,3,1],si32>
 }

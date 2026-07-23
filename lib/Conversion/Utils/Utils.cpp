@@ -16,7 +16,9 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include "llvm/Support/ErrorHandling.h"
 
 namespace mlir {
 namespace torch {
@@ -626,6 +628,139 @@ APFloat getFloatInf(mlir::FloatType fpType, bool negative,
   return allowNonFinites
              ? APFloat::getInf(fpType.getFloatSemantics(), negative)
              : APFloat::getLargest(fpType.getFloatSemantics(), negative);
+}
+
+void forwardUserDiscardableAttrs(Operation *from, Operation *to) {
+  if (!from || !to)
+    return;
+  for (NamedAttribute attr : from->getDiscardableAttrs()) {
+    if (attr.getName().getValue().starts_with(kUserAttrPrefix))
+      to->setAttr(attr.getName(), attr.getValue());
+  }
+}
+
+namespace {
+class ForwardingListener : public RewriterBase::ForwardingListener {
+  Operation *sourceOp;
+
+public:
+  ForwardingListener(OpBuilder::Listener *parent, Operation *op)
+      : RewriterBase::ForwardingListener(parent), sourceOp(op) {}
+
+  void notifyOperationInserted(Operation *insertedOp,
+                               OpBuilder::InsertPoint previous) override {
+    RewriterBase::ForwardingListener::notifyOperationInserted(insertedOp,
+                                                              previous);
+    if (insertedOp && sourceOp) {
+      forwardUserDiscardableAttrs(sourceOp, insertedOp);
+    }
+  }
+};
+
+static LogicalResult matchAndRewriteImpl(Operation *op,
+                                         PatternRewriter &rewriter,
+                                         const RewritePattern &innerPattern) {
+  OpBuilder::Listener *parentListener = rewriter.getListener();
+  ForwardingListener listener(parentListener, op);
+  rewriter.setListener(&listener);
+  llvm::scope_exit cleanup([&]() { rewriter.setListener(parentListener); });
+  return innerPattern.matchAndRewrite(op, rewriter);
+}
+
+class ForwardingOpNamePatternWrapper : public RewritePattern {
+  std::unique_ptr<RewritePattern> innerPattern;
+
+public:
+  ForwardingOpNamePatternWrapper(std::unique_ptr<RewritePattern> inner)
+      : RewritePattern(inner->getRootKind()->getStringRef(),
+                       inner->getBenefit(), inner->getContext()),
+        innerPattern(std::move(inner)) {
+    setDebugName(innerPattern->getDebugName());
+    addDebugLabels(innerPattern->getDebugLabels());
+  }
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    return matchAndRewriteImpl(op, rewriter, *innerPattern);
+  }
+};
+
+class ForwardingAnyOpPatternWrapper : public RewritePattern {
+  std::unique_ptr<RewritePattern> innerPattern;
+
+public:
+  ForwardingAnyOpPatternWrapper(std::unique_ptr<RewritePattern> inner)
+      : RewritePattern(MatchAnyOpTypeTag(), inner->getBenefit(),
+                       inner->getContext()),
+        innerPattern(std::move(inner)) {
+    setDebugName(innerPattern->getDebugName());
+    addDebugLabels(innerPattern->getDebugLabels());
+  }
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    return matchAndRewriteImpl(op, rewriter, *innerPattern);
+  }
+};
+
+class ForwardingInterfacePatternWrapper : public RewritePattern {
+  std::unique_ptr<RewritePattern> innerPattern;
+
+public:
+  ForwardingInterfacePatternWrapper(std::unique_ptr<RewritePattern> inner)
+      : RewritePattern(MatchInterfaceOpTypeTag(), *inner->getRootInterfaceID(),
+                       inner->getBenefit(), inner->getContext()),
+        innerPattern(std::move(inner)) {
+    setDebugName(innerPattern->getDebugName());
+    addDebugLabels(innerPattern->getDebugLabels());
+  }
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    return matchAndRewriteImpl(op, rewriter, *innerPattern);
+  }
+};
+
+class ForwardingTraitPatternWrapper : public RewritePattern {
+  std::unique_ptr<RewritePattern> innerPattern;
+
+public:
+  ForwardingTraitPatternWrapper(std::unique_ptr<RewritePattern> inner)
+      : RewritePattern(MatchTraitOpTypeTag(), *inner->getRootTraitID(),
+                       inner->getBenefit(), inner->getContext()),
+        innerPattern(std::move(inner)) {
+    setDebugName(innerPattern->getDebugName());
+    addDebugLabels(innerPattern->getDebugLabels());
+  }
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    return matchAndRewriteImpl(op, rewriter, *innerPattern);
+  }
+};
+} // namespace
+
+void wrapPatternsWithForwarding(RewritePatternSet &patterns) {
+  auto &nativePatterns = patterns.getNativePatterns();
+  std::vector<std::unique_ptr<RewritePattern>> wrappedPatterns;
+  wrappedPatterns.reserve(nativePatterns.size());
+  for (auto &pattern : nativePatterns) {
+    if (pattern->getRootKind()) {
+      wrappedPatterns.push_back(
+          std::make_unique<ForwardingOpNamePatternWrapper>(std::move(pattern)));
+    } else if (pattern->getRootInterfaceID()) {
+      wrappedPatterns.push_back(
+          std::make_unique<ForwardingInterfacePatternWrapper>(
+              std::move(pattern)));
+    } else if (pattern->getRootTraitID()) {
+      wrappedPatterns.push_back(
+          std::make_unique<ForwardingTraitPatternWrapper>(std::move(pattern)));
+    } else {
+      wrappedPatterns.push_back(
+          std::make_unique<ForwardingAnyOpPatternWrapper>(std::move(pattern)));
+    }
+  }
+  nativePatterns = std::move(wrappedPatterns);
 }
 
 } // namespace Torch

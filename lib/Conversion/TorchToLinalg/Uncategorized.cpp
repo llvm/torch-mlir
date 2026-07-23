@@ -1843,7 +1843,8 @@ public:
             return;
           }
           linalg::YieldOp::create(b, loc, result);
-        });
+        },
+        /*sourceOp=*/op);
     if (hadErrorCreatingPayload)
       return failure();
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, generic);

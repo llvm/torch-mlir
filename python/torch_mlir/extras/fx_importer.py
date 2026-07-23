@@ -103,11 +103,14 @@ from ..ir import (
     AffineModExpr,
     AffineMulExpr,
     AffineSymbolExpr,
+    ArrayAttr,
     Attribute,
     Block,
+    BlockArgument,
     Context,
     DenseElementsAttr,
     DenseResourceElementsAttr,
+    DictAttr,
     FlatSymbolRefAttr,
     FloatAttr,
     BF16Type,
@@ -139,7 +142,6 @@ from ..ir import (
 from ..dialects import (
     func as func_dialect,
 )
-
 
 __all__ = [
     "FxImporter",
@@ -463,6 +465,53 @@ def is_symbolic(obj: Any) -> bool:
 
 def is_builtin_function_or_method(obj: Any) -> bool:
     return isinstance(obj, (BuiltinMethodType, BuiltinFunctionType))
+
+
+def _coerce_mlir_attr(value: Any, context: Context) -> Optional[Attribute]:
+    """Convert a Python value into an MLIR `Attribute`.
+
+    Note that Python `bool` values (`True` / `False`) model MLIR `UnitAttr`
+    (`True` -> `UnitAttr`, `False` -> omitted). When boolean value semantics
+    (`true` / `false`) are required, construct and pass explicit
+    `mlir.ir.BoolAttr` objects instead.
+
+    Returns `None` for values that should be skipped (e.g. `False` on a unit
+    attr channel). Raises `TypeError` for unsupported Python types.
+    """
+    if isinstance(value, Attribute):
+        return value
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        # Booleans model unit attrs: True -> UnitAttr, False -> omitted (None).
+        # To get MLIR boolean value semantics (`true` / `false`), pass an
+        # explicit `mlir.ir.BoolAttr`.
+        return UnitAttr.get(context=context) if value else None
+    if isinstance(value, int):
+        return IntegerAttr.get(IntegerType.get_signless(64, context=context), value)
+    if isinstance(value, float):
+        # Use f64 to match MLIR's default parse of a bare `3.14` literal.
+        return FloatAttr.get(F64Type.get(context=context), value)
+    if isinstance(value, str):
+        return StringAttr.get(value, context=context)
+    if isinstance(value, (list, tuple)):
+        elems = [_coerce_mlir_attr(v, context) for v in value]
+        elems = [e for e in elems if e is not None]
+        return ArrayAttr.get(elems, context=context)
+    raise TypeError(
+        f"Cannot coerce Python value of type {type(value).__name__} "
+        f"to an MLIR Attribute (value={value!r}). Pass a pre-built "
+        f"`mlir.ir.Attribute` to use a custom encoding."
+    )
+
+
+# User-supplied attributes (from `mlir.attrs` / `mlir.arg_attrs` meta) are
+# emitted by the importer with this prefix, so backend-lowering patterns that
+# opt in (e.g. ConvertElementwiseOp in TorchToLinalg) can forward exactly
+# these attrs without leaking unrelated discardable attrs (dialect internals
+# etc.). The `torch-lift-user-attrs` pass at the end of the lowering pipeline
+# strips this prefix to expose the user's chosen names.
+USER_ATTR_PREFIX = "mlir.user."
 
 
 def is_scalar_arg(arg: NodeArgument) -> bool:
@@ -1618,6 +1667,18 @@ class GraphNodeImporter:
                         and is_builtin_function_or_method(target)
                     ):
                         self._import_symbolic_torch_op(loc, node, target)
+                    elif (
+                        hasattr(torch.ops, "torch_mlir")
+                        and hasattr(torch.ops.torch_mlir, "annotate_and_pass_through")
+                        and target
+                        == torch.ops.torch_mlir.annotate_and_pass_through.default
+                    ) or (
+                        isinstance(target, TorchOpOverload)
+                        and getattr(target, "_op_namespace", None) == "torch_mlir"
+                        and getattr(target, "_op_name", None)
+                        == "annotate_and_pass_through"
+                    ):
+                        self._import_annotate_and_pass_through(loc, node)
                     elif isinstance(target, TorchOpOverload):
                         # Dispatch to an ATen op.
                         self._import_torch_op_overload(loc, node)
@@ -1657,6 +1718,38 @@ class GraphNodeImporter:
         temp_node.meta["val"] = torch.sym_float(param.meta["val"])
         self._import_torch_op_overload(loc, temp_node, temp_target)
         return temp_node
+
+    def _import_annotate_and_pass_through(self, loc: Location, node: torch_fx.Node):
+        if len(node.args) != 2 or not isinstance(node.args[1], dict):
+            raise ValueError(
+                f"annotate_and_pass_through expects 2 arguments (input, dict), got {node.args}"
+            )
+        input_val = self._import_argument(loc, node.args[0])
+        annotations = node.args[1]
+
+        with loc:
+            if isinstance(input_val, BlockArgument):
+                func_op = input_val.owner.owner
+                arg_attrs = getattr(func_op, "arg_attrs", None)
+                if arg_attrs is None:
+                    dicts = [{} for _ in range(len(input_val.owner.arguments))]
+                else:
+                    dicts = [{na.name: na.attr for na in d} for d in arg_attrs]
+                for k, v in annotations.items():
+                    mlir_attr = _coerce_mlir_attr(v, self._c)
+                    if mlir_attr is not None:
+                        dicts[input_val.arg_number][USER_ATTR_PREFIX + k] = mlir_attr
+                func_op.arg_attrs = ArrayAttr.get(
+                    [DictAttr.get(d, context=self._c) for d in dicts], context=self._c
+                )
+            else:
+                producer_op = input_val.owner
+                for k, v in annotations.items():
+                    mlir_attr = _coerce_mlir_attr(v, self._c)
+                    if mlir_attr is not None:
+                        producer_op.attributes[USER_ATTR_PREFIX + k] = mlir_attr
+
+        self.bind_node_value(node, input_val, 0)
 
     def _import_symbolic_torch_op(
         self,
