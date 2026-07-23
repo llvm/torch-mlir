@@ -9773,6 +9773,32 @@ def Torch_AtenBincountOp : Torch_Op<"aten.bincount", [
   }];
 }
 
+def Torch_AtenHistcOp : Torch_Op<"aten.histc", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::histc : (Tensor, int, Scalar, Scalar) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    Torch_IntType:$bins,
+    AnyTorchScalarType:$min,
+    AnyTorchScalarType:$max
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenHistcOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 4, 1);
+    }
+    void AtenHistcOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 4, 1);
+    }
+  }];
+}
+
 def Torch_AtenLinalgVectorNormOp : Torch_Op<"aten.linalg_vector_norm", [
     AllowsTypeRefinement,
     HasValueSemantics,

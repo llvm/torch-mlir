@@ -13253,8 +13253,210 @@ public:
   }
 };
 } // namespace
+namespace {
+
+static bool isConstZero(Value v) {
+  double floatVal;
+  int64_t intVal;
+  return (matchPattern(v, m_TorchConstantFloat(&floatVal)) &&
+          floatVal == 0.0) ||
+         (matchPattern(v, m_TorchConstantInt(&intVal)) && intVal == 0);
+}
+
+class DecomposeAtenHistcOp : public OpRewritePattern<AtenHistcOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenHistcOp op,
+                                PatternRewriter &rewriter) const override {
+
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value bins = op.getBins();
+
+    auto selfType = dyn_cast<BaseTensorType>(self.getType());
+    if (!selfType || !selfType.hasDtype())
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: unranked/undtyped tensor");
+
+    // Initializes min and max values. If not provided, compute them from the
+    // input tensor.
+    bool minIsConstZero = isConstZero(op.getMin());
+    bool maxIsConstZero = isConstZero(op.getMax());
+
+    Value min = op.getMin();
+    Value max = op.getMax();
+
+    Value none = ConstantNoneOp::create(rewriter, loc);
+    Value cstFalse = ConstantBoolOp::create(rewriter, loc, false);
+
+    // 0-d scalar tensor type
+    Type scalarType = rewriter.getType<ValueTensorType>(
+        llvm::ArrayRef<int64_t>({}), selfType.getDtype());
+    Type scalarBoolType = rewriter.getType<ValueTensorType>(
+        llvm::ArrayRef<int64_t>({}), rewriter.getI1Type());
+    Type scalarLongType = rewriter.getType<ValueTensorType>(
+        llvm::ArrayRef<int64_t>({}),
+        rewriter.getIntegerType(64, /*isSigned=*/true));
+
+    Value minVal;
+    Value maxVal;
+
+    if (minIsConstZero && maxIsConstZero) {
+      minVal = AtenMinOp::create(rewriter, loc, scalarType, self);
+      maxVal = AtenMaxOp::create(rewriter, loc, scalarType, self);
+    } else {
+      minVal = AtenScalarTensorOp::create(rewriter, loc, scalarType, min, none,
+                                          none, none, none);
+      maxVal = AtenScalarTensorOp::create(rewriter, loc, scalarType, max, none,
+                                          none, none, none);
+    }
+
+    // Static size if all input dims are known, else dynamic ([?])
+    int64_t flattenedSize = Torch::kUnknownSize;
+    if (selfType.hasSizes()) {
+      flattenedSize = 1;
+      for (int64_t dim : selfType.getSizes()) {
+        if (dim == Torch::kUnknownSize) {
+          flattenedSize = Torch::kUnknownSize;
+          break;
+        }
+        flattenedSize *= dim;
+      }
+    }
+    SmallVector<int64_t> flattenedShape = {flattenedSize};
+
+    Type boolType = rewriter.getType<ValueTensorType>(
+        llvm::ArrayRef<int64_t>(flattenedShape), rewriter.getI1Type());
+
+    // flatten self
+    Value cstZero =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
+    Value cstMinusOne =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(-1));
+    Value flatSelf = AtenFlattenUsingIntsOp::create(
+        rewriter, loc,
+        rewriter.getType<ValueTensorType>(
+            llvm::ArrayRef<int64_t>(flattenedShape), selfType.getDtype()),
+        self, cstZero, cstMinusOne);
+
+    // Mask of values >= min and <= max
+    Value geMinMask =
+        AtenGeTensorOp::create(rewriter, loc, boolType, flatSelf, minVal);
+    Value leMaxMask =
+        AtenLeTensorOp::create(rewriter, loc, boolType, flatSelf, maxVal);
+    Value mask = AtenBitwiseAndTensorOp::create(rewriter, loc, boolType,
+                                                geMinMask, leMaxMask);
+
+    // Max - (alpha * Min)
+    Value cstOne =
+        ConstantFloatOp::create(rewriter, loc, rewriter.getF64FloatAttr(1.0));
+    Value range = AtenSubTensorOp::create(rewriter, loc, scalarType, maxVal,
+                                          minVal, cstOne);
+
+    // Handle the case where max == min
+    Value cstZeroFloat =
+        ConstantFloatOp::create(rewriter, loc, rewriter.getF64FloatAttr(0.0));
+    Value zeroVal = AtenScalarTensorOp::create(
+        rewriter, loc, scalarType, cstZeroFloat, none, none, none, none);
+    Value isSame =
+        AtenEqTensorOp::create(rewriter, loc, scalarBoolType, range, zeroVal);
+
+    Value binsFloat = AtenFloatScalarOp::create(
+        rewriter, loc, rewriter.getType<Torch::FloatType>(), bins);
+    Value binsVal = AtenScalarTensorOp::create(
+        rewriter, loc, scalarType, binsFloat, none, none, none, none);
+
+    // Width of each bin: (max - min) / bins
+    Value binWidth =
+        AtenDivTensorOp::create(rewriter, loc, scalarType, range, binsVal);
+    Value oneVal = AtenScalarTensorOp::create(rewriter, loc, scalarType, cstOne,
+                                              none, none, none, none);
+
+    // Avoid division by zero
+    Value safeBinWidth = AtenWhereSelfOp::create(rewriter, loc, scalarType,
+                                                 isSame, oneVal, binWidth);
+
+    // Calculate bin indices for each element
+    Value shifted = AtenSubTensorOp::create(rewriter, loc, flatSelf.getType(),
+                                            flatSelf, minVal, cstOne);
+    Value indexFloat = AtenDivTensorOp::create(
+        rewriter, loc, flatSelf.getType(), shifted, safeBinWidth);
+    indexFloat =
+        AtenFloorOp::create(rewriter, loc, indexFloat.getType(), indexFloat);
+
+    // Convert float to long
+    Value longDtype =
+        ConstantIntOp::create(rewriter, loc,
+                              rewriter.getI64IntegerAttr(static_cast<int64_t>(
+                                  torch_upstream::ScalarType::Long)));
+    Type indexType = rewriter.getType<ValueTensorType>(
+        llvm::ArrayRef<int64_t>(flattenedShape),
+        rewriter.getIntegerType(64, /*isSigned=*/true));
+    Value index = AtenToDtypeOp::create(rewriter, loc, indexType, indexFloat,
+                                        longDtype, cstFalse, cstFalse, none);
+
+    // If max == min, all values are in the middle bin
+    Value cstTwo =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(2));
+    Value midBin = AtenFloordivIntOp::create(
+        rewriter, loc, rewriter.getType<Torch::IntType>(), bins, cstTwo);
+    Value midBinVal = AtenScalarTensorOp::create(
+        rewriter, loc, scalarLongType, midBin, longDtype, none, none, none);
+
+    // Use middle bin if max == min
+    index = AtenWhereSelfOp::create(rewriter, loc, indexType, isSame, midBinVal,
+                                    index);
+
+    // Clamp the bin indices to the range [0, bins - 1]
+    Value cstOneInt =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
+    Value binsMinusOne = AtenSubIntOp::create(
+        rewriter, loc, rewriter.getType<Torch::IntType>(), bins, cstOneInt);
+    Value clampedIndex = AtenClampOp::create(rewriter, loc, indexType, index,
+                                             cstZero, binsMinusOne);
+
+    // Send out-of-range values to an extra bin we drop later
+    Value overflowBinVal = AtenScalarTensorOp::create(
+        rewriter, loc, scalarLongType, bins, longDtype, none, none, none);
+    Value finalIndex = AtenWhereSelfOp::create(rewriter, loc, indexType, mask,
+                                               clampedIndex, overflowBinVal);
+
+    // Count each bin index; minlength=bins+1 ensures output has bins+1 slots
+    // for the extra bin values
+    Value binsPlusOne = AtenAddIntOp::create(
+        rewriter, loc, rewriter.getType<Torch::IntType>(), bins, cstOneInt);
+
+    // Create static shape for bincount/slice ops
+    int64_t binsInt;
+    bool binsIsConst = matchPattern(bins, m_TorchConstantInt(&binsInt));
+    Type countsType = rewriter.getType<ValueTensorType>(
+        llvm::ArrayRef<int64_t>{binsIsConst ? binsInt + 1
+                                            : Torch::kUnknownSize},
+        rewriter.getIntegerType(64, /*isSigned=*/true));
+    Type slicedType = rewriter.getType<ValueTensorType>(
+        llvm::ArrayRef<int64_t>{binsIsConst ? binsInt : Torch::kUnknownSize},
+        rewriter.getIntegerType(64, /*isSigned=*/true));
+
+    Value counts = AtenBincountOp::create(rewriter, loc, countsType, finalIndex,
+                                          none, binsPlusOne);
+
+    // Drop the overflow bin, leaving exactly `bins` counts.
+    Value sliced = AtenSliceTensorOp::create(rewriter, loc, slicedType, counts,
+                                             cstZero, cstZero, bins, cstOneInt);
+
+    // Convert int64 counts to the same dtype as the input tensor
+    Value dtype = getDtypeIntValueForType(rewriter, loc, selfType.getDtype());
+    Value result = AtenToDtypeOp::create(rewriter, loc, op.getType(), sliced,
+                                         dtype, cstFalse, cstFalse, none);
+
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
 
 namespace {
+
 class DecomposeAtenAbsoluteOp : public OpRewritePattern<AtenAbsoluteOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -13602,6 +13804,7 @@ public:
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_AssertScalarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRoundDecimalsOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenHistcOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAbsoluteOp>(patterns);
 
     GreedyRewriteConfig config;

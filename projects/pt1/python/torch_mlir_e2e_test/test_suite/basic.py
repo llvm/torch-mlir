@@ -4361,6 +4361,84 @@ def BincountMinlengthModule_basic(module, tu: TestUtils):
 
 
 # ==============================================================================
+class HistcModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.histc(x, bins=4, min=1.0, max=5.0)
+
+
+@register_test_case(module_factory=lambda: HistcModule())
+def HistcModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([0.0, 1.0, 2.0, 4.0, 5.0, 6.0]))
+
+
+class HistcZeroBoundsModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.histc(x, bins=4, min=0.0, max=0.0)
+
+
+@register_test_case(module_factory=lambda: HistcZeroBoundsModule())
+def HistcZeroBoundsModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([1.0, 2.0, 4.0, 5.0, 6.0]))
+
+
+class HistcDefaultBoundsModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.histc(x, bins=4)
+
+
+@register_test_case(module_factory=lambda: HistcDefaultBoundsModule())
+def HistcDefaultBoundsModule_homogeneous(module, tu: TestUtils):
+    module.forward(torch.tensor([2.0, 2.0, 2.0, 2.0]))
+
+
+class Histc2DModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.histc(x, bins=4, min=1.0, max=5.0)
+
+
+@register_test_case(module_factory=lambda: Histc2DModule())
+def Histc2DModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([[0.0, 1.0, 2.0], [4.0, 5.0, 6.0]]))
 
 
 class ExpandAsFloatModule(torch.nn.Module):

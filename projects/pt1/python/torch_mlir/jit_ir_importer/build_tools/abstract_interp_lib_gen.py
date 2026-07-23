@@ -2712,6 +2712,9 @@ def hacky_get_unknown_dimension_size():
 def aten〇bincount〡shape(self: List[int], weights: Optional[List[int]] = None, minlength: int = 0) -> List[int]:
     return [hacky_get_unknown_dimension_size()]
 
+def aten〇histc〡shape(self: List[int], bins: int = 100, min: float = 0, max: float = 0) -> List[int]:
+    return [bins]
+
 def aten〇nonzero〡shape(self: List[int]) -> List[int]:
     return [hacky_get_unknown_dimension_size(), len(self)]
 
@@ -5120,6 +5123,15 @@ def aten〇bincount〡dtype(self_rank_dtype: Tuple[int, int], weights_rank_dtype
     if weights_rank_dtype is None:
         return torch.int64
     return torch.float64
+
+@check_dtype_function(_check_tensors_with_the_same_dtype(
+    num_of_tensors=1,
+    tensor_device="cpu",
+    error_types={torch.complex64, torch.complex128, torch.int64, torch.int32, torch.int16, torch.int8, torch.uint8, torch.bool}))
+def aten〇histc〡dtype(self_rank_dtype: Tuple[int, int], bins: int = 100, min: Union[int, float, complex] = 0, max: Union[int, float, complex] = 0) -> int:
+    _, self_dtype = self_rank_dtype
+    assert is_float_dtype(self_dtype)
+    return self_dtype
 
 @check_dtype_function([
     Invocation(TensorOfShape(1, 5, 5, dtype=torch.int64), [5,5], [1,5], [1,1], [0,0], [1,1]), # int type
