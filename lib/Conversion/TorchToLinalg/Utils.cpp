@@ -209,7 +209,8 @@ Value torch_to_linalg::getOutputDimForConvTransposeOps(
 
 Value torch_to_linalg::createReductionLinalgGeneric(
     OpBuilder &b, Location loc, const ReductionOpInfo &opInfo, Value initElem,
-    function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild) {
+    function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild,
+    Operation *sourceOp) {
   auto inputType = cast<RankedTensorType>(opInfo.tensorOperand.getType());
 
   // Get the result shape by obtaining the size of each
@@ -255,17 +256,20 @@ Value torch_to_linalg::createReductionLinalgGeneric(
   Value accumulator =
       createInitTensor(b, loc, resultShape, initElem.getType(), initElem);
 
-  return linalg::GenericOp::create(
-             b, loc, /*resultTensorTypes=*/accumulator.getType(),
-             /*inputs=*/opInfo.tensorOperand,
-             /*outputs=*/accumulator, indexingMaps, iteratorTypes, bodyBuild)
-      .getResult(0);
+  auto genericOp = linalg::GenericOp::create(
+      b, loc, /*resultTensorTypes=*/accumulator.getType(),
+      /*inputs=*/opInfo.tensorOperand,
+      /*outputs=*/accumulator, indexingMaps, iteratorTypes, bodyBuild);
+  if (sourceOp)
+    forwardUserDiscardableAttrs(sourceOp, genericOp);
+  return genericOp.getResult(0);
 }
 
 Value torch_to_linalg::createElementwiseLinalgGeneric(
     OpBuilder &b, Location loc, ValueRange tensorOperands,
     Type resultElementType,
-    function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild) {
+    function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild,
+    Operation *sourceOp) {
   // The overall error handling strategy here is best viewed by thinking about
   // what happens for a single result dimension. This loop not structured that
   // way because it is hard to create the affine maps for each operand unless
@@ -386,12 +390,14 @@ Value torch_to_linalg::createElementwiseLinalgGeneric(
 
   Value initTensor = tensor::EmptyOp::create(
       b, loc, getAsOpFoldResult(resultShape), resultElementType);
-  return linalg::GenericOp::create(b, loc,
-                                   /*resultTensorTypes=*/initTensor.getType(),
-                                   /*inputs=*/tensorOperands,
-                                   /*outputs=*/initTensor, indexingMaps,
-                                   iteratorTypes, bodyBuild)
-      .getResult(0);
+  auto genericOp = linalg::GenericOp::create(
+      b, loc,
+      /*resultTensorTypes=*/initTensor.getType(),
+      /*inputs=*/tensorOperands,
+      /*outputs=*/initTensor, indexingMaps, iteratorTypes, bodyBuild);
+  if (sourceOp)
+    forwardUserDiscardableAttrs(sourceOp, genericOp);
+  return genericOp.getResult(0);
 }
 
 // Broadcasts input tensor based on the broadcastToShape.

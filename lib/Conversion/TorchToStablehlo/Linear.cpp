@@ -278,8 +278,10 @@ public:
     if (lhsRank <= 2 && rhsRank <= 2) {
       auto tensorType =
           ConvertAtenOp<AtenOpT>::getTypeConverter()->convertType(op.getType());
-      output = stablehlo::DotOp::create(rewriter, op->getLoc(), tensorType, lhs,
-                                        rhs, nullptr);
+      auto dotOp = stablehlo::DotOp::create(rewriter, op->getLoc(), tensorType,
+                                            lhs, rhs, nullptr);
+      forwardUserDiscardableAttrs(op, dotOp);
+      output = dotOp;
       return success();
     }
 
@@ -323,10 +325,11 @@ public:
     auto outTy =
         castContractingDim(rewriter, op, lhs, rhs, lhsResultDim, rhsResultDim,
                            lhsContractingDim, rhsContractingDim);
-    output =
+    auto dotOp =
         stablehlo::DotGeneralOp::create(rewriter, op->getLoc(), outTy, lhs, rhs,
-                                        dotDimensionNumbers, nullptr, nullptr)
-            .getResult();
+                                        dotDimensionNumbers, nullptr, nullptr);
+    forwardUserDiscardableAttrs(op, dotOp);
+    output = dotOp.getResult();
     return success();
   }
 
