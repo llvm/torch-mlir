@@ -1765,6 +1765,193 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
 }
 
 namespace {
+static SmallVector<AffineMap> getPerChannelIndexingMaps(OpBuilder &b,
+                                                        int64_t rank,
+                                                        int64_t axis,
+                                                        bool hasZeroPoints) {
+  AffineMap identity = b.getMultiDimIdentityMap(rank);
+  AffineMap channel =
+      AffineMap::get(rank, 0, {b.getAffineDimExpr(axis)}, b.getContext());
+  SmallVector<AffineMap> maps = {identity, channel};
+  if (hasZeroPoints)
+    maps.push_back(channel);
+  maps.push_back(identity);
+  return maps;
+}
+
+static FailureOr<int64_t>
+getPerChannelAxis(Operation *op, Value axisValue, int64_t rank,
+                  ConversionPatternRewriter &rewriter) {
+  int64_t axis;
+  if (!matchPattern(axisValue, m_TorchConstantInt(&axis))) {
+    (void)rewriter.notifyMatchFailure(op, "axis must be constant");
+    return failure();
+  }
+  if (axis < 0)
+    axis += rank;
+  if (axis < 0 || axis >= rank) {
+    (void)rewriter.notifyMatchFailure(op, "axis is out of range");
+    return failure();
+  }
+  return axis;
+}
+
+static Value createPerChannelDequantizePayload(OpBuilder &b, Location loc,
+                                               Value input, Value scale,
+                                               Value zeroPoint, Type outputType,
+                                               bool inputIsUnsigned) {
+  Type computeIntType =
+      b.getIntegerType(cast<FloatType>(outputType).getWidth());
+  if (input.getType() != computeIntType)
+    input = inputIsUnsigned
+                ? arith::ExtUIOp::create(b, loc, computeIntType, input)
+                : arith::ExtSIOp::create(b, loc, computeIntType, input);
+  if (!zeroPoint)
+    zeroPoint =
+        arith::ConstantOp::create(b, loc, b.getIntegerAttr(computeIntType, 0));
+  else if (zeroPoint.getType() != computeIntType)
+    zeroPoint = convertScalarToDtype(b, loc, zeroPoint, computeIntType);
+  Value value = arith::SubIOp::create(b, loc, input, zeroPoint);
+  value = arith::SIToFPOp::create(b, loc, outputType, value);
+  if (scale.getType() != outputType)
+    scale = convertScalarToDtype(b, loc, scale, outputType);
+  return arith::MulFOp::create(b, loc, value, scale);
+}
+
+class ConvertQuantizedDecomposedQuantizePerChannelOp
+    : public OpConversionPattern<QuantizedDecomposedQuantizePerChannelOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(QuantizedDecomposedQuantizePerChannelOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    Value input = adaptor.getInput();
+    Value scales = adaptor.getScales();
+    Value zeroPoints = adaptor.getZeroPoints();
+    auto inputType = dyn_cast<RankedTensorType>(input.getType());
+    auto scalesType = dyn_cast<RankedTensorType>(scales.getType());
+    auto zeroPointsType = dyn_cast<RankedTensorType>(zeroPoints.getType());
+    auto resultType = dyn_cast<RankedTensorType>(
+        getTypeConverter()->convertType(op.getResult().getType()));
+    if (!inputType || !scalesType || !zeroPointsType || !resultType ||
+        scalesType.getRank() != 1 || zeroPointsType.getRank() != 1)
+      return rewriter.notifyMatchFailure(
+          op, "expected ranked input/result and rank-1 qparams");
+    FailureOr<int64_t> axis =
+        getPerChannelAxis(op, op.getAxis(), inputType.getRank(), rewriter);
+    if (failed(axis))
+      return failure();
+
+    int64_t quantMin, quantMax;
+    if (!matchPattern(op.getQuantMin(), m_TorchConstantInt(&quantMin)) ||
+        !matchPattern(op.getQuantMax(), m_TorchConstantInt(&quantMax)))
+      return rewriter.notifyMatchFailure(op, "quant_min/max must be constant");
+    Location loc = op.getLoc();
+    Value init = tensor::EmptyOp::create(
+        rewriter, loc, getAsOpFoldResult(getTensorSizes(rewriter, loc, input)),
+        resultType.getElementType());
+    SmallVector<AffineMap> indexingMaps = getPerChannelIndexingMaps(
+        rewriter, inputType.getRank(), *axis, /*hasZeroPoints=*/true);
+    SmallVector<utils::IteratorType> iteratorTypes(
+        inputType.getRank(), utils::IteratorType::parallel);
+    bool resultIsUnsigned = torch_to_linalg::isUnsignedTorchType(
+        cast<BaseTensorType>(op.getResult().getType()).getDtype());
+
+    Value result =
+        linalg::GenericOp::create(
+            rewriter, loc, resultType, ValueRange{input, scales, zeroPoints},
+            init, indexingMaps, iteratorTypes,
+            [&](OpBuilder &b, Location bodyLoc, ValueRange args) {
+              Value value = args[0];
+              Value scale = args[1];
+              Value zeroPoint = args[2];
+              Type fpType = value.getType();
+              Type outputType = resultType.getElementType();
+              if (scale.getType() != fpType)
+                scale = convertScalarToDtype(b, bodyLoc, scale, fpType);
+              zeroPoint =
+                  arith::SIToFPOp::create(b, bodyLoc, fpType, zeroPoint);
+              value = arith::DivFOp::create(b, bodyLoc, value, scale);
+              value = math::RoundEvenOp::create(b, bodyLoc, value);
+              value = arith::AddFOp::create(b, bodyLoc, value, zeroPoint);
+              Value qmin = arith::ConstantOp::create(
+                  b, bodyLoc,
+                  b.getFloatAttr(fpType, static_cast<double>(quantMin)));
+              Value qmax = arith::ConstantOp::create(
+                  b, bodyLoc,
+                  b.getFloatAttr(fpType, static_cast<double>(quantMax)));
+              value = arith::MaximumFOp::create(b, bodyLoc, value, qmin);
+              value = arith::MinimumFOp::create(b, bodyLoc, value, qmax);
+              value =
+                  resultIsUnsigned
+                      ? arith::FPToUIOp::create(b, bodyLoc, outputType, value)
+                      : arith::FPToSIOp::create(b, bodyLoc, outputType, value);
+              linalg::YieldOp::create(b, bodyLoc, value);
+            })
+            .getResult(0);
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+
+class ConvertQuantizedDecomposedDequantizePerChannelOp
+    : public OpConversionPattern<QuantizedDecomposedDequantizePerChannelOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(QuantizedDecomposedDequantizePerChannelOp op,
+                  OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+    Value input = adaptor.getInput();
+    Value scales = adaptor.getScales();
+    Value zeroPoints = adaptor.getZeroPoints();
+    auto inputType = dyn_cast<RankedTensorType>(input.getType());
+    auto scalesType = dyn_cast<RankedTensorType>(scales.getType());
+    auto resultType = dyn_cast<RankedTensorType>(
+        getTypeConverter()->convertType(op.getResult().getType()));
+    if (!inputType || !scalesType || !resultType || scalesType.getRank() != 1)
+      return rewriter.notifyMatchFailure(
+          op, "expected ranked input/result and rank-1 scales");
+    FailureOr<int64_t> axis =
+        getPerChannelAxis(op, op.getAxis(), inputType.getRank(), rewriter);
+    if (failed(axis))
+      return failure();
+
+    bool hasZeroPoints = isa<RankedTensorType>(zeroPoints.getType());
+    SmallVector<Value> inputs = {input, scales};
+    if (hasZeroPoints)
+      inputs.push_back(zeroPoints);
+    Location loc = op.getLoc();
+    Value init = tensor::EmptyOp::create(
+        rewriter, loc, getAsOpFoldResult(getTensorSizes(rewriter, loc, input)),
+        resultType.getElementType());
+    SmallVector<AffineMap> indexingMaps = getPerChannelIndexingMaps(
+        rewriter, inputType.getRank(), *axis, hasZeroPoints);
+    SmallVector<utils::IteratorType> iteratorTypes(
+        inputType.getRank(), utils::IteratorType::parallel);
+    bool inputIsUnsigned = torch_to_linalg::isUnsignedTorchType(
+        cast<BaseTensorType>(op.getInput().getType()).getDtype());
+
+    Value result = linalg::GenericOp::create(
+                       rewriter, loc, resultType, inputs, init, indexingMaps,
+                       iteratorTypes,
+                       [&](OpBuilder &b, Location bodyLoc, ValueRange args) {
+                         Value zeroPoint = hasZeroPoints ? args[2] : Value();
+                         Value value = createPerChannelDequantizePayload(
+                             b, bodyLoc, args[0], args[1], zeroPoint,
+                             resultType.getElementType(), inputIsUnsigned);
+                         linalg::YieldOp::create(b, bodyLoc, value);
+                       })
+                       .getResult(0);
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+
 // Converts an elementwise op.
 // This specifically includes:
 // - converting elementwise ops of any tensor arity
@@ -2448,7 +2635,7 @@ public:
     }
 
     auto operandDTy = cast<ValueTensorType>(operand.getType()).getDtype();
-    auto zeropointDTy = cast<ValueTensorType>(zeropoint.getType()).getDtype();
+    bool operandIsUnsigned = torch_to_linalg::isUnsignedTorchType(operandDTy);
     operand = converter->materializeTargetConversion(
         rewriter, loc, converter->convertType(operand.getType()), operand);
     scale = converter->materializeTargetConversion(
@@ -2469,13 +2656,9 @@ public:
 
     llvm::SmallVector<utils::IteratorType> iterators(
         resultType.getRank(), utils::IteratorType::parallel);
-    llvm::SmallVector<AffineMap> maps(
-        4, {rewriter.getMultiDimIdentityMap(resultType.getRank())});
-    auto broadcastMap = AffineMap::get(
-        resultType.getRank(), /*symbolCount=*/0,
-        {rewriter.getAffineDimExpr(axisAttr.getInt())}, rewriter.getContext());
-    maps[1] = broadcastMap;
-    maps[2] = broadcastMap;
+    SmallVector<AffineMap> maps = getPerChannelIndexingMaps(
+        rewriter, resultType.getRank(), axisAttr.getInt(),
+        /*hasZeroPoints=*/true);
 
     auto empty =
         tensor::EmptyOp::create(rewriter, op.getLoc(), resultType, dynSizes);
@@ -2483,32 +2666,10 @@ public:
         rewriter, loc, resultType, ValueRange{operand, scale, zeropoint},
         ValueRange{empty}, maps, iterators,
         [&](OpBuilder &b, Location loc, ValueRange args) {
-          Value operand = args[0];
-          Value scale = args[1];
-          Value zeropoint = args[2];
-          if (operandDTy.isUnsignedInteger(8)) {
-            operand = arith::ExtUIOp::create(b, loc, b.getI32Type(), operand);
-          } else if (operandDTy.isSignedInteger(8)) {
-            operand = arith::ExtSIOp::create(b, loc, b.getI32Type(), operand);
-          }
-
-          if (zeropointDTy.isUnsignedInteger(8)) {
-            zeropoint =
-                arith::ExtUIOp::create(b, loc, b.getI32Type(), zeropoint);
-          } else if (zeropointDTy.isSignedInteger(8)) {
-            zeropoint =
-                arith::ExtSIOp::create(b, loc, b.getI32Type(), zeropoint);
-          } else if (zeropointDTy.isInteger(64)) {
-            zeropoint =
-                arith::TruncIOp::create(b, loc, b.getI32Type(), zeropoint);
-            op->emitWarning() << "truncated zero point from 64 to 32 bit";
-          }
-
-          Value sub = arith::SubIOp::create(rewriter, loc, operand, zeropoint);
-          Value fp =
-              arith::SIToFPOp::create(rewriter, loc, args[3].getType(), sub);
-          Value mul = arith::MulFOp::create(rewriter, loc, fp, scale);
-          linalg::YieldOp::create(b, loc, mul);
+          Value value = createPerChannelDequantizePayload(
+              b, loc, args[0], args[1], args[2], args[3].getType(),
+              operandIsUnsigned);
+          linalg::YieldOp::create(b, loc, value);
         });
     rewriter.replaceOp(op, linalgOp.getResults());
     return success();
@@ -4157,6 +4318,11 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenQuantizePerTensorOp, AtenIscloseOp,
       QuantizedDecomposedDequantizePerTensorOp,
       QuantizedDecomposedQuantizePerTensorOp>();
+  target.addIllegalOp<QuantizedDecomposedQuantizePerChannelOp,
+                      QuantizedDecomposedDequantizePerChannelOp>();
+  patterns.add<ConvertQuantizedDecomposedQuantizePerChannelOp,
+               ConvertQuantizedDecomposedDequantizePerChannelOp>(typeConverter,
+                                                                 context);
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);
