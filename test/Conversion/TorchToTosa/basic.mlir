@@ -2289,6 +2289,56 @@ func.func @torch.aten.prod.dim_int$basic(%arg0: !torch.vtensor<[3,2,3],f32>) -> 
 
 // -----
 
+// CHECK-LABEL:   func.func @torch.aten.prod.dim_int$int(
+// CHECK:           %[[INPUT:.*]] = torch_c.to_builtin_tensor
+// CHECK:           %[[CAST:.*]] = tosa.cast %[[INPUT]] : (tensor<3x2x3xi32>) -> tensor<3x2x3xi64>
+// CHECK:           %[[SLICE_0:.*]] = tosa.slice %[[CAST]]
+// CHECK:           %[[SLICE_1:.*]] = tosa.slice %[[CAST]]
+// CHECK:           %[[PRODUCT_0:.*]] = tosa.mul %[[SLICE_0]], %[[SLICE_1]],
+// CHECK:           %[[SLICE_2:.*]] = tosa.slice %[[CAST]]
+// CHECK:           %[[PRODUCT_1:.*]] = tosa.mul %[[PRODUCT_0]], %[[SLICE_2]],
+func.func @torch.aten.prod.dim_int$int(%arg0: !torch.vtensor<[3,2,3],si32>) -> !torch.vtensor<[3,2,1],si64> {
+  %dim = torch.constant.int 2
+  %keepdims = torch.constant.bool true
+  %dtype = torch.constant.none
+  %0 = torch.aten.prod.dim_int %arg0, %dim, %keepdims, %dtype: !torch.vtensor<[3,2,3],si32>, !torch.int, !torch.bool, !torch.none -> !torch.vtensor<[3,2,1],si64>
+  return %0 : !torch.vtensor<[3,2,1],si64>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.prod.dim_int$int8(
+// CHECK:           %[[INPUT:.*]] = torch_c.to_builtin_tensor
+// CHECK:           %[[CAST:.*]] = tosa.cast %[[INPUT]] : (tensor<3x2x3xi8>) -> tensor<3x2x3xi64>
+// CHECK:           %[[SLICE_0:.*]] = tosa.slice %[[CAST]]
+// CHECK:           %[[SLICE_1:.*]] = tosa.slice %[[CAST]]
+// CHECK:           tosa.mul %[[SLICE_0]], %[[SLICE_1]],
+func.func @torch.aten.prod.dim_int$int8(%arg0: !torch.vtensor<[3,2,3],si8>) -> !torch.vtensor<[3,2,1],si64> {
+  %dim = torch.constant.int 2
+  %keepdims = torch.constant.bool true
+  %dtype = torch.constant.none
+  %0 = torch.aten.prod.dim_int %arg0, %dim, %keepdims, %dtype: !torch.vtensor<[3,2,3],si8>, !torch.int, !torch.bool, !torch.none -> !torch.vtensor<[3,2,1],si64>
+  return %0 : !torch.vtensor<[3,2,1],si64>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.prod.dim_int$int16(
+// CHECK:           %[[INPUT:.*]] = torch_c.to_builtin_tensor
+// CHECK:           %[[CAST:.*]] = tosa.cast %[[INPUT]] : (tensor<3x2x3xi16>) -> tensor<3x2x3xi64>
+// CHECK:           %[[SLICE_0:.*]] = tosa.slice %[[CAST]]
+// CHECK:           %[[SLICE_1:.*]] = tosa.slice %[[CAST]]
+// CHECK:           tosa.mul %[[SLICE_0]], %[[SLICE_1]],
+func.func @torch.aten.prod.dim_int$int16(%arg0: !torch.vtensor<[3,2,3],si16>) -> !torch.vtensor<[3,2,1],si64> {
+  %dim = torch.constant.int 2
+  %keepdims = torch.constant.bool true
+  %dtype = torch.constant.none
+  %0 = torch.aten.prod.dim_int %arg0, %dim, %keepdims, %dtype: !torch.vtensor<[3,2,3],si16>, !torch.int, !torch.bool, !torch.none -> !torch.vtensor<[3,2,1],si64>
+  return %0 : !torch.vtensor<[3,2,1],si64>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.all.dim$basic(
 // CHECK-SAME:                                        %[[VAL_0:.*]]: !torch.vtensor<[3,2,3],i1>) -> !torch.vtensor<[3,2,1],i1> {
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[3,2,3],i1> -> tensor<3x2x3xi1>
