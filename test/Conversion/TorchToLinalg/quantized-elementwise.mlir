@@ -201,3 +201,107 @@ func.func @quantize_per_channel_axis1(
         !torch.int -> !torch.vtensor<[4,8],si8>
   return %out : !torch.vtensor<[4,8],si8>
 }
+
+// -----
+
+// Only exercise scale narrowing and an explicit out_dtype here; the complete
+// dequantization payload is checked above.
+// CHECK-LABEL: func.func @dequantize_per_channel_scale_truncation(
+// CHECK: arith.truncf %{{.*}} : f32 to f16
+// CHECK: arith.mulf %{{.*}}, %{{.*}} : f16
+func.func @dequantize_per_channel_scale_truncation(
+    %input: !torch.vtensor<[4,8],si8>,
+    %scales: !torch.vtensor<[4],f32>)
+    -> !torch.vtensor<[4,8],f16> {
+  %axis = torch.constant.int 0
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 2
+  %out_dtype = torch.constant.int 5
+  %none = torch.constant.none
+  %out = torch.quantized_decomposed.dequantize_per_channel
+      %input, %scales, %none, %axis, %qmin, %qmax, %dtype, %out_dtype
+      : !torch.vtensor<[4,8],si8>, !torch.vtensor<[4],f32>,
+        !torch.none, !torch.int, !torch.int, !torch.int,
+        !torch.int, !torch.int -> !torch.vtensor<[4,8],f16>
+  return %out : !torch.vtensor<[4,8],f16>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @dequantize_per_channel_scale_extension(
+// CHECK: arith.extf %{{.*}} : f16 to f32
+// CHECK: arith.mulf %{{.*}}, %{{.*}} : f32
+func.func @dequantize_per_channel_scale_extension(
+    %input: !torch.vtensor<[4,8],si8>,
+    %scales: !torch.vtensor<[4],f16>)
+    -> !torch.vtensor<[4,8],f32> {
+  %axis = torch.constant.int 0
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 2
+  %out_dtype = torch.constant.int 6
+  %none = torch.constant.none
+  %out = torch.quantized_decomposed.dequantize_per_channel
+      %input, %scales, %none, %axis, %qmin, %qmax, %dtype, %out_dtype
+      : !torch.vtensor<[4,8],si8>, !torch.vtensor<[4],f16>,
+        !torch.none, !torch.int, !torch.int, !torch.int,
+        !torch.int, !torch.int -> !torch.vtensor<[4,8],f32>
+  return %out : !torch.vtensor<[4,8],f32>
+}
+
+// -----
+
+// Check only the unsigned branches of the shared quantize/dequantize payloads.
+// CHECK-LABEL: func.func @per_channel_unsigned(
+// CHECK: arith.fptoui %{{.*}} : f32 to i8
+// CHECK: arith.extui %{{.*}} : i8 to i32
+func.func @per_channel_unsigned(
+    %input: !torch.vtensor<[4,8],f32>,
+    %scales: !torch.vtensor<[4],f32>,
+    %zero_points: !torch.vtensor<[4],si64>)
+    -> !torch.vtensor<[4,8],f32> {
+  %axis = torch.constant.int 0
+  %qmin = torch.constant.int 0
+  %qmax = torch.constant.int 255
+  %dtype = torch.constant.int 0
+  %none = torch.constant.none
+  %od = torch.derefine %none : !torch.none to !torch.optional<int>
+  %quantized = torch.quantized_decomposed.quantize_per_channel
+      %input, %scales, %zero_points, %axis, %qmin, %qmax, %dtype
+      : !torch.vtensor<[4,8],f32>, !torch.vtensor<[4],f32>,
+        !torch.vtensor<[4],si64>, !torch.int, !torch.int, !torch.int,
+        !torch.int -> !torch.vtensor<[4,8],ui8>
+  %out = torch.quantized_decomposed.dequantize_per_channel
+      %quantized, %scales, %zero_points, %axis, %qmin, %qmax, %dtype, %od
+      : !torch.vtensor<[4,8],ui8>, !torch.vtensor<[4],f32>,
+        !torch.vtensor<[4],si64>, !torch.int, !torch.int, !torch.int,
+        !torch.int, !torch.optional<int> -> !torch.vtensor<[4,8],f32>
+  return %out : !torch.vtensor<[4,8],f32>
+}
+
+// -----
+
+// A negative axis is normalized before constructing the channel map.
+// CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK: #[[LAST_DIM:.*]] = affine_map<(d0, d1) -> (d1)>
+// CHECK-LABEL: func.func @dequantize_per_channel_negative_axis(
+// CHECK: linalg.generic
+// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[LAST_DIM]], #[[IDENTITY]]]
+func.func @dequantize_per_channel_negative_axis(
+    %input: !torch.vtensor<[4,8],si8>,
+    %scales: !torch.vtensor<[8],f32>)
+    -> !torch.vtensor<[4,8],f32> {
+  %axis = torch.constant.int -1
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 2
+  %none = torch.constant.none
+  %od = torch.derefine %none : !torch.none to !torch.optional<int>
+  %out = torch.quantized_decomposed.dequantize_per_channel
+      %input, %scales, %none, %axis, %qmin, %qmax, %dtype, %od
+      : !torch.vtensor<[4,8],si8>, !torch.vtensor<[8],f32>,
+        !torch.none, !torch.int, !torch.int, !torch.int,
+        !torch.int, !torch.optional<int> -> !torch.vtensor<[4,8],f32>
+  return %out : !torch.vtensor<[4,8],f32>
+}
