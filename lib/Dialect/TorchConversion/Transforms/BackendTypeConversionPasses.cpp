@@ -15,6 +15,7 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h"
@@ -22,12 +23,14 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::TorchConversion;
+using mlir::torch::Torch::kUserAttrPrefix;
 namespace mlir::torch::TorchConversion {
 
 #define GEN_PASS_DEF_FUNCBACKENDTYPECONVERSION
 #define GEN_PASS_DEF_FUNCBACKENDTYPECONVERSIONFORSTABLEHLO
 #define GEN_PASS_DEF_FINALIZINGBACKENDTYPECONVERSION
 #define GEN_PASS_DEF_FINALIZINGBACKENDTYPECONVERSIONFORSTABLEHLO
+#define GEN_PASS_DEF_LIFTUSERATTRS
 #include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h.inc"
 
 //===----------------------------------------------------------------------===//
@@ -305,5 +308,75 @@ createFinalizingBackendTypeConversionForStablehloPass() {
   return std::make_unique<FinalizingBackendTypeConversionForStablehloPass>();
 }
 #endif // TORCH_MLIR_ENABLE_STABLEHLO
+
+//===----------------------------------------------------------------------===//
+// LiftUserAttrsPass
+//===----------------------------------------------------------------------===//
+
+namespace {
+
+// Strip the `mlir.user.` prefix from every prefixed discardable attr on `op`,
+// re-attaching the value under its un-prefixed name.
+static void liftPrefixedAttrs(Operation *op) {
+  SmallVector<NamedAttribute> toLift;
+  for (NamedAttribute named : op->getDiscardableAttrs()) {
+    if (named.getName().getValue().starts_with(kUserAttrPrefix))
+      toLift.push_back(named);
+  }
+  if (toLift.empty())
+    return;
+  for (NamedAttribute named : toLift) {
+    StringRef stripped =
+        named.getName().getValue().drop_front(kUserAttrPrefix.size());
+    op->setAttr(stripped, named.getValue());
+    op->removeAttr(named.getName());
+  }
+}
+
+// Same for every per-arg dict in a function's `arg_attrs` array.
+static void liftFuncArgAttrs(func::FuncOp func) {
+  ArrayAttr argAttrs = func.getAllArgAttrs();
+  if (!argAttrs)
+    return;
+  bool changed = false;
+  SmallVector<Attribute> newArgAttrs(argAttrs.begin(), argAttrs.end());
+  for (auto &attr : newArgAttrs) {
+    auto dict = dyn_cast<DictionaryAttr>(attr);
+    if (!dict)
+      continue;
+    NamedAttrList rewritten;
+    bool localChanged = false;
+    for (NamedAttribute named : dict.getValue()) {
+      if (named.getName().getValue().starts_with(kUserAttrPrefix)) {
+        StringRef stripped =
+            named.getName().getValue().drop_front(kUserAttrPrefix.size());
+        rewritten.set(stripped, named.getValue());
+        localChanged = true;
+      } else {
+        rewritten.set(named.getName(), named.getValue());
+      }
+    }
+    if (localChanged) {
+      attr = rewritten.getDictionary(func.getContext());
+      changed = true;
+    }
+  }
+  if (changed)
+    func.setAllArgAttrs(newArgAttrs);
+}
+
+struct LiftUserAttrsPass : public impl::LiftUserAttrsBase<LiftUserAttrsPass> {
+  using LiftUserAttrsBase::LiftUserAttrsBase;
+  void runOnOperation() override {
+    ModuleOp module = getOperation();
+    module.walk([](Operation *op) { liftPrefixedAttrs(op); });
+    module.walk([](func::FuncOp func) { liftFuncArgAttrs(func); });
+  }
+};
+} // namespace
+
+std::unique_ptr<OperationPass<ModuleOp>> createLiftUserAttrsPass() {
+  return std::make_unique<LiftUserAttrsPass>();
+}
 
 } // namespace mlir::torch::TorchConversion
