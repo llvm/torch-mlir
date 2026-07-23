@@ -105,6 +105,30 @@ def MatmulZeroK_basic(module, tu: TestUtils):
     module.forward(torch.empty(5, 0), torch.empty(0, 10))
 
 
+# ==============================================================================
+
+
+class MatmulEmptyOutput(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([0, 0], torch.float32, True),
+            ([5, 0, 0], torch.float32, True),
+        ]
+    )
+    def forward(self, lhs, rhs):
+        return torch.matmul(lhs, rhs)
+
+
+@register_test_case(module_factory=lambda: MatmulEmptyOutput())
+def MatmulEmptyOutput_basic(module, tu: TestUtils):
+    module.forward(torch.empty(0, 0), torch.empty(5, 0, 0))
+
+
 class AtenScaledMmPerTensorModule(torch.nn.Module):
     def __init__(self, fp8_dtype=torch.float8_e4m3fn, out_dtype=torch.bfloat16):
         super().__init__()
