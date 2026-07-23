@@ -5633,6 +5633,14 @@ func.func @torch.aten.addmm$zero_k(%bias: !torch.vtensor<[4],f32>, %mat1: !torch
   %one = torch.constant.int 1
   %0 = torch.aten.addmm %bias, %mat1, %mat2, %one, %one : !torch.vtensor<[4],f32>, !torch.vtensor<[6,0],f32>, !torch.vtensor<[0,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[6,4],f32>
   return %0 : !torch.vtensor<[6,4],f32>
+
+// CHECK-LABEL:   func.func @test_tosa_matmul_user_attrs(
+// CHECK:           tosa.matmul
+// CHECK-SAME:        {mlir.user.tag = "attn_proj"}
+// CHECK-NOT:       internal.flag
+func.func @test_tosa_matmul_user_attrs(%arg0: !torch.vtensor<[1,22],f32>, %arg1: !torch.vtensor<[22,10],f32>) -> !torch.vtensor<[1,10],f32> {
+  %0 = torch.aten.mm %arg0, %arg1 {mlir.user.tag = "attn_proj", internal.flag = 1 : i64} : !torch.vtensor<[1,22],f32>, !torch.vtensor<[22,10],f32> -> !torch.vtensor<[1,10],f32>
+  return %0 : !torch.vtensor<[1,10],f32>
 }
 
 // -----

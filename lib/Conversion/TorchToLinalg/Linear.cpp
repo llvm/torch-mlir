@@ -231,6 +231,8 @@ public:
                                         ValueRange{lhs, rhs}, zeroFill)
                    .getResult(0);
     }
+    if (auto matmulOp = matmul.getDefiningOp())
+      forwardUserDiscardableAttrs(op, matmulOp);
 
     if (accumulatorDType != resultType.getElementType()) {
       matmul = torch_to_linalg::convertTensorToElementType(
@@ -2388,7 +2390,7 @@ Value getDFTMatmulCoeff(OpBuilder b, Location loc,
   // scale = 2 * pi / N
   double scale = 2 * llvm::numbers::pi / matrixType.getDimSize(0);
 
-  SmallVector<mlir::Complex<APFloat>> values;
+  SmallVector<std::complex<APFloat>> values;
   for (auto i : llvm::seq<unsigned>(0, matrixType.getDimSize(0))) {
     for (auto j : llvm::seq<unsigned>(0, matrixType.getDimSize(1))) {
       double v = scale * i * j;
@@ -2403,7 +2405,7 @@ Value getDFTMatmulCoeff(OpBuilder b, Location loc,
       imag.convert(floatType.getFloatSemantics(), APFloat::rmNearestTiesToEven,
                    &unused);
 
-      values.push_back(mlir::Complex<APFloat>(real, imag));
+      values.push_back(std::complex<APFloat>(real, imag));
     }
   }
   return arith::ConstantOp::create(b, loc, matrixType,
