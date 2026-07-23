@@ -18,6 +18,8 @@ namespace mlir {
 namespace torch {
 namespace Torch {
 
+constexpr StringLiteral kUserAttrPrefix("mlir.user.");
+
 inline int64_t toPositiveDim(int64_t dim, int64_t inputRank) {
   return dim >= 0 ? dim : dim + inputRank;
 }
