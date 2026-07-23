@@ -412,24 +412,23 @@ static Value createDequantizePayload(OpBuilder &b, Location loc,
                                      Value input, Value scale, Value zeroPoint,
                                      Type outputType, bool inputIsUnsigned) {
   Type computeIntType =
-      b.getIntegerType(cast<FloatType>(outputType).getWidth());
-  if (input.getType() != computeIntType)
-    input = inputIsUnsigned
-                ? arith::ExtUIOp::create(b, loc, computeIntType, input)
-                : arith::ExtSIOp::create(b, loc, computeIntType, input);
-  if (!zeroPoint) {
-    zeroPoint =
-        arith::ConstantOp::create(b, loc, b.getIntegerAttr(computeIntType, 0));
-  } else {
+      b.getIntegerType(cast<mlir::FloatType>(outputType).getWidth());
+  if (input.getType() != computeIntType) {
+    if (inputIsUnsigned)
+      input = arith::ExtUIOp::create(b, loc, computeIntType, input);
+    else
+      input = arith::ExtSIOp::create(b, loc, computeIntType, input);
+  }
+  if (zeroPoint) {
     Type convertedType = converter->convertType(zeroPoint.getType());
     if (zeroPoint.getType() != convertedType)
       zeroPoint = converter->materializeTargetConversion(b, loc, convertedType,
                                                          zeroPoint);
     if (zeroPoint.getType() != computeIntType)
       zeroPoint = convertScalarToDtype(b, loc, zeroPoint, computeIntType);
+    input = arith::SubIOp::create(b, loc, input, zeroPoint);
   }
-  Value value = arith::SubIOp::create(b, loc, input, zeroPoint);
-  value = arith::SIToFPOp::create(b, loc, outputType, value);
+  Value value = arith::SIToFPOp::create(b, loc, outputType, input);
   Type convertedScaleType = converter->convertType(scale.getType());
   if (scale.getType() != convertedScaleType)
     scale = converter->materializeTargetConversion(b, loc, convertedScaleType,

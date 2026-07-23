@@ -86,16 +86,18 @@ func.func @standalone_quantize_si8(
 
 // -----
 
+// CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK: #[[CHANNEL0:.*]] = affine_map<(d0, d1) -> (d0)>
 // CHECK-LABEL: func.func @dequantize_per_channel_axis0(
 // CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[4,8],si8>
 // CHECK-SAME: %[[SCALES:.*]]: !torch.vtensor<[4],f32>
 // CHECK-SAME: %[[ZPS:.*]]: !torch.vtensor<[4],si64>
-// CHECK: %[[INPUT_T:.*]] = torch_c.to_builtin_tensor %[[INPUT]]
-// CHECK: %[[SCALES_T:.*]] = torch_c.to_builtin_tensor %[[SCALES]]
-// CHECK: %[[ZPS_T:.*]] = torch_c.to_builtin_tensor %[[ZPS]]
+// CHECK-DAG: %[[INPUT_T:.*]] = torch_c.to_builtin_tensor %[[INPUT]]
+// CHECK-DAG: %[[SCALES_T:.*]] = torch_c.to_builtin_tensor %[[SCALES]]
+// CHECK-DAG: %[[ZPS_T:.*]] = torch_c.to_builtin_tensor %[[ZPS]]
 // CHECK: %[[EMPTY:.*]] = tensor.empty() : tensor<4x8xf32>
 // CHECK: %[[GENERIC:.*]] = linalg.generic
-// CHECK-SAME: indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d0)>, affine_map<(d0, d1) -> (d0)>, affine_map<(d0, d1) -> (d0, d1)>]
+// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[CHANNEL0]], #[[CHANNEL0]], #[[IDENTITY]]]
 // CHECK-SAME: ins(%[[INPUT_T]], %[[SCALES_T]], %[[ZPS_T]] : tensor<4x8xi8>, tensor<4xf32>, tensor<4xi64>)
 // CHECK-SAME: outs(%[[EMPTY]] : tensor<4x8xf32>)
 // CHECK: ^bb0(%[[IN:.*]]: i8, %[[SCALE:.*]]: f32, %[[ZP:.*]]: i64, %{{.*}}: f32):
@@ -126,25 +128,59 @@ func.func @dequantize_per_channel_axis0(
 
 // -----
 
+// CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK: #[[CHANNEL0:.*]] = affine_map<(d0, d1) -> (d0)>
+// CHECK-LABEL: func.func @dequantize_per_channel_symmetric(
+// CHECK: %[[GENERIC:.*]] = linalg.generic
+// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[CHANNEL0]], #[[IDENTITY]]]
+// CHECK-SAME: ins({{.*}} : tensor<4x8xi8>, tensor<4xf32>)
+// CHECK: ^bb0(%[[IN:.*]]: i8, %[[SCALE:.*]]: f32, %{{.*}}: f32):
+// CHECK:   %[[EXT:.*]] = arith.extsi %[[IN]] : i8 to i32
+// CHECK-NOT: arith.subi
+// CHECK:   %[[FP:.*]] = arith.sitofp %[[EXT]] : i32 to f32
+// CHECK:   %[[MUL:.*]] = arith.mulf %[[FP]], %[[SCALE]] : f32
+// CHECK:   linalg.yield %[[MUL]] : f32
+func.func @dequantize_per_channel_symmetric(
+    %input: !torch.vtensor<[4,8],si8>,
+    %scales: !torch.vtensor<[4],f32>)
+    -> !torch.vtensor<[4,8],f32> {
+  %axis = torch.constant.int 0
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 2
+  %none = torch.constant.none
+  %od = torch.derefine %none : !torch.none to !torch.optional<int>
+  %out = torch.quantized_decomposed.dequantize_per_channel
+      %input, %scales, %none, %axis, %qmin, %qmax, %dtype, %od
+      : !torch.vtensor<[4,8],si8>, !torch.vtensor<[4],f32>,
+        !torch.none, !torch.int, !torch.int, !torch.int,
+        !torch.int, !torch.optional<int> -> !torch.vtensor<[4,8],f32>
+  return %out : !torch.vtensor<[4,8],f32>
+}
+
+// -----
+
+// CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK: #[[CHANNEL1:.*]] = affine_map<(d0, d1) -> (d1)>
 // CHECK-LABEL: func.func @quantize_per_channel_axis1(
 // CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[4,8],f32>
 // CHECK-SAME: %[[SCALES:.*]]: !torch.vtensor<[8],f32>
 // CHECK-SAME: %[[ZPS:.*]]: !torch.vtensor<[8],si64>
-// CHECK: %[[INPUT_T:.*]] = torch_c.to_builtin_tensor %[[INPUT]]
-// CHECK: %[[SCALES_T:.*]] = torch_c.to_builtin_tensor %[[SCALES]]
-// CHECK: %[[ZPS_T:.*]] = torch_c.to_builtin_tensor %[[ZPS]]
+// CHECK-DAG: %[[INPUT_T:.*]] = torch_c.to_builtin_tensor %[[INPUT]]
+// CHECK-DAG: %[[SCALES_T:.*]] = torch_c.to_builtin_tensor %[[SCALES]]
+// CHECK-DAG: %[[ZPS_T:.*]] = torch_c.to_builtin_tensor %[[ZPS]]
 // CHECK: %[[EMPTY:.*]] = tensor.empty() : tensor<4x8xi8>
 // CHECK: %[[GENERIC:.*]] = linalg.generic
-// CHECK-SAME: indexing_maps = [affine_map<(d0, d1) -> (d0, d1)>, affine_map<(d0, d1) -> (d1)>, affine_map<(d0, d1) -> (d1)>, affine_map<(d0, d1) -> (d0, d1)>]
+// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[CHANNEL1]], #[[CHANNEL1]], #[[IDENTITY]]]
 // CHECK-SAME: ins(%[[INPUT_T]], %[[SCALES_T]], %[[ZPS_T]] : tensor<4x8xf32>, tensor<8xf32>, tensor<8xi64>)
 // CHECK-SAME: outs(%[[EMPTY]] : tensor<4x8xi8>)
 // CHECK: ^bb0(%[[IN:.*]]: f32, %[[SCALE:.*]]: f32, %[[ZP:.*]]: i64, %{{.*}}: i8):
+// CHECK:   %[[QMIN:.*]] = arith.constant -1.280000e+02 : f32
+// CHECK:   %[[QMAX:.*]] = arith.constant 1.270000e+02 : f32
 // CHECK:   %[[ZPF:.*]] = arith.sitofp %[[ZP]] : i64 to f32
 // CHECK:   %[[DIV:.*]] = arith.divf %[[IN]], %[[SCALE]] : f32
 // CHECK:   %[[ROUND:.*]] = math.roundeven %[[DIV]] : f32
 // CHECK:   %[[ADD:.*]] = arith.addf %[[ROUND]], %[[ZPF]] : f32
-// CHECK:   %[[QMIN:.*]] = arith.constant -1.280000e+02 : f32
-// CHECK:   %[[QMAX:.*]] = arith.constant 1.270000e+02 : f32
 // CHECK:   %[[LOW:.*]] = arith.maximumf %[[ADD]], %[[QMIN]] : f32
 // CHECK:   %[[HIGH:.*]] = arith.minimumf %[[LOW]], %[[QMAX]] : f32
 // CHECK:   %[[RESULT:.*]] = arith.fptosi %[[HIGH]] : f32 to i8
