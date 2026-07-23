@@ -109,6 +109,10 @@ void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
   pm.addNestedPass<func::FuncOp>(
       TorchConversion::createFinalizingBackendTypeConversionPass());
 
+  // Strip the `mlir.user.` prefix off user-annotation attrs so downstream
+  // consumers see plain top-level discardable attrs.
+  pm.addPass(TorchConversion::createLiftUserAttrsPass());
+
   // Verify that we have lowered to the form that linalg on tensors backends
   // expect. This fails compilation (signalPassFailure) if the IR is not in the
   // correct form.
@@ -148,6 +152,8 @@ void TorchConversion::createTorchBackendToTosaBackendPipeline(
   pm.addNestedPass<func::FuncOp>(
       TorchConversion::createFinalizingBackendTypeConversionPass());
 
+  pm.addPass(TorchConversion::createLiftUserAttrsPass());
+
   // Verify that we have lowered to the form that TOSA backends
   // expect. This fails compilation (signalPassFailure) if the IR is not in the
   // correct form.
@@ -181,6 +187,8 @@ void TorchConversion::createTorchBackendToStablehloBackendPipeline(
   pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
   pm.addNestedPass<func::FuncOp>(
       TorchConversion::createFinalizingBackendTypeConversionForStablehloPass());
+
+  pm.addPass(TorchConversion::createLiftUserAttrsPass());
 
   // Verify that we have lowered to Stablehlo ops.
   pm.addPass(TorchConversion::createVerifyStablehloBackendContractPass());

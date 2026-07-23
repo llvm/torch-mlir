@@ -47,6 +47,7 @@ declare_mlir_python_sources(TorchMLIRPythonSources.PublicAPI
     compiler_utils.py
     fx.py
     extras/fx_decomp_util.py
+    extras/annotate.py
 )
 
 declare_mlir_python_sources(TorchMLIRPythonSources.Tools

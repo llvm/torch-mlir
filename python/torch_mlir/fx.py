@@ -124,6 +124,7 @@ def export_and_import(
         decomposition_table = get_decomposition_table()
     if decomposition_table:
         prog = prog.run_decompositions(decomposition_table)
+
     if enable_graph_printing:
         prog.graph_module.print_readable()
     if experimental_support_mutation:
