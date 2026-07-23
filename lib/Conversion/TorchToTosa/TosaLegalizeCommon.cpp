@@ -907,6 +907,55 @@ convertReduceProdOp(PatternRewriter &rewriter, Operation *op,
     return std::nullopt;
   }
 
+  // TOSA does not support integer for REDUCE_PRODUCT. As such, if Prod input is
+  // of int dtype we decompose. Implementation is limited to one reduction axis.
+  if (isa<IntegerType>(input_type.getElementType())) {
+    if (axes_elems.getNumElements() != 1)
+      return std::nullopt;
+
+    int64_t reduction_axis = axes_elems.getValues<IntegerAttr>()[0].getInt();
+    int64_t reduction_size = input_type.getDimSize(reduction_axis);
+    if (reduction_size <= 0)
+      return std::nullopt;
+
+    // Ensure input-/output have the same dtypes
+    auto accumulation_type = input_type.clone(output_type.getElementType());
+    Value casted_input =
+        tosa::tosaCastTensorToType(rewriter, input_value, accumulation_type)
+            .value();
+
+    SmallVector<int64_t> slice_shape(input_type.getShape().begin(),
+                                     input_type.getShape().end());
+    slice_shape[reduction_axis] = 1;
+    auto slice_type =
+        RankedTensorType::get(slice_shape, output_type.getElementType());
+    Value slice_size =
+        tosa::getTosaConstShape(rewriter, op->getLoc(), slice_shape);
+    SmallVector<int64_t> slice_start(input_type.getRank(), 0);
+
+    Value product;
+    for (int64_t index = 0; index < reduction_size; ++index) {
+      slice_start[reduction_axis] = index;
+      Value slice = tosa::SliceOp::create(
+          rewriter, op->getLoc(), slice_type, casted_input,
+          tosa::getTosaConstShape(rewriter, op->getLoc(), slice_start),
+          slice_size);
+      if (!product)
+        product = slice;
+      else
+        product = tosa::createMulOpAndCast(rewriter, op, slice_type, product,
+                                           slice, /*shift=*/0)
+                      .getResult();
+    }
+
+    if (!keep_dims)
+      product = tosa::CreateOpAndInfer<tosa::ReshapeOp>(
+          rewriter, op->getLoc(), output_type, product,
+          tosa::getTosaConstShape(rewriter, op->getLoc(),
+                                  output_type.getShape()));
+    return product;
+  }
+
   return convertReduceOpCommon<tosa::ReduceProductOp>(
       rewriter, op, output_type, input_value, axes_elems, keep_dims,
       output_type.getElementType(), false, 1.0f, 0, 1.0f, 0);
