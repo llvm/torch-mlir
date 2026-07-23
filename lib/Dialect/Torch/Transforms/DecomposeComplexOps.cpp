@@ -2530,6 +2530,12 @@ static Value getSoftmaxResult(Operation *op, Value self, Value dim,
   return result;
 }
 
+static bool isShapePreservingEmptyTensor(Value input, Type resultType) {
+  auto inputType = dyn_cast<BaseTensorType>(input.getType());
+  return input.getType() == resultType && inputType && inputType.hasSizes() &&
+         llvm::is_contained(inputType.getSizes(), 0);
+}
+
 // Decompose softmax into: exp(x) / sum(exp(x))
 namespace {
 class DecomposeAtenSoftmaxIntOp : public OpRewritePattern<AtenSoftmaxIntOp> {
@@ -2539,6 +2545,11 @@ public:
                                 PatternRewriter &rewriter) const override {
     Value self = op.getSelf();
     BaseTensorType resultTensorType = cast<BaseTensorType>(op.getType());
+    if (isShapePreservingEmptyTensor(self, op.getType())) {
+      rewriter.replaceOp(op, self);
+      return success();
+    }
+
     if (!resultTensorType.hasDtype()) {
       return rewriter.notifyMatchFailure(
           op, "expected result type to have a dtype");
@@ -2580,6 +2591,11 @@ public:
   LogicalResult matchAndRewrite(Aten_SoftmaxOp op,
                                 PatternRewriter &rewriter) const override {
     Value self = op.getSelf();
+    if (isShapePreservingEmptyTensor(self, op.getType())) {
+      rewriter.replaceOp(op, self);
+      return success();
+    }
+
     BaseTensorType tensorType = cast<BaseTensorType>(self.getType());
     if (!tensorType.hasDtype() || !isa<mlir::FloatType>(tensorType.getDtype()))
       return rewriter.notifyMatchFailure(op, "Only support floating type");
