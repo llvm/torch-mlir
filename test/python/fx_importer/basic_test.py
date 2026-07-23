@@ -464,7 +464,7 @@ def test_stack_trace():
 
 @run
 # Asserting a single input argument here, since the frozen program should have
-# its BatchNorm parameters lifted from function arguments to inlined constants.
+# its BatchNorm buffers lifted from function arguments to inlined constants.
 # CHECK-LABEL: test_import_frozen_exported_program_with_multiple_buffers
 # CHECK: func.func @main(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[2,10,20,20],f32>)
 # CHECK-COUNT-8: = torch.vtensor.literal(dense_resource<{{.*}}> : tensor<10xf32>)
