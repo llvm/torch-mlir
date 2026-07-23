@@ -158,6 +158,8 @@ getConstantPerTensorQParams(PatternRewriter &rewriter, Operation *op,
 APFloat getFloatInf(mlir::FloatType fpType, bool negative,
                     bool allowNonFinites);
 
+void forwardUserDiscardableAttrs(Operation *from, Operation *to);
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir
