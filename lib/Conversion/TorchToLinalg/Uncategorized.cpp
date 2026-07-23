@@ -1792,21 +1792,18 @@ static SmallVector<AffineMap> getPerChannelIndexingMaps(OpBuilder &b,
   return maps;
 }
 
-static FailureOr<int64_t>
-getPerChannelAxis(Operation *op, Value axisValue, int64_t rank,
-                  ConversionPatternRewriter &rewriter) {
-  int64_t axis;
-  if (!matchPattern(axisValue, m_TorchConstantInt(&axis))) {
-    (void)rewriter.notifyMatchFailure(op, "axis must be constant");
-    return failure();
-  }
+static LogicalResult getPerChannelAxis(Operation *op, Value axisValue,
+                                       int64_t rank, int64_t &axis,
+                                       ConversionPatternRewriter &rewriter) {
+  if (!matchPattern(axisValue, m_TorchConstantInt(&axis)))
+    return rewriter.notifyMatchFailure(
+        op, "expected per-channel axis to be a constant integer");
   if (axis < 0)
     axis += rank;
-  if (axis < 0 || axis >= rank) {
-    (void)rewriter.notifyMatchFailure(op, "axis is out of range");
-    return failure();
-  }
-  return axis;
+  if (axis < 0 || axis >= rank)
+    return rewriter.notifyMatchFailure(
+        op, "per-channel axis must be in range [-rank, rank)");
+  return success();
 }
 
 class ConvertQuantizedDecomposedQuantizePerChannelOp
@@ -1816,8 +1813,9 @@ public:
   LogicalResult
   matchAndRewrite(QuantizedDecomposedQuantizePerChannelOp op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
-      return failure();
+    if (LogicalResult result = verifyLinalgCompatibleTypes(op, rewriter);
+        failed(result))
+      return result;
     Value input = adaptor.getInput();
     Value scales = adaptor.getScales();
     Value zeroPoints = adaptor.getZeroPoints();
@@ -1830,10 +1828,11 @@ public:
         scalesType.getRank() != 1 || zeroPointsType.getRank() != 1)
       return rewriter.notifyMatchFailure(
           op, "expected ranked input/result and rank-1 qparams");
-    FailureOr<int64_t> axis =
-        getPerChannelAxis(op, op.getAxis(), inputType.getRank(), rewriter);
-    if (failed(axis))
-      return failure();
+    int64_t axis;
+    if (LogicalResult result = getPerChannelAxis(
+            op, op.getAxis(), inputType.getRank(), axis, rewriter);
+        failed(result))
+      return result;
 
     int64_t quantMin, quantMax;
     if (!matchPattern(op.getQuantMin(), m_TorchConstantInt(&quantMin)) ||
@@ -1844,7 +1843,7 @@ public:
         rewriter, loc, getAsOpFoldResult(getTensorSizes(rewriter, loc, input)),
         resultType.getElementType());
     SmallVector<AffineMap> indexingMaps = getPerChannelIndexingMaps(
-        rewriter, inputType.getRank(), *axis, /*hasZeroPoints=*/true);
+        rewriter, inputType.getRank(), axis, /*hasZeroPoints=*/true);
     SmallVector<utils::IteratorType> iteratorTypes(
         inputType.getRank(), utils::IteratorType::parallel);
     bool resultIsUnsigned = torch_to_linalg::isUnsignedTorchType(
@@ -1882,8 +1881,9 @@ public:
   matchAndRewrite(QuantizedDecomposedDequantizePerChannelOp op,
                   OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
-      return failure();
+    if (LogicalResult result = verifyLinalgCompatibleTypes(op, rewriter);
+        failed(result))
+      return result;
     Value input = adaptor.getInput();
     Value scales = adaptor.getScales();
     Value zeroPoints = adaptor.getZeroPoints();
@@ -1894,10 +1894,11 @@ public:
     if (!inputType || !scalesType || !resultType || scalesType.getRank() != 1)
       return rewriter.notifyMatchFailure(
           op, "expected ranked input/result and rank-1 scales");
-    FailureOr<int64_t> axis =
-        getPerChannelAxis(op, op.getAxis(), inputType.getRank(), rewriter);
-    if (failed(axis))
-      return failure();
+    int64_t axis;
+    if (LogicalResult result = getPerChannelAxis(
+            op, op.getAxis(), inputType.getRank(), axis, rewriter);
+        failed(result))
+      return result;
 
     bool hasZeroPoints = isa<RankedTensorType>(zeroPoints.getType());
     SmallVector<Value> inputs = {input, scales};
@@ -1908,7 +1909,7 @@ public:
         rewriter, loc, getAsOpFoldResult(getTensorSizes(rewriter, loc, input)),
         resultType.getElementType());
     SmallVector<AffineMap> indexingMaps = getPerChannelIndexingMaps(
-        rewriter, inputType.getRank(), *axis, hasZeroPoints);
+        rewriter, inputType.getRank(), axis, hasZeroPoints);
     SmallVector<utils::IteratorType> iteratorTypes(
         inputType.getRank(), utils::IteratorType::parallel);
     bool inputIsUnsigned = torch_to_linalg::isUnsignedTorchType(
