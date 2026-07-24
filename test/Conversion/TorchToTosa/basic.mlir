@@ -2190,9 +2190,9 @@ func.func @torch.aten.__interpolate$dynamic_input(%arg0: !torch.vtensor<[1,16,?,
 // CHECK-SAME:                                     %[[VAL_0:.*]]: !torch.vtensor<[2,4],si32>) -> !torch.vtensor<[2,4],si32> {
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[2,4],si32> -> tensor<2x4xi32>
 // CHECK:           %[[VAL_2:.*]] = torch.constant.int 1
-// CHECK:           %[[VAL_3:.*]] = "tosa.const"() <{values = dense<{{\[\[}}1, 1, 0, 0], [1, 1, 1, 0]]> : tensor<2x4xi32>}> : () -> tensor<2x4xi32>
-// CHECK:           %[[VAL_4:.*]] = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
-// CHECK:           %[[VAL_5:.*]] = tosa.mul %[[VAL_1]], %[[VAL_3]], %[[VAL_4]] : (tensor<2x4xi32>, tensor<2x4xi32>, tensor<1xi8>) -> tensor<2x4xi32>
+// CHECK:           %[[VAL_3:.*]] = "tosa.const"() <{values = dense<{{\[\[}}true, true, false, false], [true, true, true, false]]> : tensor<2x4xi1>}> : () -> tensor<2x4xi1>
+// CHECK:           %[[VAL_4:.*]] = "tosa.const"() <{values = dense<0> : tensor<2x4xi32>}> : () -> tensor<2x4xi32>
+// CHECK:           %[[VAL_5:.*]] = tosa.select %[[VAL_3]], %[[VAL_1]], %[[VAL_4]] : (tensor<2x4xi1>, tensor<2x4xi32>, tensor<2x4xi32>) -> tensor<2x4xi32>
 // CHECK:           %[[VAL_6:.*]] = torch_c.from_builtin_tensor %[[VAL_5]] : tensor<2x4xi32> -> !torch.vtensor<[2,4],si32>
 // CHECK:           return %[[VAL_6]] : !torch.vtensor<[2,4],si32>
 // CHECK:         }
@@ -2208,9 +2208,9 @@ func.func @torch.aten.tril$basic(%arg0: !torch.vtensor<[2,4], si32>) -> !torch.v
 // CHECK-SAME:                                     %[[VAL_0:.*]]: !torch.vtensor<[2,4],si32>) -> !torch.vtensor<[2,4],si32> {
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[2,4],si32> -> tensor<2x4xi32>
 // CHECK:           %[[VAL_2:.*]] = torch.constant.int 1
-// CHECK:           %[[VAL_3:.*]] = "tosa.const"() <{values = dense<{{\[\[}}0, 1, 1, 1], [0, 0, 1, 1]]> : tensor<2x4xi32>}> : () -> tensor<2x4xi32>
-// CHECK:           %[[VAL_4:.*]] = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
-// CHECK:           %[[VAL_5:.*]] = tosa.mul %[[VAL_1]], %[[VAL_3]], %[[VAL_4]] : (tensor<2x4xi32>, tensor<2x4xi32>, tensor<1xi8>) -> tensor<2x4xi32>
+// CHECK:           %[[VAL_3:.*]] = "tosa.const"() <{values = dense<{{\[\[}}false, true, true, true], [false, false, true, true]]> : tensor<2x4xi1>}> : () -> tensor<2x4xi1>
+// CHECK:           %[[VAL_4:.*]] = "tosa.const"() <{values = dense<0> : tensor<2x4xi32>}> : () -> tensor<2x4xi32>
+// CHECK:           %[[VAL_5:.*]] = tosa.select %[[VAL_3]], %[[VAL_1]], %[[VAL_4]] : (tensor<2x4xi1>, tensor<2x4xi32>, tensor<2x4xi32>) -> tensor<2x4xi32>
 // CHECK:           %[[VAL_6:.*]] = torch_c.from_builtin_tensor %[[VAL_5]] : tensor<2x4xi32> -> !torch.vtensor<[2,4],si32>
 // CHECK:           return %[[VAL_6]] : !torch.vtensor<[2,4],si32>
 // CHECK:         }
@@ -2218,6 +2218,26 @@ func.func @torch.aten.triu$basic(%arg0: !torch.vtensor<[2,4], si32>) -> !torch.v
   %int1 = torch.constant.int 1
   %0 = torch.aten.triu %arg0, %int1 : !torch.vtensor<[2,4],si32>, !torch.int -> !torch.vtensor<[2,4],si32>
   return %0 : !torch.vtensor<[2,4],si32>
+}
+
+// -----
+
+// Verify float triu uses tosa.select (not tosa.mul) so NaN inputs are masked to
+// 0.0 rather than propagated.
+// CHECK-LABEL:   func.func @torch.aten.triu$float(
+// CHECK-SAME:                                      %[[VAL_0:.*]]: !torch.vtensor<[2,4],f32>) -> !torch.vtensor<[2,4],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[2,4],f32> -> tensor<2x4xf32>
+// CHECK:           %[[VAL_2:.*]] = torch.constant.int 0
+// CHECK:           %[[VAL_3:.*]] = "tosa.const"() <{values = dense<{{\[\[}}true, true, true, true], [false, true, true, true]]> : tensor<2x4xi1>}> : () -> tensor<2x4xi1>
+// CHECK:           %[[VAL_4:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<2x4xf32>}> : () -> tensor<2x4xf32>
+// CHECK:           %[[VAL_5:.*]] = tosa.select %[[VAL_3]], %[[VAL_1]], %[[VAL_4]] : (tensor<2x4xi1>, tensor<2x4xf32>, tensor<2x4xf32>) -> tensor<2x4xf32>
+// CHECK:           %[[VAL_6:.*]] = torch_c.from_builtin_tensor %[[VAL_5]] : tensor<2x4xf32> -> !torch.vtensor<[2,4],f32>
+// CHECK:           return %[[VAL_6]] : !torch.vtensor<[2,4],f32>
+// CHECK:         }
+func.func @torch.aten.triu$float(%arg0: !torch.vtensor<[2,4], f32>) -> !torch.vtensor<[2,4], f32> {
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.triu %arg0, %int0 : !torch.vtensor<[2,4],f32>, !torch.int -> !torch.vtensor<[2,4],f32>
+  return %0 : !torch.vtensor<[2,4],f32>
 }
 
 // -----
