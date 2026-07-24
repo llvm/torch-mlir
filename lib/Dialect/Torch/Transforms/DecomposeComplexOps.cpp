@@ -5288,6 +5288,106 @@ public:
 };
 } // namespace
 
+// Decompose aten.repeat_interleave.Tensor into an index tensor. For example,
+// repeats [0, 1, 2, 3] produces indices [1, 2, 2, 3, 3, 3]. This decomposition
+// assumes that repeats are nonnegative and output_size equals sum(repeats),
+// which are input preconditions of this operation.
+namespace {
+class DecomposeAtenRepeatInterleaveTensorOp
+    : public OpRewritePattern<AtenRepeatInterleaveTensorOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenRepeatInterleaveTensorOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    MLIRContext *context = op.getContext();
+    auto repeatsType = cast<BaseTensorType>(op.getRepeats().getType());
+    auto resultType = cast<BaseTensorType>(op.getType());
+    if (!repeatsType.hasSizes() || repeatsType.getSizes().size() != 1 ||
+        !repeatsType.hasDtype() || !resultType.hasSizes() ||
+        resultType.getSizes().size() != 1 || !resultType.hasDtype())
+      return rewriter.notifyMatchFailure(
+          op, "expected ranked one-dimensional tensors with known dtypes");
+    Type repeatsDtype = repeatsType.getDtype();
+    if (!repeatsDtype.isSignedInteger(32) && !repeatsDtype.isSignedInteger(64))
+      return rewriter.notifyMatchFailure(
+          op, "expected repeats to have int32 or int64 dtype");
+
+    int64_t outputSize;
+    if (!matchPattern(op.getOutputSize(), m_TorchConstantInt(&outputSize)))
+      return rewriter.notifyMatchFailure(
+          op, "expected output_size to be a constant int");
+
+    int64_t repeatsLength = repeatsType.getSizes()[0];
+    int64_t outputLength = resultType.getSizes()[0];
+    if (repeatsLength == kUnknownSize || outputLength == kUnknownSize ||
+        outputSize < 0 || outputSize != outputLength)
+      return rewriter.notifyMatchFailure(
+          op, "expected static sizes consistent with output_size");
+
+    // This decomposition constructs an intermediate of shape
+    // [repeatsLength, outputLength]. Keep its size bounded.
+    constexpr int64_t maxIntermediateElements = 1 << 20;
+    if (outputLength != 0 &&
+        repeatsLength > maxIntermediateElements / outputLength)
+      return rewriter.notifyMatchFailure(
+          op, "repeat_interleave intermediate exceeds the size limit");
+
+    Value zero =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
+    Value one =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
+    Value none = ConstantNoneOp::create(rewriter, loc);
+    Value falseValue = ConstantBoolOp::create(rewriter, loc, false);
+    Type int64Dtype = IntegerType::get(context, 64, IntegerType::Signed);
+    Value int64DtypeValue = getDtypeIntValueForType(rewriter, loc, int64Dtype);
+    Value repeats = op.getRepeats();
+    if (!repeatsDtype.isSignedInteger(64))
+      repeats = convertTensorToDtype(rewriter, loc, repeats, int64Dtype);
+    auto repeatsInt64Type = cast<BaseTensorType>(repeats.getType());
+
+    Value cumulative = AtenCumsumOp::create(rewriter, loc, repeatsInt64Type,
+                                            repeats, zero, int64DtypeValue);
+    auto resultInt64Type = cast<BaseTensorType>(
+        resultType.getWithSizesAndDtype(resultType.getSizes(), int64Dtype));
+    Value positions =
+        AtenArangeOp::create(rewriter, loc, resultInt64Type, op.getOutputSize(),
+                             int64DtypeValue, none, none, none);
+
+    auto cumulativeColumnType = repeatsInt64Type.getWithSizesAndDtype(
+        SmallVector<int64_t>{repeatsLength, 1}, int64Dtype);
+    auto positionsRowType = resultInt64Type.getWithSizesAndDtype(
+        SmallVector<int64_t>{1, outputLength}, int64Dtype);
+    Value cumulativeColumn = AtenUnsqueezeOp::create(
+        rewriter, loc, cumulativeColumnType, cumulative, one);
+    Value positionsRow = AtenUnsqueezeOp::create(
+        rewriter, loc, positionsRowType, positions, zero);
+
+    SmallVector<int64_t> comparisonShape{repeatsLength, outputLength};
+    auto comparisonType = repeatsInt64Type.getWithSizesAndDtype(
+        comparisonShape, rewriter.getI1Type());
+    Value comparison = AtenGeTensorOp::create(rewriter, loc, comparisonType,
+                                              positionsRow, cumulativeColumn);
+    auto comparisonInt64Type =
+        repeatsInt64Type.getWithSizesAndDtype(comparisonShape, int64Dtype);
+    Value comparisonInt64 =
+        AtenToDtypeOp::create(rewriter, loc, comparisonInt64Type, comparison,
+                              int64DtypeValue, falseValue, falseValue, none);
+
+    Value dims = PrimListConstructOp::create(
+        rewriter, loc, ListType::get(IntType::get(context)), zero);
+    Value result = AtenSumDimIntListOp::create(rewriter, loc, resultInt64Type,
+                                               comparisonInt64, dims,
+                                               falseValue, int64DtypeValue);
+    if (!resultType.getDtype().isSignedInteger(64))
+      result =
+          convertTensorToDtype(rewriter, loc, result, resultType.getDtype());
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.flatten.using_ints into aten.view op.
 namespace {
 class DecomposeAtenFlattenUsingIntsOp
@@ -13328,6 +13428,8 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRollOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRepeatOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRepeatInterleaveSelfIntOp>(
+        patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRepeatInterleaveTensorOp>(
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenExpandOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFlattenUsingIntsOp>(patterns);

@@ -935,6 +935,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::numel : (Tensor) -> (int)", has_canonicalizer=True)
     emit("aten::repeat : (Tensor, int[]) -> (Tensor)")
     emit("aten::repeat_interleave.self_int : (Tensor, int, int?, int?) -> (Tensor)")
+    emit("aten::repeat_interleave.Tensor : (Tensor, int?) -> (Tensor)")
     emit("aten::tile : (Tensor, int[]) -> (Tensor)")
     emit("aten::reshape : (Tensor, int[]) -> (Tensor)", has_folder=True)
     emit("aten::reshape_as : (Tensor, Tensor) -> (Tensor)")
