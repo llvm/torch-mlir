@@ -4234,6 +4234,8 @@ ONNX_TOSA_CRASHING_SET = {
 }
 
 ONNX_TOSA_XFAIL_SET = {
+    # ONNX-TOSA does not legalize the imported f16-to-bf16 dtype conversion.
+    "TensorToBFloat16_basic",
     # ONNX export applies explicit offset to materialized slice storage.
     "AtenAsStridedAfterAliasDetachModule_basic",
     # ONNX export gathers from the materialized empty slice.
