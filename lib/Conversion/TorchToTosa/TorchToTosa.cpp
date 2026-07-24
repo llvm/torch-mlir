@@ -8875,34 +8875,23 @@ LogicalResult convertTrilOrTriu(AtenOpT op, Value self, Value diagonalVal,
   maskShape.push_back(h);
   maskShape.push_back(w);
 
-  Value mask =
-      TypeSwitch<Type, Value>(resultType.getElementType())
-          .Case<mlir::FloatType>([&](auto) {
-            return createTrilOrTriuMask<float>(rewriter, op, maskShape, h, w,
-                                               diagonal, isTril);
-          })
-          .template Case<mlir::IntegerType>([&](auto intType) {
-            switch (intType.getWidth()) {
-            case 1:
-              return createTrilOrTriuMask<bool>(rewriter, op, maskShape, h, w,
-                                                diagonal, isTril);
-            case 32:
-              return createTrilOrTriuMask<int32_t>(rewriter, op, maskShape, h,
-                                                   w, diagonal, isTril);
-            case 64:
-              return createTrilOrTriuMask<int64_t>(rewriter, op, maskShape, h,
-                                                   w, diagonal, isTril);
-            }
-            llvm_unreachable("Invalid integer width");
-          });
+  // Use tosa.select(bool_mask, self, zeros) for all element types.
+  // tosa.mul would propagate NaN for float inputs (NaN * 0.0 = NaN, not 0.0).
+  Value boolMask = createTrilOrTriuMask<bool>(rewriter, op, maskShape, h, w,
+                                              diagonal, isTril);
 
-  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, mask).failed())
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, boolMask)
+          .failed())
     return rewriter.notifyMatchFailure(
         op, "Failed to equalize ranks among operands and result");
 
-  auto result = tosa::createMulOpAndCast(rewriter, op, resultType, self, mask,
-                                         /*shift=*/0);
-  rewriter.replaceOp(op, result.getResult());
+  auto zerosAttr = rewriter.getZeroAttr(resultType);
+  Value zeros = tosa::ConstOp::create(rewriter, op->getLoc(), resultType,
+                                      cast<ElementsAttr>(zerosAttr));
+  Value result = tosa::SelectOp::create(rewriter, op->getLoc(), resultType,
+                                        boolMask, self, zeros)
+                     .getResult();
+  rewriter.replaceOp(op, result);
 
   return success();
 }
