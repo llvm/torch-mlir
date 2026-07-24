@@ -558,6 +558,8 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenPolarFloatModule_basic",
     "DiagonalWithStaticShapeModule_basic",
     "EinsumStaticDiagonalDimensionModule_basic",
+    # StableHLO does not support non-default embedding forward flags.
+    "EmbeddingForwardFlagsModule_basic",
     "ElementwiseAtanTensorBFloat16SpecialValuesModule_basic",
     "ElementwiseClampIntToFloatModule_basic",
     "ElementwiseRemainderScalarModule_Bool_NegativeDivisor_basic",
@@ -2445,6 +2447,7 @@ TOSA_PASS_SET = {
     "ElementwiseWhereScalarModule_basic",
     "ElementwiseNanToNumWithNoneModule_Basic",
     "ElementwiseNanToNumModule_Basic",
+    "EmbeddingForwardFlagsModule_basic",
     "EmbeddingModule1DIndices_basic",
     "EmbeddingModuleI32Static_basic",
     "FlattenRank0Module_basic",

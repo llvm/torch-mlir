@@ -1,5 +1,21 @@
 // RUN: torch-mlir-opt <%s -convert-torch-to-tosa -split-input-file -verify-diagnostics | FileCheck %s
 
+// CHECK-LABEL: func.func @torch.aten.embedding$forward_flags
+// CHECK-COUNT-2: tosa.gather
+func.func @torch.aten.embedding$forward_flags(
+    %weight: !torch.vtensor<[5,5],f32>,
+    %indices: !torch.vtensor<[2,2],si32>)
+    -> (!torch.vtensor<[2,2,5],f32>, !torch.vtensor<[2,2,5],f32>) {
+  %int-1 = torch.constant.int -1
+  %false = torch.constant.bool false
+  %true = torch.constant.bool true
+  %scale_grad_by_freq = torch.aten.embedding %weight, %indices, %int-1, %true, %false : !torch.vtensor<[5,5],f32>, !torch.vtensor<[2,2],si32>, !torch.int, !torch.bool, !torch.bool -> !torch.vtensor<[2,2,5],f32>
+  %sparse = torch.aten.embedding %weight, %indices, %int-1, %false, %true : !torch.vtensor<[5,5],f32>, !torch.vtensor<[2,2],si32>, !torch.int, !torch.bool, !torch.bool -> !torch.vtensor<[2,2,5],f32>
+  return %scale_grad_by_freq, %sparse : !torch.vtensor<[2,2,5],f32>, !torch.vtensor<[2,2,5],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.tanh$basic(
 // CHECK-SAME:                                %[[ARG:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
 // CHECK:           %[[ARG_BUILTIN:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
