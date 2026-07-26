@@ -6337,6 +6337,25 @@ static bool isScaledMmBlockwiseScaling(Type scaleADtype, Type scaleBDtype) {
          isScaledMmBlockwiseScaleDtype(scaleADtype);
 }
 
+static bool isAllowedScaledMmSelfDtype(BaseTensorType selfType,
+                                       BaseTensorType scaleAType,
+                                       BaseTensorType scaleBType) {
+  if (!selfType.hasDtype())
+    return true;
+
+  Type selfDtype = selfType.getDtype();
+  if (isScaledMmDataDtype(selfDtype))
+    return true;
+
+  if (!scaleAType.hasDtype() || !scaleBType.hasDtype())
+    return false;
+
+  if (!isScaledMmBlockwiseScaling(scaleAType.getDtype(), scaleBType.getDtype()))
+    return false;
+
+  return selfDtype.isF32() || selfDtype.isF16() || selfDtype.isBF16();
+}
+
 static int64_t getNumel(ArrayRef<int64_t> sizes) {
   int64_t numel = 1;
   for (int64_t size : sizes) {
@@ -6366,7 +6385,8 @@ static bool hasShape(ArrayRef<int64_t> sizes, ArrayRef<int64_t> expected) {
 
 LogicalResult Aten_ScaledMmOp::verify() {
   // Mirror the statically checkable parts of PyTorch's _scaled_mm metadata
-  // validation:
+  // validation. Floating lhs activations are also allowed with blockwise scales
+  // as a compiler form that lowers through dynamic activation quantization.
   // https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/cuda/ScaledBlas.cpp
   auto selfType = cast<BaseTensorType>(getSelf().getType());
   auto mat2Type = cast<BaseTensorType>(getMat2().getType());
@@ -6374,8 +6394,10 @@ LogicalResult Aten_ScaledMmOp::verify() {
   auto scaleBType = cast<BaseTensorType>(getScaleB().getType());
   auto resultType = cast<BaseTensorType>(getResult().getType());
 
-  if (selfType.hasDtype() && !isScaledMmDataDtype(selfType.getDtype()))
-    return emitOpError("expected self to have an FP8 or FP4 dtype, but got ")
+  if (!isAllowedScaledMmSelfDtype(selfType, scaleAType, scaleBType))
+    return emitOpError("expected self to have an FP8 or FP4 dtype, or a "
+                       "floating activation dtype with blockwise scales, but "
+                       "got ")
            << selfType.getDtype();
   if (mat2Type.hasDtype() && !isScaledMmDataDtype(mat2Type.getDtype()))
     return emitOpError("expected mat2 to have an FP8 or FP4 dtype, but got ")
@@ -6495,7 +6517,11 @@ LogicalResult Aten_ScaledMmOp::verify() {
   // branch.
   if (isBlockwiseScaling) {
     int64_t blockSizeMN = 128;
-    int64_t scaleAK = getScaledMmScaleK(k, selfType.getDtype(), scaleADtype);
+    Type scaleAEffectiveDataDtype = isScaledMmDataDtype(selfType.getDtype())
+                                        ? selfType.getDtype()
+                                        : mat2Type.getDtype();
+    int64_t scaleAK =
+        getScaledMmScaleK(k, scaleAEffectiveDataDtype, scaleADtype);
     int64_t scaleBK =
         getScaledMmScaleK(mat2K, mat2Type.getDtype(), scaleBDtype);
     int64_t numAKBlocks =

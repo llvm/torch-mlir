@@ -253,6 +253,19 @@ func.func @torch.hop_flex_attention_disable_gqa(%arg0: !torch.vtensor<[2,4,8,16]
   return %output, %logsumexp, %maxscore : !torch.vtensor<[2,4,8,16],f32>, !torch.none, !torch.none
 }
 
+// CHECK-LABEL: func.func @torch.aten._scaled_mm$floating_lhs_blockwise_scales(
+// CHECK: torch.aten._scaled_mm
+func.func @torch.aten._scaled_mm$floating_lhs_blockwise_scales(
+    %arg0: !torch.vtensor<[128,128],bf16>,
+    %arg1: !torch.vtensor<[128,128],f8E4M3FN>,
+    %arg2: !torch.vtensor<[512],f8E8M0FNU>,
+    %arg3: !torch.vtensor<[512],f8E8M0FNU>) -> !torch.vtensor<[128,128],bf16> {
+  %scaled_mm_false = torch.constant.bool false
+  %scaled_mm_int15 = torch.constant.int 15
+  %scaled_mm_none = torch.constant.none
+  %0 = torch.aten._scaled_mm %arg0, %arg1, %arg2, %arg3, %scaled_mm_none, %scaled_mm_none, %scaled_mm_int15, %scaled_mm_false : !torch.vtensor<[128,128],bf16>, !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[512],f8E8M0FNU>, !torch.vtensor<[512],f8E8M0FNU>, !torch.none, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %0 : !torch.vtensor<[128,128],bf16>
+}
 
 // CHECK-LABEL: func.func @torch.aten._scaled_mm_v2$rowwise_rank1_scales(
 // CHECK: torch.aten._scaled_mm_v2

@@ -602,6 +602,19 @@ static Value addBatchDimForBlockedMatmul(Value value, RankedTensorType valueTy,
       .getResult();
 }
 
+static std::pair<Value, Value> createBlockScaledActivationCast(
+    Value activation, Type dataElementType, Type scaleElementType, int64_t rows,
+    int64_t cols, int64_t scaleCols, ConversionPatternRewriter &rewriter,
+    Location loc) {
+  auto castDataTy = RankedTensorType::get({1, rows, cols}, dataElementType);
+  auto castScaleTy =
+      RankedTensorType::get({1, rows, scaleCols}, scaleElementType);
+  auto cast = tosa::CastToBlockScaledOp::create(rewriter, loc, castDataTy,
+                                                castScaleTy, activation,
+                                                tosa::BlockSize::BLOCK_SIZE_32);
+  return {cast.getOutputData(), cast.getOutputScale()};
+}
+
 static LogicalResult rewriteBlockedScaledMmToMatmulTBlockScaledOp(
     Operation *op, Value lhs, Value rhs, Value scaleA, Value scaleB, Value bias,
     RankedTensorType lhsTy, RankedTensorType rhsTy, RankedTensorType scaleATy,
@@ -613,11 +626,15 @@ static LogicalResult rewriteBlockedScaledMmToMatmulTBlockScaledOp(
     return rewriter.notifyMatchFailure(
         op, "aten._scaled_mm expects FP8 rhs input for blocked scales");
 
-  if (!isSupportedScaledMmDataElementType(lhsElemTy))
+  bool lhsNeedsBlockScaledCast =
+      isSupportedStaticScaledMmResultElementType(lhsElemTy);
+  if (!isSupportedScaledMmDataElementType(lhsElemTy) &&
+      !lhsNeedsBlockScaledCast)
     return rewriter.notifyMatchFailure(
-        op, "aten._scaled_mm expects FP8 lhs input for blocked scales");
+        op, "aten._scaled_mm expects FP8 lhs input or floating activation lhs "
+            "for blocked scales");
 
-  if (lhsElemTy != rhsElemTy)
+  if (!lhsNeedsBlockScaledCast && lhsElemTy != rhsElemTy)
     return rewriter.notifyMatchFailure(
         op, "aten._scaled_mm requires matching lhs/rhs element types for "
             "blocked scales");
@@ -660,8 +677,19 @@ static LogicalResult rewriteBlockedScaledMmToMatmulTBlockScaledOp(
   rhs = addBatchDimForBlockedMatmul(rhs, rhsTy, n, k, /*transpose=*/true,
                                     rewriter, loc);
 
-  auto scaleAOr = getBlockedScale(scaleA, scaleATy, m, scaleCols,
-                                  scaleAClassification, rewriter, loc);
+  FailureOr<Value> scaleAOr = failure();
+  if (lhsNeedsBlockScaledCast) {
+    // Floating lhs activations are dynamically quantized to blocked FP8 and
+    // the generated scale is used as scale_a for matmul_t_block_scaled.
+    auto [castLhs, castScaleA] = createBlockScaledActivationCast(
+        lhs, rhsElemTy, scaleATy.getElementType(), m, k, scaleCols, rewriter,
+        loc);
+    lhs = castLhs;
+    scaleAOr = castScaleA;
+  } else {
+    scaleAOr = getBlockedScale(scaleA, scaleATy, m, scaleCols,
+                               scaleAClassification, rewriter, loc);
+  }
   auto scaleBOr = getBlockedScale(scaleB, scaleBTy, n, scaleCols,
                                   scaleBClassification, rewriter, loc);
   if (failed(scaleAOr) || failed(scaleBOr))
