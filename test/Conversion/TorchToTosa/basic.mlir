@@ -5292,6 +5292,7 @@ func.func @torch.aten.bmm$zero_k_f32(%arg0: !torch.vtensor<[2,5,0],f32>, %arg1: 
 // -----
 module {
   func.func @torch.aten.mm$zero_output_rejected(%arg0: !torch.vtensor<[0,5],f32>, %arg1: !torch.vtensor<[5,10],f32>) -> !torch.vtensor<[0,10],f32> {
+    // expected-error @below {{TOSA lowering does not support matmul-like ops with zero-sized output tensors}}
     // expected-error @below {{failed to legalize operation 'torch.aten.mm' that was explicitly marked illegal}}
     %0 = torch.aten.mm %arg0, %arg1 : !torch.vtensor<[0,5],f32>, !torch.vtensor<[5,10],f32> -> !torch.vtensor<[0,10],f32>
     return %0 : !torch.vtensor<[0,10],f32>
@@ -5968,6 +5969,15 @@ func.func @torch.aten.linear$f16(%arg0: !torch.vtensor<[2,4],f16>, %arg1: !torch
   return %0 : !torch.vtensor<[2,3],f16>
 }
 
+// -----
+func.func @torch.aten.linear$zero_output_rejected(%arg0: !torch.vtensor<[0,4],f32>, %arg1: !torch.vtensor<[3,4],f32>, %arg2: !torch.vtensor<[3],f32>) -> !torch.vtensor<[0,3],f32> {
+  // expected-error @below {{TOSA lowering does not support matmul-like ops with zero-sized output tensors}}
+  // expected-error @below {{failed to legalize operation 'torch.aten.linear' that was explicitly marked illegal}}
+  %0 = torch.aten.linear %arg0, %arg1, %arg2 : !torch.vtensor<[0,4],f32>, !torch.vtensor<[3,4],f32>, !torch.vtensor<[3],f32> -> !torch.vtensor<[0,3],f32>
+  return %0 : !torch.vtensor<[0,3],f32>
+}
+
+// -----
 // CHECK-LABEL:   func.func @torch.aten.cumsum.basic(
 // CHECK-SAME:                                       %[[ARG:.*]]: !torch.vtensor<[2,3],f32>) -> !torch.vtensor<[2,3],f32> {
 // CHECK:           %[[IN:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[2,3],f32> -> tensor<2x3xf32>

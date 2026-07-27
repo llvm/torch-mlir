@@ -1059,6 +1059,28 @@ def AtenLinear2D_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class AtenLinearZeroBatch(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([0, 4], torch.float32, True),
+            ([3, 4], torch.float32, True),
+            ([3], torch.float32, True),
+        ]
+    )
+    def forward(self, a, b, c):
+        return torch.ops.aten.linear(a, b, c)
+
+
+@register_test_case(module_factory=lambda: AtenLinearZeroBatch())
+def AtenLinearZeroBatch_basic(module, tu: TestUtils):
+    module.forward(torch.empty(0, 4), tu.rand(3, 4), tu.rand(3))
+
+
+# ==============================================================================
+
+
 class AtenLinear3DBias(torch.nn.Module):
     @export
     @annotate_args(
