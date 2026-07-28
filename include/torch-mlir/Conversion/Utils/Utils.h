@@ -122,6 +122,33 @@ void getZeroPoint(Value value, Value &zeropoint);
 LogicalResult getQuantizationParams(Value value, Value &zeropoint, Value &scale,
                                     int64_t &axis);
 
+// Constant per-tensor quantization parameters extracted from the scalar
+// operands of a PT2E quantized_decomposed.{quantize,dequantize}_per_tensor op.
+struct PerTensorQParams {
+  double scale;
+  int64_t zeroPoint;
+  int64_t quantMin;
+  int64_t quantMax;
+};
+
+// Extracts constant per-tensor quantization params from the given Torch scalar
+// operands (the original `!torch.float` / `!torch.int` values, not adaptor
+// values) via matchPattern. Emits a clean notifyMatchFailure and returns
+// failure() if any required operand is not a compile-time constant.
+//
+// - requireNonZeroScale: reject scale == 0 (quantize divides by scale; a zero
+//   scale would emit inf/wrong output). Dequantize multiplies by scale, so a
+//   zero scale is harmless there and this can be false.
+// - requireClampRange: also require quant_min / quant_max to be constants.
+//   Quantize needs them for the output clamp; dequantize does not use them
+//   (its math is (x - zp) * scale), so this can be false to avoid rejecting
+//   otherwise-legalizable ops with dynamic quant_min / quant_max.
+LogicalResult
+getConstantPerTensorQParams(PatternRewriter &rewriter, Operation *op,
+                            Value scale, Value zeroPoint, Value quantMin,
+                            Value quantMax, bool requireNonZeroScale,
+                            bool requireClampRange, PerTensorQParams &qparams);
+
 APFloat getFloatInf(mlir::FloatType fpType, bool negative,
                     bool allowNonFinites);
 
