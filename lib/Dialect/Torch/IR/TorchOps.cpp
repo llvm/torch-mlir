@@ -3194,11 +3194,17 @@ LogicalResult AtenSortOp::fold(FoldAdaptor adaptor,
   IntegerAttr dimAttribute = dyn_cast_if_present<IntegerAttr>(adaptor.getDim());
   if (!dimAttribute)
     return failure();
-  int64_t dimInt = dimAttribute.getValue().getSExtValue();
-  if (dimInt < 0)
-    dimInt += operandType.getSizes().size();
-  if (dimAttribute) {
-    unaryDim = operandType.getSizes()[dimInt] == 1;
+  int64_t dim = dimAttribute.getValue().getSExtValue();
+  int64_t rank = operandType.getSizes().size();
+  if (rank == 0) {
+    if (dim != 0 && dim != -1)
+      return failure();
+    unaryDim = true;
+  } else {
+    int64_t normalizedDim = dim < 0 ? dim + rank : dim;
+    if (normalizedDim < 0 || normalizedDim >= rank)
+      return failure();
+    unaryDim = operandType.getSizes()[normalizedDim] == 1;
   }
 
   OpBuilder builder(getContext());
