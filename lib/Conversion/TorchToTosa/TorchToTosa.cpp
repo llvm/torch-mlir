@@ -444,6 +444,12 @@ enum class BlockedScaleLayout {
   SwizzledConstant,
 };
 
+enum class SwizzledBlockedScaleStorage {
+  Invalid,
+  Grid,
+  Flat,
+};
+
 struct BlockedScaleClassification {
   BlockedScaleLayout layout = BlockedScaleLayout::Invalid;
   SmallVector<char> rawSwizzledData = {};
@@ -474,16 +480,38 @@ static BlockedScaleLayout classifyFlatBlockedScale(RankedTensorType scaleTy,
              : BlockedScaleLayout::Invalid;
 }
 
-static bool hasSwizzledBlockedScaleShape(RankedTensorType scaleTy, int64_t rows,
-                                         int64_t scaleCols) {
+static SwizzledBlockedScaleStorage
+classifySwizzledBlockedScaleStorage(RankedTensorType scaleTy, int64_t rows,
+                                    int64_t scaleCols) {
   if (!scaleTy.hasStaticShape() || scaleTy.getRank() != 2)
-    return false;
+    return SwizzledBlockedScaleStorage::Invalid;
 
   int64_t rowBlocks = llvm::divideCeil(rows, kTosaBlockedScaleRowBlock);
   int64_t colBlocks = llvm::divideCeil(scaleCols, kTosaBlockedScaleColBlock);
-  return scaleTy.getDimSize(0) ==
-             rowBlocks * colBlocks * kTosaBlockedScaleSwizzleTileRows &&
-         scaleTy.getDimSize(1) == kTosaBlockedScaleSwizzleTileCols;
+
+  // PyTorch may type swizzled E8M0 scales as a 2D tile grid:
+  //   [rowBlocks * 32, colBlocks * 16]
+  // or as the same 32x16 tiles flattened along the row dimension:
+  //   [rowBlocks * colBlocks * 32, 16].
+  // In both cases, the underlying storage is tile-major: each 32x16 tile is
+  // contiguous, and tiles are ordered by row block then column block. Repack
+  // those bytes to TOSA's compact [1, rows, K/32] layout below.
+  if (scaleTy.getDimSize(0) == rowBlocks * kTosaBlockedScaleSwizzleTileRows &&
+      scaleTy.getDimSize(1) == colBlocks * kTosaBlockedScaleSwizzleTileCols)
+    return SwizzledBlockedScaleStorage::Grid;
+
+  if (scaleTy.getDimSize(0) ==
+          rowBlocks * colBlocks * kTosaBlockedScaleSwizzleTileRows &&
+      scaleTy.getDimSize(1) == kTosaBlockedScaleSwizzleTileCols)
+    return SwizzledBlockedScaleStorage::Flat;
+
+  return SwizzledBlockedScaleStorage::Invalid;
+}
+
+static bool hasSwizzledBlockedScaleShape(RankedTensorType scaleTy, int64_t rows,
+                                         int64_t scaleCols) {
+  return classifySwizzledBlockedScaleStorage(scaleTy, rows, scaleCols) !=
+         SwizzledBlockedScaleStorage::Invalid;
 }
 
 static FailureOr<SmallVector<char>>
@@ -523,12 +551,15 @@ static FailureOr<Value> reorderSwizzledBlockedScaleConstant(
     return failure();
 
   int64_t colBlocks = llvm::divideCeil(scaleCols, kTosaBlockedScaleColBlock);
+  SwizzledBlockedScaleStorage storage =
+      classifySwizzledBlockedScaleStorage(scaleTy, rows, scaleCols);
+  if (storage == SwizzledBlockedScaleStorage::Invalid)
+    return failure();
 
   // E8M0 scale values are layout-reordered byte payloads here, not numerically
-  // transformed. The swizzled storage is [rowBlocks * colBlocks * 32, 16],
-  // where each 32x16 tile stores one 128-row by 4-column padded scale block.
-  // For constants with this exact layout, reorder the raw bytes at compile time
-  // into TOSA's compact [1, rows, K/32] scale layout.
+  // transformed. Each 32x16 tile stores one 128-row by 4-column padded scale
+  // block. Reorder PyTorch swizzled constants at compile time into
+  // TOSA's compact [1, rows, K/32] scale layout.
   if (static_cast<int64_t>(rawData.size()) != scaleTy.getNumElements())
     return failure();
 
@@ -539,16 +570,16 @@ static FailureOr<Value> reorderSwizzledBlockedScaleConstant(
     for (int64_t col = 0; col < scaleCols; ++col) {
       int64_t colBlock = col / kTosaBlockedScaleColBlock;
       int64_t colInBlock = col % kTosaBlockedScaleColBlock;
-      int64_t block = rowBlock * colBlocks + colBlock;
       // Within each 32x16 tile, rows are grouped by row % 32 and columns by
       // four-row sub-blocks, so compact [row, col] maps to:
       //   tileBase + (row % 32) * 16 + (row / 32) * 4 + (col % 4).
+      int64_t tileRow = rowInBlock % kTosaBlockedScaleSwizzleTileRows;
+      int64_t tileCol = (rowInBlock / kTosaBlockedScaleSwizzleTileRows) *
+                            kTosaBlockedScaleColBlock +
+                        colInBlock;
+      int64_t block = rowBlock * colBlocks + colBlock;
       int64_t srcIndex = block * kTosaBlockedScaleSwizzleTileSize +
-                         (rowInBlock % kTosaBlockedScaleSwizzleTileRows) *
-                             kTosaBlockedScaleSwizzleTileCols +
-                         (rowInBlock / kTosaBlockedScaleSwizzleTileRows) *
-                             kTosaBlockedScaleColBlock +
-                         colInBlock;
+                         tileRow * kTosaBlockedScaleSwizzleTileCols + tileCol;
       compactData[row * scaleCols + col] = rawData[srcIndex];
     }
   }
