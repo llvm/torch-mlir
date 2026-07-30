@@ -30,7 +30,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'schedule' && github.repository_owner == 'llvm') ||
       contains(github.event.pull_request.labels.*.name, 'ci:wheels')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.get-version.outputs.version }}
       should_publish_gh: ${{ steps.get-version.outputs.should_publish_gh }}
@@ -133,7 +133,7 @@ jobs:
     name: Create GitHub Release and Upload Assets
     needs: [setup-version, build_wheels]
     if: needs.setup-version.outputs.should_publish_gh == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
@@ -204,7 +204,7 @@ jobs:
     name: Publish wheels to PyPI
     needs: [setup-version, build_wheels]
     if: needs.setup-version.outputs.should_publish_pypi == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: pypi
     permissions:
       id-token: write
