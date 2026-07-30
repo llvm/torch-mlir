@@ -1018,16 +1018,10 @@ LogicalResult torchScalarToTosaTensor(ConversionPatternRewriter &rewriter,
     return rewriter.notifyMatchFailure(op,
                                        "Unable to extract the scalar constant");
 
-  int64_t numElem = 1;
-  for (int64_t dim : dshape)
-    numElem *= dim;
-
   if (isa<mlir::FloatType>(dtype)) {
     tosaTensor =
-        tosa::getConstTensor<float>(
-            rewriter, op,
-            SmallVector<float>(numElem, (isFloat ? doubleValue : intValue)),
-            dshape, dtype)
+        tosa::getSplatConstTensor<float>(
+            rewriter, op, (isFloat ? doubleValue : intValue), dshape, dtype)
             .value();
   } else if (auto intType = dyn_cast<mlir::IntegerType>(dtype)) {
     auto width = intType.getWidth();
@@ -1044,9 +1038,8 @@ LogicalResult torchScalarToTosaTensor(ConversionPatternRewriter &rewriter,
       }
       bool d = isFloat ? static_cast<bool>(doubleValue)
                        : static_cast<bool>(intValue);
-      tosaTensor = tosa::getConstTensor<bool>(
-                       rewriter, op, SmallVector<bool>(numElem, d), dshape)
-                       .value();
+      tosaTensor =
+          tosa::getSplatConstTensor<bool>(rewriter, op, d, dshape).value();
     } else if (width == 8) {
       if (!isInValidRange<int8_t>(isFloat, doubleValue, isInt, intValue)) {
         return rewriter.notifyMatchFailure(
@@ -1055,9 +1048,8 @@ LogicalResult torchScalarToTosaTensor(ConversionPatternRewriter &rewriter,
       }
       int8_t d = isFloat ? static_cast<int8_t>(doubleValue)
                          : static_cast<int8_t>(intValue);
-      tosaTensor = tosa::getConstTensor<int8_t>(
-                       rewriter, op, SmallVector<int8_t>(numElem, d), dshape)
-                       .value();
+      tosaTensor =
+          tosa::getSplatConstTensor<int8_t>(rewriter, op, d, dshape).value();
     } else if (width == 32) {
       if (!isInValidRange<int32_t>(isFloat, doubleValue, isInt, intValue)) {
         return rewriter.notifyMatchFailure(
@@ -1066,9 +1058,8 @@ LogicalResult torchScalarToTosaTensor(ConversionPatternRewriter &rewriter,
       }
       int32_t d = isFloat ? static_cast<int32_t>(doubleValue)
                           : static_cast<int32_t>(intValue);
-      tosaTensor = tosa::getConstTensor<int32_t>(
-                       rewriter, op, SmallVector<int32_t>(numElem, d), dshape)
-                       .value();
+      tosaTensor =
+          tosa::getSplatConstTensor<int32_t>(rewriter, op, d, dshape).value();
     } else if (width == 64) {
       if (!isInValidRange<int64_t>(isFloat, doubleValue, isInt, intValue)) {
         return rewriter.notifyMatchFailure(
@@ -1076,9 +1067,8 @@ LogicalResult torchScalarToTosaTensor(ConversionPatternRewriter &rewriter,
                 "of destination type");
       }
       int64_t d = (isFloat ? static_cast<int64_t>(doubleValue) : intValue);
-      tosaTensor = tosa::getConstTensor<int64_t>(
-                       rewriter, op, SmallVector<int64_t>(numElem, d), dshape)
-                       .value();
+      tosaTensor =
+          tosa::getSplatConstTensor<int64_t>(rewriter, op, d, dshape).value();
     }
   } else {
     return rewriter.notifyMatchFailure(op, "Usupported element type");
@@ -5011,34 +5001,24 @@ LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewriteImpl(
           op, "Only static shape tensor types are currently supported for Tanh "
               "approximation");
 
-    auto numElem = std::accumulate(selfShape.begin(), selfShape.end(), 1,
-                                   std::multiplies<int64_t>());
-
-    Value half = tosa::getConstTensor<float>(rewriter, op,
-                                             SmallVector<float>(numElem, 0.5f),
-                                             selfShape, selfElemTy)
+    Value half = tosa::getSplatConstTensor<float>(rewriter, op, 0.5f, selfShape,
+                                                  selfElemTy)
                      .value();
-    Value one = tosa::getConstTensor<float>(rewriter, op,
-                                            SmallVector<float>(numElem, 1.0f),
-                                            selfShape, selfElemTy)
+    Value one = tosa::getSplatConstTensor<float>(rewriter, op, 1.0f, selfShape,
+                                                 selfElemTy)
                     .value();
-    Value three = tosa::getConstTensor<float>(rewriter, op,
-                                              SmallVector<float>(numElem, 3.0f),
-                                              selfShape, selfElemTy)
+    Value three = tosa::getSplatConstTensor<float>(rewriter, op, 3.0f,
+                                                   selfShape, selfElemTy)
                       .value();
 
     // 0.044715
-    Value magicNumber =
-        tosa::getConstTensor<float>(rewriter, op,
-                                    SmallVector<float>(numElem, 0.044715f),
-                                    selfShape, selfElemTy)
-            .value();
+    Value magicNumber = tosa::getSplatConstTensor<float>(
+                            rewriter, op, 0.044715f, selfShape, selfElemTy)
+                            .value();
 
     Value twoOverPi =
-        tosa::getConstTensor<float>(
-            rewriter, op,
-            SmallVector<float>(numElem,
-                               static_cast<float>(2.0 / llvm::numbers::pi)),
+        tosa::getSplatConstTensor<float>(
+            rewriter, op, static_cast<float>(2.0 / llvm::numbers::pi),
             selfShape, selfElemTy)
             .value();
 
@@ -8381,9 +8361,9 @@ public:
           op, "Shape must not have a dimension of size zero");
     }
 
-    SmallVector<int32_t> values(size, fillVal);
     auto constOp =
-        tosa::getConstTensor<int32_t>(rewriter, op, values, shape).value();
+        tosa::getSplatConstTensor<int32_t>(rewriter, op, fillVal, shape)
+            .value();
 
     auto result =
         tosa::tosaCastTensorToType(rewriter, constOp, outType).value();
@@ -9270,40 +9250,29 @@ LogicalResult ConvertAtenOp<AtenDiagEmbedOp>::matchAndRewriteImpl(
   zeroShape.push_back(diagSize + offset);
   zeroShape.push_back(diagSize + offset);
 
-  int64_t numElemOfZeroTensor = 1;
-  for (int64_t &d : zeroShape)
-    numElemOfZeroTensor *= d;
-
-  Value zero =
-      TypeSwitch<Type, Value>(selfElemTy)
-          .Case<mlir::FloatType>([&](auto) {
-            return tosa::getConstTensor<float>(
-                       rewriter, op, SmallVector<float>(numElemOfZeroTensor, 0),
-                       zeroShape)
-                .value();
-          })
-          .Case<mlir::IntegerType>([&](auto intType) {
-            switch (intType.getWidth()) {
-            case 1:
-              return tosa::getConstTensor<bool>(
-                         rewriter, op,
-                         SmallVector<bool>(numElemOfZeroTensor, 0), zeroShape)
-                  .value();
-            case 32:
-              return tosa::getConstTensor<int32_t>(
-                         rewriter, op,
-                         SmallVector<int32_t>(numElemOfZeroTensor, 0),
-                         zeroShape)
-                  .value();
-            case 64:
-              return tosa::getConstTensor<int64_t>(
-                         rewriter, op,
-                         SmallVector<int64_t>(numElemOfZeroTensor, 0),
-                         zeroShape)
-                  .value();
-            }
-            llvm_unreachable("Invalid integer width");
-          });
+  Value zero = TypeSwitch<Type, Value>(selfElemTy)
+                   .Case<mlir::FloatType>([&](auto) {
+                     return tosa::getSplatConstTensor<float>(rewriter, op, 0.0f,
+                                                             zeroShape)
+                         .value();
+                   })
+                   .Case<mlir::IntegerType>([&](auto intType) {
+                     switch (intType.getWidth()) {
+                     case 1:
+                       return tosa::getSplatConstTensor<bool>(rewriter, op,
+                                                              false, zeroShape)
+                           .value();
+                     case 32:
+                       return tosa::getSplatConstTensor<int32_t>(rewriter, op,
+                                                                 0, zeroShape)
+                           .value();
+                     case 64:
+                       return tosa::getSplatConstTensor<int64_t>(rewriter, op,
+                                                                 0, zeroShape)
+                           .value();
+                     }
+                     llvm_unreachable("Invalid integer width");
+                   });
 
   // Convert PyTorch index and dim to TensorFlow-style indices
   auto indicesTf = tosa::convertTorchIndexToTfIndices(rewriter, op, zero, index,

@@ -260,6 +260,41 @@ std::optional<Value> getConstTensor<float>(PatternRewriter &rewriter,
   return const_op.getResult();
 }
 
+template <typename T>
+std::optional<Value>
+getSplatConstTensor(PatternRewriter &rewriter, Operation *op, T value,
+                    ArrayRef<int64_t> shape, std::optional<Type> dtype) {
+  auto width = sizeof(T) * 8;
+  if constexpr (std::is_same_v<T, bool>)
+    width = 1;
+
+  auto constType = RankedTensorType::get(shape, rewriter.getIntegerType(width));
+  auto constAttr = DenseElementsAttr::get(constType, value);
+  Value constTensor =
+      tosa::ConstOp::create(rewriter, op->getLoc(), constType, constAttr);
+
+  if (dtype)
+    return tosa::tosaCastTensorToType(rewriter, constTensor,
+                                      RankedTensorType::get(shape, *dtype));
+  return constTensor;
+}
+
+template <>
+std::optional<Value> getSplatConstTensor<float>(PatternRewriter &rewriter,
+                                                Operation *op, float value,
+                                                ArrayRef<int64_t> shape,
+                                                std::optional<Type> dtype) {
+  auto constType = RankedTensorType::get(shape, rewriter.getF32Type());
+  auto constAttr = DenseElementsAttr::get(constType, value);
+  Value constTensor =
+      tosa::ConstOp::create(rewriter, op->getLoc(), constType, constAttr);
+
+  if (dtype)
+    return tosa::tosaCastTensorToType(rewriter, constTensor,
+                                      RankedTensorType::get(shape, *dtype));
+  return constTensor;
+}
+
 // Valid TOSA casting pairs according to TOSA spec:
 // https://www.mlplatform.org/tosa/tosa_spec.html#_cast
 // Note: currently TOSA doesn't support casting to and from I64 and F64
@@ -459,6 +494,29 @@ template std::optional<Value>
 getConstTensor<int64_t>(PatternRewriter &, Operation *, ArrayRef<int64_t> vec,
                         ArrayRef<int64_t> shape, std::optional<Type> dtype);
 
+template std::optional<Value>
+getSplatConstTensor<bool>(PatternRewriter &, Operation *, bool value,
+                          ArrayRef<int64_t> shape, std::optional<Type> dtype);
+
+template std::optional<Value>
+getSplatConstTensor<int8_t>(PatternRewriter &, Operation *, int8_t value,
+                            ArrayRef<int64_t> shape, std::optional<Type> dtype);
+
+template std::optional<Value>
+getSplatConstTensor<int16_t>(PatternRewriter &, Operation *, int16_t value,
+                             ArrayRef<int64_t> shape,
+                             std::optional<Type> dtype);
+
+template std::optional<Value>
+getSplatConstTensor<int32_t>(PatternRewriter &, Operation *, int32_t value,
+                             ArrayRef<int64_t> shape,
+                             std::optional<Type> dtype);
+
+template std::optional<Value>
+getSplatConstTensor<int64_t>(PatternRewriter &, Operation *, int64_t value,
+                             ArrayRef<int64_t> shape,
+                             std::optional<Type> dtype);
+
 LogicalResult getAvgPool2dAccType(PatternRewriter &rewriter, Value input,
                                   TypeAttr &accType) {
   auto inputTy = llvm::dyn_cast<ShapedType>(input.getType());
@@ -560,14 +618,10 @@ FailureOr<Value> getConvBiasForNoneType(Operation *op,
 
   int32_t oc = static_cast<int32_t>(numOutputChannels);
 
-  if (biasElemTy.isInteger()) {
-    SmallVector<int32_t> zeroVec(oc, 0);
-    return tosa::getConstTensor<int32_t>(rewriter, op, zeroVec, {oc}).value();
-  } else {
-    SmallVector<float> zeroVec(oc, 0);
-    return tosa::getConstTensor<float>(rewriter, op, zeroVec, {oc}, biasElemTy)
-        .value();
-  }
+  if (biasElemTy.isInteger())
+    return tosa::getSplatConstTensor<int32_t>(rewriter, op, 0, {oc}).value();
+  return tosa::getSplatConstTensor<float>(rewriter, op, 0.0f, {oc}, biasElemTy)
+      .value();
 }
 
 Value emitExplicitZeroPadNHWC(Location loc, PatternRewriter &rewriter,
