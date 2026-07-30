@@ -13,16 +13,15 @@
 // CHECK:       %[[GEN:.*]] = linalg.generic
 // CHECK-SAME:    ins(%[[IN_T]] : tensor<4x8xi8>) outs(%[[OUT_INIT]] : tensor<4x8xf32>)
 // CHECK:       ^bb0(%[[IN:.*]]: i8, %{{.*}}: f32):
-// CHECK:         %[[EXT:.*]] = arith.extsi %[[IN]] : i8 to i32
 // CHECK:         %[[ZP_I64:.*]] = arith.constant 0 : i64
-// CHECK:         %[[ZP_I32:.*]] = arith.trunci %[[ZP_I64]] : i64 to i32
+// CHECK:         %[[EXT:.*]] = arith.extsi %[[IN]] : i8 to i64
 // Operand order matters here: (input - zp), not (zp - input).
-// CHECK:         %[[SUB:.*]] = arith.subi %[[EXT]], %[[ZP_I32]] : i32
-// CHECK:         %[[SUBF:.*]] = arith.sitofp %[[SUB]] : i32 to f32
+// CHECK:         %[[SUB:.*]] = arith.subi %[[EXT]], %[[ZP_I64]] : i64
 // CHECK:         %[[SCALE_F64:.*]] = torch_c.to_f64 %[[SCALE_F]]
-// CHECK:         %[[SCALE_F32:.*]] = arith.truncf %[[SCALE_F64]] : f64 to f32
-// CHECK:         %[[MUL:.*]] = arith.mulf %[[SUBF]], %[[SCALE_F32]] : f32
-// CHECK:         linalg.yield %[[MUL]] : f32
+// CHECK:         %[[SUBF:.*]] = arith.sitofp %[[SUB]] : i64 to f64
+// CHECK:         %[[MUL:.*]] = arith.mulf %[[SUBF]], %[[SCALE_F64]] : f64
+// CHECK:         %[[RESULT:.*]] = arith.truncf %[[MUL]] : f64 to f32
+// CHECK:         linalg.yield %[[RESULT]] : f32
 func.func @standalone_dequantize_si8(
     %input: !torch.vtensor<[4,8],si8>) -> !torch.vtensor<[4,8],f32> {
   %scale = torch.constant.float 3.000000e-01
@@ -101,10 +100,9 @@ func.func @standalone_quantize_si8(
 // CHECK-SAME: ins(%[[INPUT_T]], %[[SCALES_T]], %[[ZPS_T]] : tensor<4x8xi8>, tensor<4xf32>, tensor<4xi64>)
 // CHECK-SAME: outs(%[[EMPTY]] : tensor<4x8xf32>)
 // CHECK: ^bb0(%[[IN:.*]]: i8, %[[SCALE:.*]]: f32, %[[ZP:.*]]: i64, %{{.*}}: f32):
-// CHECK:   %[[EXT:.*]] = arith.extsi %[[IN]] : i8 to i32
-// CHECK:   %[[ZP32:.*]] = arith.trunci %[[ZP]] : i64 to i32
-// CHECK:   %[[SUB:.*]] = arith.subi %[[EXT]], %[[ZP32]] : i32
-// CHECK:   %[[FP:.*]] = arith.sitofp %[[SUB]] : i32 to f32
+// CHECK:   %[[EXT:.*]] = arith.extsi %[[IN]] : i8 to i64
+// CHECK:   %[[SUB:.*]] = arith.subi %[[EXT]], %[[ZP]] : i64
+// CHECK:   %[[FP:.*]] = arith.sitofp %[[SUB]] : i64 to f32
 // CHECK:   %[[MUL:.*]] = arith.mulf %[[FP]], %[[SCALE]] : f32
 // CHECK:   linalg.yield %[[MUL]] : f32
 func.func @dequantize_per_channel_axis0(
@@ -135,9 +133,8 @@ func.func @dequantize_per_channel_axis0(
 // CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[CHANNEL0]], #[[IDENTITY]]]
 // CHECK-SAME: ins({{.*}} : tensor<4x8xi8>, tensor<4xf32>)
 // CHECK: ^bb0(%[[IN:.*]]: i8, %[[SCALE:.*]]: f32, %{{.*}}: f32):
-// CHECK:   %[[EXT:.*]] = arith.extsi %[[IN]] : i8 to i32
 // CHECK-NOT: arith.subi
-// CHECK:   %[[FP:.*]] = arith.sitofp %[[EXT]] : i32 to f32
+// CHECK:   %[[FP:.*]] = arith.sitofp %[[IN]] : i8 to f32
 // CHECK:   %[[MUL:.*]] = arith.mulf %[[FP]], %[[SCALE]] : f32
 // CHECK:   linalg.yield %[[MUL]] : f32
 func.func @dequantize_per_channel_symmetric(
@@ -204,11 +201,12 @@ func.func @quantize_per_channel_axis1(
 
 // -----
 
-// Only exercise scale narrowing and an explicit out_dtype here; the complete
-// dequantization payload is checked above.
+// The multiply uses the scale type and only its result is narrowed to the
+// explicit out_dtype.
 // CHECK-LABEL: func.func @dequantize_per_channel_scale_truncation(
-// CHECK: arith.truncf %{{.*}} : f32 to f16
-// CHECK: arith.mulf %{{.*}}, %{{.*}} : f16
+// CHECK: %[[FP:.*]] = arith.sitofp %{{.*}} : i8 to f32
+// CHECK: %[[MUL:.*]] = arith.mulf %[[FP]], %{{.*}} : f32
+// CHECK: arith.truncf %[[MUL]] : f32 to f16
 func.func @dequantize_per_channel_scale_truncation(
     %input: !torch.vtensor<[4,8],si8>,
     %scales: !torch.vtensor<[4],f32>)
@@ -229,9 +227,12 @@ func.func @dequantize_per_channel_scale_truncation(
 
 // -----
 
+// The multiply uses the scale type and only its result is extended to the
+// explicit out_dtype.
 // CHECK-LABEL: func.func @dequantize_per_channel_scale_extension(
-// CHECK: arith.extf %{{.*}} : f16 to f32
-// CHECK: arith.mulf %{{.*}}, %{{.*}} : f32
+// CHECK: %[[FP:.*]] = arith.sitofp %{{.*}} : i8 to f16
+// CHECK: %[[MUL:.*]] = arith.mulf %[[FP]], %{{.*}} : f16
+// CHECK: arith.extf %[[MUL]] : f16 to f32
 func.func @dequantize_per_channel_scale_extension(
     %input: !torch.vtensor<[4,8],si8>,
     %scales: !torch.vtensor<[4],f16>)
@@ -255,7 +256,7 @@ func.func @dequantize_per_channel_scale_extension(
 // Check only the unsigned branches of the shared quantize/dequantize payloads.
 // CHECK-LABEL: func.func @per_channel_unsigned(
 // CHECK: arith.fptoui %{{.*}} : f32 to i8
-// CHECK: arith.extui %{{.*}} : i8 to i32
+// CHECK: arith.extui %{{.*}} : i8 to i64
 func.func @per_channel_unsigned(
     %input: !torch.vtensor<[4,8],f32>,
     %scales: !torch.vtensor<[4],f32>,

@@ -281,3 +281,61 @@ class QuantizedDecomposedQuantizePerTensor(torch.nn.Module):
 @register_test_case(module_factory=lambda: QuantizedDecomposedQuantizePerTensor())
 def QuantizedDecomposedQuantizePerTensor_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 8))
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedDequantizePerChannel(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 8], torch.int8, True),
+            ([8], torch.float32, True),
+            ([8], torch.int64, True),
+        ]
+    )
+    def forward(self, x, scales, zero_points):
+        return torch.ops.quantized_decomposed.dequantize_per_channel.default(
+            x, scales, zero_points, 1, -128, 127, torch.int8
+        )
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedDequantizePerChannel()
+)
+def QuantizedDecomposedDequantizePerChannel_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(4, 8, low=-128, high=127).to(torch.int8),
+        tu.rand(8) + 0.01,
+        tu.randint(8, low=-128, high=127).to(torch.int64),
+    )
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedQuantizePerChannel(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 8], torch.float32, True),
+            ([8], torch.float32, True),
+            ([8], torch.int64, True),
+        ]
+    )
+    def forward(self, x, scales, zero_points):
+        return torch.ops.quantized_decomposed.quantize_per_channel.default(
+            x, scales, zero_points, 1, -128, 127, torch.int8
+        )
+
+
+@register_test_case(module_factory=lambda: QuantizedDecomposedQuantizePerChannel())
+def QuantizedDecomposedQuantizePerChannel_basic(module, tu: TestUtils):
+    module.forward(
+        10 * tu.rand(4, 8) - 5,
+        tu.rand(8) + 0.01,
+        tu.randint(8, low=-128, high=127).to(torch.int64),
+    )

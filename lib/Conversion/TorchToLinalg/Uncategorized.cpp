@@ -411,31 +411,36 @@ static Value createDequantizePayload(OpBuilder &b, Location loc,
                                      const TypeConverter *converter,
                                      Value input, Value scale, Value zeroPoint,
                                      Type outputType, bool inputIsUnsigned) {
-  Type computeIntType =
-      b.getIntegerType(cast<mlir::FloatType>(outputType).getWidth());
-  if (input.getType() != computeIntType) {
-    if (inputIsUnsigned)
-      input = arith::ExtUIOp::create(b, loc, computeIntType, input);
-    else
-      input = arith::ExtSIOp::create(b, loc, computeIntType, input);
-  }
+  auto inputIntType = cast<mlir::IntegerType>(input.getType());
+  IntegerType subtractionType = inputIntType;
   if (zeroPoint) {
     Type convertedType = converter->convertType(zeroPoint.getType());
     if (zeroPoint.getType() != convertedType)
       zeroPoint = converter->materializeTargetConversion(b, loc, convertedType,
                                                          zeroPoint);
-    if (zeroPoint.getType() != computeIntType)
-      zeroPoint = convertScalarToDtype(b, loc, zeroPoint, computeIntType);
-    input = arith::SubIOp::create(b, loc, input, zeroPoint);
+    subtractionType = cast<IntegerType>(zeroPoint.getType());
+    // A zero point is constrained to the quantized input range, so one extra
+    // signed bit is sufficient to represent every possible subtraction result.
+    assert(subtractionType.getWidth() > inputIntType.getWidth() &&
+           "zero point type cannot represent input - zero point");
   }
-  Value value = arith::SIToFPOp::create(b, loc, outputType, input);
+  if (input.getType() != subtractionType) {
+    if (inputIsUnsigned)
+      input = arith::ExtUIOp::create(b, loc, subtractionType, input);
+    else
+      input = arith::ExtSIOp::create(b, loc, subtractionType, input);
+  }
+  if (zeroPoint)
+    input = arith::SubIOp::create(b, loc, input, zeroPoint);
   Type convertedScaleType = converter->convertType(scale.getType());
   if (scale.getType() != convertedScaleType)
     scale = converter->materializeTargetConversion(b, loc, convertedScaleType,
                                                    scale);
-  if (scale.getType() != outputType)
-    scale = convertScalarToDtype(b, loc, scale, outputType);
-  return arith::MulFOp::create(b, loc, value, scale);
+  Value value = arith::SIToFPOp::create(b, loc, scale.getType(), input);
+  value = arith::MulFOp::create(b, loc, value, scale);
+  if (value.getType() != outputType)
+    value = convertScalarToDtype(b, loc, value, outputType);
+  return value;
 }
 
 static Value createLinalgPayloadCalculationForElementwiseOp(
@@ -1792,18 +1797,19 @@ static SmallVector<AffineMap> getPerChannelIndexingMaps(OpBuilder &b,
   return maps;
 }
 
-static LogicalResult getPerChannelAxis(Operation *op, Value axisValue,
-                                       int64_t rank, int64_t &axis,
-                                       ConversionPatternRewriter &rewriter) {
-  if (!matchPattern(axisValue, m_TorchConstantInt(&axis)))
-    return rewriter.notifyMatchFailure(
-        op, "expected per-channel axis to be a constant integer");
+static FailureOr<int64_t>
+getPerChannelAxis(Operation *op, Value axisValue, int64_t rank,
+                  ConversionPatternRewriter &rewriter) {
+  int64_t axis;
+  if (!matchPattern(axisValue, m_TorchConstantInt(&axis))) {
+    return failure();
+  }
   if (axis < 0)
     axis += rank;
-  if (axis < 0 || axis >= rank)
-    return rewriter.notifyMatchFailure(
-        op, "per-channel axis must be in range [-rank, rank)");
-  return success();
+  if (axis < 0 || axis >= rank) {
+    return failure();
+  }
+  return axis;
 }
 
 class ConvertQuantizedDecomposedQuantizePerChannelOp
@@ -1828,11 +1834,10 @@ public:
         scalesType.getRank() != 1 || zeroPointsType.getRank() != 1)
       return rewriter.notifyMatchFailure(
           op, "expected ranked input/result and rank-1 qparams");
-    int64_t axis;
-    if (LogicalResult result = getPerChannelAxis(
-            op, op.getAxis(), inputType.getRank(), axis, rewriter);
-        failed(result))
-      return result;
+    FailureOr<int64_t> axis =
+        getPerChannelAxis(op, op.getAxis(), inputType.getRank(), rewriter);
+    if (failed(axis))
+      return failure();
 
     int64_t quantMin, quantMax;
     if (!matchPattern(op.getQuantMin(), m_TorchConstantInt(&quantMin)) ||
@@ -1843,7 +1848,7 @@ public:
         rewriter, loc, getAsOpFoldResult(getTensorSizes(rewriter, loc, input)),
         resultType.getElementType());
     SmallVector<AffineMap> indexingMaps = getPerChannelIndexingMaps(
-        rewriter, inputType.getRank(), axis, /*hasZeroPoints=*/true);
+        rewriter, inputType.getRank(), *axis, /*hasZeroPoints=*/true);
     SmallVector<utils::IteratorType> iteratorTypes(
         inputType.getRank(), utils::IteratorType::parallel);
     bool resultIsUnsigned = torch_to_linalg::isUnsignedTorchType(
@@ -1894,11 +1899,10 @@ public:
     if (!inputType || !scalesType || !resultType || scalesType.getRank() != 1)
       return rewriter.notifyMatchFailure(
           op, "expected ranked input/result and rank-1 scales");
-    int64_t axis;
-    if (LogicalResult result = getPerChannelAxis(
-            op, op.getAxis(), inputType.getRank(), axis, rewriter);
-        failed(result))
-      return result;
+    FailureOr<int64_t> axis =
+        getPerChannelAxis(op, op.getAxis(), inputType.getRank(), rewriter);
+    if (failed(axis))
+      return failure();
 
     bool hasZeroPoints = isa<RankedTensorType>(zeroPoints.getType());
     SmallVector<Value> inputs = {input, scales};
@@ -1909,7 +1913,7 @@ public:
         rewriter, loc, getAsOpFoldResult(getTensorSizes(rewriter, loc, input)),
         resultType.getElementType());
     SmallVector<AffineMap> indexingMaps = getPerChannelIndexingMaps(
-        rewriter, inputType.getRank(), axis, hasZeroPoints);
+        rewriter, inputType.getRank(), *axis, hasZeroPoints);
     SmallVector<utils::IteratorType> iteratorTypes(
         inputType.getRank(), utils::IteratorType::parallel);
     bool inputIsUnsigned = torch_to_linalg::isUnsignedTorchType(
