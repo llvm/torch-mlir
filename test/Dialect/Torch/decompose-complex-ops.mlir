@@ -1256,3 +1256,30 @@ func.func @torch.aten.diag_2d(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtenso
   %0 = torch.aten.diag %arg0, %int0 : !torch.vtensor<[3,4],f32>, !torch.int -> !torch.vtensor<[3],f32>
   return %0 : !torch.vtensor<[3],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @test_nms_coordinate_normalization
+// CHECK: %[[LOW:.*]]    = torch.aten.slice.Tensor %arg0, %int1, %int0, %int2, %int1 : !torch.vtensor<[6,4],f32>, {{.*}} -> !torch.vtensor<[6,2],f32>
+// CHECK: %[[HIGH:.*]]   = torch.aten.slice.Tensor %arg0, %int1, %int2, %int4, %int1 : !torch.vtensor<[6,4],f32>, {{.*}} -> !torch.vtensor<[6,2],f32>
+// CHECK: %[[ALOW:.*]]   = torch.aten.minimum %[[LOW]], %[[HIGH]] : !torch.vtensor<[6,2],f32>, !torch.vtensor<[6,2],f32> -> !torch.vtensor<[6,2],f32>
+// CHECK: %[[AHIGH:.*]]  = torch.aten.maximum %[[LOW]], %[[HIGH]] : !torch.vtensor<[6,2],f32>, !torch.vtensor<[6,2],f32> -> !torch.vtensor<[6,2],f32>
+// CHECK: %[[DIST:.*]]     = torch.aten.sub.Tensor %[[AHIGH]], %[[ALOW]], {{.*}} -> !torch.vtensor<[6,2],f32>
+// CHECK: %[[AREA:.*]]     = torch.aten.prod.dim_int %[[DIST]], {{.*}} -> !torch.vtensor<[6],f32>
+// CHECK: %[[CURBOX:.*]]   = torch.aten.slice.Tensor %arg0, %int0, %[[IDX1:[0-9]+]], %[[IDX1END:[0-9]+]], {{.*}} -> !torch.vtensor<[1,4],f32>
+// CHECK: %[[P1:.*]]       = torch.aten.slice.Tensor %[[CURBOX]], %int1, %int0, %int2, %int1 : !torch.vtensor<[1,4],f32>, {{.*}} -> !torch.vtensor<[1,2],f32>
+// CHECK: %[[P2:.*]]       = torch.aten.slice.Tensor %[[CURBOX]], %int1, %int2, %int4, %int1 : !torch.vtensor<[1,4],f32>, {{.*}} -> !torch.vtensor<[1,2],f32>
+// CHECK: %[[CLOW:.*]]     = torch.aten.minimum %[[P1]], %[[P2]] : !torch.vtensor<[1,2],f32>, !torch.vtensor<[1,2],f32> -> !torch.vtensor<[1,2],f32>
+// CHECK: %[[CHIGH:.*]]    = torch.aten.maximum %[[P1]], %[[P2]] : !torch.vtensor<[1,2],f32>, !torch.vtensor<[1,2],f32> -> !torch.vtensor<[1,2],f32>
+// CHECK: %[[ILOW:.*]]     = torch.aten.maximum %[[ALOW]], %[[CLOW]] : !torch.vtensor<[6,2],f32>, !torch.vtensor<[1,2],f32> -> !torch.vtensor<[6,2],f32>
+// CHECK: %[[IHIGH:.*]]    = torch.aten.minimum %[[AHIGH]], %[[CHIGH]] : !torch.vtensor<[6,2],f32>, !torch.vtensor<[1,2],f32> -> !torch.vtensor<[6,2],f32>
+// CHECK: %[[IDIST:.*]]    = torch.aten.sub.Tensor %[[IHIGH]], %[[ILOW]], {{.*}} -> !torch.vtensor<[6,2],f32>
+// CHECK: %[[ICLAMP:.*]]   = torch.aten.maximum %[[IDIST]], {{.*}} -> !torch.vtensor<[6,2],f32>
+// CHECK: %[[INTER:.*]]    = torch.aten.prod.dim_int %[[ICLAMP]], {{.*}} -> !torch.vtensor<[6],f32>
+// CHECK: torch.aten.slice.Tensor %[[AREA]], %int0, %[[IDX1]], %[[IDX1END]], {{.*}} -> !torch.vtensor<[1],f32>
+// CHECK: torch.aten.div.Tensor %[[INTER]], {{.*}} -> !torch.vtensor<[6],f32>
+func.func @test_nms_coordinate_normalization(%arg0: !torch.vtensor<[6,4],f32>, %arg1: !torch.vtensor<[6],f32>) -> !torch.vtensor<[6],si64> {
+  %iou_threshold = torch.constant.float 0.5
+  %0 = torch.torchvision.nms %arg0, %arg1, %iou_threshold : !torch.vtensor<[6,4],f32>, !torch.vtensor<[6],f32>, !torch.float -> !torch.vtensor<[6],si64>
+  return %0 : !torch.vtensor<[6],si64>
+}
