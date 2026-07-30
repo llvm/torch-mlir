@@ -532,7 +532,6 @@ FX_IMPORTER_XFAIL_SET = {
 }
 
 FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
-    "HBC_basic",
     # Runtime op verification: out-of-bounds access
     "_SoftmaxModule_basic",
     "UpSampleNearest2dDynamicFactor_basic",
@@ -753,7 +752,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "GeIntModule_basic",
     "GtFloatIntModule_basic",
     "GtIntModule_basic",
-    "HBC_basic",
     "HardtanhBackward_basic",
     "IndexPut1DFloatAccumulateModule_basic",
     "IndexPut1DFloatNonAccumulateModule_basic",
@@ -1811,7 +1809,6 @@ FX_IMPORTER_TOSA_CRASHING_SET = {
     "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
     "ScatterSrcModule_basic",
     "ScatterSrcStaticModule_basic",
-    "HBC_basic",
     # 1D inputs cause generated tosa.negate ops to crash downstream
     "NllLossModule_1D_basic",
     # BertModule is not crashing, but is timing out due to TosaLayerwiseConstantFoldPass:
