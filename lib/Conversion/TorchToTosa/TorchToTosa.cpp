@@ -4655,6 +4655,11 @@ LogicalResult ConvertAtenOp<AtenPermuteOp>::matchAndRewriteImpl(
       return rewriter.notifyMatchFailure(op, "Not all dims are valid");
   }
 
+  if (selfRank == 0) {
+    rewriter.replaceOp(op, adaptor.getSelf());
+    return success();
+  }
+
   SmallVector<int32_t> dimListInt32;
   for (auto v : dimListInt)
     dimListInt32.push_back(v);

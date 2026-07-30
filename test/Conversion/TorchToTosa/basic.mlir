@@ -1030,6 +1030,18 @@ func.func @torch.aten.permute$basic(%arg0: !torch.vtensor<[3,4,2],f32> ) -> !tor
 
 // -----
 
+// CHECK-LABEL:   func.func @torch.aten.permute$rank_zero(
+// CHECK-SAME:                                                %[[ARG0:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
+// CHECK-NOT:       tosa.transpose
+// CHECK:           return %[[ARG0]] : !torch.vtensor<[],f32>
+func.func @torch.aten.permute$rank_zero(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
+  %dims = torch.prim.ListConstruct : () -> !torch.list<int>
+  %0 = torch.aten.permute %arg0, %dims : !torch.vtensor<[],f32>, !torch.list<int> -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.bitwise_and.Tensor$basic(
 // CHECK-SAME:                                              %[[VAL_0:.*]]: !torch.vtensor<[?,?],si32>,
 // CHECK-SAME:                                              %[[VAL_1:.*]]: !torch.vtensor<[?,?],si32>) -> !torch.vtensor<[?,?],si32> {
