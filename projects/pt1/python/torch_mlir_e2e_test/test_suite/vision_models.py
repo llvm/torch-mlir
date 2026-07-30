@@ -5,6 +5,7 @@
 
 import torch
 import torchvision.models as models
+import torchvision.ops as tvops
 
 from torch_mlir_e2e_test.framework import TestUtils
 from torch_mlir_e2e_test.registry import register_test_case
@@ -113,3 +114,83 @@ class MobilenetV3Module(torch.nn.Module):
 @register_test_case(module_factory=lambda: MobilenetV3Module())
 def MobilenetV3Module_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 3, 224, 224))
+
+
+# ==============================================================================
+# torchvision.ops.nms tests
+# ==============================================================================
+
+
+class NmsModule(torch.nn.Module):
+    """torchvision.ops.nms with well-formed boxes and partial suppression."""
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([6, 4], torch.float32, True),
+            ([6], torch.float32, True),
+        ]
+    )
+    def forward(self, boxes, scores):
+        return tvops.nms(boxes, scores, iou_threshold=0.5)
+
+
+@register_test_case(module_factory=lambda: NmsModule())
+def NmsModule_basic(module, tu: TestUtils):
+    # 6 boxes in [x1,y1,x2,y2] format. Sorted by score: box3 (0.95), box0
+    # (0.90), box1 (0.75), box2 (0.60), box4 (0.50), box5 (0.30).
+    # box3 suppresses box4 (heavy overlap). box0 suppresses box1 and box2
+    # (overlap in [0,1]x[0,1]). box5 is isolated. Expected: [3, 0, 5].
+    boxes = torch.tensor(
+        [
+            [0.0, 0.0, 1.0, 1.0],  # score 0.90, overlaps with 1,2
+            [0.1, 0.0, 1.1, 1.0],  # score 0.75, suppressed by 0
+            [0.0, 0.1, 1.0, 1.1],  # score 0.60, suppressed by 0
+            [10.0, 0.0, 11.0, 1.0],  # score 0.95, isolated from group {0,1,2}
+            [10.1, 0.0, 11.1, 1.0],  # score 0.50, suppressed by 3
+            [50.0, 0.0, 51.0, 1.0],  # score 0.30, isolated
+        ],
+        dtype=torch.float32,
+    )
+    scores = torch.tensor([0.90, 0.75, 0.60, 0.95, 0.50, 0.30], dtype=torch.float32)
+    module.forward(boxes, scores)
+
+
+class NmsFlippedCoordinatesModule(torch.nn.Module):
+    """torchvision.ops.nms with flipped boxes (x2<x1 or y2<y1)."""
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([6, 4], torch.float32, True),
+            ([6], torch.float32, True),
+        ]
+    )
+    def forward(self, boxes, scores):
+        return tvops.nms(boxes, scores, iou_threshold=0.5)
+
+
+@register_test_case(module_factory=lambda: NmsFlippedCoordinatesModule())
+def NmsFlippedCoordinatesModule_basic(module, tu: TestUtils):
+    # Flipped boxes produce nan IOU; all 6 should be kept.
+    boxes = torch.tensor(
+        [
+            [1.0, 1.0, 0.0, 0.0],  # flipped both axes
+            [0.1, 0.0, 1.1, 1.0],
+            [0.9, 0.0, -0.1, 1.0],  # flipped x
+            [10.0, 0.0, 11.0, 1.0],
+            [10.1, 1.0, 11.1, 0.0],  # flipped y
+            [101.0, 1.0, 100.0, 0.0],  # flipped both axes
+        ],
+        dtype=torch.float32,
+    )
+    scores = torch.tensor([0.90, 0.75, 0.60, 0.95, 0.50, 0.30], dtype=torch.float32)
+    module.forward(boxes, scores)

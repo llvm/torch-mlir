@@ -12961,17 +12961,29 @@ public:
             rewriter, loc, areaTy, innerDistance, /*dim=*/cst1,
             /*keepdim=*/cstFalse,
             /*dtype=*/cstNone);
-        Value iEnd = Torch::AtenAddIntOp::create(rewriter, loc, i, cst1);
+        // area[] is in original input order; idx1 is the original index for
+        // this iteration, not i (the score-sorted rank).
         Value curArea = AtenSliceTensorOp::create(
             rewriter, loc, scalarFloatType, area,
-            /*dim=*/cst0, /*start=*/i, /*end=*/iEnd, /*step=*/cst1);
+            /*dim=*/cst0, /*start=*/idx1, /*end=*/idx1End, /*step=*/cst1);
         // Union area = area1 + area2 - intersectionArea
         Value unionArea = Torch::AtenAddTensorOp::create(rewriter, loc, areaTy,
                                                          area, curArea, cst1);
         unionArea = Torch::AtenSubTensorOp::create(
             rewriter, loc, areaTy, unionArea, intersectionArea, cst1);
-        Value iou = Torch::AtenDivTensorOp::create(rewriter, loc, areaTy,
-                                                   intersectionArea, unionArea);
+        // Guard against nan IOU: degenerate/flipped boxes have negative area,
+        // yielding union <= 0 and 0/0=nan. A nan comparison always returns
+        // true, so flipped boxes would incorrectly suppress their neighbors.
+        auto boolTy = rewriter.getType<ValueTensorType>(
+            SmallVector<int64_t>{boxesSize}, IntegerType::get(context, 1));
+        Value rawIou = Torch::AtenDivTensorOp::create(
+            rewriter, loc, areaTy, intersectionArea, unionArea);
+        Value float0f64 = Torch::ConstantFloatOp::create(
+            rewriter, loc, rewriter.getF64FloatAttr(0.0));
+        Value unionPos = Torch::AtenGtScalarOp::create(rewriter, loc, boolTy,
+                                                       unionArea, float0f64);
+        Value iou = Torch::AtenWhereSelfOp::create(
+            rewriter, loc, areaTy, unionPos, rawIou, float0Tensor);
 
         // Loop through the rest of boxes in sorted indices
         auto loop2 = Torch::PrimLoopOp::create(rewriter, loc, intTensorType,
