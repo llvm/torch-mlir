@@ -302,9 +302,7 @@ class QuantizedDecomposedDequantizePerChannel(torch.nn.Module):
         )
 
 
-@register_test_case(
-    module_factory=lambda: QuantizedDecomposedDequantizePerChannel()
-)
+@register_test_case(module_factory=lambda: QuantizedDecomposedDequantizePerChannel())
 def QuantizedDecomposedDequantizePerChannel_basic(module, tu: TestUtils):
     module.forward(
         tu.randint(4, 8, low=-128, high=127).to(torch.int8),
