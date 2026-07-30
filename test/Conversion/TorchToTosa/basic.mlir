@@ -1,21 +1,5 @@
 // RUN: torch-mlir-opt <%s -convert-torch-to-tosa -split-input-file -verify-diagnostics | FileCheck %s
 
-// CHECK-LABEL: func.func @torch.aten.embedding$forward_flags
-// CHECK-COUNT-2: tosa.gather
-func.func @torch.aten.embedding$forward_flags(
-    %weight: !torch.vtensor<[5,5],f32>,
-    %indices: !torch.vtensor<[2,2],si32>)
-    -> (!torch.vtensor<[2,2,5],f32>, !torch.vtensor<[2,2,5],f32>) {
-  %int-1 = torch.constant.int -1
-  %false = torch.constant.bool false
-  %true = torch.constant.bool true
-  %scale_grad_by_freq = torch.aten.embedding %weight, %indices, %int-1, %true, %false : !torch.vtensor<[5,5],f32>, !torch.vtensor<[2,2],si32>, !torch.int, !torch.bool, !torch.bool -> !torch.vtensor<[2,2,5],f32>
-  %sparse = torch.aten.embedding %weight, %indices, %int-1, %false, %true : !torch.vtensor<[5,5],f32>, !torch.vtensor<[2,2],si32>, !torch.int, !torch.bool, !torch.bool -> !torch.vtensor<[2,2,5],f32>
-  return %scale_grad_by_freq, %sparse : !torch.vtensor<[2,2,5],f32>, !torch.vtensor<[2,2,5],f32>
-}
-
-// -----
-
 // CHECK-LABEL:   func.func @torch.aten.tanh$basic(
 // CHECK-SAME:                                %[[ARG:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
 // CHECK:           %[[ARG_BUILTIN:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
@@ -2832,6 +2816,47 @@ func.func @torch.aten.index_select(%arg0: !torch.vtensor<[4,5,6],f32>, %arg1: !t
   %int2 = torch.constant.int 2
   %0 = torch.aten.index_select %arg0, %int2, %arg1 : !torch.vtensor<[4,5,6],f32>, !torch.int, !torch.vtensor<[2],si64> -> !torch.vtensor<[4,5,2],f32>
   return %0 : !torch.vtensor<[4,5,2],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.embedding$forward_flags(
+// CHECK-SAME:        %[[WEIGHT:.*]]: !torch.vtensor<[5,5],f32>,
+// CHECK-SAME:        %[[INDICES:.*]]: !torch.vtensor<[2,2],si64>) -> (!torch.vtensor<[2,2,5],f32>, !torch.vtensor<[2,2,5],f32>) {
+// CHECK:           %[[INDICES_BUILTIN:.*]] = torch_c.to_builtin_tensor %[[INDICES]] : !torch.vtensor<[2,2],si64> -> tensor<2x2xi64>
+// CHECK:           %[[WEIGHT_BUILTIN:.*]] = torch_c.to_builtin_tensor %[[WEIGHT]] : !torch.vtensor<[5,5],f32> -> tensor<5x5xf32>
+// CHECK:           %[[PADDING_IDX:.*]] = torch.constant.int -1
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           %[[SCALE_WEIGHT_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 5, 5]> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK:           %[[SCALE_WEIGHT:.*]] = tosa.reshape %[[WEIGHT_BUILTIN]], %[[SCALE_WEIGHT_SHAPE]] : (tensor<5x5xf32>, !tosa.shape<3>) -> tensor<1x5x5xf32>
+// CHECK:           %[[SCALE_INDICES_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 4]> : tensor<2xindex>} : () -> !tosa.shape<2>
+// CHECK:           %[[SCALE_INDICES_I64:.*]] = tosa.reshape %[[INDICES_BUILTIN]], %[[SCALE_INDICES_SHAPE]] : (tensor<2x2xi64>, !tosa.shape<2>) -> tensor<1x4xi64>
+// CHECK:           %[[SCALE_INDICES_I32:.*]] = tosa.cast %[[SCALE_INDICES_I64]] : (tensor<1x4xi64>) -> tensor<1x4xi32>
+// CHECK:           %[[SCALE_GATHER:.*]] = tosa.gather %[[SCALE_WEIGHT]], %[[SCALE_INDICES_I32]] : (tensor<1x5x5xf32>, tensor<1x4xi32>) -> tensor<1x4x5xf32>
+// CHECK:           %[[SCALE_RESULT_SHAPE:.*]] = tosa.const_shape  {values = dense<[2, 2, 5]> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK:           %[[SCALE_RESULT_BUILTIN:.*]] = tosa.reshape %[[SCALE_GATHER]], %[[SCALE_RESULT_SHAPE]] : (tensor<1x4x5xf32>, !tosa.shape<3>) -> tensor<2x2x5xf32>
+// CHECK:           %[[SCALE_RESULT:.*]] = torch_c.from_builtin_tensor %[[SCALE_RESULT_BUILTIN]] : tensor<2x2x5xf32> -> !torch.vtensor<[2,2,5],f32>
+// CHECK:           %[[SPARSE_WEIGHT_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 5, 5]> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK:           %[[SPARSE_WEIGHT:.*]] = tosa.reshape %[[WEIGHT_BUILTIN]], %[[SPARSE_WEIGHT_SHAPE]] : (tensor<5x5xf32>, !tosa.shape<3>) -> tensor<1x5x5xf32>
+// CHECK:           %[[SPARSE_INDICES_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 4]> : tensor<2xindex>} : () -> !tosa.shape<2>
+// CHECK:           %[[SPARSE_INDICES_I64:.*]] = tosa.reshape %[[INDICES_BUILTIN]], %[[SPARSE_INDICES_SHAPE]] : (tensor<2x2xi64>, !tosa.shape<2>) -> tensor<1x4xi64>
+// CHECK:           %[[SPARSE_INDICES_I32:.*]] = tosa.cast %[[SPARSE_INDICES_I64]] : (tensor<1x4xi64>) -> tensor<1x4xi32>
+// CHECK:           %[[SPARSE_GATHER:.*]] = tosa.gather %[[SPARSE_WEIGHT]], %[[SPARSE_INDICES_I32]] : (tensor<1x5x5xf32>, tensor<1x4xi32>) -> tensor<1x4x5xf32>
+// CHECK:           %[[SPARSE_RESULT_SHAPE:.*]] = tosa.const_shape  {values = dense<[2, 2, 5]> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK:           %[[SPARSE_RESULT_BUILTIN:.*]] = tosa.reshape %[[SPARSE_GATHER]], %[[SPARSE_RESULT_SHAPE]] : (tensor<1x4x5xf32>, !tosa.shape<3>) -> tensor<2x2x5xf32>
+// CHECK:           %[[SPARSE_RESULT:.*]] = torch_c.from_builtin_tensor %[[SPARSE_RESULT_BUILTIN]] : tensor<2x2x5xf32> -> !torch.vtensor<[2,2,5],f32>
+// CHECK:           return %[[SCALE_RESULT]], %[[SPARSE_RESULT]] : !torch.vtensor<[2,2,5],f32>, !torch.vtensor<[2,2,5],f32>
+func.func @torch.aten.embedding$forward_flags(
+    %weight: !torch.vtensor<[5,5],f32>,
+    %indices: !torch.vtensor<[2,2],si64>)
+    -> (!torch.vtensor<[2,2,5],f32>, !torch.vtensor<[2,2,5],f32>) {
+  %int-1 = torch.constant.int -1
+  %false = torch.constant.bool false
+  %true = torch.constant.bool true
+  %scale_grad_by_freq = torch.aten.embedding %weight, %indices, %int-1, %true, %false : !torch.vtensor<[5,5],f32>, !torch.vtensor<[2,2],si64>, !torch.int, !torch.bool, !torch.bool -> !torch.vtensor<[2,2,5],f32>
+  %sparse = torch.aten.embedding %weight, %indices, %int-1, %false, %true : !torch.vtensor<[5,5],f32>, !torch.vtensor<[2,2],si64>, !torch.int, !torch.bool, !torch.bool -> !torch.vtensor<[2,2,5],f32>
+  return %scale_grad_by_freq, %sparse : !torch.vtensor<[2,2,5],f32>, !torch.vtensor<[2,2,5],f32>
 }
 
 // -----

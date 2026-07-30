@@ -2133,7 +2133,7 @@ class EmbeddingForwardFlagsModule(torch.nn.Module):
         [
             None,
             ([10, 4], torch.float32, True),
-            ([2, 2], torch.int32, True),
+            ([2, 2], torch.int64, True),
         ]
     )
     def forward(self, weight, indices):
@@ -2148,7 +2148,7 @@ class EmbeddingForwardFlagsModule(torch.nn.Module):
 
 @register_test_case(module_factory=lambda: EmbeddingForwardFlagsModule())
 def EmbeddingForwardFlagsModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(10, 4), tu.randint(2, 2, high=10).to(torch.int32))
+    module.forward(tu.rand(10, 4), tu.randint(2, 2, high=10))
 
 
 # ==============================================================================
