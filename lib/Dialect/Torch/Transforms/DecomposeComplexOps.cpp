@@ -6654,9 +6654,9 @@ class DecomposeAtenNonzeroOp : public OpRewritePattern<AtenNonzeroOp> {
       flattenedSize = kUnknownSize;
     }
 
-    auto flattendInputShape = SmallVector<int64_t>{flattenedSize};
+    auto flattenedInputShape = SmallVector<int64_t>{flattenedSize};
     auto flattenedInputType = rewriter.getType<Torch::ValueTensorType>(
-        flattendInputShape, inputType.getOptionalDtype());
+        flattenedInputShape, inputType.getOptionalDtype());
 
     // %1 = torch.aten.flatten.using_ints %arg0, %int0, %int0_0 :
     auto inputDimsEnd = ConstantIntOp::create(

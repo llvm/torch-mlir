@@ -1408,7 +1408,6 @@ func.func @rank2_bool_mask(%input: !torch.vtensor<[4,4],f32>,
         !torch.vtensor<[4],f32>, !torch.bool -> !torch.vtensor<[4,4],f32>
   return %result : !torch.vtensor<[4,4],f32>
 }
-<<<<<<< HEAD
 
 // -----
 
@@ -1453,5 +1452,3 @@ func.func @mixed_int_and_bool(%input: !torch.vtensor<[5,5],f32>,
       -> !torch.vtensor<[5,5],f32>
   return %result : !torch.vtensor<[5,5],f32>
 }
-=======
->>>>>>> dbd9c871 (support dynamic dims in DecomposeAtenNonzeroOp)
