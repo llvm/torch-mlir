@@ -81,6 +81,25 @@ func.func @repeat_interleave_tensor_oversized_intermediate(%arg0: !torch.vtensor
 
 // -----
 
+// Regression test: any dynamic input dimension must make the flattened
+// intermediate shape dynamic.
+// CHECK-LABEL: func.func @nonzero_dynamic_flattened_shape
+// CHECK:         %[[FLATTEN:.*]] = torch.aten.view %arg0
+// CHECK-SAME:      -> !torch.vtensor<[?],i1>
+// CHECK:         %[[DIM1:.*]] = torch.aten.size.int %arg0
+// CHECK:         %[[DIM2:.*]] = torch.aten.size.int %arg0
+// CHECK:         %[[SHAPE_LIST:.*]] = torch.prim.ListConstruct %{{.*}}, %[[DIM1]], %[[DIM2]], %{{.*}}
+// CHECK:         %[[SHAPE:.*]] = torch.aten.tensor %[[SHAPE_LIST]]
+// CHECK:         %[[DIVIDED:.*]] = torch.aten.div.Tensor_mode
+// CHECK:         %[[RESULT:.*]] = torch.aten.remainder.Tensor %[[DIVIDED]], %[[SHAPE]]
+// CHECK:         return %[[RESULT]]
+func.func @nonzero_dynamic_flattened_shape(%arg0: !torch.vtensor<[2,?,?,4],i1>) -> !torch.vtensor<[?,4],si64> {
+  %0 = torch.aten.nonzero %arg0 : !torch.vtensor<[2,?,?,4],i1> -> !torch.vtensor<[?,4],si64>
+  return %0 : !torch.vtensor<[?,4],si64>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @matmul_no_decompose
 // CHECK:           torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[?,?,?,?,?],f32>, !torch.vtensor<[?,?,?],f32> -> !torch.tensor
 func.func @matmul_no_decompose(%arg0: !torch.vtensor<[?,?,?,?,?],f32>, %arg1: !torch.vtensor<[?,?,?],f32>) -> !torch.tensor {
@@ -1389,6 +1408,7 @@ func.func @rank2_bool_mask(%input: !torch.vtensor<[4,4],f32>,
         !torch.vtensor<[4],f32>, !torch.bool -> !torch.vtensor<[4,4],f32>
   return %result : !torch.vtensor<[4,4],f32>
 }
+<<<<<<< HEAD
 
 // -----
 
@@ -1433,3 +1453,5 @@ func.func @mixed_int_and_bool(%input: !torch.vtensor<[5,5],f32>,
       -> !torch.vtensor<[5,5],f32>
   return %result : !torch.vtensor<[5,5],f32>
 }
+=======
+>>>>>>> dbd9c871 (support dynamic dims in DecomposeAtenNonzeroOp)
