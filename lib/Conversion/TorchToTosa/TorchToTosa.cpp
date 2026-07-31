@@ -5242,7 +5242,10 @@ LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewriteImpl(
   if (weightType.getRank() != 2)
     return op.emitError("weight must be of rank 2");
 
-  // FIXME: padding_idx, scale_grad_by_freq and sparse are not handled yet.
+  // PyTorch's forward implementation does not use padding_idx,
+  // scale_grad_by_freq, or sparse:
+  // https://github.com/pytorch/pytorch/blob/fa6f338ab692e5bec4537eb13cbf72cda0a7c6e7/aten/src/ATen/native/Embedding.cpp#L37
+  // These arguments only affect gradient computation.
   int64_t paddingIdx;
   if (!matchPattern(op.getPaddingIdx(), m_TorchConstantInt(&paddingIdx)))
     return rewriter.notifyMatchFailure(
@@ -5253,18 +5256,11 @@ LogicalResult ConvertAtenOp<AtenEmbeddingOp>::matchAndRewriteImpl(
                     m_TorchConstantBool(&scaleGradByFreq)))
     return rewriter.notifyMatchFailure(
         op, "only supports constant bool scale_grad_by_freq for embedding op");
-  if (scaleGradByFreq)
-    return rewriter.notifyMatchFailure(
-        op,
-        "only supports scale_grad_by_freq equals to False for embedding op");
 
   bool isSparse;
   if (!matchPattern(op.getSparse(), m_TorchConstantBool(&isSparse)))
     return rewriter.notifyMatchFailure(
         op, "only supports constant bool sparse for embedding op");
-  if (isSparse)
-    return rewriter.notifyMatchFailure(
-        op, "only support sparse equals to False for embedding op");
 
   // For inference:
   //    Weights [num_embeddings, embedding_dim], Indices [X, Y]
