@@ -27,6 +27,13 @@ using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
 namespace {
+// i1 is signless but must use unsigned semantics for max/min reductions:
+// under signed compare, `true` (bit 1) is -1, so e.g. maxsi([false,true])
+// picks false.
+bool useUnsignedForMinMax(IntegerType intType) {
+  return intType.isUnsigned() || intType.getWidth() == 1;
+}
+
 // Aten max.dim (min.dim) lowering represents the MaxDimOp (MinDimOp) as an
 // linalg.indexed_generic op, producing two output buffers.
 //
@@ -92,12 +99,12 @@ public:
       return rewriter.notifyMatchFailure(op, "dim is not a valid dim");
 
     Type inElementType = inputType.getElementType();
-    bool isUnsigned = false;
+    // Torch-dtype IntegerType (carries signedness); null for float inputs.
+    IntegerType torchIntTy;
     if (!isa<mlir::FloatType>(inElementType)) {
       if (isa<mlir::IntegerType>(inElementType)) {
-        auto integerTy = dyn_cast<mlir::IntegerType>(
+        torchIntTy = dyn_cast<mlir::IntegerType>(
             cast<BaseTensorType>(op.getSelf().getType()).getDtype());
-        isUnsigned = integerTy.isUnsigned();
       } else {
         return rewriter.notifyMatchFailure(
             op, opName + " to linalg.* requires Float or Integer "
@@ -129,15 +136,15 @@ public:
               inElementType,
               getFloatInf(cast<mlir::FloatType>(inElementType),
                           /*Negative=*/isMax, this->allowNonFinites)));
-    } else if (!isUnsigned) {
+    } else {
       auto width = cast<mlir::IntegerType>(inElementType).getWidth();
-      auto init = isMax ? APSInt::getSignedMinValue(width)
-                        : APSInt::getSignedMaxValue(width);
-      fillValue = arith::ConstantOp::create(
-          rewriter, loc, rewriter.getIntegerAttr(inElementType, init));
-    } else if (isUnsigned) {
-      auto width = cast<mlir::IntegerType>(inElementType).getWidth();
-      auto init = isMax ? APInt::getMinValue(width) : APInt::getMaxValue(width);
+      APInt init;
+      if (useUnsignedForMinMax(torchIntTy)) {
+        init = isMax ? APInt::getMinValue(width) : APInt::getMaxValue(width);
+      } else {
+        init = isMax ? APSInt::getSignedMinValue(width)
+                     : APSInt::getSignedMaxValue(width);
+      }
       fillValue = arith::ConstantOp::create(
           rewriter, loc, rewriter.getIntegerAttr(inElementType, init));
     }
@@ -197,10 +204,11 @@ public:
                                               newValue, oldValue);
           } else {
             arith::CmpIPredicate predType;
+            bool useUnsigned = useUnsignedForMinMax(torchIntTy);
             if (isMax) {
-              predType = isUnsigned ? arith::CmpIPredicate::ugt
-                                    : arith::CmpIPredicate::sgt;
-              if (isUnsigned) {
+              predType = useUnsigned ? arith::CmpIPredicate::ugt
+                                     : arith::CmpIPredicate::sgt;
+              if (useUnsigned) {
                 resultVal = arith::MaxUIOp::create(rewriter, nestedLoc,
                                                    newValue, oldValue);
               } else {
@@ -208,9 +216,9 @@ public:
                                                    newValue, oldValue);
               }
             } else {
-              predType = isUnsigned ? arith::CmpIPredicate::ult
-                                    : arith::CmpIPredicate::slt;
-              if (isUnsigned) {
+              predType = useUnsigned ? arith::CmpIPredicate::ult
+                                     : arith::CmpIPredicate::slt;
+              if (useUnsigned) {
                 resultVal = arith::MinUIOp::create(rewriter, nestedLoc,
                                                    newValue, oldValue);
               } else {
@@ -318,12 +326,14 @@ static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
                          getFloatInf(cast<mlir::FloatType>(elementType),
                                      /*Negative=*/true, allowNonFinites)));
     else if (isa<mlir::IntegerType>(elementType) &&
-             elementType.getIntOrFloatBitWidth() != 8)
-      return arith::ConstantOp::create(
-          b, loc,
-          b.getIntegerAttr(
-              elementType,
-              APSInt::getSignedMinValue(elementType.getIntOrFloatBitWidth())));
+             elementType.getIntOrFloatBitWidth() != 8) {
+      unsigned width = elementType.getIntOrFloatBitWidth();
+      // i1 (bool): initial value for max is false (0); use unsigned min.
+      auto init = (width == 1) ? APInt::getMinValue(width)
+                               : APSInt::getSignedMinValue(width);
+      return arith::ConstantOp::create(b, loc,
+                                       b.getIntegerAttr(elementType, init));
+    }
   }
 
   if (isa<AtenMinOp>(op)) {
@@ -334,12 +344,14 @@ static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
                          getFloatInf(cast<mlir::FloatType>(elementType),
                                      /*Negative=*/false, allowNonFinites)));
     else if (isa<mlir::IntegerType>(elementType) &&
-             elementType.getIntOrFloatBitWidth() != 8)
-      return arith::ConstantOp::create(
-          b, loc,
-          b.getIntegerAttr(
-              elementType,
-              APSInt::getSignedMaxValue(elementType.getIntOrFloatBitWidth())));
+             elementType.getIntOrFloatBitWidth() != 8) {
+      unsigned width = elementType.getIntOrFloatBitWidth();
+      // i1 (bool): initial value for min is true (1); use unsigned max.
+      auto init = (width == 1) ? APInt::getMaxValue(width)
+                               : APSInt::getSignedMaxValue(width);
+      return arith::ConstantOp::create(b, loc,
+                                       b.getIntegerAttr(elementType, init));
+    }
   }
 
   if (isa<AtenLinalgVectorNormOp>(op) || isa<AtenFrobeniusNormDimOp>(op) ||
@@ -388,10 +400,9 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     else if (isa<mlir::IntegerType>(resultElementType)) {
       IntegerType intType = dyn_cast<mlir::IntegerType>(
           cast<BaseTensorType>(max.getSelf().getType()).getDtype());
-      if (intType.isUnsigned())
+      if (useUnsignedForMinMax(intType))
         return arith::MaxUIOp::create(b, loc, self, result);
-      if (intType.isSigned())
-        return arith::MaxSIOp::create(b, loc, self, result);
+      return arith::MaxSIOp::create(b, loc, self, result);
     }
   } else if (auto min = dyn_cast<AtenMinOp>(op)) {
     Value self =
@@ -402,10 +413,9 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     else if (isa<mlir::IntegerType>(resultElementType)) {
       IntegerType intType = dyn_cast<mlir::IntegerType>(
           cast<BaseTensorType>(min.getSelf().getType()).getDtype());
-      if (intType.isUnsigned())
+      if (useUnsignedForMinMax(intType))
         return arith::MinUIOp::create(b, loc, self, result);
-      if (intType.isSigned())
-        return arith::MinSIOp::create(b, loc, self, result);
+      return arith::MinSIOp::create(b, loc, self, result);
     }
   } else if (isa<AtenNormScalarOp>(op)) {
     // This creates payload for only the first of the two linalg.generic ops.
