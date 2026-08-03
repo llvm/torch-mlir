@@ -27,13 +27,6 @@ using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
 namespace {
-// i1 is signless but must use unsigned semantics for max/min reductions:
-// under signed compare, `true` (bit 1) is -1, so e.g. maxsi([false,true])
-// picks false.
-bool useUnsignedForMinMax(IntegerType intType) {
-  return intType.isUnsigned() || intType.getWidth() == 1;
-}
-
 // Aten max.dim (min.dim) lowering represents the MaxDimOp (MinDimOp) as an
 // linalg.indexed_generic op, producing two output buffers.
 //
@@ -139,7 +132,7 @@ public:
     } else {
       auto width = cast<mlir::IntegerType>(inElementType).getWidth();
       APInt init;
-      if (useUnsignedForMinMax(torchIntTy)) {
+      if (useUnsignedIntegerSemantics(torchIntTy)) {
         init = isMax ? APInt::getMinValue(width) : APInt::getMaxValue(width);
       } else {
         init = isMax ? APSInt::getSignedMinValue(width)
@@ -204,7 +197,7 @@ public:
                                               newValue, oldValue);
           } else {
             arith::CmpIPredicate predType;
-            bool useUnsigned = useUnsignedForMinMax(torchIntTy);
+            bool useUnsigned = useUnsignedIntegerSemantics(torchIntTy);
             if (isMax) {
               predType = useUnsigned ? arith::CmpIPredicate::ugt
                                      : arith::CmpIPredicate::sgt;
@@ -400,7 +393,7 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     else if (isa<mlir::IntegerType>(resultElementType)) {
       IntegerType intType = dyn_cast<mlir::IntegerType>(
           cast<BaseTensorType>(max.getSelf().getType()).getDtype());
-      if (useUnsignedForMinMax(intType))
+      if (useUnsignedIntegerSemantics(intType))
         return arith::MaxUIOp::create(b, loc, self, result);
       return arith::MaxSIOp::create(b, loc, self, result);
     }
@@ -413,7 +406,7 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
     else if (isa<mlir::IntegerType>(resultElementType)) {
       IntegerType intType = dyn_cast<mlir::IntegerType>(
           cast<BaseTensorType>(min.getSelf().getType()).getDtype());
-      if (useUnsignedForMinMax(intType))
+      if (useUnsignedIntegerSemantics(intType))
         return arith::MinUIOp::create(b, loc, self, result);
       return arith::MinSIOp::create(b, loc, self, result);
     }
