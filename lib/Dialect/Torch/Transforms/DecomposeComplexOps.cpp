@@ -12557,9 +12557,12 @@ public:
         AtenExpandOp::create(rewriter, loc, expandedIndexType, indexReshaped,
                              expandSizesList, falseVal);
 
+    // Create the dimension value.
+    Value dimValue = Torch::ConstantIntOp::create(rewriter, loc,
+                                               rewriter.getI64IntegerAttr(dim));
     // Perform the scatter_add operation.
     Value result = AtenScatterAddOp::create(rewriter, loc, selfType, self,
-                                            op.getDim(), indexExpanded, source);
+                                            dimValue, indexExpanded, source);
     rewriter.replaceOp(op, result);
     return success();
   }
