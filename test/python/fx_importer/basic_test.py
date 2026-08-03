@@ -460,3 +460,29 @@ def test_stack_trace():
     m = fx.export_and_import(Basic(), x, y, func_name="test_stack_trace")
     mlir_asm = m.operation.get_asm(enable_debug_info=True)
     print(mlir_asm)
+
+
+@run
+# Asserting a single input argument here, since the frozen program should have
+# its BatchNorm buffers lifted from function arguments to inlined constants.
+# 2 BatchNorm layers × 4 float tensors each: weight, bias, running_mean,
+# running_var. This gives 8 expected function arguments.
+# CHECK-LABEL: test_import_frozen_exported_program_with_multiple_buffers
+# CHECK: func.func @main(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[2,10,20,20],f32>)
+# CHECK-COUNT-8: = torch.vtensor.literal(dense_resource<{{.*}}> : tensor<10xf32>)
+def test_import_frozen_exported_program_with_multiple_buffers():
+    class DoubleBatchNorm(nn.Module):
+        def __init__(self, num_features):
+            super().__init__()
+            self.bn1 = nn.BatchNorm2d(num_features)
+            self.bn2 = nn.BatchNorm2d(num_features)
+
+        def forward(self, x):
+            x = self.bn1(x)
+            x = self.bn2(x)
+            return x
+
+    model = DoubleBatchNorm(10)
+    model.eval()
+    m = fx.export_and_import(model, torch.randn(2, 10, 20, 20))
+    print(m)
