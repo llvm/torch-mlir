@@ -158,6 +158,12 @@ LogicalResult getPermutedType(BaseTensorType inType,
                               SmallVector<int64_t> permuteDims,
                               Type &permutedType);
 
+// Returns true when an IntegerType (as it appears in the Torch dtype) requires
+// unsigned comparison/arithmetic semantics. This is the case for explicitly
+// unsigned types and for signless i1 (bool): under signed compare, bit 1 is
+// -1, so e.g. maxsi([false, true]) would pick false.
+bool useUnsignedIntegerSemantics(IntegerType intType);
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir
