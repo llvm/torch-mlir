@@ -215,7 +215,7 @@ endif()
 add_subdirectory(test)
 
 if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
-  install(DIRECTORY include/torch-mlir include/torch-mlir-c
+  install(DIRECTORY include/torch-mlir include/torch-mlir-c include/torch-mlir-dialects
           DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
           COMPONENT torch-mlir-headers
           FILES_MATCHING
@@ -226,7 +226,7 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
           PATTERN "LICENSE.TXT"
           )
 
-  install(DIRECTORY ${TORCH_MLIR_BINARY_DIR}/include/torch-mlir
+  install(DIRECTORY ${TORCH_MLIR_BINARY_DIR}/include/torch-mlir ${TORCH_MLIR_BINARY_DIR}/include/torch-mlir-dialects
           DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
           COMPONENT torch-mlir-headers
           FILES_MATCHING
