@@ -13,12 +13,12 @@
 // CHECK:       %[[GEN:.*]] = linalg.generic
 // CHECK-SAME:    ins(%[[IN_T]] : tensor<4x8xi8>) outs(%[[OUT_INIT]] : tensor<4x8xf32>)
 // CHECK:       ^bb0(%[[IN:.*]]: i8, %{{.*}}: f32):
-// CHECK:         %[[SCALE_F64:.*]] = torch_c.to_f64 %[[SCALE_F]]
-// CHECK:         %[[SCALE_F32:.*]] = arith.truncf %[[SCALE_F64]] : f64 to f32
 // CHECK:         %[[ZP_I64:.*]] = arith.constant 0 : i64
 // CHECK:         %[[EXT:.*]] = arith.extsi %[[IN]] : i8 to i64
 // Operand order matters here: (input - zp), not (zp - input).
 // CHECK:         %[[SUB:.*]] = arith.subi %[[EXT]], %[[ZP_I64]] : i64
+// CHECK:         %[[SCALE_F64:.*]] = torch_c.to_f64 %[[SCALE_F]]
+// CHECK:         %[[SCALE_F32:.*]] = arith.truncf %[[SCALE_F64]] : f64 to f32
 // CHECK:         %[[SUBF:.*]] = arith.sitofp %[[SUB]] : i64 to f32
 // CHECK:         %[[MUL:.*]] = arith.mulf %[[SUBF]], %[[SCALE_F32]] : f32
 // CHECK:         linalg.yield %[[MUL]] : f32
