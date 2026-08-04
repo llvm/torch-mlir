@@ -49,10 +49,12 @@ dtypeFunctionArgsBuilder(OpBuilder &b, Location loc,
 
   SmallVector<Value> dtypeFuncArgs;
   ArrayRef<Type> desiredTypes = dtypeFunc.getArgumentTypes();
-  for (auto operand : originalOperands) {
+  for (Value operand : originalOperands) {
     assert(!desiredTypes.empty() &&
            "`dtypeFunc` should have at least one argument for each argument in "
            "`originalOperands`");
+    // Getting hold of desired types and accordingly adjusting function 
+    // arguments
     Type desiredType = desiredTypes.front();
     FailureOr<Value> otherArg;
     if (failed(otherArg = adjustFunctionArg(b, loc, operand, desiredType,
