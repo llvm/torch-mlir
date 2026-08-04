@@ -278,6 +278,9 @@ template FailureOr<Value>
 Torch::getDtypeFromOp<AtenEmptyStridedOp>(PatternRewriter &rewriter,
                                           AtenEmptyStridedOp op);
 template FailureOr<Value>
+Torch::getDtypeFromOp<AtenEmptyPermutedOp>(PatternRewriter &rewriter,
+                                           AtenEmptyPermutedOp op);
+template FailureOr<Value>
 Torch::getDtypeFromOp<AtenRandnGeneratorOp>(PatternRewriter &rewriter,
                                             AtenRandnGeneratorOp op);
 
@@ -663,6 +666,49 @@ LogicalResult Torch::checkDefaultStrideHelper(Operation *op,
         loc, cmp, "not all strides are default");
     return success();
   }
+}
+
+LogicalResult Torch::checkDefaultPermutationHelper(Operation *op,
+                                                   PatternRewriter &rewriter,
+                                                   int64_t rank, Value perm,
+                                                   Location loc) {
+  SmallVector<int64_t> permListInts;
+  if (matchPattern(perm, m_TorchListOfConstantInts(permListInts))) {
+    if (static_cast<int64_t>(permListInts.size()) != rank)
+      return rewriter.notifyMatchFailure(
+          op, "physical layout rank does not match result rank");
+
+    for (auto [i, d] : llvm::enumerate(permListInts)) {
+      if (d != static_cast<int64_t>(i))
+        return rewriter.notifyMatchFailure(
+            op, "only default physical layout supported for empty_permuted op");
+    }
+    return success();
+  }
+
+  SmallVector<Value> permListValues;
+  if (!getListConstructElements(perm, permListValues))
+    return rewriter.notifyMatchFailure(op,
+                                       "couldn't get physical layout values");
+
+  if (static_cast<int64_t>(permListValues.size()) != rank) {
+    return rewriter.notifyMatchFailure(
+        op, "physical layout rank does not match result rank");
+  }
+  SmallVector<Value> boolVector;
+  for (auto [i, layoutDim] : llvm::enumerate(permListValues)) {
+    Value logicalDim = rewriter.createOrFold<Torch::ConstantIntOp>(
+        loc, rewriter.getI64IntegerAttr(i));
+    boolVector.push_back(
+        rewriter.createOrFold<Torch::AtenEqIntOp>(loc, logicalDim, layoutDim));
+  }
+  Value allBoolOpList = rewriter.createOrFold<PrimListConstructOp>(
+      loc, Torch::ListType::get(rewriter.getType<Torch::BoolType>()),
+      boolVector);
+  Value cmp = rewriter.createOrFold<Torch::AtenAllBoolOp>(loc, allBoolOpList);
+  rewriter.createOrFold<Torch::RuntimeAssertOp>(
+      loc, cmp, "not all physical layout entries are default");
+  return success();
 }
 
 // Helper to create a tensor filled with the given scalar. Scalar would be
