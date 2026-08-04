@@ -314,6 +314,36 @@ def QuantizedDecomposedDequantizePerChannel_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class QuantizedDecomposedDequantizePerChannelUnsignedSymmetric(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 8], torch.uint8, True),
+            ([8], torch.float32, True),
+        ]
+    )
+    def forward(self, x, scales):
+        return torch.ops.quantized_decomposed.dequantize_per_channel.default(
+            x, scales, None, 1, 0, 255, torch.uint8
+        )
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedDequantizePerChannelUnsignedSymmetric()
+)
+def QuantizedDecomposedDequantizePerChannelUnsignedSymmetric_basic(
+    module, tu: TestUtils
+):
+    module.forward(
+        tu.randint(4, 8, low=128, high=255).to(torch.uint8),
+        tu.rand(8) + 0.01,
+    )
+
+
+# ==============================================================================
+
+
 class QuantizedDecomposedQuantizePerChannel(torch.nn.Module):
     @export
     @annotate_args(

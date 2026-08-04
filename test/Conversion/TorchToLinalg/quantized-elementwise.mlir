@@ -13,15 +13,15 @@
 // CHECK:       %[[GEN:.*]] = linalg.generic
 // CHECK-SAME:    ins(%[[IN_T]] : tensor<4x8xi8>) outs(%[[OUT_INIT]] : tensor<4x8xf32>)
 // CHECK:       ^bb0(%[[IN:.*]]: i8, %{{.*}}: f32):
+// CHECK:         %[[SCALE_F64:.*]] = torch_c.to_f64 %[[SCALE_F]]
+// CHECK:         %[[SCALE_F32:.*]] = arith.truncf %[[SCALE_F64]] : f64 to f32
 // CHECK:         %[[ZP_I64:.*]] = arith.constant 0 : i64
 // CHECK:         %[[EXT:.*]] = arith.extsi %[[IN]] : i8 to i64
 // Operand order matters here: (input - zp), not (zp - input).
 // CHECK:         %[[SUB:.*]] = arith.subi %[[EXT]], %[[ZP_I64]] : i64
-// CHECK:         %[[SCALE_F64:.*]] = torch_c.to_f64 %[[SCALE_F]]
-// CHECK:         %[[SUBF:.*]] = arith.sitofp %[[SUB]] : i64 to f64
-// CHECK:         %[[MUL:.*]] = arith.mulf %[[SUBF]], %[[SCALE_F64]] : f64
-// CHECK:         %[[RESULT:.*]] = arith.truncf %[[MUL]] : f64 to f32
-// CHECK:         linalg.yield %[[RESULT]] : f32
+// CHECK:         %[[SUBF:.*]] = arith.sitofp %[[SUB]] : i64 to f32
+// CHECK:         %[[MUL:.*]] = arith.mulf %[[SUBF]], %[[SCALE_F32]] : f32
+// CHECK:         linalg.yield %[[MUL]] : f32
 func.func @standalone_dequantize_si8(
     %input: !torch.vtensor<[4,8],si8>) -> !torch.vtensor<[4,8],f32> {
   %scale = torch.constant.float 3.000000e-01
@@ -257,6 +257,7 @@ func.func @dequantize_per_channel_scale_extension(
 // CHECK-LABEL: func.func @per_channel_unsigned(
 // CHECK: arith.fptoui %{{.*}} : f32 to i8
 // CHECK: arith.extui %{{.*}} : i8 to i64
+// CHECK: arith.sitofp %{{.*}} : i64 to f32
 func.func @per_channel_unsigned(
     %input: !torch.vtensor<[4,8],f32>,
     %scales: !torch.vtensor<[4],f32>,
@@ -277,6 +278,32 @@ func.func @per_channel_unsigned(
       %quantized, %scales, %zero_points, %axis, %qmin, %qmax, %dtype, %od
       : !torch.vtensor<[4,8],ui8>, !torch.vtensor<[4],f32>,
         !torch.vtensor<[4],si64>, !torch.int, !torch.int, !torch.int,
+        !torch.int, !torch.optional<int> -> !torch.vtensor<[4,8],f32>
+  return %out : !torch.vtensor<[4,8],f32>
+}
+
+// -----
+
+// Without a zero point, an unsigned input retains its unsigned interpretation
+// through the conversion to the scale type.
+// CHECK-LABEL: func.func @dequantize_per_channel_unsigned_symmetric(
+// CHECK-NOT: arith.extui
+// CHECK-NOT: arith.subi
+// CHECK: arith.uitofp %{{.*}} : i8 to f32
+func.func @dequantize_per_channel_unsigned_symmetric(
+    %input: !torch.vtensor<[4,8],ui8>,
+    %scales: !torch.vtensor<[4],f32>)
+    -> !torch.vtensor<[4,8],f32> {
+  %axis = torch.constant.int 0
+  %qmin = torch.constant.int 0
+  %qmax = torch.constant.int 255
+  %dtype = torch.constant.int 0
+  %none = torch.constant.none
+  %od = torch.derefine %none : !torch.none to !torch.optional<int>
+  %out = torch.quantized_decomposed.dequantize_per_channel
+      %input, %scales, %none, %axis, %qmin, %qmax, %dtype, %od
+      : !torch.vtensor<[4,8],ui8>, !torch.vtensor<[4],f32>,
+        !torch.none, !torch.int, !torch.int, !torch.int,
         !torch.int, !torch.optional<int> -> !torch.vtensor<[4,8],f32>
   return %out : !torch.vtensor<[4,8],f32>
 }
