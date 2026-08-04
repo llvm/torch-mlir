@@ -12413,6 +12413,56 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "failed to get elements of `indices`");
 
+    // A bool index tensor semantically selects positions where the mask is
+    // true.  Replace each bool index with its equivalent integer indices:
+    //   rank-1 mask → nonzero(mask).flatten() → one [N] index tensor
+    //   rank-k mask → nonzero(mask) gives [N,k]; split into k [N] tensors
+    //                 via select(nz, dim=1, i) for i in 0..k-1
+    // The expanded slots replace the single bool slot in-place; the rest of
+    // this pattern only handles the integer-indexed case.
+    // Masks with unknown rank are not supported.
+    SmallVector<Value> expandedIndices;
+    expandedIndices.reserve(indices.size());
+    for (Value idx : indices) {
+      auto tt = dyn_cast<BaseTensorType>(idx.getType());
+      if (!tt || !tt.hasDtype() || !tt.getDtype().isInteger(1)) {
+        expandedIndices.push_back(idx);
+        continue;
+      }
+      if (!tt.hasSizes())
+        return rewriter.notifyMatchFailure(
+            op, "bool mask index with unknown rank not supported");
+      int64_t maskRank = tt.getSizes().size();
+      if (maskRank == 0)
+        return rewriter.notifyMatchFailure(op,
+                                           "rank-0 bool mask not supported");
+      auto si64Ty =
+          IntegerType::get(rewriter.getContext(), 64, IntegerType::Signed);
+      auto nzType = rewriter.getType<ValueTensorType>(
+          SmallVector<int64_t>{Torch::kUnknownSize, maskRank}, si64Ty);
+      Value nz = AtenNonzeroOp::create(rewriter, loc, nzType, idx);
+      auto colType = rewriter.getType<ValueTensorType>(
+          SmallVector<int64_t>{Torch::kUnknownSize}, si64Ty);
+      Value dimOne =
+          ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
+      if (maskRank == 1) {
+        // Single column: flatten [N,1] → [N].
+        Value d0 =
+            ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
+        expandedIndices.push_back(AtenFlattenUsingIntsOp::create(
+            rewriter, loc, colType, nz, d0, dimOne));
+      } else {
+        // k columns: emit one select per dimension.
+        for (int64_t col = 0; col < maskRank; ++col) {
+          Value colIdx = ConstantIntOp::create(rewriter, loc,
+                                               rewriter.getI64IntegerAttr(col));
+          expandedIndices.push_back(AtenSelectIntOp::create(
+              rewriter, loc, colType, nz, dimOne, colIdx));
+        }
+      }
+    }
+    indices = std::move(expandedIndices);
+
     auto input = op.getSelf();
     auto inputType = cast<BaseTensorType>(input.getType());
     if (!inputType.hasSizes()) {

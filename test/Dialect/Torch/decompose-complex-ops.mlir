@@ -1283,3 +1283,53 @@ func.func @test_nms_coordinate_normalization(%arg0: !torch.vtensor<[6,4],f32>, %
   %0 = torch.torchvision.nms %arg0, %arg1, %iou_threshold : !torch.vtensor<[6,4],f32>, !torch.vtensor<[6],f32>, !torch.float -> !torch.vtensor<[6],si64>
   return %0 : !torch.vtensor<[6],si64>
 }
+
+// -----
+
+// Rank-2 bool mask: nonzero is decomposed into cumsum+scatter_add+slice, then
+// the [N,2] result is split into two [N] index tensors (one per dimension) via
+// slice+squeeze pairs.  hacked_twin receives a list of 2 integer index tensors.
+// CHECK-LABEL: func.func @rank2_bool_mask(
+// CHECK:         torch.aten.cumsum
+// CHECK:         torch.aten.scatter_add
+// CHECK:         [[COL0:%.*]] = torch.aten.squeeze.dim
+// CHECK:         [[COL1:%.*]] = torch.aten.squeeze.dim
+// CHECK:         [[LIST:%.*]] = torch.prim.ListConstruct [[COL0]], [[COL1]] : (!torch.vtensor<[?],si64>, !torch.vtensor<[?],si64>)
+// CHECK-NOT:     torch.aten.index_put
+// CHECK:         torch.aten.index_put.hacked_twin {{.*}}, [[LIST]]
+func.func @rank2_bool_mask(%input: !torch.vtensor<[4,4],f32>,
+                           %mask: !torch.vtensor<[4,4],i1>,
+                           %vals: !torch.vtensor<[4],f32>) -> !torch.vtensor<[4,4],f32> {
+  %false = torch.constant.bool false
+  %indices = torch.prim.ListConstruct %mask
+      : (!torch.vtensor<[4,4],i1>) -> !torch.list<optional<vtensor<[4,4],i1>>>
+  %result = torch.aten.index_put %input, %indices, %vals, %false
+      : !torch.vtensor<[4,4],f32>, !torch.list<optional<vtensor<[4,4],i1>>>,
+        !torch.vtensor<[4],f32>, !torch.bool -> !torch.vtensor<[4,4],f32>
+  return %result : !torch.vtensor<[4,4],f32>
+}
+
+// -----
+
+// Mixed integer and bool indices: the bool slot is expanded to an integer index
+// tensor; the integer slot is passed through unchanged.
+// CHECK-LABEL: func.func @mixed_int_and_bool(
+// CHECK:         torch.aten.cumsum
+// CHECK:         torch.aten.scatter_add
+// CHECK:         torch.aten.slice.Tensor
+// CHECK:         [[EXPANDED:%.*]] = torch.aten.view
+// CHECK:         [[LIST:%.*]] = torch.prim.ListConstruct %arg1, [[EXPANDED]] : (!torch.vtensor<[3],si64>, !torch.vtensor<[?],si64>)
+// CHECK-NOT:     torch.aten.index_put
+// CHECK:         torch.aten.index_put.hacked_twin {{.*}}, [[LIST]]
+func.func @mixed_int_and_bool(%input: !torch.vtensor<[5,5],f32>,
+                               %idx: !torch.vtensor<[3],si64>,
+                               %mask: !torch.vtensor<[5],i1>,
+                               %values: !torch.vtensor<[3,5],f32>) -> !torch.vtensor<[5,5],f32> {
+  %false = torch.constant.bool false
+  %indices = torch.prim.ListConstruct %idx, %mask
+      : (!torch.vtensor<[3],si64>, !torch.vtensor<[5],i1>) -> !torch.list<optional<vtensor>>
+  %result = torch.aten.index_put %input, %indices, %values, %false
+      : !torch.vtensor<[5,5],f32>, !torch.list<optional<vtensor>>, !torch.vtensor<[3,5],f32>, !torch.bool
+      -> !torch.vtensor<[5,5],f32>
+  return %result : !torch.vtensor<[5,5],f32>
+}
