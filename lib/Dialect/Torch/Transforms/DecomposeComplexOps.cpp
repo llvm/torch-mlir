@@ -8184,6 +8184,14 @@ class DecomposeAtenRMSLayerNormOp : public OpRewritePattern<AtenRmsNormOp> {
     if (!outputTy.hasDtype())
       return rewriter.notifyMatchFailure(op, "output should have a dtype.");
 
+    if (llvm::is_contained(inputTy.getSizes(), 0)) {
+      if (input.getType() != op.getType())
+        return rewriter.notifyMatchFailure(
+            op, "zero-extent input and output types should match.");
+      rewriter.replaceOp(op, input);
+      return success();
+    }
+
     int64_t inputRank = inputTy.getSizes().size();
     Value normalizedShape = op.getNormalizedShape();
     SmallVector<Value> normalizedShapeSizesTorchInt;
@@ -8211,8 +8219,10 @@ class DecomposeAtenRMSLayerNormOp : public OpRewritePattern<AtenRmsNormOp> {
       reducedShape[i] = 1;
     auto reducedTy =
         ValueTensorType::get(context, reducedShape, inputTy.getDtype());
-    // x^2
-    Value inputSquared = AtenSquareOp::create(rewriter, loc, inputTy, input);
+    // x^2. Emit multiplication directly instead of aten.square so zero-extent
+    // tensors do not depend on later pow.Tensor_Scalar legalization.
+    Value inputSquared =
+        AtenMulTensorOp::create(rewriter, loc, inputTy, input, input);
     Value cstTrue = Torch::ConstantBoolOp::create(rewriter, loc, true);
     Value none = Torch::ConstantNoneOp::create(rewriter, loc);
     // mean(x^2)
@@ -8237,6 +8247,193 @@ class DecomposeAtenRMSLayerNormOp : public OpRewritePattern<AtenRmsNormOp> {
           AtenMulTensorOp::create(rewriter, loc, outputTy, normalized, weight);
     }
     rewriter.replaceOp(op, normalized);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+static bool hasStaticZeroExtent(Value value) {
+  auto tensorTy = dyn_cast<ValueTensorType>(value.getType());
+  return tensorTy && tensorTy.hasSizes() &&
+         llvm::is_contained(tensorTy.getSizes(), 0);
+}
+
+static LogicalResult matchPow2OfInput(Value value, Value input) {
+  auto pow = value.getDefiningOp<AtenPowTensorScalarOp>();
+  if (!pow || pow.getSelf() != input)
+    return failure();
+
+  int64_t exponent = 0;
+  if (!matchPattern(pow.getExponent(), m_TorchConstantInt(&exponent)) ||
+      exponent != 2)
+    return failure();
+
+  return success();
+}
+
+static LogicalResult matchMeanOfPow2(Value value, Value input) {
+  if (auto mean = value.getDefiningOp<AtenMeanDimOp>()) {
+    bool keepdim = false;
+    if (!matchPattern(mean.getKeepdim(), m_TorchConstantBool(&keepdim)) ||
+        !keepdim)
+      return failure();
+    if (!isa<Torch::NoneType>(mean.getDtype().getType()))
+      return failure();
+    return matchPow2OfInput(mean.getSelf(), input);
+  }
+
+  auto div = value.getDefiningOp<AtenDivScalarOp>();
+  if (!div)
+    return failure();
+
+  int64_t divisor = 0;
+  if (!matchPattern(div.getOther(), m_TorchConstantInt(&divisor)) ||
+      divisor <= 0)
+    return failure();
+
+  auto sum = div.getSelf().getDefiningOp<AtenSumDimIntListOp>();
+  if (!sum)
+    return failure();
+
+  bool keepdim = false;
+  if (!matchPattern(sum.getKeepdim(), m_TorchConstantBool(&keepdim)) ||
+      !keepdim)
+    return failure();
+  if (!isa<Torch::NoneType>(sum.getDtype().getType()))
+    return failure();
+
+  return matchPow2OfInput(sum.getSelf(), input);
+}
+
+static Value getConvertedOriginalInput(Value value) {
+  if (auto primsConvert = value.getDefiningOp<PrimsConvertElementTypeOp>())
+    return primsConvert.getA();
+  if (auto atenToDtype = value.getDefiningOp<AtenToDtypeOp>())
+    return atenToDtype.getSelf();
+  return nullptr;
+}
+
+static FailureOr<Value> matchZeroExtentRmsNormDecomposition(Value value) {
+  auto finalMul = value.getDefiningOp<AtenMulTensorOp>();
+  if (!finalMul)
+    return failure();
+
+  auto normMul = finalMul.getSelf().getDefiningOp<AtenMulTensorOp>();
+  if (!normMul)
+    return failure();
+
+  Value input = normMul.getSelf();
+  if (!hasStaticZeroExtent(input))
+    return failure();
+
+  auto rsqrt = normMul.getOther().getDefiningOp<AtenRsqrtOp>();
+  if (!rsqrt)
+    return failure();
+
+  if (failed(matchMeanOfPow2(rsqrt.getSelf(), input)))
+    return failure();
+
+  return input;
+}
+
+static void eraseDeadRmsNormDecompositionOp(Operation *op,
+                                            PatternRewriter &rewriter) {
+  if (!op || !op->use_empty())
+    return;
+
+  if (!isa<AtenMulTensorOp, AtenRsqrtOp, AtenMeanDimOp, AtenPowTensorScalarOp,
+           AtenDivScalarOp, AtenSumDimIntListOp, PrimsConvertElementTypeOp,
+           AtenToDtypeOp>(op))
+    return;
+
+  SmallVector<Value> operands(op->getOperands());
+  rewriter.eraseOp(op);
+  for (Value operand : operands)
+    eraseDeadRmsNormDecompositionOp(operand.getDefiningOp(), rewriter);
+}
+
+static void
+eraseDeadRmsNormDecompositionFromOperands(ValueRange operands,
+                                          PatternRewriter &rewriter) {
+  for (Value operand : operands)
+    eraseDeadRmsNormDecompositionOp(operand.getDefiningOp(), rewriter);
+}
+
+class FoldZeroExtentRmsNormDecompositionFromMul
+    : public OpRewritePattern<AtenMulTensorOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenMulTensorOp op,
+                                PatternRewriter &rewriter) const override {
+    FailureOr<Value> input = matchZeroExtentRmsNormDecomposition(op);
+    if (failed(input))
+      return failure();
+
+    // Low-precision eager-opmath has a final cast back to the input dtype. Let
+    // the convert_element_type pattern fold that whole chain to the original
+    // input instead of leaving a zero-extent cast behind.
+    if (getConvertedOriginalInput(*input))
+      return failure();
+
+    if (op.getType() != (*input).getType())
+      return failure();
+
+    SmallVector<Value> operands(op->getOperands());
+    rewriter.replaceOp(op, *input);
+    eraseDeadRmsNormDecompositionFromOperands(operands, rewriter);
+    return success();
+  }
+};
+
+static FailureOr<Value> matchZeroExtentRmsNormConvertResult(Value value) {
+  FailureOr<Value> convertedInput = matchZeroExtentRmsNormDecomposition(value);
+  if (failed(convertedInput))
+    return failure();
+
+  Value originalInput = getConvertedOriginalInput(*convertedInput);
+  if (!originalInput || !hasStaticZeroExtent(originalInput))
+    return failure();
+
+  return originalInput;
+}
+
+class FoldZeroExtentRmsNormDecompositionFromConvert
+    : public OpRewritePattern<PrimsConvertElementTypeOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(PrimsConvertElementTypeOp op,
+                                PatternRewriter &rewriter) const override {
+    FailureOr<Value> originalInput =
+        matchZeroExtentRmsNormConvertResult(op.getA());
+    if (failed(originalInput))
+      return failure();
+    if (op.getType() != (*originalInput).getType())
+      return failure();
+
+    SmallVector<Value> operands(op->getOperands());
+    rewriter.replaceOp(op, *originalInput);
+    eraseDeadRmsNormDecompositionFromOperands(operands, rewriter);
+    return success();
+  }
+};
+
+class FoldZeroExtentRmsNormDecompositionFromAtenToDtype
+    : public OpRewritePattern<AtenToDtypeOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenToDtypeOp op,
+                                PatternRewriter &rewriter) const override {
+    FailureOr<Value> originalInput =
+        matchZeroExtentRmsNormConvertResult(op.getSelf());
+    if (failed(originalInput))
+      return failure();
+    if (op.getType() != (*originalInput).getType())
+      return failure();
+
+    SmallVector<Value> operands(op->getOperands());
+    rewriter.replaceOp(op, *originalInput);
+    eraseDeadRmsNormDecompositionFromOperands(operands, rewriter);
     return success();
   }
 };
@@ -13374,6 +13571,12 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenLayerNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNativeLayerNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRMSLayerNormOp>(patterns);
+    addPatternIfTargetOpIsIllegal<FoldZeroExtentRmsNormDecompositionFromMul>(
+        patterns);
+    addPatternIfTargetOpIsIllegal<
+        FoldZeroExtentRmsNormDecompositionFromConvert>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        FoldZeroExtentRmsNormDecompositionFromAtenToDtype>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenGroupNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNativeGroupNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNativeBatchNormOp>(patterns);
