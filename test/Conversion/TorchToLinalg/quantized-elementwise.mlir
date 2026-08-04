@@ -127,6 +127,40 @@ func.func @dequantize_per_channel_axis0(
 // -----
 
 // CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK: #[[CHANNEL1:.*]] = affine_map<(d0, d1) -> (d1)>
+// CHECK-LABEL: func.func @dequantize_per_channel_same_width(
+// CHECK: %[[GENERIC:.*]] = linalg.generic
+// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[CHANNEL1]], #[[CHANNEL1]], #[[IDENTITY]]]
+// CHECK-SAME: ins({{.*}} : tensor<3x4xi8>, tensor<4xf32>, tensor<4xi8>)
+// CHECK: ^bb0(%[[IN:.*]]: i8, %[[SCALE:.*]]: f32, %[[ZP:.*]]: i8, %{{.*}}: f32):
+// CHECK-DAG: %[[EXT_IN:.*]] = arith.extsi %[[IN]] : i8 to i16
+// CHECK-DAG: %[[EXT_ZP:.*]] = arith.extsi %[[ZP]] : i8 to i16
+// CHECK:   %[[SUB:.*]] = arith.subi %[[EXT_IN]], %[[EXT_ZP]] : i16
+// CHECK:   %[[FP:.*]] = arith.sitofp %[[SUB]] : i16 to f32
+// CHECK:   %[[MUL:.*]] = arith.mulf %[[FP]], %[[SCALE]] : f32
+// CHECK:   linalg.yield %[[MUL]] : f32
+func.func @dequantize_per_channel_same_width(
+    %input: !torch.vtensor<[3,4],si8>,
+    %scales: !torch.vtensor<[4],f32>,
+    %zero_points: !torch.vtensor<[4],si8>)
+    -> !torch.vtensor<[3,4],f32> {
+  %axis = torch.constant.int 1
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 2
+  %none = torch.constant.none
+  %od = torch.derefine %none : !torch.none to !torch.optional<int>
+  %out = torch.quantized_decomposed.dequantize_per_channel
+      %input, %scales, %zero_points, %axis, %qmin, %qmax, %dtype, %od
+      : !torch.vtensor<[3,4],si8>, !torch.vtensor<[4],f32>,
+        !torch.vtensor<[4],si8>, !torch.int, !torch.int, !torch.int,
+        !torch.int, !torch.optional<int> -> !torch.vtensor<[3,4],f32>
+  return %out : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
+// CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
 // CHECK: #[[CHANNEL0:.*]] = affine_map<(d0, d1) -> (d0)>
 // CHECK-LABEL: func.func @dequantize_per_channel_symmetric(
 // CHECK: %[[GENERIC:.*]] = linalg.generic

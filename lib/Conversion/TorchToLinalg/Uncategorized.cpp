@@ -27,6 +27,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/APSInt.h"
 #include <numeric>
+#include <optional>
 #include <string>
 #include <type_traits>
 
@@ -395,6 +396,22 @@ static Value createQuantizePayload(OpBuilder &b, Location loc,
   return arith::FPToSIOp::create(b, loc, outputType, value);
 }
 
+static std::optional<unsigned>
+getSafeSubtractionWidth(unsigned inputWidth, unsigned zeroPointWidth) {
+  if (zeroPointWidth > inputWidth)
+    return zeroPointWidth;
+  switch (inputWidth) {
+  case 8:
+    return 16;
+  case 16:
+    return 32;
+  case 32:
+    return 64;
+  default:
+    return std::nullopt;
+  }
+}
+
 static Value createDequantizePayload(OpBuilder &b, Location loc,
                                      const TypeConverter *converter,
                                      Value input, Value scale, Value zeroPoint,
@@ -402,13 +419,13 @@ static Value createDequantizePayload(OpBuilder &b, Location loc,
   auto inputIntType = cast<mlir::IntegerType>(input.getType());
   if (zeroPoint) {
     Type zeroPointType = converter->convertType(zeroPoint.getType());
+    auto zeroPointIntType = cast<IntegerType>(zeroPointType);
+    std::optional<unsigned> subtractionWidth = getSafeSubtractionWidth(
+        inputIntType.getWidth(), zeroPointIntType.getWidth());
+    assert(subtractionWidth && "unsupported quantized input width");
+    IntegerType subtractionType = b.getIntegerType(*subtractionWidth);
     zeroPoint =
-        materializeScalarToDtype(b, loc, converter, zeroPoint, zeroPointType);
-    IntegerType subtractionType = cast<IntegerType>(zeroPoint.getType());
-    // A zero point is constrained to the quantized input range, so one extra
-    // signed bit is sufficient to represent every possible subtraction result.
-    assert(subtractionType.getWidth() > inputIntType.getWidth() &&
-           "zero point type cannot represent input - zero point");
+        materializeScalarToDtype(b, loc, converter, zeroPoint, subtractionType);
     if (inputIsUnsigned)
       input = arith::ExtUIOp::create(b, loc, subtractionType, input);
     else
