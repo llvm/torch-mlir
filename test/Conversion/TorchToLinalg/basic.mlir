@@ -1107,6 +1107,25 @@ func.func @torch.ops.aten.anydim$basic(%arg0: tensor<1x16x26x26xi1>) -> !torch.v
 
 // -----
 
+// CHECK-LABEL: func.func @torch.aten.cumsum$to_builtin_user
+//       CHECK:   torch_c.to_builtin_tensor
+//       CHECK:   tensor.reshape
+//       CHECK:   tensor.pad
+//       CHECK:   tensor.extract_slice
+//       CHECK:   linalg.generic
+//       CHECK:   arith.addf
+//       CHECK:   tensor.reshape
+//   CHECK-NOT:   torch.aten.cumsum
+func.func @torch.aten.cumsum$to_builtin_user(%arg0: !torch.vtensor<[2,3],f32>) -> tensor<2x3xf32> {
+  %dim = torch.constant.int 1
+  %none = torch.constant.none
+  %0 = torch.aten.cumsum %arg0, %dim, %none : !torch.vtensor<[2,3],f32>, !torch.int, !torch.none -> !torch.vtensor<[2,3],f32>
+  %1 = torch_c.to_builtin_tensor %0 : !torch.vtensor<[2,3],f32> -> tensor<2x3xf32>
+  return %1 : tensor<2x3xf32>
+}
+
+// -----
+
 // Per PyTorch docs, torch.cat allows "a 1-D empty tensor with size (0,)"
 // alongside operands of any rank. The linalg lowering must skip these.
 // CHECK-LABEL: func.func @torch.aten.cat$rank1_empty
