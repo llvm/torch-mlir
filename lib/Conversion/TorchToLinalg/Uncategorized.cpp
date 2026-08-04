@@ -1799,21 +1799,14 @@ static SmallVector<AffineMap> getPerChannelIndexingMaps(OpBuilder &b,
   return maps;
 }
 
-static FailureOr<int64_t>
-getPerChannelAxis(Operation *op, Value axisValue, int64_t rank,
-                  ConversionPatternRewriter &rewriter) {
+static FailureOr<int64_t> getPerChannelAxis(Value axisValue, int64_t rank) {
   int64_t axis;
-  if (!matchPattern(axisValue, m_TorchConstantInt(&axis))) {
-    (void)rewriter.notifyMatchFailure(op, "axis must be a constant integer");
+  if (!matchPattern(axisValue, m_TorchConstantInt(&axis)))
     return failure();
-  }
   if (axis < 0)
     axis += rank;
-  if (axis < 0 || axis >= rank) {
-    (void)rewriter.notifyMatchFailure(op,
-                                      "axis must be in range [-rank, rank)");
+  if (axis < 0 || axis >= rank)
     return failure();
-  }
   return axis;
 }
 
@@ -1840,9 +1833,10 @@ public:
       return rewriter.notifyMatchFailure(
           op, "expected ranked input/result and rank-1 qparams");
     FailureOr<int64_t> axis =
-        getPerChannelAxis(op, op.getAxis(), inputType.getRank(), rewriter);
+        getPerChannelAxis(op.getAxis(), inputType.getRank());
     if (failed(axis))
-      return failure();
+      return rewriter.notifyMatchFailure(
+          op, "axis must be a constant integer in range [-rank, rank)");
 
     int64_t quantMin, quantMax;
     if (!matchPattern(op.getQuantMin(), m_TorchConstantInt(&quantMin)) ||
@@ -1905,9 +1899,10 @@ public:
       return rewriter.notifyMatchFailure(
           op, "expected ranked input/result and rank-1 scales");
     FailureOr<int64_t> axis =
-        getPerChannelAxis(op, op.getAxis(), inputType.getRank(), rewriter);
+        getPerChannelAxis(op.getAxis(), inputType.getRank());
     if (failed(axis))
-      return failure();
+      return rewriter.notifyMatchFailure(
+          op, "axis must be a constant integer in range [-rank, rank)");
 
     bool hasZeroPoints = isa<RankedTensorType>(zeroPoints.getType());
     SmallVector<Value> inputs = {input, scales};
