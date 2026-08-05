@@ -3130,7 +3130,6 @@ ONNX_XFAIL_SET = {
     "PrimsProdFloatModule_basic",
     "PrimsViewOfModule_basic",
     "PrimsViewOfZeroRankModule_basic",
-    "QuantizedDecomposedDequantizePerChannel_basic",
     "QuantizedDecomposedDequantizePerChannelUnsignedSymmetric_basic",
     "QuantizedDecomposedQuantizePerChannel_basic",
     "QuantizedReluInt8_basic",
