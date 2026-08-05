@@ -8434,7 +8434,7 @@ StringRef mlir::torch::Torch::getAbstractInterpLibrary() {
 "    %int1 = torch.constant.int 1\n"
 "    %0 = call @__torch__.torch.jit._shape_functions.bmm(%arg1, %arg2) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>\n"
 "    %1 = torch.aten.slice.t %0, %int1, %none, %int1 : !torch.list<int>, !torch.int, !torch.none, !torch.int -> !torch.list<int>\n"
-"    %2 = call @__torch__.torch.jit._shape_functions.broadcast(%arg0, %1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>\n"
+"    %2 = call @__torch__.torch.jit._shape_functions.expand(%arg0, %1) : (!torch.list<int>, !torch.list<int>) -> !torch.list<int>\n"
 "    return %2 : !torch.list<int>\n"
 "  }\n"
 "  func.func @\"__torch_mlir_shape_fn.aten.bmm\"(%arg0: !torch.list<int>, %arg1: !torch.list<int>) -> !torch.list<int> {\n"

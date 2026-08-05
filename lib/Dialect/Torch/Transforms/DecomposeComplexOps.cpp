@@ -9950,8 +9950,8 @@ class DecomposeAtenFmodTensorOp : public OpRewritePattern<AtenFmodTensorOp> {
 } // namespace
 
 namespace {
-// Decompose `aten.addbmm` into a batched matrix multiplication, a reduction
-// over the batch dimension, and a scaled addition.
+// Decompose `aten.addbmm` into a matrix multiplication that contracts both the
+// batch and inner dimensions, followed by a scaled addition.
 class DecomposeAtenAddbmmOp : public OpRewritePattern<AtenAddbmmOp> {
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenAddbmmOp op,
@@ -9972,32 +9972,72 @@ class DecomposeAtenAddbmmOp : public OpRewritePattern<AtenAddbmmOp> {
     Value batch1 = op.getBatch1();
     Value batch2 = op.getBatch2();
 
-    std::optional<ArrayRef<int64_t>> bmmSizes;
-    SmallVector<int64_t> staticBmmSizes;
-    if (batch1Type.hasSizes() && batch2Type.hasSizes()) {
-      ArrayRef<int64_t> batch1Sizes = batch1Type.getSizes();
-      ArrayRef<int64_t> batch2Sizes = batch2Type.getSizes();
-      if (batch1Sizes.size() != 3 || batch2Sizes.size() != 3) {
-        return rewriter.notifyMatchFailure(
-            op, "expected batch1 and batch2 to have rank 3");
-      }
-      staticBmmSizes = {batch1Sizes[0], batch1Sizes[1], batch2Sizes[2]};
-      bmmSizes = ArrayRef<int64_t>(staticBmmSizes);
+    bool betaIsZero;
+    double betaFloat;
+    int64_t betaInt;
+    if (matchPattern(op.getBeta(), m_TorchConstantFloat(&betaFloat))) {
+      betaIsZero = betaFloat == 0.0;
+    } else if (matchPattern(op.getBeta(), m_TorchConstantInt(&betaInt))) {
+      betaIsZero = betaInt == 0;
+    } else {
+      return rewriter.notifyMatchFailure(op, "expected beta to be constant");
     }
 
-    Type bmmType = resultType.getWithSizesAndDtype(bmmSizes, resultDtype);
-    Value bmm = AtenBmmOp::create(rewriter, loc, bmmType, batch1, batch2);
-    Value dim = ConstantIntOp::create(rewriter, loc, 0);
-    Value dimList = PrimListConstructOp::create(
-        rewriter, loc, ListType::get(dim.getType()), dim);
-    Value keepDim = ConstantBoolOp::create(rewriter, loc, false);
-    Value dtype = ConstantNoneOp::create(rewriter, loc);
-    Value sum = AtenSumDimIntListOp::create(rewriter, loc, op.getType(), bmm,
-                                            dimList, keepDim, dtype);
+    if (!batch1Type.hasSizes() || !batch2Type.hasSizes())
+      return rewriter.notifyMatchFailure(
+          op, "expected batch1 and batch2 to be ranked");
+    ArrayRef<int64_t> batch1Sizes = batch1Type.getSizes();
+    ArrayRef<int64_t> batch2Sizes = batch2Type.getSizes();
+    if (batch1Sizes.size() != 3 || batch2Sizes.size() != 3)
+      return rewriter.notifyMatchFailure(
+          op, "expected batch1 and batch2 to have rank 3");
+
+    Value zero = ConstantIntOp::create(rewriter, loc, 0);
+    Value one = ConstantIntOp::create(rewriter, loc, 1);
+    Value two = ConstantIntOp::create(rewriter, loc, 2);
+    Value permutation = PrimListConstructOp::create(
+        rewriter, loc, ListType::get(zero.getType()),
+        ArrayRef<Value>{one, zero, two});
+
+    SmallVector<int64_t> permutedBatch1Sizes{batch1Sizes[1], batch1Sizes[0],
+                                             batch1Sizes[2]};
+    Type permutedBatch1Type =
+        batch1Type.getWithSizesAndDtype(permutedBatch1Sizes, resultDtype);
+    Value permutedBatch1 = AtenPermuteOp::create(
+        rewriter, loc, permutedBatch1Type, batch1, permutation);
+
+    auto multiplySizes = [](int64_t lhs, int64_t rhs) {
+      if (lhs == kUnknownSize || rhs == kUnknownSize)
+        return kUnknownSize;
+      return lhs * rhs;
+    };
+    int64_t batch1ContractingSize =
+        multiplySizes(batch1Sizes[0], batch1Sizes[2]);
+    int64_t batch2ContractingSize =
+        multiplySizes(batch2Sizes[0], batch2Sizes[1]);
+    SmallVector<int64_t> flattenedBatch1Sizes{batch1Sizes[1],
+                                              batch1ContractingSize};
+    SmallVector<int64_t> flattenedBatch2Sizes{batch2ContractingSize,
+                                              batch2Sizes[2]};
+    Type flattenedBatch1Type =
+        batch1Type.getWithSizesAndDtype(flattenedBatch1Sizes, resultDtype);
+    Type flattenedBatch2Type =
+        batch2Type.getWithSizesAndDtype(flattenedBatch2Sizes, resultDtype);
+    Value flattenedBatch1 = AtenFlattenUsingIntsOp::create(
+        rewriter, loc, flattenedBatch1Type, permutedBatch1, one, two);
+    Value flattenedBatch2 = AtenFlattenUsingIntsOp::create(
+        rewriter, loc, flattenedBatch2Type, batch2, zero, one);
+    Value contraction = AtenMmOp::create(rewriter, loc, op.getType(),
+                                         flattenedBatch1, flattenedBatch2);
+    if (betaIsZero) {
+      rewriter.replaceOpWithNewOp<AtenMulScalarOp>(op, op.getType(),
+                                                   contraction, op.getAlpha());
+      return success();
+    }
     Value scaledInput = AtenMulScalarOp::create(rewriter, loc, input.getType(),
                                                 input, op.getBeta());
-    Value result = AtenAddTensorOp::create(rewriter, loc, op.getType(),
-                                           scaledInput, sum, op.getAlpha());
+    Value result = AtenAddTensorOp::create(
+        rewriter, loc, op.getType(), scaledInput, contraction, op.getAlpha());
     rewriter.replaceOp(op, result);
     return success();
   }

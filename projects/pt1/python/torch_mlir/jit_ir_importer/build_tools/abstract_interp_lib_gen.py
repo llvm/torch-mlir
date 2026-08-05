@@ -961,9 +961,14 @@ def aten〇_scaled_mm_v2〡shape(self: List[int], mat2: List[int], scale_a: List
 def aten〇addmm〡shape(self: List[int], mat1: List[int], mat2: List[int], beta: float = 1, alpha: float = 1) -> List[int]:
     return upstream_shape_functions.addmm(self, mat1, mat2, beta, alpha)
 
+@check_shape_function([
+    Invocation(TensorOfShape(), TensorOfShape(5, 2, 9), TensorOfShape(5, 9, 7)),
+    Invocation(TensorOfShape(7), TensorOfShape(5, 2, 9), TensorOfShape(5, 9, 7)),
+    ErrorInvocation(TensorOfShape(1, 2, 7), TensorOfShape(5, 2, 9), TensorOfShape(5, 9, 7)),
+])
 def aten〇addbmm〡shape(self: List[int], batch1: List[int], batch2: List[int], beta: float = 1, alpha: float = 1) -> List[int]:
     bmm_shape = upstream_shape_functions.bmm(batch1, batch2)
-    return upstream_shape_functions.broadcast(self, bmm_shape[1:])
+    return upstream_shape_functions.expand(self, bmm_shape[1:])
 
 @check_shape_function([
     Invocation(TensorOfShape(2, 3, 4), TensorOfShape(2, 4, 5)), # Basic case.
