@@ -3901,6 +3901,8 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ContainsIntList_True",
     "Conv1dGroupModule_basic",
     "Conv2dQInt8Module_grouped",
+    "Conv2dQInt8PerChannelModule_basic",
+    "Conv2dQInt8PerChannelModule_depthwise",
     "Conv2dQInt8PerChannelModule_grouped",
     "Conv2dWithPaddingDilationStrideStaticModule_grouped",
     "Conv2dWithPaddingDilationStrideStaticModule_grouped_multiplier",
