@@ -12413,6 +12413,15 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "failed to get elements of `indices`");
 
+    auto input = op.getSelf();
+    auto inputType = cast<BaseTensorType>(input.getType());
+    if (!inputType.hasSizes()) {
+      return rewriter.notifyMatchFailure(
+          op, "only input with shape information is supported");
+    }
+    auto inputSizes = inputType.getSizes();
+    int64_t inputRank = inputSizes.size();
+
     // A bool index tensor semantically selects positions where the mask is
     // true.  Replace each bool index with its equivalent integer indices:
     //   rank-1 mask → nonzero(mask).flatten() → one [N] index tensor
@@ -12420,7 +12429,73 @@ public:
     //                 via select(nz, dim=1, i) for i in 0..k-1
     // The expanded slots replace the single bool slot in-place; the rest of
     // this pattern only handles the integer-indexed case.
-    // Masks with unknown rank are not supported.
+    // We require the rank to be statically known (to emit the right number of
+    // select ops), but individual dimensions may be dynamic.
+    //
+    // Validation pass: check all preconditions before emitting any IR so that
+    // a late failure (e.g. non-consecutive indices) does not leave dangling
+    // ops. Bool masks always expand to tensor slots, so we can compute
+    // indexUsed without emitting anything.
+    SmallVector<bool> indexUsed;
+    {
+      int64_t inputDimOffset = 0;
+      for (Value idx : indices) {
+        auto tt = dyn_cast<BaseTensorType>(idx.getType());
+        if (!tt) {
+          // None index — selects the entire dimension, not a tensor index.
+          indexUsed.push_back(false);
+          continue;
+        }
+        if (!tt.hasDtype())
+          return rewriter.notifyMatchFailure(
+              op, "index with unknown dtype not supported");
+        if (!tt.getDtype().isInteger(1)) {
+          indexUsed.push_back(true);
+          ++inputDimOffset;
+          continue;
+        }
+        if (!tt.hasSizes())
+          return rewriter.notifyMatchFailure(
+              op, "bool mask index with unknown rank not supported");
+        int64_t maskRank = tt.getSizes().size();
+        if (maskRank == 0)
+          return rewriter.notifyMatchFailure(op,
+                                             "rank-0 bool mask not supported");
+        auto maskSizes = tt.getSizes();
+        for (int64_t j = 0; j < maskRank; ++j) {
+          int64_t inputDim = inputDimOffset + j;
+          if (inputDim >= inputRank)
+            return rewriter.notifyMatchFailure(
+                op, "bool mask rank exceeds remaining input dimensions");
+          if (maskSizes[j] != Torch::kUnknownSize &&
+              inputSizes[inputDim] != Torch::kUnknownSize &&
+              maskSizes[j] != inputSizes[inputDim])
+            return rewriter.notifyMatchFailure(
+                op, "bool mask dimension does not match input dimension");
+          indexUsed.push_back(true); // each expanded slot is a tensor
+        }
+        inputDimOffset += maskRank;
+      }
+      for (int64_t i = indexUsed.size(); i < inputRank; ++i)
+        indexUsed.push_back(false);
+
+      // Reject non-consecutive tensor index slots before emitting any IR.
+      bool isConsecutive = true;
+      int64_t firstUsed = -1;
+      for (size_t i = 0; i < indexUsed.size(); ++i) {
+        if (indexUsed[i] && firstUsed == -1) {
+          firstUsed = i;
+        } else if (indexUsed[i] && !indexUsed[i - 1]) {
+          isConsecutive = false;
+          break;
+        }
+      }
+      if (!isConsecutive)
+        return rewriter.notifyMatchFailure(
+            op, "non consecutive indices is not supported");
+    }
+
+    // Emission pass: all checks passed, now build the expanded index list.
     SmallVector<Value> expandedIndices;
     expandedIndices.reserve(indices.size());
     for (Value idx : indices) {
@@ -12429,13 +12504,7 @@ public:
         expandedIndices.push_back(idx);
         continue;
       }
-      if (!tt.hasSizes())
-        return rewriter.notifyMatchFailure(
-            op, "bool mask index with unknown rank not supported");
       int64_t maskRank = tt.getSizes().size();
-      if (maskRank == 0)
-        return rewriter.notifyMatchFailure(op,
-                                           "rank-0 bool mask not supported");
       auto si64Ty =
           IntegerType::get(rewriter.getContext(), 64, IntegerType::Signed);
       auto nzType = rewriter.getType<ValueTensorType>(
@@ -12463,15 +12532,6 @@ public:
     }
     indices = std::move(expandedIndices);
 
-    auto input = op.getSelf();
-    auto inputType = cast<BaseTensorType>(input.getType());
-    if (!inputType.hasSizes()) {
-      return rewriter.notifyMatchFailure(
-          op, "only input with shape information is supported");
-    }
-    auto inputSizes = inputType.getSizes();
-    int64_t inputRank = inputSizes.size();
-
     auto isTensor = [](Value v) {
       return isa<Torch::BaseTensorType>(v.getType());
     };
@@ -12487,27 +12547,6 @@ public:
           op, op.getType(), input, newIndex, op.getValues(),
           op.getAccumulate());
       return success();
-    }
-
-    SmallVector<bool> indexUsed =
-        llvm::to_vector(llvm::map_range(indices, isTensor));
-    for (int64_t i = indices.size(); i < inputRank; ++i)
-      indexUsed.emplace_back(false);
-
-    // check if non-None index is consecutive
-    bool indexIsConsecutive = true;
-    int64_t firstUsedIndex = -1;
-    for (size_t i = 0; i < indices.size(); ++i) {
-      if (indexUsed[i] && firstUsedIndex == -1) {
-        firstUsedIndex = i;
-      } else if (indexUsed[i] && !indexUsed[i - 1]) {
-        indexIsConsecutive = false;
-        break;
-      }
-    }
-    if (!indexIsConsecutive) {
-      return rewriter.notifyMatchFailure(
-          op, "non consecutive indices is not supported");
     }
 
     SmallVector<int64_t> newToOldDimMap;

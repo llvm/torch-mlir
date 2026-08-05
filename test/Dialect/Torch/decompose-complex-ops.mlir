@@ -1311,6 +1311,25 @@ func.func @rank2_bool_mask(%input: !torch.vtensor<[4,4],f32>,
 
 // -----
 
+// Mask dimension mismatch: mask[0]=3 but input[0]=4, so the decomposition
+// should bail and leave the op unconverted.
+// CHECK-LABEL: func.func @bool_mask_dim_mismatch(
+// CHECK-NOT:     torch.aten.nonzero
+// CHECK:         torch.aten.index_put
+func.func @bool_mask_dim_mismatch(%input: !torch.vtensor<[4,4],f32>,
+                                   %mask: !torch.vtensor<[3,4],i1>,
+                                   %vals: !torch.vtensor<[12],f32>) -> !torch.vtensor<[4,4],f32> {
+  %false = torch.constant.bool false
+  %indices = torch.prim.ListConstruct %mask
+      : (!torch.vtensor<[3,4],i1>) -> !torch.list<optional<vtensor<[3,4],i1>>>
+  %result = torch.aten.index_put %input, %indices, %vals, %false
+      : !torch.vtensor<[4,4],f32>, !torch.list<optional<vtensor<[3,4],i1>>>,
+        !torch.vtensor<[12],f32>, !torch.bool -> !torch.vtensor<[4,4],f32>
+  return %result : !torch.vtensor<[4,4],f32>
+}
+
+// -----
+
 // Mixed integer and bool indices: the bool slot is expanded to an integer index
 // tensor; the integer slot is passed through unchanged.
 // CHECK-LABEL: func.func @mixed_int_and_bool(
@@ -1324,12 +1343,12 @@ func.func @rank2_bool_mask(%input: !torch.vtensor<[4,4],f32>,
 func.func @mixed_int_and_bool(%input: !torch.vtensor<[5,5],f32>,
                                %idx: !torch.vtensor<[3],si64>,
                                %mask: !torch.vtensor<[5],i1>,
-                               %values: !torch.vtensor<[3,5],f32>) -> !torch.vtensor<[5,5],f32> {
+                               %values: !torch.vtensor<[3],f32>) -> !torch.vtensor<[5,5],f32> {
   %false = torch.constant.bool false
   %indices = torch.prim.ListConstruct %idx, %mask
       : (!torch.vtensor<[3],si64>, !torch.vtensor<[5],i1>) -> !torch.list<optional<vtensor>>
   %result = torch.aten.index_put %input, %indices, %values, %false
-      : !torch.vtensor<[5,5],f32>, !torch.list<optional<vtensor>>, !torch.vtensor<[3,5],f32>, !torch.bool
+      : !torch.vtensor<[5,5],f32>, !torch.list<optional<vtensor>>, !torch.vtensor<[3],f32>, !torch.bool
       -> !torch.vtensor<[5,5],f32>
   return %result : !torch.vtensor<[5,5],f32>
 }
