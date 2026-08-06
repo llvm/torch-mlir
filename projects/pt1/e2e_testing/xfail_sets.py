@@ -2848,6 +2848,8 @@ LTC_XFAIL_SET = {
 
 ONNX_XFAIL_SET = {
     # PyTorch's ONNX exporter does not support aten::addbmm.
+    "AddbmmBetaZeroNonFiniteInputModule_basic",
+    # PyTorch's ONNX exporter does not support aten::addbmm.
     "AddbmmWithAlphaBetaModule_basic",
     # ONNX export applies explicit offset to materialized slice storage.
     "AtenAsStridedAfterAliasDetachModule_basic",
@@ -3692,6 +3694,15 @@ if torch_version_for_comparison() > version.parse("2.10.0.dev"):
     ONNX_XFAIL_SET = ONNX_XFAIL_SET | {
         "Aten_CastLongModule_basic",
         "Aten_CastFloatModule_basic",
+    }
+
+if torch_version_for_comparison() >= version.parse(
+    "2.13.0"
+) and torch_version_for_comparison() < version.parse("2.14.0.dev"):
+    # The PyTorch 2.13 ONNX exporter supports aten::addbmm, while the current
+    # 2.14 nightly exporter does not.
+    ONNX_XFAIL_SET = ONNX_XFAIL_SET - {
+        "AddbmmWithAlphaBetaModule_basic",
     }
 
 if torch_version_for_comparison() < version.parse("2.4.0.dev"):
