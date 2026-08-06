@@ -159,3 +159,14 @@ func.func @elementwise_add_unsigned_extend(%arg0: !torch.vtensor<[?],si32>, %arg
   %0 = torch.aten.add.Tensor %arg0, %arg1, %int1 : !torch.vtensor<[?],si32>, !torch.vtensor<[?],ui8>, !torch.int -> !torch.vtensor<[?],si32>
   return %0 : !torch.vtensor<[?],si32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_user_attrs(
+// CHECK:           linalg.generic
+// CHECK-SAME:        mlir.user.domain_lower = -1.000000e+00 : f64
+// CHECK-NOT:         other.attr
+func.func @elementwise_user_attrs(%arg0: !torch.vtensor<[3],f32>) -> !torch.vtensor<[3],f32> {
+  %0 = torch.aten.tanh %arg0 {mlir.user.domain_lower = -1.0 : f64, other.attr = 1 : i64} : !torch.vtensor<[3],f32> -> !torch.vtensor<[3],f32>
+  return %0 : !torch.vtensor<[3],f32>
+}
