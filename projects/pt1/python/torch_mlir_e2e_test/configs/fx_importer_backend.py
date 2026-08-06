@@ -149,20 +149,12 @@ class FxImporterTestConfig(TestConfig):
             )
             module = self._backend.compile(module)
             backend_module = self._backend.load(module)
-            input_buffers = prog.graph_signature.inputs_to_buffers.values()
-            params = {
-                # **dict(artifact.named_parameters(remove_duplicate=False)),
-                name: value
-                for (name, value) in artifact.named_buffers(remove_duplicate=False)
-                if name in input_buffers
-            }
-            params_flat, params_spec = pytree.tree_flatten(params)
-            params_flat = list(params_flat)
             with torch.no_grad():
-                numpy_inputs = recursively_convert_to_numpy(params_flat + item.inputs)
+                numpy_inputs = recursively_convert_to_numpy(item.inputs)
             outputs = getattr(backend_module, artifact.__class__.__name__)(
                 *numpy_inputs
             )
+
             output = refine_result_type(outputs)
             if isinstance(output, (tuple, list)):
                 user_output = []

@@ -5676,14 +5676,12 @@ LogicalResult AtenPermuteOp::verify() {
       continue;
     }
 
-    // if 'from' is the unkwown index, continue.
-    if (from == -1) {
-      continue;
-    }
+    const int64_t originalFrom = from;
+    from = toPositiveDim(from, outRank);
 
     if (!isValidDim(from, outRank)) {
       return emitError("observed invalid index in permutation (")
-             << from << ") for input tensor of rank " << outRank << '.';
+             << originalFrom << ") for input tensor of rank " << outRank << '.';
     }
 
     if (reversePermutation[from] != -1) {

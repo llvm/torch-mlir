@@ -13034,8 +13034,16 @@ public:
     Value highSlice = AtenSliceTensorOp::create(rewriter, loc, sliceTy, boxes,
                                                 /*dim=*/cst1, /*start=*/cst2,
                                                 /*end=*/cst4, /*step=*/cst1);
-    Value distance = Torch::AtenSubTensorOp::create(rewriter, loc, sliceTy,
-                                                    highSlice, lowSlice, cst1);
+    // Normalize coordinates: actualLow = min(corner0, corner1),
+    // actualHigh = max(corner0, corner1). ONNX NMS (center_point_box=0)
+    // permits flipped corners (x2 < x1 or y2 < y1); normalize so area and
+    // intersection are always non-negative.
+    Value actualLow = Torch::AtenMinimumOp::create(rewriter, loc, sliceTy,
+                                                   lowSlice, highSlice);
+    Value actualHigh = Torch::AtenMaximumOp::create(rewriter, loc, sliceTy,
+                                                    lowSlice, highSlice);
+    Value distance = Torch::AtenSubTensorOp::create(
+        rewriter, loc, sliceTy, actualHigh, actualLow, cst1);
     auto areaTy = rewriter.getType<ValueTensorType>(
         SmallVector<int64_t>{boxesSize}, dType);
     Value area = Torch::AtenProdDimIntOp::create(
@@ -13146,10 +13154,14 @@ public:
         Value point2 = AtenSliceTensorOp::create(rewriter, loc, pointTy, curBox,
                                                  /*dim=*/cst1, /*start=*/cst2,
                                                  /*end=*/cst4, /*step=*/cst1);
+        Value curLow = Torch::AtenMinimumOp::create(rewriter, loc, pointTy,
+                                                    point1, point2);
+        Value curHigh = Torch::AtenMaximumOp::create(rewriter, loc, pointTy,
+                                                     point1, point2);
         Value innerLow = Torch::AtenMaximumOp::create(rewriter, loc, sliceTy,
-                                                      lowSlice, point1);
+                                                      actualLow, curLow);
         Value innerHigh = Torch::AtenMinimumOp::create(rewriter, loc, sliceTy,
-                                                       highSlice, point2);
+                                                       actualHigh, curHigh);
         Value innerDistance = Torch::AtenSubTensorOp::create(
             rewriter, loc, sliceTy, innerHigh, innerLow, cst1);
         innerDistance = Torch::AtenMaximumOp::create(
@@ -13158,10 +13170,11 @@ public:
             rewriter, loc, areaTy, innerDistance, /*dim=*/cst1,
             /*keepdim=*/cstFalse,
             /*dtype=*/cstNone);
-        Value iEnd = Torch::AtenAddIntOp::create(rewriter, loc, i, cst1);
+        // area[] is in original input order; idx1 is the original index for
+        // this iteration, not i (the score-sorted rank).
         Value curArea = AtenSliceTensorOp::create(
             rewriter, loc, scalarFloatType, area,
-            /*dim=*/cst0, /*start=*/i, /*end=*/iEnd, /*step=*/cst1);
+            /*dim=*/cst0, /*start=*/idx1, /*end=*/idx1End, /*step=*/cst1);
         // Union area = area1 + area2 - intersectionArea
         Value unionArea = Torch::AtenAddTensorOp::create(rewriter, loc, areaTy,
                                                          area, curArea, cst1);
