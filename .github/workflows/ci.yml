@@ -55,6 +55,9 @@ jobs:
           python -c "import sys; print(sys.version)"
           which python
 
+      - name: Check pyproject.toml and MLIR requirements sync
+        run: python build_tools/check_requirements.py
+
       - name: Install python deps (torch-${{ matrix.torch-version }})
         run: |
           cd $GITHUB_WORKSPACE

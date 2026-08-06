@@ -12517,6 +12517,116 @@ public:
     auto inputSizes = inputType.getSizes();
     int64_t inputRank = inputSizes.size();
 
+    // A bool index tensor semantically selects positions where the mask is
+    // true.  Replace each bool index with its equivalent integer indices:
+    //   rank-1 mask → nonzero(mask).flatten() → one [N] index tensor
+    //   rank-k mask → nonzero(mask) gives [N,k]; split into k [N] tensors
+    //                 via select(nz, dim=1, i) for i in 0..k-1
+    // The expanded slots replace the single bool slot in-place; the rest of
+    // this pattern only handles the integer-indexed case.
+    // We require the rank to be statically known (to emit the right number of
+    // select ops), but individual dimensions may be dynamic.
+    //
+    // Validation pass: check all preconditions before emitting any IR so that
+    // a late failure (e.g. non-consecutive indices) does not leave dangling
+    // ops. Bool masks always expand to tensor slots, so we can compute
+    // indexUsed without emitting anything.
+    SmallVector<bool> indexUsed;
+    {
+      int64_t inputDimOffset = 0;
+      for (Value idx : indices) {
+        auto tt = dyn_cast<BaseTensorType>(idx.getType());
+        if (!tt) {
+          // None index — selects the entire dimension, not a tensor index.
+          indexUsed.push_back(false);
+          continue;
+        }
+        if (!tt.hasDtype())
+          return rewriter.notifyMatchFailure(
+              op, "index with unknown dtype not supported");
+        if (!tt.getDtype().isInteger(1)) {
+          indexUsed.push_back(true);
+          ++inputDimOffset;
+          continue;
+        }
+        if (!tt.hasSizes())
+          return rewriter.notifyMatchFailure(
+              op, "bool mask index with unknown rank not supported");
+        int64_t maskRank = tt.getSizes().size();
+        if (maskRank == 0)
+          return rewriter.notifyMatchFailure(op,
+                                             "rank-0 bool mask not supported");
+        auto maskSizes = tt.getSizes();
+        for (int64_t j = 0; j < maskRank; ++j) {
+          int64_t inputDim = inputDimOffset + j;
+          if (inputDim >= inputRank)
+            return rewriter.notifyMatchFailure(
+                op, "bool mask rank exceeds remaining input dimensions");
+          if (maskSizes[j] != Torch::kUnknownSize &&
+              inputSizes[inputDim] != Torch::kUnknownSize &&
+              maskSizes[j] != inputSizes[inputDim])
+            return rewriter.notifyMatchFailure(
+                op, "bool mask dimension does not match input dimension");
+          indexUsed.push_back(true); // each expanded slot is a tensor
+        }
+        inputDimOffset += maskRank;
+      }
+      for (int64_t i = indexUsed.size(); i < inputRank; ++i)
+        indexUsed.push_back(false);
+
+      // Reject non-consecutive tensor index slots before emitting any IR.
+      bool isConsecutive = true;
+      int64_t firstUsed = -1;
+      for (size_t i = 0; i < indexUsed.size(); ++i) {
+        if (indexUsed[i] && firstUsed == -1) {
+          firstUsed = i;
+        } else if (indexUsed[i] && !indexUsed[i - 1]) {
+          isConsecutive = false;
+          break;
+        }
+      }
+      if (!isConsecutive)
+        return rewriter.notifyMatchFailure(
+            op, "non consecutive indices is not supported");
+    }
+
+    // Emission pass: all checks passed, now build the expanded index list.
+    SmallVector<Value> expandedIndices;
+    expandedIndices.reserve(indices.size());
+    for (Value idx : indices) {
+      auto tt = dyn_cast<BaseTensorType>(idx.getType());
+      if (!tt || !tt.hasDtype() || !tt.getDtype().isInteger(1)) {
+        expandedIndices.push_back(idx);
+        continue;
+      }
+      int64_t maskRank = tt.getSizes().size();
+      auto si64Ty =
+          IntegerType::get(rewriter.getContext(), 64, IntegerType::Signed);
+      auto nzType = rewriter.getType<ValueTensorType>(
+          SmallVector<int64_t>{Torch::kUnknownSize, maskRank}, si64Ty);
+      Value nz = AtenNonzeroOp::create(rewriter, loc, nzType, idx);
+      auto colType = rewriter.getType<ValueTensorType>(
+          SmallVector<int64_t>{Torch::kUnknownSize}, si64Ty);
+      Value dimOne =
+          ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
+      if (maskRank == 1) {
+        // Single column: flatten [N,1] → [N].
+        Value d0 =
+            ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
+        expandedIndices.push_back(AtenFlattenUsingIntsOp::create(
+            rewriter, loc, colType, nz, d0, dimOne));
+      } else {
+        // k columns: emit one select per dimension.
+        for (int64_t col = 0; col < maskRank; ++col) {
+          Value colIdx = ConstantIntOp::create(rewriter, loc,
+                                               rewriter.getI64IntegerAttr(col));
+          expandedIndices.push_back(AtenSelectIntOp::create(
+              rewriter, loc, colType, nz, dimOne, colIdx));
+        }
+      }
+    }
+    indices = std::move(expandedIndices);
+
     auto isTensor = [](Value v) {
       return isa<Torch::BaseTensorType>(v.getType());
     };
@@ -12532,27 +12642,6 @@ public:
           op, op.getType(), input, newIndex, op.getValues(),
           op.getAccumulate());
       return success();
-    }
-
-    SmallVector<bool> indexUsed =
-        llvm::to_vector(llvm::map_range(indices, isTensor));
-    for (int64_t i = indices.size(); i < inputRank; ++i)
-      indexUsed.emplace_back(false);
-
-    // check if non-None index is consecutive
-    bool indexIsConsecutive = true;
-    int64_t firstUsedIndex = -1;
-    for (size_t i = 0; i < indices.size(); ++i) {
-      if (indexUsed[i] && firstUsedIndex == -1) {
-        firstUsedIndex = i;
-      } else if (indexUsed[i] && !indexUsed[i - 1]) {
-        indexIsConsecutive = false;
-        break;
-      }
-    }
-    if (!indexIsConsecutive) {
-      return rewriter.notifyMatchFailure(
-          op, "non consecutive indices is not supported");
     }
 
     SmallVector<int64_t> newToOldDimMap;
@@ -12932,8 +13021,16 @@ public:
     Value highSlice = AtenSliceTensorOp::create(rewriter, loc, sliceTy, boxes,
                                                 /*dim=*/cst1, /*start=*/cst2,
                                                 /*end=*/cst4, /*step=*/cst1);
-    Value distance = Torch::AtenSubTensorOp::create(rewriter, loc, sliceTy,
-                                                    highSlice, lowSlice, cst1);
+    // Normalize coordinates: actualLow = min(corner0, corner1),
+    // actualHigh = max(corner0, corner1). ONNX NMS (center_point_box=0)
+    // permits flipped corners (x2 < x1 or y2 < y1); normalize so area and
+    // intersection are always non-negative.
+    Value actualLow = Torch::AtenMinimumOp::create(rewriter, loc, sliceTy,
+                                                   lowSlice, highSlice);
+    Value actualHigh = Torch::AtenMaximumOp::create(rewriter, loc, sliceTy,
+                                                    lowSlice, highSlice);
+    Value distance = Torch::AtenSubTensorOp::create(
+        rewriter, loc, sliceTy, actualHigh, actualLow, cst1);
     auto areaTy = rewriter.getType<ValueTensorType>(
         SmallVector<int64_t>{boxesSize}, dType);
     Value area = Torch::AtenProdDimIntOp::create(
@@ -13044,10 +13141,14 @@ public:
         Value point2 = AtenSliceTensorOp::create(rewriter, loc, pointTy, curBox,
                                                  /*dim=*/cst1, /*start=*/cst2,
                                                  /*end=*/cst4, /*step=*/cst1);
+        Value curLow = Torch::AtenMinimumOp::create(rewriter, loc, pointTy,
+                                                    point1, point2);
+        Value curHigh = Torch::AtenMaximumOp::create(rewriter, loc, pointTy,
+                                                     point1, point2);
         Value innerLow = Torch::AtenMaximumOp::create(rewriter, loc, sliceTy,
-                                                      lowSlice, point1);
+                                                      actualLow, curLow);
         Value innerHigh = Torch::AtenMinimumOp::create(rewriter, loc, sliceTy,
-                                                       highSlice, point2);
+                                                       actualHigh, curHigh);
         Value innerDistance = Torch::AtenSubTensorOp::create(
             rewriter, loc, sliceTy, innerHigh, innerLow, cst1);
         innerDistance = Torch::AtenMaximumOp::create(
@@ -13056,10 +13157,11 @@ public:
             rewriter, loc, areaTy, innerDistance, /*dim=*/cst1,
             /*keepdim=*/cstFalse,
             /*dtype=*/cstNone);
-        Value iEnd = Torch::AtenAddIntOp::create(rewriter, loc, i, cst1);
+        // area[] is in original input order; idx1 is the original index for
+        // this iteration, not i (the score-sorted rank).
         Value curArea = AtenSliceTensorOp::create(
             rewriter, loc, scalarFloatType, area,
-            /*dim=*/cst0, /*start=*/i, /*end=*/iEnd, /*step=*/cst1);
+            /*dim=*/cst0, /*start=*/idx1, /*end=*/idx1End, /*step=*/cst1);
         // Union area = area1 + area2 - intersectionArea
         Value unionArea = Torch::AtenAddTensorOp::create(rewriter, loc, areaTy,
                                                          area, curArea, cst1);

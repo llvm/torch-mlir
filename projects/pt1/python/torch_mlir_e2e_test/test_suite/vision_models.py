@@ -5,6 +5,7 @@
 
 import torch
 import torchvision.models as models
+import torchvision.ops as tvops
 
 from torch_mlir_e2e_test.framework import TestUtils
 from torch_mlir_e2e_test.registry import register_test_case
@@ -113,3 +114,46 @@ class MobilenetV3Module(torch.nn.Module):
 @register_test_case(module_factory=lambda: MobilenetV3Module())
 def MobilenetV3Module_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 3, 224, 224))
+
+
+# ==============================================================================
+# torchvision.ops.nms tests
+# ==============================================================================
+
+
+class NmsModule(torch.nn.Module):
+    """torchvision.ops.nms with well-formed boxes and partial suppression."""
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([6, 4], torch.float32, True),
+            ([6], torch.float32, True),
+        ]
+    )
+    def forward(self, boxes, scores):
+        return tvops.nms(boxes, scores, iou_threshold=0.5)
+
+
+@register_test_case(module_factory=lambda: NmsModule())
+def NmsModule_basic(module, tu: TestUtils):
+    # 6 boxes with varying areas (0.5, 2.0, 3.0) so sort-rank != original index.
+    # Score order: box3(0.95) > box0(0.90) > box1(0.75) > box2(0.60) > box4(0.50) > box5(0.30).
+    # box3 suppresses box4; box0 suppresses box1 and box2; box5 isolated. Expected: [3, 0, 5].
+    boxes = torch.tensor(
+        [
+            [0.0, 0.0, 1.0, 2.0],  # score 0.90, area 2.0, overlaps with 1,2
+            [0.1, 0.0, 1.1, 2.0],  # score 0.75, area 2.0, suppressed by 0
+            [0.0, 0.1, 1.0, 2.1],  # score 0.60, area 2.0, suppressed by 0
+            [10.0, 0.0, 11.0, 0.5],  # score 0.95, area 0.5, isolated from {0,1,2}
+            [10.1, 0.0, 11.1, 0.5],  # score 0.50, area 0.5, suppressed by 3
+            [50.0, 0.0, 51.0, 3.0],  # score 0.30, area 3.0, isolated
+        ],
+        dtype=torch.float32,
+    )
+    scores = torch.tensor([0.90, 0.75, 0.60, 0.95, 0.50, 0.30], dtype=torch.float32)
+    module.forward(boxes, scores)
