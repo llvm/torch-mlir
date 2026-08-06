@@ -1607,4 +1607,70 @@ def Torch_QuantizedDecomposedDequantizePerTensorOp : Torch_Op<
   }];
 }
 
+def Torch_QuantizedDecomposedQuantizePerChannelOp : Torch_Op<
+    "quantized_decomposed.quantize_per_channel", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly,
+  ]> {
+  let summary = "PT2E quantize_per_channel";
+  let description = [{
+    Quantizes a floating-point tensor with one affine scale and zero point per
+    channel. `axis` identifies the input dimension indexed by the one
+    dimensional `scales` and `zero_points` tensors.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchTensorType:$scales,
+    AnyTorchTensorType:$zero_points,
+    Torch_IntType:$axis,
+    Torch_IntType:$quant_min,
+    Torch_IntType:$quant_max,
+    Torch_IntType:$dtype
+  );
+  let results = (outs AnyTorchTensorType:$result);
+  let assemblyFormat = [{
+    $input `,` $scales `,` $zero_points `,` $axis `,` $quant_min `,`
+        $quant_max `,` $dtype attr-dict
+    `:` qualified(type($input)) `,` qualified(type($scales)) `,`
+        qualified(type($zero_points)) `,` qualified(type($axis)) `,`
+        qualified(type($quant_min)) `,` qualified(type($quant_max)) `,`
+        qualified(type($dtype))
+    `->` qualified(type($result))
+  }];
+}
+
+def Torch_QuantizedDecomposedDequantizePerChannelOp : Torch_Op<
+    "quantized_decomposed.dequantize_per_channel", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly,
+  ]> {
+  let summary = "PT2E dequantize_per_channel";
+  let description = [{
+    Dequantizes an integer tensor with one scale and optional zero point per
+    channel. A None `zero_points` operand denotes symmetric quantization.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchTensorType:$scales,
+    AnyTorchOptionalTensorType:$zero_points,
+    Torch_IntType:$axis,
+    Torch_IntType:$quant_min,
+    Torch_IntType:$quant_max,
+    Torch_IntType:$dtype,
+    AnyTorchOptionalIntType:$out_dtype
+  );
+  let results = (outs AnyTorchTensorType:$result);
+  let assemblyFormat = [{
+    $input `,` $scales `,` $zero_points `,` $axis `,` $quant_min `,`
+        $quant_max `,` $dtype `,` $out_dtype attr-dict
+    `:` qualified(type($input)) `,` qualified(type($scales)) `,`
+        qualified(type($zero_points)) `,` qualified(type($axis)) `,`
+        qualified(type($quant_min)) `,` qualified(type($quant_max)) `,`
+        qualified(type($dtype)) `,` qualified(type($out_dtype))
+    `->` qualified(type($result))
+  }];
+}
+
 #endif // TORCH_OPS

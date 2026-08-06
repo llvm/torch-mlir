@@ -442,6 +442,16 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
   llvm_unreachable("convertScalarToDtype should handle all the types");
 }
 
+Value materializeScalarToDtype(OpBuilder &b, Location loc,
+                               const TypeConverter *converter, Value scalar,
+                               Type dtype) {
+  Type convertedType = converter->convertType(scalar.getType());
+  if (scalar.getType() != convertedType)
+    scalar =
+        converter->materializeTargetConversion(b, loc, convertedType, scalar);
+  return convertScalarToDtype(b, loc, scalar, dtype);
+}
+
 Value toPositiveValidDim(ConversionPatternRewriter &rewriter, Location loc,
                          Value torchOptionalInt, Value builtinInt,
                          Value defaultValue, Value dimSize) {

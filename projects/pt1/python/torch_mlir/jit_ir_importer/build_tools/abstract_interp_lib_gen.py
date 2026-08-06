@@ -6491,6 +6491,24 @@ def quantized_decomposed〇dequantize_per_tensor〡dtype(input_rank_dtype: Tuple
         return out_dtype
     return torch.float32
 
+@not_present_in_registry
+def quantized_decomposed〇quantize_per_channel〡shape(input: List[int], scales: List[int], zero_points: List[int], axis: int, quant_min: int, quant_max: int, dtype: int) -> List[int]:
+    return upstream_shape_functions.unary(input)
+
+@not_present_in_registry
+def quantized_decomposed〇quantize_per_channel〡dtype(input_rank_dtype: Tuple[int, int], scales_rank_dtype: Tuple[int, int], zero_points_rank_dtype: Tuple[int, int], axis: int, quant_min: int, quant_max: int, dtype: int) -> int:
+    return dtype
+
+@not_present_in_registry
+def quantized_decomposed〇dequantize_per_channel〡shape(input: List[int], scales: List[int], zero_points: Optional[List[int]], axis: int, quant_min: int, quant_max: int, dtype: int, out_dtype: Optional[int]) -> List[int]:
+    return upstream_shape_functions.unary(input)
+
+@not_present_in_registry
+def quantized_decomposed〇dequantize_per_channel〡dtype(input_rank_dtype: Tuple[int, int], scales_rank_dtype: Tuple[int, int], zero_points_rank_dtype: Optional[Tuple[int, int]], axis: int, quant_min: int, quant_max: int, dtype: int, out_dtype: Optional[int]) -> int:
+    if out_dtype is not None:
+        return out_dtype
+    return torch.float32
+
 # ==============================================================================
 # Main
 # ==============================================================================

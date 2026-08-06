@@ -103,6 +103,12 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
                            std::optional<Type> dstOriginalDtype = std::nullopt,
                            std::optional<Value> originalScalar = std::nullopt);
 
+// Materialize a dialect scalar using the type converter, then convert the
+// resulting builtin scalar to the requested builtin dtype.
+Value materializeScalarToDtype(OpBuilder &b, Location loc,
+                               const TypeConverter *converter, Value scalar,
+                               Type dtype);
+
 Value toPositiveValidDim(ConversionPatternRewriter &rewriter, Location loc,
                          Value torchOptionalInt, Value builtinInt,
                          Value defaultValue, Value dimSize);
