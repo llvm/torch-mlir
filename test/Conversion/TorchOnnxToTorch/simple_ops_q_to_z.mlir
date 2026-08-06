@@ -213,6 +213,8 @@ func.func @test_qlinearconv_weight_per_channel_quantization(%arg0: !torch.vtenso
   // CHECK:           %[[VAL_30:.*]] = torch.aten.sub.Tensor %[[F32_WEIGHT]], %[[WEIGHT_ZP]], %float1.000000e00 : !torch.vtensor<[64,3,7,7],f32>, !torch.vtensor<[64,1,1,1],si8>, !torch.float -> !torch.vtensor<[64,3,7,7],f32>
   // CHECK:           %[[DEQUANT_WEIGHT:.*]] = torch.aten.mul.Tensor %[[VAL_30]], %[[WEIGHT_SCALE]] : !torch.vtensor<[64,3,7,7],f32>, !torch.vtensor<[64,1,1,1],f32> -> !torch.vtensor<[64,3,7,7],f32>
   // CHECK:           %[[F32_BIAS:.*]] = torch.aten.to.dtype %arg8, %[[F32DTYPE]], %[[FALSE]], %[[FALSE]], %[[NONE]] : !torch.vtensor<[64],si32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[64],f32>
+  // CHECK:           %[[BIAS_WSCALE:.*]] = torch.aten.mul.Tensor %[[F32_BIAS]], %arg4 : !torch.vtensor<[64],f32>, !torch.vtensor<[64],f32> -> !torch.vtensor<[64],f32>
+  // CHECK:           %[[DEQUANT_BIAS:.*]] = torch.aten.mul.Scalar %[[BIAS_WSCALE]], %[[INPUT_SCALE]] : !torch.vtensor<[64],f32>, !torch.float -> !torch.vtensor<[64],f32>
   // CHECK:           %[[VAL_33:.*]] = torch.constant.int 3
   // CHECK:           %[[VAL_34:.*]] = torch.constant.int 3
   // CHECK:           %[[VAL_40:.*]] = torch.constant.int 0
@@ -226,7 +228,7 @@ func.func @test_qlinearconv_weight_per_channel_quantization(%arg0: !torch.vtenso
   // CHECK:           %[[STRIDE:.*]] = torch.prim.ListConstruct %[[VAL_40]], %[[VAL_40]] : (!torch.int, !torch.int) -> !torch.list<int>
   // CHECK:           %[[TRANSPOSED:.*]] = torch.constant.bool false
   // CHECK:           %[[GROUPS:.*]] = torch.constant.int 1
-  // CHECK:           %[[CONV:.*]] = torch.aten.convolution %[[DEQUANT_INPUT]], %[[DEQUANT_WEIGHT]], %[[F32_BIAS]], %[[DILATION]], %[[PAD]], %[[KERNEL]], %[[TRANSPOSED]], %[[STRIDE]], %[[GROUPS]] : !torch.vtensor<[?,3,224,224],f32>, !torch.vtensor<[64,3,7,7],f32>, !torch.vtensor<[64],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[?,64,112,112],f32>
+  // CHECK:           %[[CONV:.*]] = torch.aten.convolution %[[DEQUANT_INPUT]], %[[DEQUANT_WEIGHT]], %[[DEQUANT_BIAS]], %[[DILATION]], %[[PAD]], %[[KERNEL]], %[[TRANSPOSED]], %[[STRIDE]], %[[GROUPS]] : !torch.vtensor<[?,3,224,224],f32>, !torch.vtensor<[64,3,7,7],f32>, !torch.vtensor<[64],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[?,64,112,112],f32>
   // CHECK:           %[[DTYPE:.*]] = torch.constant.int 13
   // CHECK:           %[[QUANT:.*]] = torch.aten.quantize_per_tensor %[[CONV]], %[[OUTPUT_SCALE]], %[[OUTPUT_ZP]], %[[DTYPE]] : !torch.vtensor<[?,64,112,112],f32>, !torch.float, !torch.int, !torch.int -> !torch.vtensor<[?,64,112,112],!torch.quint8>
   // CHECK:           %[[OUTPUT:.*]] = torch.aten.int_repr %[[QUANT]] : !torch.vtensor<[?,64,112,112],!torch.quint8> -> !torch.vtensor<[?,64,112,112],ui8>
