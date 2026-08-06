@@ -4,6 +4,8 @@
 # Also available under a BSD-style license. See LICENSE.
 
 import ctypes
+import struct
+
 import numpy as np
 
 from torch_mlir.ir import *
@@ -62,6 +64,31 @@ elemental_type_to_ctype = {
 CONSUME_RETURN_FUNC_PREFIX = "refbackend_consume_func_return_"
 
 
+def _trunc_f32_to_bf16(value):
+    bits = struct.unpack("=I", struct.pack("=f", value))[0]
+    upper = bits >> 16
+    lower = bits & 0xFFFF
+
+    # Preserve NaNs and force the destination quiet-NaN bit.
+    if bits & 0x7F800000 == 0x7F800000 and bits & 0x007FFFFF:
+        return upper | 0x40
+
+    # Round to nearest, ties to even.
+    if lower > 0x8000 or (lower == 0x8000 and upper & 1):
+        upper += 1
+    return upper & 0xFFFF
+
+
+def _trunc_f32_to_bf16_abi(value):
+    bits = _trunc_f32_to_bf16(value)
+    return struct.unpack("=f", struct.pack("=I", bits))[0]
+
+
+def _extend_bf16_to_f32_abi(value):
+    carrier_bits = struct.unpack("=I", struct.pack("=f", value))[0]
+    return struct.unpack("=f", struct.pack("=I", (carrier_bits & 0xFFFF) << 16))[0]
+
+
 def get_return_funcs(module):
     return_prefix_len = len(CONSUME_RETURN_FUNC_PREFIX)
     return_funcs = []
@@ -94,6 +121,19 @@ class RefBackendInvoker:
     def __init__(self, module):
         self.ee = ExecutionEngine(module)
         self.result = None
+
+        self._builtin_callbacks = [
+            ctypes.CFUNCTYPE(ctypes.c_float, ctypes.c_float)(_trunc_f32_to_bf16_abi),
+            ctypes.CFUNCTYPE(ctypes.c_float, ctypes.c_float)(_extend_bf16_to_f32_abi),
+        ]
+        self.ee.raw_register_runtime(
+            "__truncsfbf2",
+            ctypes.cast(self._builtin_callbacks[0], ctypes.c_void_p),
+        )
+        self.ee.raw_register_runtime(
+            "__extendbfsf2",
+            ctypes.cast(self._builtin_callbacks[1], ctypes.c_void_p),
+        )
 
         return_funcs = get_return_funcs(module)
 

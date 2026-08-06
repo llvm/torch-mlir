@@ -145,3 +145,26 @@ class TensorToBool(torch.nn.Module):
 @register_test_case(module_factory=lambda: TensorToBool())
 def TensorToBool_basic(module, tu: TestUtils):
     module.forward(torch.tensor([[1]], dtype=torch.bool))
+
+
+# ==============================================================================
+
+
+class TensorToBFloat16(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float16, True),
+        ]
+    )
+    def forward(self, x):
+        return x.to(torch.bfloat16).to(torch.float32)
+
+
+@register_test_case(module_factory=lambda: TensorToBFloat16())
+def TensorToBFloat16_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, low=-10, high=10).to(torch.float16))
