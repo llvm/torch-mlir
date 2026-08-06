@@ -1030,6 +1030,18 @@ func.func @torch.aten.permute$basic(%arg0: !torch.vtensor<[3,4,2],f32> ) -> !tor
 
 // -----
 
+// CHECK-LABEL:   func.func @torch.aten.permute$rank_zero(
+// CHECK-SAME:                                                %[[ARG0:.*]]: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
+// CHECK-NOT:       tosa.transpose
+// CHECK:           return %[[ARG0]] : !torch.vtensor<[],f32>
+func.func @torch.aten.permute$rank_zero(%arg0: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f32> {
+  %dims = torch.prim.ListConstruct : () -> !torch.list<int>
+  %0 = torch.aten.permute %arg0, %dims : !torch.vtensor<[],f32>, !torch.list<int> -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.bitwise_and.Tensor$basic(
 // CHECK-SAME:                                              %[[VAL_0:.*]]: !torch.vtensor<[?,?],si32>,
 // CHECK-SAME:                                              %[[VAL_1:.*]]: !torch.vtensor<[?,?],si32>) -> !torch.vtensor<[?,?],si32> {
@@ -2190,9 +2202,9 @@ func.func @torch.aten.__interpolate$dynamic_input(%arg0: !torch.vtensor<[1,16,?,
 // CHECK-SAME:                                     %[[VAL_0:.*]]: !torch.vtensor<[2,4],si32>) -> !torch.vtensor<[2,4],si32> {
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[2,4],si32> -> tensor<2x4xi32>
 // CHECK:           %[[VAL_2:.*]] = torch.constant.int 1
-// CHECK:           %[[VAL_3:.*]] = "tosa.const"() <{values = dense<{{\[\[}}1, 1, 0, 0], [1, 1, 1, 0]]> : tensor<2x4xi32>}> : () -> tensor<2x4xi32>
-// CHECK:           %[[VAL_4:.*]] = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
-// CHECK:           %[[VAL_5:.*]] = tosa.mul %[[VAL_1]], %[[VAL_3]], %[[VAL_4]] : (tensor<2x4xi32>, tensor<2x4xi32>, tensor<1xi8>) -> tensor<2x4xi32>
+// CHECK:           %[[VAL_3:.*]] = "tosa.const"() <{values = dense<{{\[\[}}true, true, false, false], [true, true, true, false]]> : tensor<2x4xi1>}> : () -> tensor<2x4xi1>
+// CHECK:           %[[VAL_4:.*]] = "tosa.const"() <{values = dense<0> : tensor<2x4xi32>}> : () -> tensor<2x4xi32>
+// CHECK:           %[[VAL_5:.*]] = tosa.select %[[VAL_3]], %[[VAL_1]], %[[VAL_4]] : (tensor<2x4xi1>, tensor<2x4xi32>, tensor<2x4xi32>) -> tensor<2x4xi32>
 // CHECK:           %[[VAL_6:.*]] = torch_c.from_builtin_tensor %[[VAL_5]] : tensor<2x4xi32> -> !torch.vtensor<[2,4],si32>
 // CHECK:           return %[[VAL_6]] : !torch.vtensor<[2,4],si32>
 // CHECK:         }
@@ -2208,9 +2220,9 @@ func.func @torch.aten.tril$basic(%arg0: !torch.vtensor<[2,4], si32>) -> !torch.v
 // CHECK-SAME:                                     %[[VAL_0:.*]]: !torch.vtensor<[2,4],si32>) -> !torch.vtensor<[2,4],si32> {
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[2,4],si32> -> tensor<2x4xi32>
 // CHECK:           %[[VAL_2:.*]] = torch.constant.int 1
-// CHECK:           %[[VAL_3:.*]] = "tosa.const"() <{values = dense<{{\[\[}}0, 1, 1, 1], [0, 0, 1, 1]]> : tensor<2x4xi32>}> : () -> tensor<2x4xi32>
-// CHECK:           %[[VAL_4:.*]] = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
-// CHECK:           %[[VAL_5:.*]] = tosa.mul %[[VAL_1]], %[[VAL_3]], %[[VAL_4]] : (tensor<2x4xi32>, tensor<2x4xi32>, tensor<1xi8>) -> tensor<2x4xi32>
+// CHECK:           %[[VAL_3:.*]] = "tosa.const"() <{values = dense<{{\[\[}}false, true, true, true], [false, false, true, true]]> : tensor<2x4xi1>}> : () -> tensor<2x4xi1>
+// CHECK:           %[[VAL_4:.*]] = "tosa.const"() <{values = dense<0> : tensor<2x4xi32>}> : () -> tensor<2x4xi32>
+// CHECK:           %[[VAL_5:.*]] = tosa.select %[[VAL_3]], %[[VAL_1]], %[[VAL_4]] : (tensor<2x4xi1>, tensor<2x4xi32>, tensor<2x4xi32>) -> tensor<2x4xi32>
 // CHECK:           %[[VAL_6:.*]] = torch_c.from_builtin_tensor %[[VAL_5]] : tensor<2x4xi32> -> !torch.vtensor<[2,4],si32>
 // CHECK:           return %[[VAL_6]] : !torch.vtensor<[2,4],si32>
 // CHECK:         }
@@ -2218,6 +2230,26 @@ func.func @torch.aten.triu$basic(%arg0: !torch.vtensor<[2,4], si32>) -> !torch.v
   %int1 = torch.constant.int 1
   %0 = torch.aten.triu %arg0, %int1 : !torch.vtensor<[2,4],si32>, !torch.int -> !torch.vtensor<[2,4],si32>
   return %0 : !torch.vtensor<[2,4],si32>
+}
+
+// -----
+
+// Verify float triu uses tosa.select (not tosa.mul) so NaN inputs are masked to
+// 0.0 rather than propagated.
+// CHECK-LABEL:   func.func @torch.aten.triu$float(
+// CHECK-SAME:                                      %[[VAL_0:.*]]: !torch.vtensor<[2,4],f32>) -> !torch.vtensor<[2,4],f32> {
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[2,4],f32> -> tensor<2x4xf32>
+// CHECK:           %[[VAL_2:.*]] = torch.constant.int 0
+// CHECK:           %[[VAL_3:.*]] = "tosa.const"() <{values = dense<{{\[\[}}true, true, true, true], [false, true, true, true]]> : tensor<2x4xi1>}> : () -> tensor<2x4xi1>
+// CHECK:           %[[VAL_4:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<2x4xf32>}> : () -> tensor<2x4xf32>
+// CHECK:           %[[VAL_5:.*]] = tosa.select %[[VAL_3]], %[[VAL_1]], %[[VAL_4]] : (tensor<2x4xi1>, tensor<2x4xf32>, tensor<2x4xf32>) -> tensor<2x4xf32>
+// CHECK:           %[[VAL_6:.*]] = torch_c.from_builtin_tensor %[[VAL_5]] : tensor<2x4xf32> -> !torch.vtensor<[2,4],f32>
+// CHECK:           return %[[VAL_6]] : !torch.vtensor<[2,4],f32>
+// CHECK:         }
+func.func @torch.aten.triu$float(%arg0: !torch.vtensor<[2,4], f32>) -> !torch.vtensor<[2,4], f32> {
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.triu %arg0, %int0 : !torch.vtensor<[2,4],f32>, !torch.int -> !torch.vtensor<[2,4],f32>
+  return %0 : !torch.vtensor<[2,4],f32>
 }
 
 // -----
@@ -2816,6 +2848,47 @@ func.func @torch.aten.index_select(%arg0: !torch.vtensor<[4,5,6],f32>, %arg1: !t
   %int2 = torch.constant.int 2
   %0 = torch.aten.index_select %arg0, %int2, %arg1 : !torch.vtensor<[4,5,6],f32>, !torch.int, !torch.vtensor<[2],si64> -> !torch.vtensor<[4,5,2],f32>
   return %0 : !torch.vtensor<[4,5,2],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.embedding$forward_flags(
+// CHECK-SAME:        %[[WEIGHT:.*]]: !torch.vtensor<[5,5],f32>,
+// CHECK-SAME:        %[[INDICES:.*]]: !torch.vtensor<[2,2],si64>) -> (!torch.vtensor<[2,2,5],f32>, !torch.vtensor<[2,2,5],f32>) {
+// CHECK:           %[[INDICES_BUILTIN:.*]] = torch_c.to_builtin_tensor %[[INDICES]] : !torch.vtensor<[2,2],si64> -> tensor<2x2xi64>
+// CHECK:           %[[WEIGHT_BUILTIN:.*]] = torch_c.to_builtin_tensor %[[WEIGHT]] : !torch.vtensor<[5,5],f32> -> tensor<5x5xf32>
+// CHECK:           %[[PADDING_IDX:.*]] = torch.constant.int -1
+// CHECK:           %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:           %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           %[[SCALE_WEIGHT_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 5, 5]> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK:           %[[SCALE_WEIGHT:.*]] = tosa.reshape %[[WEIGHT_BUILTIN]], %[[SCALE_WEIGHT_SHAPE]] : (tensor<5x5xf32>, !tosa.shape<3>) -> tensor<1x5x5xf32>
+// CHECK:           %[[SCALE_INDICES_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 4]> : tensor<2xindex>} : () -> !tosa.shape<2>
+// CHECK:           %[[SCALE_INDICES_I64:.*]] = tosa.reshape %[[INDICES_BUILTIN]], %[[SCALE_INDICES_SHAPE]] : (tensor<2x2xi64>, !tosa.shape<2>) -> tensor<1x4xi64>
+// CHECK:           %[[SCALE_INDICES_I32:.*]] = tosa.cast %[[SCALE_INDICES_I64]] : (tensor<1x4xi64>) -> tensor<1x4xi32>
+// CHECK:           %[[SCALE_GATHER:.*]] = tosa.gather %[[SCALE_WEIGHT]], %[[SCALE_INDICES_I32]] : (tensor<1x5x5xf32>, tensor<1x4xi32>) -> tensor<1x4x5xf32>
+// CHECK:           %[[SCALE_RESULT_SHAPE:.*]] = tosa.const_shape  {values = dense<[2, 2, 5]> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK:           %[[SCALE_RESULT_BUILTIN:.*]] = tosa.reshape %[[SCALE_GATHER]], %[[SCALE_RESULT_SHAPE]] : (tensor<1x4x5xf32>, !tosa.shape<3>) -> tensor<2x2x5xf32>
+// CHECK:           %[[SCALE_RESULT:.*]] = torch_c.from_builtin_tensor %[[SCALE_RESULT_BUILTIN]] : tensor<2x2x5xf32> -> !torch.vtensor<[2,2,5],f32>
+// CHECK:           %[[SPARSE_WEIGHT_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 5, 5]> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK:           %[[SPARSE_WEIGHT:.*]] = tosa.reshape %[[WEIGHT_BUILTIN]], %[[SPARSE_WEIGHT_SHAPE]] : (tensor<5x5xf32>, !tosa.shape<3>) -> tensor<1x5x5xf32>
+// CHECK:           %[[SPARSE_INDICES_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 4]> : tensor<2xindex>} : () -> !tosa.shape<2>
+// CHECK:           %[[SPARSE_INDICES_I64:.*]] = tosa.reshape %[[INDICES_BUILTIN]], %[[SPARSE_INDICES_SHAPE]] : (tensor<2x2xi64>, !tosa.shape<2>) -> tensor<1x4xi64>
+// CHECK:           %[[SPARSE_INDICES_I32:.*]] = tosa.cast %[[SPARSE_INDICES_I64]] : (tensor<1x4xi64>) -> tensor<1x4xi32>
+// CHECK:           %[[SPARSE_GATHER:.*]] = tosa.gather %[[SPARSE_WEIGHT]], %[[SPARSE_INDICES_I32]] : (tensor<1x5x5xf32>, tensor<1x4xi32>) -> tensor<1x4x5xf32>
+// CHECK:           %[[SPARSE_RESULT_SHAPE:.*]] = tosa.const_shape  {values = dense<[2, 2, 5]> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK:           %[[SPARSE_RESULT_BUILTIN:.*]] = tosa.reshape %[[SPARSE_GATHER]], %[[SPARSE_RESULT_SHAPE]] : (tensor<1x4x5xf32>, !tosa.shape<3>) -> tensor<2x2x5xf32>
+// CHECK:           %[[SPARSE_RESULT:.*]] = torch_c.from_builtin_tensor %[[SPARSE_RESULT_BUILTIN]] : tensor<2x2x5xf32> -> !torch.vtensor<[2,2,5],f32>
+// CHECK:           return %[[SCALE_RESULT]], %[[SPARSE_RESULT]] : !torch.vtensor<[2,2,5],f32>, !torch.vtensor<[2,2,5],f32>
+func.func @torch.aten.embedding$forward_flags(
+    %weight: !torch.vtensor<[5,5],f32>,
+    %indices: !torch.vtensor<[2,2],si64>)
+    -> (!torch.vtensor<[2,2,5],f32>, !torch.vtensor<[2,2,5],f32>) {
+  %int-1 = torch.constant.int -1
+  %false = torch.constant.bool false
+  %true = torch.constant.bool true
+  %scale_grad_by_freq = torch.aten.embedding %weight, %indices, %int-1, %true, %false : !torch.vtensor<[5,5],f32>, !torch.vtensor<[2,2],si64>, !torch.int, !torch.bool, !torch.bool -> !torch.vtensor<[2,2,5],f32>
+  %sparse = torch.aten.embedding %weight, %indices, %int-1, %false, %true : !torch.vtensor<[5,5],f32>, !torch.vtensor<[2,2],si64>, !torch.int, !torch.bool, !torch.bool -> !torch.vtensor<[2,2,5],f32>
+  return %scale_grad_by_freq, %sparse : !torch.vtensor<[2,2,5],f32>, !torch.vtensor<[2,2,5],f32>
 }
 
 // -----
