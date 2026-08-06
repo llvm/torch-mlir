@@ -2845,6 +2845,12 @@ LTC_XFAIL_SET = {
 }
 
 ONNX_XFAIL_SET = {
+    # The ONNX test configuration replaces annotated integer inputs with
+    # zero-filled placeholders. Their sums do not match these tests' fixed
+    # nonzero output_size values, so eager repeat_interleave rejects them
+    # before ONNX export.
+    "RepeatInterleaveTensorInt64Module_basic",
+    "RepeatInterleaveTensorModule_basic",
     # ONNX export applies explicit offset to materialized slice storage.
     "AtenAsStridedAfterAliasDetachModule_basic",
     # ONNX transpose materializes movedim before gather, so indexing uses new storage.
@@ -3394,12 +3400,6 @@ ONNX_XFAIL_SET = {
     "ReshapeAliasCollapseModule_basic",
     "ReshapeAliasExpandModule_basic",
     "ReshapeExpandModule_basic",
-    # The ONNX test configuration replaces annotated integer inputs with
-    # zero-filled placeholders. Their sums do not match these tests' fixed
-    # nonzero output_size values, so eager repeat_interleave rejects them
-    # before ONNX export.
-    "RepeatInterleaveTensorInt64Module_basic",
-    "RepeatInterleaveTensorModule_basic",
     "Rot90DynamicDimsModule_basic",
     "SafeSoftmaxModule_basic",
     "SafeSoftmaxNonNoneDtypeModule_basic",
