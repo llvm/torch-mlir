@@ -2848,8 +2848,6 @@ LTC_XFAIL_SET = {
 
 ONNX_XFAIL_SET = {
     # PyTorch's ONNX exporter does not support aten::addbmm.
-    "AddbmmBetaZeroNonFiniteInputModule_basic",
-    # PyTorch's ONNX exporter does not support aten::addbmm.
     "AddbmmWithAlphaBetaModule_basic",
     # ONNX export applies explicit offset to materialized slice storage.
     "AtenAsStridedAfterAliasDetachModule_basic",
