@@ -3,6 +3,9 @@ name: pre-commit
 on:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   pre-commit:
     runs-on: ubuntu-22.04

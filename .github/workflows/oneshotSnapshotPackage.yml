@@ -4,6 +4,9 @@ name: Release oneshot snapshot package
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   release_snapshot_package:
     name: "Tag snapshot release"
