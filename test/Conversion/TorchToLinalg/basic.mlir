@@ -1121,3 +1121,57 @@ func.func @torch.aten.cat$rank1_empty(%arg0: !torch.vtensor<[1,8,?,128],f16>, %a
   %1 = torch.aten.cat %0, %int-2 : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[1,8,?,128],f16>
   return %1 : !torch.vtensor<[1,8,?,128],f16>
 }
+
+// -----
+// CHECK-LABEL: func.func @torch.aten.max$bool
+// CHECK:         %[[INIT:.+]] = arith.constant false
+// CHECK:         linalg.fill ins(%[[INIT]] : i1)
+// CHECK:         linalg.generic
+// CHECK:         ^bb0(%[[IN:.+]]: i1, %[[OUT:.+]]: i1):
+// CHECK-NEXT:      %[[RES:.+]] = arith.maxui %[[IN]], %[[OUT]] : i1
+func.func @torch.aten.max$bool(%arg0: !torch.vtensor<[4],i1>) -> !torch.vtensor<[],i1> {
+  %0 = torch.aten.max %arg0 : !torch.vtensor<[4],i1> -> !torch.vtensor<[],i1>
+  return %0 : !torch.vtensor<[],i1>
+}
+
+// -----
+// CHECK-LABEL: func.func @torch.aten.min$bool
+// CHECK:         %[[INIT:.+]] = arith.constant true
+// CHECK:         linalg.fill ins(%[[INIT]] : i1)
+// CHECK:         linalg.generic
+// CHECK:         ^bb0(%[[IN:.+]]: i1, %[[OUT:.+]]: i1):
+// CHECK-NEXT:      %[[RES:.+]] = arith.minui %[[IN]], %[[OUT]] : i1
+func.func @torch.aten.min$bool(%arg0: !torch.vtensor<[4],i1>) -> !torch.vtensor<[],i1> {
+  %0 = torch.aten.min %arg0 : !torch.vtensor<[4],i1> -> !torch.vtensor<[],i1>
+  return %0 : !torch.vtensor<[],i1>
+}
+
+// -----
+// CHECK-LABEL: func.func @torch.aten.max.dim$bool
+// CHECK:         %[[INIT:.+]] = arith.constant false
+// CHECK:         linalg.fill ins(%[[INIT]] : i1)
+// CHECK:         linalg.generic
+// CHECK:         ^bb0(%[[IN:.+]]: i1, {{.*}}: i1, {{.*}}: i64):
+// CHECK:           arith.maxui %[[IN]], {{.*}} : i1
+// CHECK:           arith.cmpi ugt, {{.*}} : i1
+func.func @torch.aten.max.dim$bool(%arg0: !torch.vtensor<[3,4],i1>) -> !torch.vtensor<[3],i1> {
+  %false = torch.constant.bool false
+  %int1 = torch.constant.int 1
+  %values, %indices = torch.aten.max.dim %arg0, %int1, %false : !torch.vtensor<[3,4],i1>, !torch.int, !torch.bool -> !torch.vtensor<[3],i1>, !torch.vtensor<[3],si64>
+  return %values : !torch.vtensor<[3],i1>
+}
+
+// -----
+// CHECK-LABEL: func.func @torch.aten.min.dim$bool
+// CHECK:         %[[INIT:.+]] = arith.constant true
+// CHECK:         linalg.fill ins(%[[INIT]] : i1)
+// CHECK:         linalg.generic
+// CHECK:         ^bb0(%[[IN:.+]]: i1, {{.*}}: i1, {{.*}}: i64):
+// CHECK:           arith.minui %[[IN]], {{.*}} : i1
+// CHECK:           arith.cmpi ult, {{.*}} : i1
+func.func @torch.aten.min.dim$bool(%arg0: !torch.vtensor<[3,4],i1>) -> !torch.vtensor<[3],i1> {
+  %false = torch.constant.bool false
+  %int1 = torch.constant.int 1
+  %values, %indices = torch.aten.min.dim %arg0, %int1, %false : !torch.vtensor<[3,4],i1>, !torch.int, !torch.bool -> !torch.vtensor<[3],i1>, !torch.vtensor<[3],si64>
+  return %values : !torch.vtensor<[3],i1>
+}
