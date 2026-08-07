@@ -3338,11 +3338,8 @@ ONNX_XFAIL_SET = {
     "TriuIndicesAllZerosModule_basic",
 }
 
-if torch_version_for_comparison() >= version.parse(
-    "2.13.0"
-) and torch_version_for_comparison() < version.parse("2.14.0.dev"):
-    # The PyTorch 2.13 ONNX exporter supports aten::addbmm, while the current
-    # 2.14 nightly exporter does not.
+if torch_version_for_comparison() >= version.parse("2.13.0"):
+    # PyTorch 2.13 and newer ONNX exporters support this addbmm case.
     ONNX_XFAIL_SET = ONNX_XFAIL_SET - {
         "AddbmmWithAlphaBetaModule_basic",
     }
