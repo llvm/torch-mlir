@@ -911,6 +911,34 @@ def aten〇mv〡shape(self: List[int], vec: List[int]) -> List[int]:
 def aten〇mm〡shape(self: List[int], mat2: List[int]) -> List[int]:
     return upstream_shape_functions.mm(self, mat2)
 
+@check_shape_function(
+    [
+        Invocation(
+            TensorOfShape(4, 8, dtype=torch.bfloat16),
+            TensorOfShape(3, 8, 8, dtype=torch.bfloat16),
+            TensorOfShape(3, dtype=torch.int32),
+        ),
+        ErrorInvocation(
+            TensorOfShape(4, 7, dtype=torch.bfloat16),
+            TensorOfShape(3, 8, 8, dtype=torch.bfloat16),
+            TensorOfShape(3, dtype=torch.int32),
+        ),
+        ErrorInvocation(
+            TensorOfShape(4, 8, dtype=torch.bfloat16),
+            TensorOfShape(3, 8, 8, dtype=torch.bfloat16),
+            TensorOfShape(2, dtype=torch.int32),
+        ),
+    ]
+)
+def aten〇_grouped_mm〡shape(self: List[int], mat2: List[int], offs: Optional[List[int]] = None, bias: Optional[List[int]] = None, out_dtype: Optional[int] = None) -> List[int]:
+    assert len(self) == 2
+    assert len(mat2) == 3
+    assert offs is not None and len(offs) == 1
+    assert bias is None
+    assert self[1] == mat2[1]
+    assert offs[0] == mat2[0]
+    return [self[0], mat2[2]]
+
 @check_shape_function([
     Invocation(
         TensorOfShape(128, 128, dtype=torch.float8_e4m3fn),
@@ -4787,6 +4815,36 @@ def aten〇mm〡dtype(self_rank_dtype: Tuple[int, int], mat2_rank_dtype: Tuple[i
     ranks: List[Optional[int]] = [self_rank, mat2_rank]
     dtypes = [self_dtype, mat2_dtype]
     return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(
+    [
+        Invocation(
+            TensorOfShape(4, 8, dtype=torch.bfloat16),
+            TensorOfShape(3, 8, 8, dtype=torch.bfloat16),
+            TensorOfShape(3, dtype=torch.int32),
+        ),
+        ErrorInvocation(
+            TensorOfShape(4, 8, dtype=torch.bfloat16),
+            TensorOfShape(3, 8, 8, dtype=torch.bfloat16),
+            TensorOfShape(3, dtype=torch.int64),
+        ),
+    ]
+)
+def aten〇_grouped_mm〡dtype(self_rank_dtype: Tuple[int, int], mat2_rank_dtype: Tuple[int, int], offs_rank_dtype: Optional[Tuple[int, int]] = None, bias_rank_dtype: Optional[Tuple[int, int]] = None, out_dtype: Optional[int] = None) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    mat2_rank, mat2_dtype = mat2_rank_dtype
+    assert self_rank == 2
+    assert mat2_rank == 3
+    assert offs_rank_dtype is not None
+    offs_rank, offs_dtype = offs_rank_dtype
+    assert offs_rank == 1
+    assert offs_dtype == torch.int32
+    assert self_dtype == mat2_dtype
+    assert bias_rank_dtype is None
+    if out_dtype is not None:
+        assert out_dtype == torch.bfloat16
+        return out_dtype
+    return self_dtype
 
 @check_dtype_function([
     Invocation(

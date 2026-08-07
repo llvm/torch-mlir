@@ -1081,6 +1081,34 @@ def AtenLinear3DBias_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class AtenGroupedMm2D3DOffsetsModule(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 8], torch.float32, True),
+            ([3, 8, 8], torch.float32, True),
+            ([3], torch.int32, True),
+        ]
+    )
+    def forward(self, input, weight, offsets):
+        input = input.to(torch.bfloat16)
+        weight = weight.to(torch.bfloat16)
+        return torch.ops.aten._grouped_mm(input, weight, offsets).to(torch.float32)
+
+
+@register_test_case(module_factory=lambda: AtenGroupedMm2D3DOffsetsModule())
+def AtenGroupedMm2D3DOffsetsModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(4, 8),
+        tu.rand(3, 8, 8),
+        torch.tensor([1, 1, 3], dtype=torch.int32),
+    )
+
+
+# ==============================================================================
+
+
 class AtenBilinear2DBiasModule(torch.nn.Module):
     @export
     @annotate_args(

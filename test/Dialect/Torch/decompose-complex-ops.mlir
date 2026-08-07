@@ -215,6 +215,29 @@ func.func @test_aten_bilinear_decompose_no_bias(%arg0: !torch.vtensor<[6,2],f32>
 
 // -----
 
+// CHECK-LABEL: test_aten_grouped_mm_decompose
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[4,1024],f32>, %[[WEIGHT:.*]]: !torch.vtensor<[16,1024,512],f32>, %[[OFFSETS:.*]]: !torch.vtensor<[16],si32>
+func.func @test_aten_grouped_mm_decompose(%input: !torch.vtensor<[4,1024],f32>, %weight: !torch.vtensor<[16,1024,512],f32>, %offsets: !torch.vtensor<[16],si32>) -> !torch.vtensor<[4,512],f32> {
+  // CHECK-NOT: torch.aten._grouped_mm
+  // CHECK: %[[INITIAL:.*]] = torch.vtensor.literal(dense<0.000000e+00> : tensor<4x512xf32>)
+  // CHECK: %[[LOOP:.*]]:2 = torch.prim.Loop {{.*}} init(%[[INITIAL]]
+  // CHECK: %[[OFFSET_SLICE:.*]] = torch.aten.slice.Tensor %[[OFFSETS]]
+  // CHECK: %[[OFFSET:.*]] = torch.aten.squeeze.dim %[[OFFSET_SLICE]]
+  // CHECK: %[[END:.*]] = torch.aten.item %[[OFFSET]]
+  // CHECK: %[[INPUT_SLICE:.*]] = torch.aten.slice.Tensor %[[INPUT]]
+  // CHECK: %[[WEIGHT_SLICE:.*]] = torch.aten.slice.Tensor %[[WEIGHT]]
+  // CHECK: %[[WEIGHT_MATRIX:.*]] = torch.aten.squeeze.dim %[[WEIGHT_SLICE]]
+  // CHECK: %[[PARTIAL:.*]] = torch.aten.mm %[[INPUT_SLICE]], %[[WEIGHT_MATRIX]]
+  // CHECK: torch.aten.slice_scatter {{.*}}, %[[PARTIAL]]
+  // CHECK: torch.prim.Loop.condition
+  // CHECK: return %[[LOOP]]#0
+  %none = torch.constant.none
+  %0 = torch.aten._grouped_mm %input, %weight, %offsets, %none, %none : !torch.vtensor<[4,1024],f32>, !torch.vtensor<[16,1024,512],f32>, !torch.vtensor<[16],si32>, !torch.none, !torch.none -> !torch.vtensor<[4,512],f32>
+  return %0 : !torch.vtensor<[4,512],f32>
+}
+
+// -----
+
 // CHECK:   func.func @torch.aten.fmod_int(%[[ARG0:.+]]: !torch.vtensor<[?],si32>, %[[ARG1:.+]]: !torch.vtensor<[1],si32>) -> !torch.vtensor<[?],si32> {
 // CHECK:     %[[FLOAT1:.+]] = torch.constant.float 1.000000e+00
 // CHECK:     %[[V0:.+]] = torch.aten.div.Tensor %[[ARG0]], %[[ARG1]] : !torch.vtensor<[?],si32>, !torch.vtensor<[1],si32> -> !torch.vtensor<[?],si32>
