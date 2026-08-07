@@ -1000,6 +1000,10 @@ def aten〇repeat_interleave〇self_int〡shape(self: List[int], repeats: int, d
         out = self[:dim] + [self[dim] * repeats] + self[dim + 1:]
         return out
 
+def aten〇repeat_interleave〇Tensor〡shape(repeats: List[int], output_size: Optional[int] = None) -> List[int]:
+    assert output_size is not None
+    return [output_size]
+
 
 @check_shape_function([
     Invocation(TensorOfShape(3, 2, 8), [2, 2]),  # dims_length < self_length
@@ -3925,6 +3929,10 @@ def aten〇repeat〡dtype(self_rank_dtype: Tuple[int, int], repeats: List[int]) 
 def aten〇repeat_interleave〇self_int〡dtype(self_rank_dtype: Tuple[int, int], repeats: int, dim: Optional[int] = None, output_size: Optional[int] = None) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
+
+def aten〇repeat_interleave〇Tensor〡dtype(repeats_rank_dtype: Tuple[int, int], output_size: Optional[int] = None) -> int:
+    repeats_rank, repeats_dtype = repeats_rank_dtype
+    return repeats_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dims=[1]))
 def aten〇tile〡dtype(self_rank_dtype: Tuple[int, int], dims: List[int]) -> int:
