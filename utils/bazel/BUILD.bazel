@@ -2,7 +2,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-load("@com_github_bazelbuild_buildtools//buildifier:def.bzl", "buildifier")
+load("@buildifier_prebuilt//:rules.bzl", "buildifier")
 
 package(
     default_visibility = ["//visibility:public"],
@@ -10,12 +10,29 @@ package(
 
 # Format bazel BUILD and .bzl files with a standard convention.
 # Invoke as `bazel run //utils/bazel:buildifier`
+# For checks alone, invoke as `bazel run @torch-mlir//:buildifier.check`
 #
 # This target is only available when torch-mlir is the root workspace (for
 # development). Downstream consumers using torch-mlir as a dependency don't
 # have the buildtools deps and use @torch-mlir which doesn't include this file.
 buildifier(
     name = "buildifier",
-    lint_mode = "fix",
+    exclude_patterns = [
+        "./.git/*",
+        "./externals/**/*",
+        "./mlir_venv/**/*",
+    ],
+    lint_mode = "warn",
     mode = "fix",
+)
+
+buildifier(
+    name = "buildifier.check",
+    exclude_patterns = [
+        "./.git/*",
+        "./externals/**/*",
+        "./mlir_venv/**/*",
+    ],
+    lint_mode = "warn",
+    mode = "check",
 )

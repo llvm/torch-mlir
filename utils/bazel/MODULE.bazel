@@ -1,0 +1,48 @@
+# This file is licensed under the Apache License v2.0 with LLVM Exceptions.
+# See https://llvm.org/LICENSE.txt for license information.
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+module(name = "torch-mlir-overlay")
+
+bazel_dep(name = "bazel_skylib", version = "1.8.2")
+bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "rules_cc", version = "0.2.18")
+bazel_dep(name = "rules_python", version = "1.7.0")
+bazel_dep(name = "rules_shell", version = "0.6.1")
+
+bazel_dep(name = "buildifier_prebuilt", version = "8.5.1.2", dev_dependency = True)
+
+# For LLVM
+bazel_dep(name = "zlib-ng", version = "2.3.3", repo_name = "llvm_zlib")
+bazel_dep(name = "zstd", version = "1.5.7", repo_name = "llvm_zstd")
+
+# For macOS
+bazel_dep(name = "apple_support", version = "2.5.4", repo_name = "build_bazel_apple_support")
+
+torch_mlir_repos_extension = use_extension(":extensions.bzl", "torch_mlir_repos_extension")
+use_repo(
+    torch_mlir_repos_extension,
+    "llvm-raw",
+    "stablehlo",
+    "torch-mlir-raw",
+)
+
+llvm_configure = use_repo_rule("@llvm-raw//utils/bazel:configure.bzl", "llvm_configure")
+
+llvm_configure(
+    name = "llvm-project",
+    targets = [
+        "X86",
+        "AArch64",
+        # The bazel dependency graph for mlir-opt fails to load (at the analysis step) without the NVPTX
+        # target in this list, because mlir/test:TestGPU depends on the //llvm:NVPTXCodeGen target,
+        # which is not defined unless this is included.
+        "NVPTX",
+    ],
+)
+
+torch_mlir_configure = use_repo_rule("@torch-mlir-raw//utils/bazel:configure.bzl", "torch_mlir_configure")
+
+torch_mlir_configure(
+    name = "torch-mlir",
+)

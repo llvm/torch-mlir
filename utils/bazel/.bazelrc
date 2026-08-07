@@ -2,15 +2,8 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-# Use legacy WORKSPACE-based dependencies (bzlmod disabled).
-common --noenable_bzlmod
-common --enable_workspace
-
-# Keep legacy runfiles layout for lit tests.
-test --legacy_external_runfiles
-
-build --action_env=CC=clang-16
-build --action_env=CXX=clang++-16
+build --action_env=CC=clang
+build --action_env=CXX=clang++
 build --cxxopt=-std=c++17
 build --host_cxxopt=-std=c++17
 build --cxxopt=-D_GLIBCXX_USE_CXX11_ABI=0
@@ -18,3 +11,15 @@ build --cxxopt=-U__GXX_ABI_VERSION
 build --cxxopt=-D__GXX_ABI_VERSION=1011
 build --cxxopt=-DPYBIND11_COMPILER_TYPE=\"_gcc\"
 build --cxxopt=-DMLIR_PYTHON_PACKAGE_PREFIX=torch_mlir.
+
+# Disabling runfiles links drastically increases performance in slow disk IO
+# situations Do not build runfile trees by default. If an execution strategy
+# relies on runfile symlink tree, the tree is created on-demand. See:
+# https://github.com/bazelbuild/bazel/issues/6627 and
+# https://github.com/bazelbuild/bazel/commit/03246077f948f2790a83520e7dccc2625650e6df
+build --nobuild_runfile_links
+
+# Enable header processing to verify that header-only libraries are
+# self-contained (for sub-projects that enable "parse_headers" feature).
+# See https://bazel.build/docs/bazel-and-cpp#toolchain-features
+build --process_headers_in_dependencies
