@@ -1,5 +1,69 @@
 // RUN: torch-mlir-opt -torch-decompose-complex-ops -split-input-file %s | FileCheck %s
 
+// CHECK-LABEL:   func.func @rms_norm_zero_extent
+// CHECK-NOT:       torch.aten.square
+// CHECK-NOT:       torch.aten.pow.Tensor_Scalar
+// CHECK-NOT:       torch.aten.mul.Tensor
+// CHECK:           return %arg0
+func.func @rms_norm_zero_extent(%arg0: !torch.vtensor<[0,1],f32>, %arg1: !torch.vtensor<[1],f32>) -> !torch.vtensor<[0,1],f32> {
+  %int1 = torch.constant.int 1
+  %shape = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %none = torch.constant.none
+  %0 = torch.aten.rms_norm %arg0, %shape, %arg1, %none : !torch.vtensor<[0,1],f32>, !torch.list<int>, !torch.vtensor<[1],f32>, !torch.none -> !torch.vtensor<[0,1],f32>
+  return %0 : !torch.vtensor<[0,1],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @rms_norm_zero_extent_decomposed_fp32
+// CHECK-NOT:       torch.aten.pow.Tensor_Scalar
+// CHECK-NOT:       torch.aten.mean.dim
+// CHECK-NOT:       torch.aten.rsqrt
+// CHECK-NOT:       torch.aten.mul.Tensor
+// CHECK:           return %arg0
+func.func @rms_norm_zero_extent_decomposed_fp32(%arg0: !torch.vtensor<[0,1],f32>, %arg1: !torch.vtensor<[1],f32>) -> !torch.vtensor<[0,1],f32> {
+  %int2 = torch.constant.int 2
+  %0 = torch.aten.pow.Tensor_Scalar %arg0, %int2 : !torch.vtensor<[0,1],f32>, !torch.int -> !torch.vtensor<[0,1],f32>
+  %int1 = torch.constant.int 1
+  %dims = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %true = torch.constant.bool true
+  %none = torch.constant.none
+  %1 = torch.aten.mean.dim %0, %dims, %true, %none : !torch.vtensor<[0,1],f32>, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[0,1],f32>
+  %2 = torch.aten.rsqrt %1 : !torch.vtensor<[0,1],f32> -> !torch.vtensor<[0,1],f32>
+  %3 = torch.aten.mul.Tensor %arg0, %2 : !torch.vtensor<[0,1],f32>, !torch.vtensor<[0,1],f32> -> !torch.vtensor<[0,1],f32>
+  %4 = torch.aten.mul.Tensor %3, %arg1 : !torch.vtensor<[0,1],f32>, !torch.vtensor<[1],f32> -> !torch.vtensor<[0,1],f32>
+  return %4 : !torch.vtensor<[0,1],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @rms_norm_zero_extent_decomposed_f16
+// CHECK-NOT:       torch.prims.convert_element_type
+// CHECK-NOT:       torch.aten.pow.Tensor_Scalar
+// CHECK-NOT:       torch.aten.mean.dim
+// CHECK-NOT:       torch.aten.rsqrt
+// CHECK-NOT:       torch.aten.mul.Tensor
+// CHECK:           return %arg0
+func.func @rms_norm_zero_extent_decomposed_f16(%arg0: !torch.vtensor<[0,1],f16>, %arg1: !torch.vtensor<[1],f16>) -> !torch.vtensor<[0,1],f16> {
+  %int6 = torch.constant.int 6
+  %0 = torch.prims.convert_element_type %arg0, %int6 : !torch.vtensor<[0,1],f16>, !torch.int -> !torch.vtensor<[0,1],f32>
+  %int2 = torch.constant.int 2
+  %1 = torch.aten.pow.Tensor_Scalar %0, %int2 : !torch.vtensor<[0,1],f32>, !torch.int -> !torch.vtensor<[0,1],f32>
+  %int1 = torch.constant.int 1
+  %dims = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %true = torch.constant.bool true
+  %none = torch.constant.none
+  %2 = torch.aten.mean.dim %1, %dims, %true, %none : !torch.vtensor<[0,1],f32>, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[0,1],f32>
+  %3 = torch.aten.rsqrt %2 : !torch.vtensor<[0,1],f32> -> !torch.vtensor<[0,1],f32>
+  %4 = torch.aten.mul.Tensor %0, %3 : !torch.vtensor<[0,1],f32>, !torch.vtensor<[0,1],f32> -> !torch.vtensor<[0,1],f32>
+  %5 = torch.aten.mul.Tensor %4, %arg1 : !torch.vtensor<[0,1],f32>, !torch.vtensor<[1],f16> -> !torch.vtensor<[0,1],f32>
+  %int5 = torch.constant.int 5
+  %6 = torch.prims.convert_element_type %5, %int5 : !torch.vtensor<[0,1],f32>, !torch.int -> !torch.vtensor<[0,1],f16>
+  return %6 : !torch.vtensor<[0,1],f16>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @matmul_no_decompose
 // CHECK:           torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[?,?,?,?,?],f32>, !torch.vtensor<[?,?,?],f32> -> !torch.tensor
 func.func @matmul_no_decompose(%arg0: !torch.vtensor<[?,?,?,?,?],f32>, %arg1: !torch.vtensor<[?,?,?],f32>) -> !torch.tensor {
