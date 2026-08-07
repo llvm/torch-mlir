@@ -6811,6 +6811,33 @@ def Torch_AtenAddmmOp : Torch_Op<"aten.addmm", [
   }];
 }
 
+def Torch_AtenAddbmmOp : Torch_Op<"aten.addbmm", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::addbmm : (Tensor, Tensor, Tensor, Scalar, Scalar) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$batch1,
+    AnyTorchTensorType:$batch2,
+    AnyTorchScalarType:$beta,
+    AnyTorchScalarType:$alpha
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult AtenAddbmmOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 5, 1);
+    }
+    void AtenAddbmmOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 5, 1);
+    }
+  }];
+}
+
 def Torch_AtenMatmulOp : Torch_Op<"aten.matmul", [
     AllowsTypeRefinement,
     HasValueSemantics,

@@ -962,6 +962,15 @@ def aten〇addmm〡shape(self: List[int], mat1: List[int], mat2: List[int], beta
     return upstream_shape_functions.addmm(self, mat1, mat2, beta, alpha)
 
 @check_shape_function([
+    Invocation(TensorOfShape(), TensorOfShape(5, 2, 9), TensorOfShape(5, 9, 7)),
+    Invocation(TensorOfShape(7), TensorOfShape(5, 2, 9), TensorOfShape(5, 9, 7)),
+    ErrorInvocation(TensorOfShape(1, 2, 7), TensorOfShape(5, 2, 9), TensorOfShape(5, 9, 7)),
+])
+def aten〇addbmm〡shape(self: List[int], batch1: List[int], batch2: List[int], beta: float = 1, alpha: float = 1) -> List[int]:
+    bmm_shape = upstream_shape_functions.bmm(batch1, batch2)
+    return upstream_shape_functions.expand(self, bmm_shape[1:])
+
+@check_shape_function([
     Invocation(TensorOfShape(2, 3, 4), TensorOfShape(2, 4, 5)), # Basic case.
     ErrorInvocation(TensorOfShape(2, 3, 7), TensorOfShape(2, 4, 5)), # mismatching contracting dimension.
     ErrorInvocation(TensorOfShape(7, 3, 4), TensorOfShape(2, 4, 5)), # mismatching batch dimension.
@@ -5159,6 +5168,17 @@ def aten〇addmm〡dtype(self_rank_dtype: Tuple[int, int], mat1_rank_dtype: Tupl
 
     ranks: List[Optional[int]] = [self_rank, mat1_rank, mat2_rank]
     dtypes = [self_dtype, mat1_dtype, mat2_dtype]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1), (1, 1, 1), (1, 1, 1)]))
+def aten〇addbmm〡dtype(self_rank_dtype: Tuple[int, int], batch1_rank_dtype: Tuple[int, int], batch2_rank_dtype: Tuple[int, int], beta: Union[int, float, complex] = 1, alpha: Union[int, float, complex] = 1) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    batch1_rank, batch1_dtype = batch1_rank_dtype
+    batch2_rank, batch2_dtype = batch2_rank_dtype
+
+    ranks: List[Optional[int]] = [self_rank, batch1_rank, batch2_rank]
+    dtypes = [self_dtype, batch1_dtype, batch2_dtype]
     return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(
