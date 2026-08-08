@@ -31,3 +31,20 @@ func.func @torch.aten.prod.intdim_negative_dim(%arg0: !torch.vtensor<[?,?,?,?],f
   // CHECK: return %[[VAL_3]] : !torch.vtensor<[?,?,?],f32>
   return %0 : !torch.vtensor<[?,?,?],f32>
 }
+
+// -----
+
+// CHECK-LABEL: @torch.prims.xor_sum(
+// CHECK-SAME:    %[[ARG0:.*]]: !torch.vtensor<[4],si32>) -> !torch.vtensor<[],si32> {
+// CHECK:   %[[INPUT:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[4],si32> -> tensor<4xi32>
+// CHECK:   %[[INIT:.*]] = stablehlo.constant dense<0> : tensor<i32>
+// CHECK:   %[[REDUCE:.*]] = stablehlo.reduce(%[[INPUT]] init: %[[INIT]]) applies stablehlo.xor across dimensions = [0] : (tensor<4xi32>, tensor<i32>) -> tensor<i32>
+// CHECK:   %[[OUT:.*]] = torch_c.from_builtin_tensor %[[REDUCE]] : tensor<i32> -> !torch.vtensor<[],si32>
+// CHECK:   return %[[OUT]] : !torch.vtensor<[],si32>
+func.func @torch.prims.xor_sum(%arg0: !torch.vtensor<[4],si32>) -> !torch.vtensor<[],si32> {
+  %int0 = torch.constant.int 0
+  %dims = torch.prim.ListConstruct %int0 : (!torch.int) -> !torch.list<int>
+  %none = torch.constant.none
+  %0 = torch.prims.xor_sum %arg0, %dims, %none : !torch.vtensor<[4],si32>, !torch.list<int>, !torch.none -> !torch.vtensor<[],si32>
+  return %0 : !torch.vtensor<[],si32>
+}
