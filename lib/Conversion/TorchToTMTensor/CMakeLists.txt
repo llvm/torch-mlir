@@ -9,12 +9,15 @@ TorchToTMTensor.cpp
 
   LINK_LIBS PUBLIC
   MLIRIR
-  MLIRPass
   MLIRLinalgDialect
   MLIRMathDialect
+  MLIRPass
+  MLIRRewrite
+  MLIRTransformUtils
+  TorchMLIRConversionUtils
+  TorchMLIRTorchConversionPasses
   TorchMLIRTorchDialect
   TorchMLIRTMTensorDialect
-  TorchMLIRTorchUtils
 )
 
 torch_mlir_target_includes(TorchMLIRTorchToTMTensor)

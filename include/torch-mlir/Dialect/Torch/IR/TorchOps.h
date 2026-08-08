@@ -370,6 +370,31 @@ inline int64_t getIntAttrAsSigned(IntegerAttr intAttr) {
   return intAttr.getValue().getSExtValue();
 }
 
+/// Create a new SparseTensorEncodingAttr based on the provided `attr`, but with
+/// a new dense level inserted at `dim`.
+FailureOr<Attribute> getSparsityWithDenseLTAtDim(Attribute attr, Value dim);
+
+/// Helper function to squeeze the input tensor at given dim.
+/// Return the squeezed tensor or failure.
+FailureOr<Value> squeezeTensor(PatternRewriter &rewriter, Operation *op,
+                               Location loc, int64_t dim, Value input);
+
+/// Helper function to unsqueeze the input tensor at given dim.
+/// Return the unsqueezed tensor or failure.
+FailureOr<Value> unsqueezeTensor(PatternRewriter &rewriter, Operation *op,
+                                 Value input, Value dim);
+
+/// Helper function to get the list construct elements.
+/// The `elems` array is expected to be empty.
+/// Return true if the value `v` is defined by ListConstruct.
+bool getListConstructElements(Value v, SmallVectorImpl<Value> &elems);
+
+/// Returns the index indicated by `v` for a list of given `length`.
+/// If the index is negative, it is adjusted to `length` + `v`.
+/// `None` is returned the index is not an integer in the range [0,`length).
+std::optional<int64_t> matchLegalConstantIndexIntoListOfSize(Value v,
+                                                             int64_t length);
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir
