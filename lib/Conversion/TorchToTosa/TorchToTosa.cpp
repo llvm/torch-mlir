@@ -3453,10 +3453,10 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewriteImpl(
   int64_t groups;
   if (!matchPattern(op.getGroups(), m_TorchConstantInt(&groups))) {
     return rewriter.notifyMatchFailure(op, "non-const group size unsupported");
-  } else if (groups != 1 && weightShape[1] != 1) {
+  } else if (groups != 1 && weightShape[1] != 1 && (is3D || transposed)) {
     return rewriter.notifyMatchFailure(
         op, "group size must be 1 (convolution) or weight.dim(1) must be 1 "
-            "(depthwise convolution)");
+            "(depthwise convolution) for 3D or transposed convolutions");
   }
 
   SmallVector<int64_t> stride;
@@ -3896,6 +3896,24 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewriteImpl(
             tosa::getTosaConstShape(rewriter, op->getLoc(),
                                     transformedWeightShape))
             .getResult();
+  } else if (!is3D && !transposed) {
+    // grouped convolution: decompose into `groups` independent conv2d ops.
+    // Torch weight layout: [O, I/G, Kh, Kw] -> TOSA: [O, Kh, Kw, I/G]
+    // See paired emit branch below for the conv2d loop + tosa.concat.
+    outputCDim = makeShapeTorchCompatible(outputTy.getShape())[1];
+    int64_t cIn = inputShape[1];
+    if (outputCDim == kUnknownSize || cIn == kUnknownSize) {
+      return rewriter.notifyMatchFailure(
+          op, "grouped conv requires statically known channel dimensions");
+    }
+    if (cIn % groups != 0 || outputCDim % groups != 0) {
+      return rewriter.notifyMatchFailure(
+          op, "input/output channels must be divisible by groups");
+    }
+    transformedWeightShape = permuteShape(weightShape, weightPermutation);
+    transformedWeight =
+        transposeTensor(weight, weightShape, weightElemTy, weightPermutation,
+                        getTypeConverter(), rewriter, op->getLoc());
   } else {
     return rewriter.notifyMatchFailure(
         op, is3D ? "Unimplemented: grouped or depthwise 3D convolution "
@@ -4068,6 +4086,110 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewriteImpl(
             rewriter.getDenseI64ArrayAttr(padding),
             rewriter.getDenseI64ArrayAttr(stride),
             rewriter.getDenseI64ArrayAttr(dilation), accType)
+            .getResult();
+  } else if (!is3D && !transposed) {
+    // grouped convolution: emit one tosa.conv2d per group then concat.
+    // transposedInput is NHWC [N, H, W, C_in]; transformedWeight is
+    // [C_out, Kh, Kw, C_in/G] after the paired weight-transform branch above.
+    auto transposedInputShape = makeShapeTorchCompatible(
+        cast<RankedTensorType>(transposedInput.getType()).getShape());
+    int64_t cInTotal = transposedInputShape[3];
+    int64_t cOutTotal = outputCDim;
+    int64_t cInPerGroup = cInTotal / groups;
+    int64_t cOutPerGroup = cOutTotal / groups;
+
+    auto biasValueOr = getOrCreateBias(cOutTotal);
+    if (failed(biasValueOr))
+      return failure();
+    bias = *biasValueOr;
+    biasElemTy = cast<RankedTensorType>(bias.getType()).getElementType();
+
+    // Per-group output shape: [N, H_out, W_out, C_out/G]
+    SmallVector<int64_t> perGroupOutputShape = {outputShape[0], outputShape[1],
+                                                outputShape[2], cOutPerGroup};
+    auto perGroupOutputTy = RankedTensorType::get(
+        makeShapeLLVMCompatible(perGroupOutputShape), biasElemTy);
+
+    // Per-group slice sizes — identical across all iterations.
+    SmallVector<int64_t> inputSliceSize(transposedInputShape);
+    inputSliceSize[3] = cInPerGroup;
+    auto inputSliceTy = RankedTensorType::get(
+        makeShapeLLVMCompatible(inputSliceSize), inputElemTy);
+    Value inputSizeConst =
+        tosa::getTosaConstShape(rewriter, op->getLoc(), inputSliceSize);
+
+    SmallVector<int64_t> weightSliceSize(transformedWeightShape);
+    weightSliceSize[0] = cOutPerGroup;
+    auto weightSliceTy = RankedTensorType::get(
+        makeShapeLLVMCompatible(weightSliceSize), weightElemTy);
+    Value weightSizeConst =
+        tosa::getTosaConstShape(rewriter, op->getLoc(), weightSliceSize);
+
+    SmallVector<int64_t> biasSliceSize = {cOutPerGroup};
+    auto biasSliceTy = RankedTensorType::get(
+        makeShapeLLVMCompatible(biasSliceSize), biasElemTy);
+    Value biasSizeConst =
+        tosa::getTosaConstShape(rewriter, op->getLoc(), biasSliceSize);
+
+    auto paddingAttr = rewriter.getDenseI64ArrayAttr(padding);
+    auto strideAttr = rewriter.getDenseI64ArrayAttr(stride);
+    auto dilationAttr = rewriter.getDenseI64ArrayAttr(dilation);
+
+    auto convertedInputSliceTy = getTypeConverter()->convertType(inputSliceTy);
+    auto convertedWeightSliceTy =
+        getTypeConverter()->convertType(weightSliceTy);
+    auto convertedBiasSliceTy = getTypeConverter()->convertType(biasSliceTy);
+    auto convertedPerGroupOutTy =
+        getTypeConverter()->convertType(perGroupOutputTy);
+
+    SmallVector<Value> groupResults;
+    groupResults.reserve(groups);
+    for (int64_t g = 0; g < groups; ++g) {
+      // Slice input on dim 3 (NHWC channel): [N, H, W, C_in/G]
+      SmallVector<int64_t> inputSliceStart(transposedInputShape.size(), 0);
+      inputSliceStart[3] = g * cInPerGroup;
+      auto inputSlice =
+          tosa::SliceOp::create(
+              rewriter, op->getLoc(), convertedInputSliceTy, transposedInput,
+              tosa::getTosaConstShape(rewriter, op->getLoc(), inputSliceStart),
+              inputSizeConst)
+              .getResult();
+
+      // Slice weight on dim 0 (output channels): [C_out/G, Kh, Kw, C_in/G]
+      SmallVector<int64_t> weightSliceStart(transformedWeightShape.size(), 0);
+      weightSliceStart[0] = g * cOutPerGroup;
+      auto weightSlice =
+          tosa::SliceOp::create(
+              rewriter, op->getLoc(), convertedWeightSliceTy, transformedWeight,
+              tosa::getTosaConstShape(rewriter, op->getLoc(), weightSliceStart),
+              weightSizeConst)
+              .getResult();
+
+      // Slice bias on dim 0: [C_out/G]
+      SmallVector<int64_t> biasSliceStart = {g * cOutPerGroup};
+      auto biasSlice =
+          tosa::SliceOp::create(
+              rewriter, op->getLoc(), convertedBiasSliceTy, bias,
+              tosa::getTosaConstShape(rewriter, op->getLoc(), biasSliceStart),
+              biasSizeConst)
+              .getResult();
+
+      auto groupConvResult =
+          tosa::Conv2DOp::create(rewriter, op->getLoc(), convertedPerGroupOutTy,
+                                 inputSlice, weightSlice, biasSlice, *inputZp,
+                                 *weightZp, paddingAttr, strideAttr,
+                                 dilationAttr, accType)
+              .getResult();
+      groupResults.push_back(groupConvResult);
+    }
+
+    // Concatenate group results along output-channel dim (NHWC dim 3).
+    auto concatOutputTy =
+        RankedTensorType::get(makeShapeLLVMCompatible(outputShape), biasElemTy);
+    convOpResult =
+        tosa::ConcatOp::create(rewriter, op->getLoc(),
+                               getTypeConverter()->convertType(concatOutputTy),
+                               groupResults, /*axis=*/3)
             .getResult();
   } else {
     return rewriter.notifyMatchFailure(
