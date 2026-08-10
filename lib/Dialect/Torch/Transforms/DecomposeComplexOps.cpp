@@ -20,6 +20,7 @@
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/MathExtras.h"
@@ -8181,16 +8182,12 @@ class DecomposeAtenRMSLayerNormOp : public OpRewritePattern<AtenRmsNormOp> {
           op, "Expected input to be a tensor with sizes and a dtype");
 
     auto outputTy = dyn_cast<ValueTensorType>(op.getType());
-    if (!outputTy.hasDtype())
+    if (!outputTy || !outputTy.hasDtype())
       return rewriter.notifyMatchFailure(op, "output should have a dtype.");
-
-    if (llvm::is_contained(inputTy.getSizes(), 0)) {
-      if (input.getType() != op.getType())
-        return rewriter.notifyMatchFailure(
-            op, "zero-extent input and output types should match.");
-      rewriter.replaceOp(op, input);
-      return success();
-    }
+    if (!isa<mlir::FloatType>(inputTy.getDtype()) ||
+        !isa<mlir::FloatType>(outputTy.getDtype()))
+      return rewriter.notifyMatchFailure(
+          op, "input and output should have floating point dtypes.");
 
     int64_t inputRank = inputTy.getSizes().size();
     Value normalizedShape = op.getNormalizedShape();
@@ -8200,8 +8197,49 @@ class DecomposeAtenRMSLayerNormOp : public OpRewritePattern<AtenRmsNormOp> {
       return rewriter.notifyMatchFailure(op,
                                          "should have constant shape values.");
 
-    int64_t normalize_from_idx =
-        inputRank - normalizedShapeSizesTorchInt.size();
+    if (static_cast<int64_t>(normalizedShapeSizesTorchInt.size()) > inputRank)
+      return rewriter.notifyMatchFailure(
+          op, "normalized shape cannot be larger than the input rank.");
+    SmallVector<int64_t> normalizedShapeSizes;
+    normalizedShapeSizes.reserve(normalizedShapeSizesTorchInt.size());
+    for (Value size : normalizedShapeSizesTorchInt) {
+      int64_t sizeInt;
+      if (!matchPattern(size, m_TorchConstantInt(&sizeInt)))
+        return rewriter.notifyMatchFailure(
+            op, "normalized shape should contain constant integers.");
+      normalizedShapeSizes.push_back(sizeInt);
+    }
+
+    int64_t normalize_from_idx = inputRank - normalizedShapeSizes.size();
+    for (auto [idx, expectedSize] : llvm::enumerate(normalizedShapeSizes)) {
+      int64_t inputSize = inputTy.getSizes()[normalize_from_idx + idx];
+      if (inputSize != Torch::kUnknownSize && inputSize != expectedSize)
+        return rewriter.notifyMatchFailure(
+            op, "normalized shape should match the input trailing sizes.");
+    }
+
+    Value weight = op.getWeight();
+    if (!isa<Torch::NoneType>(weight.getType())) {
+      auto weightTy = dyn_cast<ValueTensorType>(weight.getType());
+      if (!weightTy || !weightTy.areAllSizesKnown() || !weightTy.hasDtype())
+        return rewriter.notifyMatchFailure(
+            op, "weight should have known sizes and a dtype.");
+      if (!isa<mlir::FloatType>(weightTy.getDtype()))
+        return rewriter.notifyMatchFailure(
+            op, "weight should have a floating point dtype.");
+      if (!llvm::equal(weightTy.getSizes(), normalizedShapeSizes))
+        return rewriter.notifyMatchFailure(
+            op, "weight sizes should match normalized shape.");
+    }
+
+    if (llvm::is_contained(inputTy.getSizes(), 0)) {
+      if (input.getType() != op.getType())
+        return rewriter.notifyMatchFailure(
+            op, "zero-extent input and output types should match.");
+      rewriter.replaceOp(op, input);
+      return success();
+    }
+
     auto reduceDimInts =
         llvm::to_vector<4>(llvm::seq<int64_t>(normalize_from_idx, inputRank));
     auto sizeListType = ListType::get(IntType::get(context));
@@ -8241,7 +8279,6 @@ class DecomposeAtenRMSLayerNormOp : public OpRewritePattern<AtenRmsNormOp> {
     Value normalized =
         AtenMulTensorOp::create(rewriter, loc, inputTy, input, invRMS);
     // Optionally multiply by weight if provided
-    Value weight = op.getWeight();
     if (!isa<Torch::NoneType>(weight.getType())) {
       normalized =
           AtenMulTensorOp::create(rewriter, loc, outputTy, normalized, weight);
@@ -8273,6 +8310,13 @@ static LogicalResult matchPow2OfInput(Value value, Value input) {
 }
 
 static LogicalResult matchMeanOfPow2(Value value, Value input) {
+  if (auto add = value.getDefiningOp<AtenAddScalarOp>()) {
+    int64_t alpha = 0;
+    if (!matchPattern(add.getAlpha(), m_TorchConstantInt(&alpha)) || alpha != 1)
+      return failure();
+    value = add.getSelf();
+  }
+
   if (auto mean = value.getDefiningOp<AtenMeanDimOp>()) {
     bool keepdim = false;
     if (!matchPattern(mean.getKeepdim(), m_TorchConstantBool(&keepdim)) ||
@@ -8337,27 +8381,38 @@ static FailureOr<Value> matchZeroExtentRmsNormDecomposition(Value value) {
   return input;
 }
 
-static void eraseDeadRmsNormDecompositionOp(Operation *op,
-                                            PatternRewriter &rewriter) {
-  if (!op || !op->use_empty())
-    return;
-
-  if (!isa<AtenMulTensorOp, AtenRsqrtOp, AtenMeanDimOp, AtenPowTensorScalarOp,
-           AtenDivScalarOp, AtenSumDimIntListOp, PrimsConvertElementTypeOp,
-           AtenToDtypeOp>(op))
-    return;
-
-  SmallVector<Value> operands(op->getOperands());
-  rewriter.eraseOp(op);
-  for (Value operand : operands)
-    eraseDeadRmsNormDecompositionOp(operand.getDefiningOp(), rewriter);
+static bool isRmsNormDecompositionOp(Operation *op) {
+  return isa<AtenMulTensorOp, AtenRsqrtOp, AtenAddScalarOp, AtenMeanDimOp,
+             AtenPowTensorScalarOp, AtenDivScalarOp, AtenSumDimIntListOp,
+             PrimsConvertElementTypeOp, AtenToDtypeOp>(op);
 }
 
 static void
-eraseDeadRmsNormDecompositionFromOperands(ValueRange operands,
+eraseDeadRmsNormDecompositionOp(Operation *op, PatternRewriter &rewriter,
+                                llvm::DenseSet<Operation *> &erasedOps) {
+  if (!op || erasedOps.contains(op))
+    return;
+
+  if (!op->use_empty() || !isRmsNormDecompositionOp(op))
+    return;
+
+  SmallVector<Operation *> operandOps;
+  for (Value operand : op->getOperands()) {
+    if (Operation *operandOp = operand.getDefiningOp())
+      operandOps.push_back(operandOp);
+  }
+  erasedOps.insert(op);
+  rewriter.eraseOp(op);
+  for (Operation *operandOp : operandOps)
+    eraseDeadRmsNormDecompositionOp(operandOp, rewriter, erasedOps);
+}
+
+static void
+eraseDeadRmsNormDecompositionFromOperandOps(ArrayRef<Operation *> operandOps,
                                           PatternRewriter &rewriter) {
-  for (Value operand : operands)
-    eraseDeadRmsNormDecompositionOp(operand.getDefiningOp(), rewriter);
+  llvm::DenseSet<Operation *> erasedOps;
+  for (Operation *operandOp : operandOps)
+    eraseDeadRmsNormDecompositionOp(operandOp, rewriter, erasedOps);
 }
 
 class FoldZeroExtentRmsNormDecompositionFromMul
@@ -8379,9 +8434,13 @@ public:
     if (op.getType() != (*input).getType())
       return failure();
 
-    SmallVector<Value> operands(op->getOperands());
+    SmallVector<Operation *> operandOps;
+    for (Value operand : op->getOperands()) {
+      if (Operation *operandOp = operand.getDefiningOp())
+        operandOps.push_back(operandOp);
+    }
     rewriter.replaceOp(op, *input);
-    eraseDeadRmsNormDecompositionFromOperands(operands, rewriter);
+    eraseDeadRmsNormDecompositionFromOperandOps(operandOps, rewriter);
     return success();
   }
 };
@@ -8411,9 +8470,13 @@ public:
     if (op.getType() != (*originalInput).getType())
       return failure();
 
-    SmallVector<Value> operands(op->getOperands());
+    SmallVector<Operation *> operandOps;
+    for (Value operand : op->getOperands()) {
+      if (Operation *operandOp = operand.getDefiningOp())
+        operandOps.push_back(operandOp);
+    }
     rewriter.replaceOp(op, *originalInput);
-    eraseDeadRmsNormDecompositionFromOperands(operands, rewriter);
+    eraseDeadRmsNormDecompositionFromOperandOps(operandOps, rewriter);
     return success();
   }
 };
@@ -8431,9 +8494,13 @@ public:
     if (op.getType() != (*originalInput).getType())
       return failure();
 
-    SmallVector<Value> operands(op->getOperands());
+    SmallVector<Operation *> operandOps;
+    for (Value operand : op->getOperands()) {
+      if (Operation *operandOp = operand.getDefiningOp())
+        operandOps.push_back(operandOp);
+    }
     rewriter.replaceOp(op, *originalInput);
-    eraseDeadRmsNormDecompositionFromOperands(operands, rewriter);
+    eraseDeadRmsNormDecompositionFromOperandOps(operandOps, rewriter);
     return success();
   }
 };
