@@ -15,6 +15,45 @@ func.func @rms_norm_zero_extent(%arg0: !torch.vtensor<[0,1],f32>, %arg1: !torch.
 
 // -----
 
+// CHECK-LABEL:   func.func @rms_norm_zero_extent_bad_normalized_shape
+// CHECK:           %[[RMS:.*]] = torch.aten.rms_norm
+// CHECK:           return %[[RMS]]
+func.func @rms_norm_zero_extent_bad_normalized_shape(%arg0: !torch.vtensor<[0,2],f32>, %arg1: !torch.vtensor<[1],f32>) -> !torch.vtensor<[0,2],f32> {
+  %int1 = torch.constant.int 1
+  %shape = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %none = torch.constant.none
+  %0 = torch.aten.rms_norm %arg0, %shape, %arg1, %none : !torch.vtensor<[0,2],f32>, !torch.list<int>, !torch.vtensor<[1],f32>, !torch.none -> !torch.vtensor<[0,2],f32>
+  return %0 : !torch.vtensor<[0,2],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @rms_norm_zero_extent_unknown_weight_shape
+// CHECK:           %[[RMS:.*]] = torch.aten.rms_norm
+// CHECK:           return %[[RMS]]
+func.func @rms_norm_zero_extent_unknown_weight_shape(%arg0: !torch.vtensor<[0,1],f32>, %arg1: !torch.vtensor<*,f32>) -> !torch.vtensor<[0,1],f32> {
+  %int1 = torch.constant.int 1
+  %shape = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %none = torch.constant.none
+  %0 = torch.aten.rms_norm %arg0, %shape, %arg1, %none : !torch.vtensor<[0,1],f32>, !torch.list<int>, !torch.vtensor<*,f32>, !torch.none -> !torch.vtensor<[0,1],f32>
+  return %0 : !torch.vtensor<[0,1],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @rms_norm_zero_extent_unsupported_dtype
+// CHECK:           %[[RMS:.*]] = torch.aten.rms_norm
+// CHECK:           return %[[RMS]]
+func.func @rms_norm_zero_extent_unsupported_dtype(%arg0: !torch.vtensor<[0,1],si64>, %arg1: !torch.vtensor<[1],si64>) -> !torch.vtensor<[0,1],si64> {
+  %int1 = torch.constant.int 1
+  %shape = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %none = torch.constant.none
+  %0 = torch.aten.rms_norm %arg0, %shape, %arg1, %none : !torch.vtensor<[0,1],si64>, !torch.list<int>, !torch.vtensor<[1],si64>, !torch.none -> !torch.vtensor<[0,1],si64>
+  return %0 : !torch.vtensor<[0,1],si64>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @rms_norm_zero_extent_decomposed_fp32
 // CHECK-NOT:       torch.aten.pow.Tensor_Scalar
 // CHECK-NOT:       torch.aten.mean.dim
@@ -33,6 +72,31 @@ func.func @rms_norm_zero_extent_decomposed_fp32(%arg0: !torch.vtensor<[0,1],f32>
   %3 = torch.aten.mul.Tensor %arg0, %2 : !torch.vtensor<[0,1],f32>, !torch.vtensor<[0,1],f32> -> !torch.vtensor<[0,1],f32>
   %4 = torch.aten.mul.Tensor %3, %arg1 : !torch.vtensor<[0,1],f32>, !torch.vtensor<[1],f32> -> !torch.vtensor<[0,1],f32>
   return %4 : !torch.vtensor<[0,1],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @rms_norm_zero_extent_decomposed_fp32_with_eps
+// CHECK-NOT:       torch.aten.pow.Tensor_Scalar
+// CHECK-NOT:       torch.aten.mean.dim
+// CHECK-NOT:       torch.aten.add.Scalar
+// CHECK-NOT:       torch.aten.rsqrt
+// CHECK-NOT:       torch.aten.mul.Tensor
+// CHECK:           return %arg0
+func.func @rms_norm_zero_extent_decomposed_fp32_with_eps(%arg0: !torch.vtensor<[0,1],f32>, %arg1: !torch.vtensor<[1],f32>) -> !torch.vtensor<[0,1],f32> {
+  %int2 = torch.constant.int 2
+  %0 = torch.aten.pow.Tensor_Scalar %arg0, %int2 : !torch.vtensor<[0,1],f32>, !torch.int -> !torch.vtensor<[0,1],f32>
+  %int1 = torch.constant.int 1
+  %dims = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %true = torch.constant.bool true
+  %none = torch.constant.none
+  %1 = torch.aten.mean.dim %0, %dims, %true, %none : !torch.vtensor<[0,1],f32>, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[0,1],f32>
+  %eps = torch.constant.float 5.000000e-01
+  %2 = torch.aten.add.Scalar %1, %eps, %int1 : !torch.vtensor<[0,1],f32>, !torch.float, !torch.int -> !torch.vtensor<[0,1],f32>
+  %3 = torch.aten.rsqrt %2 : !torch.vtensor<[0,1],f32> -> !torch.vtensor<[0,1],f32>
+  %4 = torch.aten.mul.Tensor %arg0, %3 : !torch.vtensor<[0,1],f32>, !torch.vtensor<[0,1],f32> -> !torch.vtensor<[0,1],f32>
+  %5 = torch.aten.mul.Tensor %4, %arg1 : !torch.vtensor<[0,1],f32>, !torch.vtensor<[1],f32> -> !torch.vtensor<[0,1],f32>
+  return %5 : !torch.vtensor<[0,1],f32>
 }
 
 // -----
