@@ -442,8 +442,9 @@ void PrimLoopOp::getSuccessorRegions(
 }
 
 ValueRange PrimLoopOp::getSuccessorInputs(RegionSuccessor successor) {
-  return successor.isOperation() ? ValueRange(getResults())
-                              : ValueRange(getRegion().getArguments().slice(1));
+  return successor.isOperation()
+             ? ValueRange(getResults())
+             : ValueRange(getRegion().getArguments().slice(1));
 }
 
 bool PrimLoopOp::isForLike() {
