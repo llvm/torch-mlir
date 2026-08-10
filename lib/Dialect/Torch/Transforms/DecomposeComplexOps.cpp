@@ -10023,9 +10023,9 @@ class DecomposeAtenAddbmmOp : public OpRewritePattern<AtenAddbmmOp> {
         batch1Type.getWithSizesAndDtype(flattenedBatch1Sizes, resultDtype);
     Type flattenedBatch2Type =
         batch2Type.getWithSizesAndDtype(flattenedBatch2Sizes, resultDtype);
-    Value flattenedBatch1 = AtenFlattenUsingIntsOp::create(
+    Value flattenedBatch1 = PrimsCollapseOp::create(
         rewriter, loc, flattenedBatch1Type, permutedBatch1, one, two);
-    Value flattenedBatch2 = AtenFlattenUsingIntsOp::create(
+    Value flattenedBatch2 = PrimsCollapseOp::create(
         rewriter, loc, flattenedBatch2Type, batch2, zero, one);
     Value contraction = AtenMmOp::create(rewriter, loc, op.getType(),
                                          flattenedBatch1, flattenedBatch2);
