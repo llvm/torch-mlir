@@ -32,7 +32,10 @@ func.func @repeat_interleave_tensor_int64(%arg0: !torch.vtensor<[4],si64>) -> !t
 // -----
 
 // CHECK-LABEL: func.func @repeat_interleave_tensor_unsupported_dtype
-// CHECK: torch.aten.repeat_interleave.Tensor
+// CHECK-SAME: (%[[ARG0:.*]]: !torch.vtensor<[2],si8>) -> !torch.vtensor<[200],si8>
+// CHECK: %[[OUTPUT_SIZE:.*]] = torch.constant.int 200
+// CHECK: %[[RESULT:.*]] = torch.aten.repeat_interleave.Tensor %[[ARG0]], %[[OUTPUT_SIZE]] : !torch.vtensor<[2],si8>, !torch.int -> !torch.vtensor<[200],si8>
+// CHECK: return %[[RESULT]] : !torch.vtensor<[200],si8>
 func.func @repeat_interleave_tensor_unsupported_dtype(%arg0: !torch.vtensor<[2],si8>) -> !torch.vtensor<[200],si8> {
   %int200 = torch.constant.int 200
   %0 = torch.aten.repeat_interleave.Tensor %arg0, %int200 : !torch.vtensor<[2],si8>, !torch.int -> !torch.vtensor<[200],si8>
@@ -42,7 +45,9 @@ func.func @repeat_interleave_tensor_unsupported_dtype(%arg0: !torch.vtensor<[2],
 // -----
 
 // CHECK-LABEL: func.func @repeat_interleave_tensor_nonconstant_output_size
-// CHECK: torch.aten.repeat_interleave.Tensor
+// CHECK-SAME: (%[[ARG0:.*]]: !torch.vtensor<[4],si32>, %[[OUTPUT_SIZE:.*]]: !torch.int) -> !torch.vtensor<[6],si32>
+// CHECK: %[[RESULT:.*]] = torch.aten.repeat_interleave.Tensor %[[ARG0]], %[[OUTPUT_SIZE]] : !torch.vtensor<[4],si32>, !torch.int -> !torch.vtensor<[6],si32>
+// CHECK: return %[[RESULT]] : !torch.vtensor<[6],si32>
 func.func @repeat_interleave_tensor_nonconstant_output_size(%arg0: !torch.vtensor<[4],si32>, %arg1: !torch.int) -> !torch.vtensor<[6],si32> {
   %0 = torch.aten.repeat_interleave.Tensor %arg0, %arg1 : !torch.vtensor<[4],si32>, !torch.int -> !torch.vtensor<[6],si32>
   return %0 : !torch.vtensor<[6],si32>
@@ -51,7 +56,10 @@ func.func @repeat_interleave_tensor_nonconstant_output_size(%arg0: !torch.vtenso
 // -----
 
 // CHECK-LABEL: func.func @repeat_interleave_tensor_none_output_size
-// CHECK: torch.aten.repeat_interleave.Tensor
+// CHECK-SAME: (%[[ARG0:.*]]: !torch.vtensor<[4],si32>) -> !torch.vtensor<[6],si32>
+// CHECK: %[[NONE:.*]] = torch.constant.none
+// CHECK: %[[RESULT:.*]] = torch.aten.repeat_interleave.Tensor %[[ARG0]], %[[NONE]] : !torch.vtensor<[4],si32>, !torch.none -> !torch.vtensor<[6],si32>
+// CHECK: return %[[RESULT]] : !torch.vtensor<[6],si32>
 func.func @repeat_interleave_tensor_none_output_size(%arg0: !torch.vtensor<[4],si32>) -> !torch.vtensor<[6],si32> {
   %none = torch.constant.none
   %0 = torch.aten.repeat_interleave.Tensor %arg0, %none : !torch.vtensor<[4],si32>, !torch.none -> !torch.vtensor<[6],si32>
@@ -61,7 +69,10 @@ func.func @repeat_interleave_tensor_none_output_size(%arg0: !torch.vtensor<[4],s
 // -----
 
 // CHECK-LABEL: func.func @repeat_interleave_tensor_oversized_intermediate
-// CHECK: torch.aten.repeat_interleave.Tensor
+// CHECK-SAME: (%[[ARG0:.*]]: !torch.vtensor<[1025],si32>) -> !torch.vtensor<[1024],si32>
+// CHECK: %[[OUTPUT_SIZE:.*]] = torch.constant.int 1024
+// CHECK: %[[RESULT:.*]] = torch.aten.repeat_interleave.Tensor %[[ARG0]], %[[OUTPUT_SIZE]] : !torch.vtensor<[1025],si32>, !torch.int -> !torch.vtensor<[1024],si32>
+// CHECK: return %[[RESULT]] : !torch.vtensor<[1024],si32>
 func.func @repeat_interleave_tensor_oversized_intermediate(%arg0: !torch.vtensor<[1025],si32>) -> !torch.vtensor<[1024],si32> {
   %int1024 = torch.constant.int 1024
   %0 = torch.aten.repeat_interleave.Tensor %arg0, %int1024 : !torch.vtensor<[1025],si32>, !torch.int -> !torch.vtensor<[1024],si32>
