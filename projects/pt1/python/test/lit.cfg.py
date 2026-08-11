@@ -21,7 +21,7 @@ from lit.llvm.subst import FindTool
 # name: The name of this test suite.
 config.name = "TORCH_MLIR_PYTHON"
 
-config.test_format = lit.formats.ShTest(not llvm_config.use_lit_shell)
+config.test_format = lit.formats.ShTest()
 if "TEST_SRC_PATH" in os.environ:
     config.environment["TEST_SRC_PATH"] = os.environ["TEST_SRC_PATH"]
 

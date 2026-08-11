@@ -46,6 +46,7 @@ DEFAULT_DECOMPOSITIONS = [
     torch.ops.aten.nan_to_num.default,
     torch.ops.aten.unbind,
     torch.ops.aten.diag,
+    torch.ops.aten.xlogy,
 ]
 if hasattr(torch.ops.aten, "_scaled_dot_product_flash_attention_for_cpu"):
     DEFAULT_DECOMPOSITIONS.append(
