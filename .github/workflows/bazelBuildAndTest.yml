@@ -66,6 +66,7 @@ jobs:
       - name: Verify buildifier was run (bazel lint)
         run: |
           docker run --rm \
+                    -u "$(id -u):$(id -g)" \
                     -v "$(pwd)":"/opt/src/torch-mlir" \
                     -v "${HOME}/.cache/bazel":"/root/.cache/bazel" \
                     torch-mlir:ci \
