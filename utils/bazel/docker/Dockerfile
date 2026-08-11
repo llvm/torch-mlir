@@ -22,7 +22,7 @@ RUN echo $REPO_NAME >> /etc/apt/sources.list.d/llvm.list && \
 
 # Install bazel
 ARG TARGETARCH
-ARG BAZEL_VERSION=8.4.0
+ARG BAZEL_VERSION=8.7.0
 RUN ARCH=${TARGETARCH} \
     && if [ ${TARGETARCH} = "amd64" ]; then ARCH="x86_64"; fi \
     && wget -q https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-${ARCH} -O /usr/bin/bazel \
