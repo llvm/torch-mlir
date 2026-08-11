@@ -3261,6 +3261,9 @@ ONNX_XFAIL_SET = {
     "CumprodStaticModule_basic",
     "CumprodStaticNegativeDimModule_basic",
     "ElementwiseToDtypeI64ToUI8Module_basic",
+    # onnx: xlogy lowering is incorrect for inputs whose result contains NaN
+    "ElementwiseXlogyTensorBroadcastModule_basic",
+    "ElementwiseXlogyTensorZeroAndNanModule_basic",
     "ElementwiseFloatTensorGtIntTensorModule_basic",
     "ElementwiseSignbitModule_basic",
     "ElementwiseCopysignModule_basic",
