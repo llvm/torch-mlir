@@ -31,12 +31,14 @@ and Clang's
 ### CI / Build system / Packaging / [Release](https://github.com/llvm/torch-mlir-release)
 
 - Anush Elangovan (@powderluv)
+- Sayan Saha (@sahas3)
 - Maybe you!*
 
 ### TorchToTOSA
 
 - Eric Kunze (@eric-k256)
 - Suraj Sudhir (@sjarus)
+- Sayan Saha (@sahas3)
 
 ### TorchToStablehlo
 
