@@ -8724,7 +8724,10 @@ class DecomposeAtenNativeBatchNormOp
         return rewriter.notifyMatchFailure(op, "expected bias to be rank 1");
     }
 
-    Type originalDtype = cast<ValueTensorType>(input.getType()).getDtype();
+    Type originalDtype =
+        cast<ValueTensorType>(input.getType()).getOptionalDtype();
+    if (!originalDtype)
+      return rewriter.notifyMatchFailure(op, "expected input to have a dtype");
     bool useF32Opmath = !training && originalDtype.isF16();
     if (useF32Opmath) {
       Type f32Type = rewriter.getF32Type();

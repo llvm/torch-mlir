@@ -988,6 +988,7 @@ func.func @torch.aten.stft.center_2D_hop_length_3_window_pad_both(%arg0: !torch.
 
 // CHECK-LABEL: func.func @batch_norm_fp16_opmath
 // CHECK-COUNT-5: torch.aten.to.dtype
+// CHECK-NOT: torch.aten.to.dtype
 // CHECK: torch.aten.rsqrt {{.*}} -> !torch.vtensor<[1,2,1],f32>
 // CHECK: %[[RESULT:.*]] = torch.aten.to.dtype {{.*}} -> !torch.vtensor<[2,2,3],f16>
 // CHECK: return %[[RESULT]] : !torch.vtensor<[2,2,3],f16>
