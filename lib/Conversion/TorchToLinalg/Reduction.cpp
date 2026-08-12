@@ -92,12 +92,12 @@ public:
       return rewriter.notifyMatchFailure(op, "dim is not a valid dim");
 
     Type inElementType = inputType.getElementType();
-    // Torch-dtype IntegerType (carries signedness); null for float inputs.
-    IntegerType torchIntTy;
+    bool useUnsigned = false;
     if (!isa<mlir::FloatType>(inElementType)) {
       if (isa<mlir::IntegerType>(inElementType)) {
-        torchIntTy = dyn_cast<mlir::IntegerType>(
+        auto torchIntTy = dyn_cast<mlir::IntegerType>(
             cast<BaseTensorType>(op.getSelf().getType()).getDtype());
+        useUnsigned = useUnsignedIntegerSemantics(torchIntTy);
       } else {
         return rewriter.notifyMatchFailure(
             op, opName + " to linalg.* requires Float or Integer "
@@ -132,7 +132,7 @@ public:
     } else {
       auto width = cast<mlir::IntegerType>(inElementType).getWidth();
       APInt init;
-      if (useUnsignedIntegerSemantics(torchIntTy)) {
+      if (useUnsigned) {
         init = isMax ? APInt::getMinValue(width) : APInt::getMaxValue(width);
       } else {
         init = isMax ? APSInt::getSignedMinValue(width)
@@ -197,7 +197,6 @@ public:
                                               newValue, oldValue);
           } else {
             arith::CmpIPredicate predType;
-            bool useUnsigned = useUnsignedIntegerSemantics(torchIntTy);
             if (isMax) {
               predType = useUnsigned ? arith::CmpIPredicate::ugt
                                      : arith::CmpIPredicate::sgt;
@@ -321,9 +320,10 @@ static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
     else if (isa<mlir::IntegerType>(elementType) &&
              elementType.getIntOrFloatBitWidth() != 8) {
       unsigned width = elementType.getIntOrFloatBitWidth();
-      // i1 (bool): initial value for max is false (0); use unsigned min.
-      auto init = (width == 1) ? APInt::getMinValue(width)
-                               : APSInt::getSignedMinValue(width);
+      auto init =
+          useUnsignedIntegerSemantics(cast<mlir::IntegerType>(elementType))
+              ? APInt::getMinValue(width)
+              : APSInt::getSignedMinValue(width);
       return arith::ConstantOp::create(b, loc,
                                        b.getIntegerAttr(elementType, init));
     }
@@ -339,9 +339,10 @@ static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
     else if (isa<mlir::IntegerType>(elementType) &&
              elementType.getIntOrFloatBitWidth() != 8) {
       unsigned width = elementType.getIntOrFloatBitWidth();
-      // i1 (bool): initial value for min is true (1); use unsigned max.
-      auto init = (width == 1) ? APInt::getMaxValue(width)
-                               : APSInt::getSignedMaxValue(width);
+      auto init =
+          useUnsignedIntegerSemantics(cast<mlir::IntegerType>(elementType))
+              ? APInt::getMaxValue(width)
+              : APSInt::getSignedMaxValue(width);
       return arith::ConstantOp::create(b, loc,
                                        b.getIntegerAttr(elementType, init));
     }
