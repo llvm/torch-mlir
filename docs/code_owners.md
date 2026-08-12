@@ -27,6 +27,7 @@ and Clang's
 
 - Ramiro Leal-Cavazos (@ramiro050) - emeritus
 - Zach Garvey (@zjgarvey)
+- Renato Golin (@rengolin)
 
 ### CI / Build system / Packaging / [Release](https://github.com/llvm/torch-mlir-release)
 
