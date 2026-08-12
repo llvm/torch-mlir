@@ -1684,6 +1684,7 @@ STABLEHLO_PASS_SET = {
     "IndexTensorStaticNonContiguousWithNoneModule_basic",
     "LayerNormLastDimModule_basic",
     "LayerNormModule_basic",
+    "LayerNormNoBiasModule_basic",
     "LayerNormNormalizeOverAllDimsModule_basic",
     "MaxPool2dWithIndicesStaticModule_basic",
     "MeanDimAllReduceKeepdimModule_basic",
