@@ -905,6 +905,28 @@ func.func @torch.aten.stft.center_2D_hop_length_3_window_pad_both(%arg0: !torch.
 // -----
 
 
+// CHECK-LABEL: func.func @batch_norm_fp16_opmath
+// CHECK-COUNT-5: torch.aten.to.dtype
+// CHECK: torch.aten.rsqrt {{.*}} -> !torch.vtensor<[1,2,1],f32>
+// CHECK: %[[RESULT:.*]] = torch.aten.to.dtype {{.*}} -> !torch.vtensor<[2,2,3],f16>
+// CHECK: return %[[RESULT]] : !torch.vtensor<[2,2,3],f16>
+func.func @batch_norm_fp16_opmath(
+    %input: !torch.vtensor<[2,2,3],f16>,
+    %weight: !torch.vtensor<[2],f16>,
+    %bias: !torch.vtensor<[2],f16>,
+    %running_mean: !torch.vtensor<[2],f16>,
+    %running_var: !torch.vtensor<[2],f16>)
+    -> !torch.vtensor<[2,2,3],f16> {
+  %false = torch.constant.bool false
+  %true = torch.constant.bool true
+  %momentum = torch.constant.float 1.000000e-01
+  %eps = torch.constant.float 5.000000e-01
+  %0 = torch.aten.batch_norm %input, %weight, %bias, %running_mean, %running_var, %false, %momentum, %eps, %true : !torch.vtensor<[2,2,3],f16>, !torch.vtensor<[2],f16>, !torch.vtensor<[2],f16>, !torch.vtensor<[2],f16>, !torch.vtensor<[2],f16>, !torch.bool, !torch.float, !torch.float, !torch.bool -> !torch.vtensor<[2,2,3],f16>
+  return %0 : !torch.vtensor<[2,2,3],f16>
+}
+
+// -----
+
 // CHECK-LABEL:  func.func @native_layer_norm(
 // CHECK-SAME:          %[[ARG0:.*]]: !torch.vtensor<[1,56,56,96],f32>, %[[ARG1:.*]]: !torch.list<int>, %[[ARG2:.*]]: !torch.vtensor<[96],f32>, %[[ARG3:.*]]: !torch.vtensor<[96],f32>, %[[ARG4:.*]]: !torch.float) -> (!torch.vtensor<[1,56,56,96],f32>, !torch.vtensor<[1,56,56,1],f32>, !torch.vtensor<[1,56,56,1],f32>) {
 // CHECK-DAG:      %[[INT96:.*]] = torch.constant.int 96
@@ -1255,26 +1277,4 @@ func.func @torch.aten.diag_2d(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtenso
   %int0 = torch.constant.int 0
   %0 = torch.aten.diag %arg0, %int0 : !torch.vtensor<[3,4],f32>, !torch.int -> !torch.vtensor<[3],f32>
   return %0 : !torch.vtensor<[3],f32>
-}
-
-// -----
-
-// CHECK-LABEL: func.func @batch_norm_fp16_opmath
-// CHECK-COUNT-5: torch.aten.to.dtype
-// CHECK: torch.aten.rsqrt {{.*}} -> !torch.vtensor<[1,2,1],f32>
-// CHECK: %[[RESULT:.*]] = torch.aten.to.dtype {{.*}} -> !torch.vtensor<[2,2,3],f16>
-// CHECK: return %[[RESULT]] : !torch.vtensor<[2,2,3],f16>
-func.func @batch_norm_fp16_opmath(
-    %input: !torch.vtensor<[2,2,3],f16>,
-    %weight: !torch.vtensor<[2],f16>,
-    %bias: !torch.vtensor<[2],f16>,
-    %running_mean: !torch.vtensor<[2],f16>,
-    %running_var: !torch.vtensor<[2],f16>)
-    -> !torch.vtensor<[2,2,3],f16> {
-  %false = torch.constant.bool false
-  %true = torch.constant.bool true
-  %momentum = torch.constant.float 1.000000e-01
-  %eps = torch.constant.float 5.000000e-01
-  %0 = torch.aten.batch_norm %input, %weight, %bias, %running_mean, %running_var, %false, %momentum, %eps, %true : !torch.vtensor<[2,2,3],f16>, !torch.vtensor<[2],f16>, !torch.vtensor<[2],f16>, !torch.vtensor<[2],f16>, !torch.vtensor<[2],f16>, !torch.bool, !torch.float, !torch.float, !torch.bool -> !torch.vtensor<[2,2,3],f16>
-  return %0 : !torch.vtensor<[2,2,3],f16>
 }
