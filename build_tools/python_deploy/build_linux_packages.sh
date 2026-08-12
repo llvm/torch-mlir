@@ -463,7 +463,19 @@ function build_torch_mlir_ext() {
 function run_audit_wheel() {
   local wheel_basename="$1"
   local python_version="$2"
-  generic_wheel="/wheelhouse/${wheel_basename}-${TORCH_MLIR_PYTHON_PACKAGE_VERSION}-${python_version}-linux_${arch}.whl"
+  # The ABI tag may be 'abi3' instead of the cpXYZ-cpXYZ form when
+  # MLIR_ENABLE_PYTHON_STABLE_ABI is ON (Python >= 3.12). Anchor on the
+  # interpreter tag (e.g. cp312) so the glob matches both cases.
+  local cp_tag="${python_version%%-*}"
+  local matches
+  matches=$(ls /wheelhouse/${wheel_basename}-${TORCH_MLIR_PYTHON_PACKAGE_VERSION}-${cp_tag}-*-linux_${arch}.whl 2>/dev/null)
+  local count
+  count=$(echo "$matches" | grep -c . 2>/dev/null || echo 0)
+  if [ "$count" -ne 1 ]; then
+    echo "ERROR: Expected exactly 1 wheel for ${wheel_basename} ${cp_tag}, found ${count}: ${matches}"
+    exit 1
+  fi
+  local generic_wheel="$matches"
   echo ":::: Auditwheel $generic_wheel"
   auditwheel repair -w /wheelhouse "$generic_wheel"
   rm "$generic_wheel"
@@ -484,7 +496,10 @@ function clean_wheels() {
   local wheel_basename="$1"
   local python_version="$2"
   echo ":::: Clean wheels $wheel_basename $python_version"
-  rm -f /wheelhouse/"${wheel_basename}"-*-"${python_version}"-*.whl
+  # Use only the interpreter tag (e.g. cp312) so the glob covers both
+  # cp312-cp312 and cp312-abi3 filenames.
+  local cp_tag="${python_version%%-*}"
+  rm -f /wheelhouse/"${wheel_basename}"-*-"${cp_tag}"-*.whl
 }
 
 # Trampoline to the docker container if running on the host.

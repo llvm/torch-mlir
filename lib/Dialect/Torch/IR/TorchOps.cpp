@@ -438,12 +438,13 @@ void PrimLoopOp::getSuccessorRegions(
   }
   assert(point.getTerminatorPredecessorOrNull()->getParentRegion() == &region);
   regions.emplace_back(&region);
-  regions.emplace_back(RegionSuccessor::parent());
+  regions.emplace_back(RegionSuccessor(getOperation()));
 }
 
 ValueRange PrimLoopOp::getSuccessorInputs(RegionSuccessor successor) {
-  return successor.isParent() ? ValueRange(getResults())
-                              : ValueRange(getRegion().getArguments().slice(1));
+  return successor.isOperation()
+             ? ValueRange(getResults())
+             : ValueRange(getRegion().getArguments().slice(1));
 }
 
 bool PrimLoopOp::isForLike() {
@@ -509,7 +510,7 @@ void PrimIfOp::getSuccessorRegions(RegionBranchPoint point,
                                    SmallVectorImpl<RegionSuccessor> &regions) {
   // The `then` and the `else` region branch back to the parent operation.
   if (point.getTerminatorPredecessorOrNull()) {
-    regions.push_back(RegionSuccessor::parent());
+    regions.push_back(RegionSuccessor(getOperation()));
     return;
   }
 
@@ -528,7 +529,7 @@ void PrimIfOp::getSuccessorRegions(RegionBranchPoint point,
 }
 
 ValueRange PrimIfOp::getSuccessorInputs(RegionSuccessor successor) {
-  return successor.isParent() ? ValueRange(getResults()) : ValueRange();
+  return successor.isOperation() ? ValueRange(getResults()) : ValueRange();
 }
 
 /// Replaces the given op with the contents of the given single-block region,
@@ -5461,7 +5462,7 @@ getSuccessorRegionsForCalculateOp(CalculateOp op, RegionBranchPoint point,
   Region *region = point.getTerminatorPredecessorOrNull()->getParentRegion();
   if (region == &op.getBody()) {
     // Body returns control to the outer op, passing through results.
-    regions.emplace_back(RegionSuccessor::parent());
+    regions.emplace_back(RegionSuccessor(op.getOperation()));
     return;
   }
   assert(region == &op.getCalculation());
@@ -5475,7 +5476,7 @@ void ShapeCalculateOp::getSuccessorRegions(
 }
 
 ValueRange ShapeCalculateOp::getSuccessorInputs(RegionSuccessor successor) {
-  return successor.isParent() ? ValueRange(getResults()) : ValueRange();
+  return successor.isOperation() ? ValueRange(getResults()) : ValueRange();
 }
 
 //===----------------------------------------------------------------------===//
@@ -5488,7 +5489,7 @@ void DtypeCalculateOp::getSuccessorRegions(
 }
 
 ValueRange DtypeCalculateOp::getSuccessorInputs(RegionSuccessor successor) {
-  return successor.isParent() ? ValueRange(getResults()) : ValueRange();
+  return successor.isOperation() ? ValueRange(getResults()) : ValueRange();
 }
 
 //===----------------------------------------------------------------------===//
@@ -5676,14 +5677,12 @@ LogicalResult AtenPermuteOp::verify() {
       continue;
     }
 
-    // if 'from' is the unkwown index, continue.
-    if (from == -1) {
-      continue;
-    }
+    const int64_t originalFrom = from;
+    from = toPositiveDim(from, outRank);
 
     if (!isValidDim(from, outRank)) {
       return emitError("observed invalid index in permutation (")
-             << from << ") for input tensor of rank " << outRank << '.';
+             << originalFrom << ") for input tensor of rank " << outRank << '.';
     }
 
     if (reversePermutation[from] != -1) {
