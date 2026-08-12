@@ -32,12 +32,14 @@ and Clang's
 
 - Anush Elangovan (@powderluv)
 - Jeremy Kun (@j2kun)
+- Sayan Saha (@sahas3)
 - Maybe you!*
 
 ### TorchToTOSA
 
 - Eric Kunze (@eric-k256)
 - Suraj Sudhir (@sjarus)
+- Sayan Saha (@sahas3)
 
 ### TorchToStablehlo
 
