@@ -417,6 +417,8 @@ FX_IMPORTER_XFAIL_SET = {
     "AtenIntBoolOpConstTrueModule_basic",
     "AtenIntBoolOpModule_basic",
     "AtenIntMM_basic",
+    # TMTensor uses ordered floating-point comparisons, which do not reproduce
+    # PyTorch's required NaN placement for sort and topk.
     "AtenTopKNaNInfStaticModule_basic",
     "AtenTopKSmallestNaNInfStaticModule_basic",
     "SortTensorNaNInfStaticModule_basic",
@@ -656,6 +658,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenStftCenter2DHopLength2_basic",
     "AtenStftCenter2DWindowPadLeft_basic",
     "AtenStftCenter2DHopLength3WindowPadBoth_basic",
+    # StableHLO does not yet lower the imported sort/topk graphs.
     "AtenTopKInfStaticModule_basic",
     "AtenTopKLargeKStaticModule_basic",
     "AtenTopKModule_basic",
@@ -663,6 +666,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenTopKSmallestNaNInfStaticModule_basic",
     "AtenTopKSmallestNegInfStaticModule_basic",
     "AtenTopKSmallestModule_basic",
+    "AtenTopKZeroKStaticModule_basic",
     "Aten_EmbeddingBagExample_basic",
     "Aten_TrilinearModuleVaryingRanks_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
@@ -902,6 +906,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ScatterValueFloatModule_basic",
     "ScatterValueIntModule_basic",
     "SliceOutOfLowerBoundEndIndexModule_basic",
+    # StableHLO does not yet lower torch.aten.sort.
     "SortTensorDescending_basic",
     "SortTensorInfStaticModule_basic",
     "SortTensorInteger_basic",
@@ -2899,6 +2904,8 @@ ONNX_XFAIL_SET = {
     "AtenRealView128Module_basic",
     "AtenRealView64Module_basic",
     "AtenSubFloatModule_basic",
+    # The ONNX path does not reproduce PyTorch's required NaN placement for
+    # topk.
     "AtenTopKNaNInfStaticModule_basic",
     "AtenTopKModule_basic",
     "AtenTopKSmallestNaNInfStaticModule_basic",
@@ -3292,6 +3299,8 @@ ONNX_XFAIL_SET = {
     "SoftmaxBackwardModule_basic",
     "SoftplusBackwardModule_basic",
     "SoftplusBackwardNonDefaultModule_basic",
+    # The ONNX path does not reproduce PyTorch's required NaN placement for
+    # sort.
     "SortTensorNaNInfStaticModule_basic",
     "SortIntListReverse_basic",
     "SortIntList_basic",
@@ -3726,7 +3735,11 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenRealView128Module_basic",
     "AtenRealView64Module_basic",
     "AtenSubFloatModule_basic",
+    # The TOSA repeated-selection lowering is intentionally capped at 128
+    # selected elements to bound generated IR and runtime work.
     "AtenTopKLargeKStaticModule_basic",
+    # TOSA does not support the zero-sized output tensors produced by k=0.
+    "AtenTopKZeroKStaticModule_basic",
     "Aten_EmbeddingBagExample_basic",
     "AvgPool1dIntModule_basic",
     "AvgPool1dStaticModule_basic",
@@ -3972,8 +3985,11 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "SoftplusBackwardNonDefaultModule_basic",
     "SortIntListReverse_basic",
     "SortIntList_basic",
+    # TOSA does not support tensors with a zero-sized dimension.
     "SortTensorEmptyDimStaticModule_basic",
     "SortTensorInteger_basic",
+    # The TOSA repeated-selection lowering is intentionally capped at 128
+    # selected elements to bound generated IR and runtime work.
     "SortTensorLargeStaticModule_basic",
     "SplitDimDynamicModule_basic",
     "SplitDimStaticModule_basic",
@@ -4298,6 +4314,7 @@ ONNX_TOSA_XFAIL_SET = {
     "AtenRealView128Module_basic",
     "AtenRealView64Module_basic",
     "AtenSubFloatModule_basic",
+    # ONNX-to-TOSA does not yet legalize exported TopK graphs end to end.
     "AtenTopKInfStaticModule_basic",
     "AtenTopKLargeKStaticModule_basic",
     "AtenTopKModule_basic",
@@ -4305,6 +4322,7 @@ ONNX_TOSA_XFAIL_SET = {
     "AtenTopKSmallestNaNInfStaticModule_basic",
     "AtenTopKSmallestNegInfStaticModule_basic",
     "AtenTopKSmallestModule_basic",
+    "AtenTopKZeroKStaticModule_basic",
     "Aten_TrilinearModule_basic",
     "Aten_TrilinearModuleSumdims_basic",
     "Aten_TrilinearModuleSumAllDims_basic",
@@ -5017,6 +5035,7 @@ ONNX_TOSA_XFAIL_SET = {
     "SoftmaxIntNonNoneDtypeModule_basic",
     "SortIntListReverse_basic",
     "SortIntList_basic",
+    # ONNX-to-TOSA does not yet legalize exported Sort graphs end to end.
     "SortTensorEmptyDimStaticModule_basic",
     "SortTensorDescending_basic",
     "SortTensorInfStaticModule_basic",

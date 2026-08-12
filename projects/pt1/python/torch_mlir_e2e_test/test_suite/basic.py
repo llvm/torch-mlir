@@ -6637,6 +6637,21 @@ def AtenTopKSmallestModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 40, 50))
 
 
+class AtenTopKZeroKStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([2, 4], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.topk(x, k=0, dim=-1, largest=True, sorted=True)
+
+
+@register_test_case(module_factory=lambda: AtenTopKZeroKStaticModule())
+def AtenTopKZeroKStaticModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 4))
+
+
 class AtenTopKInfStaticModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

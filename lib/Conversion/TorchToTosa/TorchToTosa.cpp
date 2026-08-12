@@ -1605,19 +1605,32 @@ LogicalResult ConvertAtenOp<AtenSortOp>::matchAndRewriteImpl(
     return rewriter.notifyMatchFailure(
         op, "unimplemented: only constant dim value is supported");
 
+  auto sortValuesResultTy = dyn_cast<RankedTensorType>(
+      getTypeConverter()->convertType(op.getResult(0).getType()));
+  auto sortIndicesResultTy = dyn_cast<RankedTensorType>(
+      getTypeConverter()->convertType(op.getResult(1).getType()));
+  if (!sortValuesResultTy || !sortIndicesResultTy)
+    return rewriter.notifyMatchFailure(op,
+                                       "expected ranked tensor result types");
+
   int64_t rank = selfTy.getRank();
   if (rank == 0) {
     if (dim != 0 && dim != -1)
       return rewriter.notifyMatchFailure(op, "scalar sort dim is invalid");
 
-    auto indicesTy = cast<RankedTensorType>(
-        getTypeConverter()->convertType(op.getResult(1).getType()));
+    Value values = self;
+    if (values.getType() != sortValuesResultTy)
+      values =
+          tensor::CastOp::create(rewriter, loc, sortValuesResultTy, values);
+
     Value indices = tosa::getConstTensor<int32_t>(rewriter, op, 0, {}).value();
-    if (indicesTy.getElementType().isInteger(64))
-      indices = tosa::CastOp::create(rewriter, loc, indicesTy, indices);
-    else if (indices.getType() != indicesTy)
-      indices = tensor::CastOp::create(rewriter, loc, indicesTy, indices);
-    rewriter.replaceOp(op, {self, indices});
+    if (sortIndicesResultTy.getElementType().isInteger(64))
+      indices =
+          tosa::CastOp::create(rewriter, loc, sortIndicesResultTy, indices);
+    else if (indices.getType() != sortIndicesResultTy)
+      indices =
+          tensor::CastOp::create(rewriter, loc, sortIndicesResultTy, indices);
+    rewriter.replaceOp(op, {values, indices});
     return success();
   }
 
@@ -1645,6 +1658,8 @@ LogicalResult ConvertAtenOp<AtenSortOp>::matchAndRewriteImpl(
     return rewriter.notifyMatchFailure(
         op, "sort/topk dimension must fit in i32 indices");
 
+  // This lowering emits one full-dimension selection step per result element.
+  // Cap the count to bound both generated IR size and runtime work.
   constexpr int64_t kMaxTosaSortSelectionCount = 128;
 
   struct PrefixSliceUsers {
@@ -1653,6 +1668,13 @@ LogicalResult ConvertAtenOp<AtenSortOp>::matchAndRewriteImpl(
     int64_t k;
   };
 
+  // Recognize the canonical aten.topk decomposition:
+  //   values, indices = aten.sort(self, dim, descending)
+  //   topValues = aten.slice.Tensor(values, dim, start=0, end=k, step=1)
+  //   topIndices = aten.slice.Tensor(indices, dim, start=0, end=k, step=1)
+  // After sorting, top-k is the first k elements along dim. Both sort results
+  // must therefore have exactly one slice user with the same constant k.
+  // Matching this pattern emits only k selections instead of a full sort.
   auto getPrefixSliceUsers = [&]() -> std::optional<PrefixSliceUsers> {
     if (!op.getResult(0).hasOneUse() || !op.getResult(1).hasOneUse())
       return std::nullopt;
@@ -1692,10 +1714,45 @@ LogicalResult ConvertAtenOp<AtenSortOp>::matchAndRewriteImpl(
     return PrefixSliceUsers{valuesSlice, indicesSlice, valuesK};
   };
 
-  auto emitSelection = [&](int64_t selectionCount,
-                           RankedTensorType valuesResultTy,
-                           RankedTensorType indicesResultTy)
-      -> FailureOr<std::pair<Value, Value>> {
+  std::optional<PrefixSliceUsers> sliceUsers = getPrefixSliceUsers();
+  int64_t selectionCount = sliceUsers ? sliceUsers->k : dimSize;
+  if (selectionCount > kMaxTosaSortSelectionCount)
+    return rewriter.notifyMatchFailure(op, [&](Diagnostic &diag) {
+      diag << "TOSA sort/topk lowering supports at most "
+           << kMaxTosaSortSelectionCount << " selected elements";
+    });
+
+  RankedTensorType valuesResultTy = sortValuesResultTy;
+  RankedTensorType indicesResultTy = sortIndicesResultTy;
+  if (sliceUsers) {
+    valuesResultTy = dyn_cast<RankedTensorType>(
+        getTypeConverter()->convertType(sliceUsers->valuesSlice.getType()));
+    indicesResultTy = dyn_cast<RankedTensorType>(
+        getTypeConverter()->convertType(sliceUsers->indicesSlice.getType()));
+    if (!valuesResultTy || !indicesResultTy)
+      return rewriter.notifyMatchFailure(
+          op, "expected ranked tensor types for topk slice results");
+  }
+
+  // Lower sort/top-k with repeated selection. selectionCount is k for the
+  // recognized top-k prefix slices and dimSize for a full sort:
+  // 1. Transpose dim to the last axis and reshape to
+  //    [outerSize, dimSize, 1], where outerSize is the product of the other
+  //    dimensions.
+  // 2. Build the NaN/non-NaN masks once and carry a selected-position mask
+  //    across iterations.
+  // 3. On each iteration, use argmax over unselected numeric candidates
+  //    (negated for ascending order). Select NaNs before numeric values for
+  //    descending order and after them for ascending order, gather the chosen
+  //    value from the original input, and mark its index selected.
+  // 4. Concatenate the selected values and indices, reshape them, and transpose
+  //    them back to the original dimension order.
+  // Example: [2, 3, 4], dim = 1, k = 2 becomes [2, 4, 3], then [8, 3, 1].
+  // Two iterations produce [8, 2, 1], which is reshaped to [2, 4, 2] and
+  // transposed back to [2, 2, 4]. Runtime is
+  // O(outerSize * dimSize * selectionCount), and generated IR size is
+  // O(selectionCount).
+  auto emitSelection = [&]() -> FailureOr<std::pair<Value, Value>> {
     SmallVector<int32_t> toSelectionOrder;
     toSelectionOrder.reserve(rank);
     for (int64_t i = 0; i < rank; ++i) {
@@ -1758,10 +1815,6 @@ LogicalResult ConvertAtenOp<AtenSortOp>::matchAndRewriteImpl(
     APFloat sentinelValue =
         APFloat::getInf(cast<FloatType>(elementTy).getFloatSemantics(),
                         /*negative=*/descending);
-    auto sentinelAttr = DenseElementsAttr::get(
-        gatheredTy, FloatAttr::get(elementTy, sentinelValue));
-    Value sentinel =
-        tosa::ConstOp::create(rewriter, loc, gatheredTy, sentinelAttr);
     auto sentinelFullAttr =
         DenseElementsAttr::get(nkcTy, FloatAttr::get(elementTy, sentinelValue));
     Value sentinelFull =
@@ -1786,7 +1839,6 @@ LogicalResult ConvertAtenOp<AtenSortOp>::matchAndRewriteImpl(
     Value zeroMaskI32 = getI32Splat(selectedMaskI32Ty, 0);
     Value oneIndexMaskI32 = getI32Splat(selectedIndexMaskI32Ty, 1);
     Value selectedMask = zeroMask;
-    Value masked = originalReshaped;
 
     Value nonNan = tosa::EqualOp::create(rewriter, loc, selectedMaskBoolTy,
                                          originalReshaped, originalReshaped);
@@ -1852,8 +1904,9 @@ LogicalResult ConvertAtenOp<AtenSortOp>::matchAndRewriteImpl(
       if (failed(hasUnselectedNan))
         return failure();
 
-      Value argmaxInput = tosa::SelectOp::create(
-          rewriter, loc, nkcTy, unselectedNumeric, masked, sentinelFull);
+      Value argmaxInput =
+          tosa::SelectOp::create(rewriter, loc, nkcTy, unselectedNumeric,
+                                 originalReshaped, sentinelFull);
       if (!descending)
         argmaxInput = tosa::NegateOp::create(rewriter, loc, nkcTy, argmaxInput);
       argmaxInput = tosa::legalizeArgMaxInputType(rewriter, op, argmaxInput);
@@ -1889,8 +1942,6 @@ LogicalResult ConvertAtenOp<AtenSortOp>::matchAndRewriteImpl(
           tosa::getTosaConstShape(rewriter, loc, gatheredShape)));
 
       if (i + 1 < selectionCount) {
-        masked = tosa::ScatterOp::create(rewriter, loc, nkcTy, masked,
-                                         selectedIndex, sentinel);
         selectedMask =
             tosa::ScatterOp::create(rewriter, loc, selectedMaskTy, selectedMask,
                                     selectedIndex, oneGatheredMask);
@@ -1959,55 +2010,30 @@ LogicalResult ConvertAtenOp<AtenSortOp>::matchAndRewriteImpl(
     return std::make_pair(values, indices);
   };
 
-  if (std::optional<PrefixSliceUsers> sliceUsers = getPrefixSliceUsers()) {
-    if (sliceUsers->k > kMaxTosaSortSelectionCount)
-      return rewriter.notifyMatchFailure(
-          op, "TOSA sort/topk lowering only supports small static k");
-
-    auto valuesResultTy = dyn_cast<RankedTensorType>(
-        getTypeConverter()->convertType(sliceUsers->valuesSlice.getType()));
-    auto indicesResultTy = dyn_cast<RankedTensorType>(
-        getTypeConverter()->convertType(sliceUsers->indicesSlice.getType()));
-    if (!valuesResultTy || !indicesResultTy)
-      return rewriter.notifyMatchFailure(
-          op, "expected ranked tensor types for topk slice results");
-    if (sliceUsers->k == 0) {
-      Value emptyValues =
-          tensor::EmptyOp::create(rewriter, loc, valuesResultTy.getShape(),
-                                  valuesResultTy.getElementType());
-      Value emptyIndices =
-          tensor::EmptyOp::create(rewriter, loc, indicesResultTy.getShape(),
-                                  indicesResultTy.getElementType());
-      rewriter.replaceOp(sliceUsers->valuesSlice, emptyValues);
-      rewriter.replaceOp(sliceUsers->indicesSlice, emptyIndices);
-      rewriter.eraseOp(op);
-      return success();
-    }
-    auto topkValuesAndIndices =
-        emitSelection(sliceUsers->k, valuesResultTy, indicesResultTy);
-    if (failed(topkValuesAndIndices))
-      return failure();
-    rewriter.replaceOp(sliceUsers->valuesSlice, topkValuesAndIndices->first);
-    rewriter.replaceOp(sliceUsers->indicesSlice, topkValuesAndIndices->second);
+  if (sliceUsers && selectionCount == 0) {
+    Value emptyValues =
+        tensor::EmptyOp::create(rewriter, loc, valuesResultTy.getShape(),
+                                valuesResultTy.getElementType());
+    Value emptyIndices =
+        tensor::EmptyOp::create(rewriter, loc, indicesResultTy.getShape(),
+                                indicesResultTy.getElementType());
+    rewriter.replaceOp(sliceUsers->valuesSlice, emptyValues);
+    rewriter.replaceOp(sliceUsers->indicesSlice, emptyIndices);
     rewriter.eraseOp(op);
     return success();
   }
 
-  auto valuesResultTy = dyn_cast<RankedTensorType>(
-      getTypeConverter()->convertType(op.getResult(0).getType()));
-  auto indicesResultTy = dyn_cast<RankedTensorType>(
-      getTypeConverter()->convertType(op.getResult(1).getType()));
-  if (!valuesResultTy || !indicesResultTy)
-    return rewriter.notifyMatchFailure(op,
-                                       "expected ranked tensor result types");
-  if (dimSize > kMaxTosaSortSelectionCount)
-    return rewriter.notifyMatchFailure(
-        op, "TOSA full sort lowering only supports small static dimensions");
-
-  auto sortedValuesAndIndices =
-      emitSelection(dimSize, valuesResultTy, indicesResultTy);
+  auto sortedValuesAndIndices = emitSelection();
   if (failed(sortedValuesAndIndices))
     return failure();
+
+  if (sliceUsers) {
+    rewriter.replaceOp(sliceUsers->valuesSlice, sortedValuesAndIndices->first);
+    rewriter.replaceOp(sliceUsers->indicesSlice,
+                       sortedValuesAndIndices->second);
+    rewriter.eraseOp(op);
+    return success();
+  }
 
   rewriter.replaceOp(
       op, {sortedValuesAndIndices->first, sortedValuesAndIndices->second});
