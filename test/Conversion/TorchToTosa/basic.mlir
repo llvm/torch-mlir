@@ -5059,6 +5059,48 @@ func.func @torch.aten.convolution$grouped_conv2d_indivisible_channels(%arg0: !to
 
 // -----
 
+// Grouped conv2d with groups >= 32 must bail out before emitting any IR.
+// Input [1,32,4,4], weight [32,1,3,3] would be depthwise; use [64,2,3,3] with
+// groups=32 so weight.dim(1) != 1 and the grouped path is taken.
+func.func @torch.aten.convolution$grouped_conv2d_too_many_groups(%arg0: !torch.vtensor<[1,64,4,4],f32>) -> !torch.vtensor<[1,64,2,2],f32> {
+  %false = torch.constant.bool false
+  %int32 = torch.constant.int 32
+  %int1 = torch.constant.int 1
+  %0 = torch.vtensor.literal(dense<0.1> : tensor<64x2x3x3xf32>) : !torch.vtensor<[64,2,3,3],f32>
+  %none = torch.constant.none
+  %1 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %3 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %4 = torch.prim.ListConstruct  : () -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.convolution' that was explicitly marked illegal}}
+  %5 = torch.aten.convolution %arg0, %0, %none, %1, %2, %3, %false, %4, %int32 : !torch.vtensor<[1,64,4,4],f32>, !torch.vtensor<[64,2,3,3],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,64,2,2],f32>
+  return %5 : !torch.vtensor<[1,64,2,2],f32>
+}
+
+// -----
+
+// Depthwise conv2d with a large group count (groups=64 == C_in) is not subject
+// to the grouped-conv groups >= 32 bailout: it lowers to a single
+// tosa.depthwise_conv2d with no per-group decomposition.
+// CHECK-LABEL:   func.func @torch.aten.convolution$depthwise_conv2d_many_groups(
+// CHECK:           tosa.depthwise_conv2d
+// CHECK-NOT:       tosa.concat
+func.func @torch.aten.convolution$depthwise_conv2d_many_groups(%arg0: !torch.vtensor<[1,64,8,8],f32>) -> !torch.vtensor<[1,64,8,8],f32> {
+  %false = torch.constant.bool false
+  %int64 = torch.constant.int 64
+  %int1 = torch.constant.int 1
+  %0 = torch.vtensor.literal(dense<0.1> : tensor<64x1x3x3xf32>) : !torch.vtensor<[64,1,3,3],f32>
+  %none = torch.constant.none
+  %1 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %3 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %4 = torch.prim.ListConstruct  : () -> !torch.list<int>
+  %5 = torch.aten.convolution %arg0, %0, %none, %1, %2, %3, %false, %4, %int64 : !torch.vtensor<[1,64,8,8],f32>, !torch.vtensor<[64,1,3,3],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,64,8,8],f32>
+  return %5 : !torch.vtensor<[1,64,8,8],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.max_pool2d$zero_pad_with_sliced_input(
 // CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[1,1,56,56],f32>) -> !torch.vtensor<[1,1,27,27],f32> {
 // CHECK:           %[[TO_BUILTIN_TENSOR_0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[1,1,56,56],f32> -> tensor<1x1x56x56xf32>

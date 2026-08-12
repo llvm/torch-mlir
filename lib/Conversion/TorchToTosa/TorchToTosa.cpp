@@ -3457,6 +3457,12 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewriteImpl(
     return rewriter.notifyMatchFailure(
         op, "group size must be 1 (convolution) or weight.dim(1) must be 1 "
             "(depthwise convolution) for 3D or transposed convolutions");
+  } else if (groups >= 32 && weightShape[1] != 1) {
+    // Grouped conv2d is decomposed into one tosa.conv2d per group; bail before
+    // emitting any IR when the group count would produce an excessive number of
+    // ops.
+    return rewriter.notifyMatchFailure(
+        op, "grouped convolution with groups >= 32 is unsupported");
   }
 
   SmallVector<int64_t> stride;
