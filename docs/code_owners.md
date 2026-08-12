@@ -31,6 +31,7 @@ and Clang's
 ### CI / Build system / Packaging / [Release](https://github.com/llvm/torch-mlir-release)
 
 - Anush Elangovan (@powderluv)
+- Jeremy Kun (@j2kun)
 - Maybe you!*
 
 ### TorchToTOSA
