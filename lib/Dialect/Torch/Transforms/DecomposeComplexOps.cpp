@@ -6643,15 +6643,20 @@ class DecomposeAtenNonzeroOp : public OpRewritePattern<AtenNonzeroOp> {
     int64_t flattenedSize = 1;
     if (inputType.hasSizes()) {
       for (auto size : inputType.getSizes()) {
+        // Any dynamic input dimension makes the flattened size dynamic.
+        if (size == kUnknownSize) {
+          flattenedSize = kUnknownSize;
+          break;
+        }
         flattenedSize *= size;
       }
     } else {
       flattenedSize = kUnknownSize;
     }
 
-    auto flattendInputShape = SmallVector<int64_t>{flattenedSize};
+    auto flattenedInputShape = SmallVector<int64_t>{flattenedSize};
     auto flattenedInputType = rewriter.getType<Torch::ValueTensorType>(
-        flattendInputShape, inputType.getOptionalDtype());
+        flattenedInputShape, inputType.getOptionalDtype());
 
     // %1 = torch.aten.flatten.using_ints %arg0, %int0, %int0_0 :
     auto inputDimsEnd = ConstantIntOp::create(
@@ -6724,10 +6729,8 @@ class DecomposeAtenNonzeroOp : public OpRewritePattern<AtenNonzeroOp> {
                                   /*end=*/numNonzero,
                                   /*step=*/constantOne);
 
-    // TODO fix multidim dynamic support. The following code only work for
-    // static multidim. Convert flattened indices back to multi-dimensional
-    // indices original_shape = t.shape input_shape_tensor =
-    // torch.tensor(original_shape)
+    // Convert flattened indices back to multi-dimensional indices using the
+    // input shape queried at runtime.
     auto shapeType = Torch::ValueTensorType::get(
         rewriter.getContext(), SmallVector<int64_t>{inputRank}, intType);
     SmallVector<Value> shapeValues;
