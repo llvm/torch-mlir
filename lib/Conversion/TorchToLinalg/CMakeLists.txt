@@ -22,6 +22,11 @@ add_mlir_conversion_library(TorchMLIRTorchToLinalg
   MLIRPass
   MLIRLinalgDialect
   MLIRMathDialect
+  MLIRRewrite
+  MLIRTransformUtils
+  TorchMLIRConversionUtils
+  TorchMLIRTorchConversionDialect
+  TorchMLIRTorchConversionPasses
   TorchMLIRTorchDialect
 )
 
