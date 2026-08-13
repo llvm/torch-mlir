@@ -2355,10 +2355,19 @@ public:
                          const TypeConverter *typeConverter) const override {
     if constexpr (!std::is_same_v<AtenOpT, AtenMatmulOp> &&
                   !std::is_same_v<AtenOpT, AtenMmOp> &&
-                  !std::is_same_v<AtenOpT, AtenBmmOp>) {
+                  !std::is_same_v<AtenOpT, AtenBmmOp> &&
+                  !std::is_same_v<AtenOpT, AtenAddmmOp>) {
       return false;
     } else {
-      auto lhs = adaptor.getSelf();
+      Value lhs;
+      if constexpr (std::is_same_v<AtenOpT, AtenAddmmOp>) {
+        lhs = adaptor.getMat1();
+        auto biasTy = dyn_cast<RankedTensorType>(adaptor.getSelf().getType());
+        if (biasTy && mlir::tosa::typeHasZeroDim(biasTy))
+          return false;
+      } else {
+        lhs = adaptor.getSelf();
+      }
       Value rhs;
       if constexpr (std::is_same_v<AtenOpT, AtenMatmulOp>)
         rhs = adaptor.getOther();
@@ -2382,7 +2391,8 @@ public:
   LogicalResult performMatmul(AtenOpT op, OpAdaptor adaptor,
                               ConversionPatternRewriter &rewriter, Value &lhs,
                               Value &rhs, Value &lhsZp, Value &rhsZp,
-                              Value &output) const {
+                              Value &output,
+                              bool keepRank3Result = false) const {
 
     auto lhsTy = cast<RankedTensorType>(lhs.getType());
     auto rhsTy = cast<RankedTensorType>(rhs.getType());
@@ -2828,7 +2838,8 @@ public:
     // Perform the reshape to output shape. This is always required unless max
     // input rank=3 and there was no broadcasting, in which case the tosa.matmul
     // output itself is correctly shaped.
-    bool performOpReshape = !(maxInputRank == 3 && !performBatchDimBroadcast);
+    bool performOpReshape =
+        !(maxInputRank == 3 && !performBatchDimBroadcast) && !keepRank3Result;
 
     if (performOpReshape) {
       // Since the output shape may be unknown, we construct it
@@ -3083,6 +3094,124 @@ public:
           op, "unsupported: aten.mm/aten.bmm with mixed quantization");
     }
 
+    return success();
+  }
+};
+
+// Lowers statically shaped floating-point addmm while retaining the rank-3
+// matmul result so that the bias add can be done before the reshape.
+class ConvertAtenAddmmOp : public ConvertAtenMatmulBaseOp<AtenAddmmOp> {
+  static bool isStaticRanked(RankedTensorType type, int64_t rank) {
+    return type && type.hasStaticShape() && type.getRank() == rank;
+  }
+
+  static std::optional<double> getConstantScalar(Value value) {
+    double floatValue;
+    if (matchPattern(value, m_TorchConstantFloat(&floatValue))) {
+      return floatValue;
+    }
+
+    int64_t intValue;
+    if (matchPattern(value, m_TorchConstantInt(&intValue))) {
+      return static_cast<double>(intValue);
+    }
+    return std::nullopt;
+  }
+
+  static FailureOr<Value> scaleTensor(AtenAddmmOp op, Value tensor,
+                                      Value scalar, double scalarValue,
+                                      ConversionPatternRewriter &rewriter) {
+    if (scalarValue == 1.0) {
+      return tensor;
+    }
+
+    auto tensorTy = cast<RankedTensorType>(tensor.getType());
+    SmallVector<int64_t> scalarShape(tensorTy.getRank(), 1);
+    Value scalarTensor;
+    if (failed(torchScalarToTosaTensor(rewriter, op, scalar, scalarTensor,
+                                       tensorTy.getElementType(),
+                                       scalarShape))) {
+      return failure();
+    }
+    return tosa::createMulOpAndCast(rewriter, op, tensorTy, tensor,
+                                    scalarTensor, /*shift=*/0)
+        .getResult();
+  }
+
+public:
+  using ConvertAtenMatmulBaseOp<AtenAddmmOp>::ConvertAtenMatmulBaseOp;
+  using OpAdaptor = AtenAddmmOp::Adaptor;
+
+  LogicalResult
+  matchAndRewriteImpl(AtenAddmmOp op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
+    Value lhs = adaptor.getMat1();
+    Value rhs = adaptor.getMat2();
+    Value bias = adaptor.getSelf();
+    auto lhsTy = dyn_cast<RankedTensorType>(lhs.getType());
+    auto rhsTy = dyn_cast<RankedTensorType>(rhs.getType());
+    auto biasTy = dyn_cast<RankedTensorType>(bias.getType());
+    auto resultTy = dyn_cast<RankedTensorType>(
+        this->getTypeConverter()->convertType(op.getType()));
+
+    std::optional<double> alpha = getConstantScalar(op.getAlpha());
+    std::optional<double> beta = getConstantScalar(op.getBeta());
+    if (!alpha || !beta) {
+      return rewriter.notifyMatchFailure(op,
+                                         "requires constant alpha and beta");
+    }
+    if (!isStaticRanked(lhsTy, 2) || !isStaticRanked(rhsTy, 2) ||
+        !isStaticRanked(resultTy, 2)) {
+      return rewriter.notifyMatchFailure(
+          op, "requires static rank-2 matrices and result");
+    }
+    if (!biasTy || !biasTy.hasStaticShape() || biasTy.getRank() > 2) {
+      return rewriter.notifyMatchFailure(
+          op, "requires static broadcastable bias of rank at most 2");
+    }
+    if (!isa<FloatType>(lhsTy.getElementType())) {
+      return rewriter.notifyMatchFailure(op, "requires floating-point tensors");
+    }
+
+    Value lhsZp, rhsZp, matmul;
+    if (failed(this->performMatmul(op, adaptor, rewriter, lhs, rhs, lhsZp,
+                                   rhsZp, matmul,
+                                   /*keepRank3Result=*/true))) {
+      return rewriter.notifyMatchFailure(op, "failed to lower addmm matmul");
+    }
+
+    auto matmulTy = cast<RankedTensorType>(matmul.getType());
+    matmul = tosa::tosaCastTensorToType(
+                 rewriter, matmul, matmulTy.clone(resultTy.getElementType()))
+                 .value();
+
+    FailureOr<Value> scaledMatmul =
+        scaleTensor(op, matmul, op.getAlpha(), *alpha, rewriter);
+    if (failed(scaledMatmul)) {
+      return rewriter.notifyMatchFailure(op, "failed to apply addmm alpha");
+    }
+
+    Value result = *scaledMatmul;
+    if (*beta != 0.0) {
+      FailureOr<Value> scaledBias =
+          scaleTensor(op, bias, op.getBeta(), *beta, rewriter);
+      if (failed(scaledBias)) {
+        return rewriter.notifyMatchFailure(op, "failed to apply addmm beta");
+      }
+      bias = *scaledBias;
+
+      if (failed(tosa::EqualizeRanks(rewriter, op.getLoc(), result, bias))) {
+        return rewriter.notifyMatchFailure(
+            op, "failed to broadcast bias to addmm result");
+      }
+      result = tosa::AddOp::create(rewriter, op.getLoc(), result.getType(),
+                                   result, bias)
+                   .getResult();
+    }
+
+    rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
+        op, resultTy, result,
+        tosa::getTosaConstShape(rewriter, op.getLoc(), resultTy.getShape()));
     return success();
   }
 };
@@ -11863,6 +11992,10 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
   INSERT_MM_ATENOP_PATTERN(AtenMmOp);
   INSERT_MM_ATENOP_PATTERN(AtenBmmOp);
 #undef INSERT_MM_ATENOP_PATTERN
+
+  illegalOps.insert(AtenAddmmOp::getOperationName());
+  patterns.addWithLabel<ConvertAtenAddmmOp>(AtenAddmmOp::getOperationName(),
+                                            typeConverter, context);
 
 #define INSERT_LINEAR_ATENOP_PATTERN(AtenOp)                                   \
   illegalOps.insert(AtenOp::getOperationName());                               \
