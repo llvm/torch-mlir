@@ -40,6 +40,7 @@ and Clang's
 - Eric Kunze (@eric-k256)
 - Suraj Sudhir (@sjarus)
 - Sayan Saha (@sahas3)
+- Vitalii Shutov (@Lallapallooza)
 
 ### TorchToStablehlo
 
