@@ -39,9 +39,8 @@ WORKDIR /opt/app
 RUN python3 -m pip install --upgrade pip
 RUN python3 -m pip install --upgrade --ignore-installed -r requirements.txt
 
-# Make a symlink to clang for uniformity
-RUN ln -s /usr/bin/clang-16 /usr/bin/clang
-RUN ln -s /usr/bin/clang++-16 /usr/bin/clang++
+RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-16 100 && \
+    update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-16 100
 
 # Clean up
 RUN apt-get clean \
