@@ -28,6 +28,7 @@ and Clang's
 - Ramiro Leal-Cavazos (@ramiro050) - emeritus
 - Zach Garvey (@zjgarvey)
 - Renato Golin (@rengolin)
+- Artem Gindinson (@AGindinson)
 
 ### CI / Build system / Packaging / [Release](https://github.com/llvm/torch-mlir-release)
 
@@ -59,6 +60,7 @@ and Clang's
 
 - Sambhav Jain (@sjain-stanford)
 - Ahmed Taei (@asaadaldien)
+- Artem Gindinson (@AGindinson)
 - Maybe you!*
 
 ### LLVM Integrate
