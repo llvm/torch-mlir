@@ -620,6 +620,36 @@ def LayerNormModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class LayerNormNoBiasModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.ly = torch.nn.LayerNorm([2, 2, 3], bias=False)
+        self.ly.eval()
+        self.ly.weight = torch.nn.Parameter(
+            torch.tensor(
+                [[[3.0, 2.0, 4.0], [2.0, 3.0, 3.0]], [[3.0, 2.0, 4.0], [2.0, 3.0, 3.0]]]
+            )
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 5, 2, 2, 3], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ly(x)
+
+
+@register_test_case(module_factory=lambda: LayerNormNoBiasModule())
+def LayerNormNoBiasModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 5, 2, 2, 3))
+
+
+# ==============================================================================
+
+
 class LayerNormLastDimModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
