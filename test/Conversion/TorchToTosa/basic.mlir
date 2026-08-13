@@ -6653,3 +6653,31 @@ func.func @torch.aten.avg_pool2d$encoded_stride_with_non_unit_dilation(%arg0: !t
   %0 = torch.aten.avg_pool2d %arg0, %kernel, %stride, %padding, %false, %false, %none : !torch.vtensor<[1,64,16,16],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,64,7,7],f32>
   return %0 : !torch.vtensor<[1,64,7,7],f32>
 }
+
+// -----
+
+// The ord = 0 / +-inf vector norms are handled by
+// DecomposeAtenLinalgVectorNormOp; the generic (sum |x|^ord)^(1/ord) lowering
+// here is undefined for them. If the op reaches this pass undecomposed the
+// conversion declines, so it fails to legalize.
+func.func @torch.aten.linalg_vector_norm$pos_inf(%arg0: !torch.vtensor<[5],f32>) -> !torch.vtensor<[],f32> {
+  %ord = torch.constant.float 0x7FF0000000000000
+  %dim = torch.constant.none
+  %keepdim = torch.constant.bool false
+  %dtype = torch.constant.none
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.linalg_vector_norm'}}
+  %0 = torch.aten.linalg_vector_norm %arg0, %ord, %dim, %keepdim, %dtype : !torch.vtensor<[5],f32>, !torch.float, !torch.none, !torch.bool, !torch.none -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
+}
+
+// -----
+
+func.func @torch.aten.linalg_vector_norm$zero_int(%arg0: !torch.vtensor<[5],f32>) -> !torch.vtensor<[],f32> {
+  %ord = torch.constant.int 0
+  %dim = torch.constant.none
+  %keepdim = torch.constant.bool false
+  %dtype = torch.constant.none
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.linalg_vector_norm'}}
+  %0 = torch.aten.linalg_vector_norm %arg0, %ord, %dim, %keepdim, %dtype : !torch.vtensor<[5],f32>, !torch.int, !torch.none, !torch.bool, !torch.none -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
+}
