@@ -41,8 +41,6 @@ jobs:
 
       - name: Setup ccache
         uses: ./.github/actions/setup-build
-        with:
-          cache-suffix: 'rollPyTorch'
 
       - name: Determine nightly PyTorch version
         run: |
