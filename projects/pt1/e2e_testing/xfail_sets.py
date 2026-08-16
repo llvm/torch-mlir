@@ -86,6 +86,8 @@ LINALG_CRASHING_SET = {
     # unimplemented: for conversion to byte or char type dstOriginalDtype has to be passed to convertScalarToDtype
     "AtenMmInt8Types_basic",
     "AtenMmInt8ZeroK_basic",
+    # Runtime verification aborts on zero-extent memref casts.
+    "RMSNormZeroExtentModule_basic",
     # Hanging tests:
     "ConvolutionBackwardModule2DDilated_basic",
     "ConvolutionBackwardModule2DStridedPaddedDilatedGrouped_basic",
@@ -543,8 +545,6 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
     "RollModule_basic",
     "AdaptiveAvgPool2dDynamicNoBatch_basic",
     "AvgPool2dCHWModule_basic",
-    # Runtime verification aborts on zero-extent memref casts.
-    "RMSNormZeroExtentModule_basic",
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
