@@ -848,6 +848,53 @@ public:
     return success();
   }
 };
+
+class ConvertAtenOuterOp : public ConvertAtenOp<AtenOuterOp> {
+public:
+  using ConvertAtenOp<AtenOuterOp>::ConvertAtenOp;
+  using OpAdaptor = typename AtenOuterOp::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenOuterOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Value lhs = adaptor.getSelf();
+    auto lhsTy = dyn_cast<RankedTensorType>(lhs.getType());
+    Value rhs = adaptor.getVec2();
+    auto rhsTy = dyn_cast<RankedTensorType>(rhs.getType());
+
+    if (!lhsTy || !rhsTy)
+      return rewriter.notifyMatchFailure(op, "inputs must be ranked tensors");
+
+    auto lhsRank = lhsTy.getRank();
+    auto rhsRank = rhsTy.getRank();
+
+    if (lhsRank != 1 || rhsRank != 1)
+      return rewriter.notifyMatchFailure(op, "input tensors must be rank 1");
+
+    auto lhsElemTy = lhsTy.getElementType();
+    auto rhsElemTy = rhsTy.getElementType();
+
+    auto outTy = cast<RankedTensorType>(
+        ConvertAtenOp<AtenOuterOp>::getTypeConverter()->convertType(
+            op.getType()));
+    auto outElemTy = outTy.getElementType();
+
+    if (lhsElemTy != outElemTy) {
+      lhsTy = RankedTensorType::get(lhsTy.getShape(), outElemTy);
+      lhs = stablehlo::ConvertOp::create(rewriter, op->getLoc(), lhsTy, lhs);
+    }
+    if (rhsElemTy != outElemTy) {
+      rhsTy = RankedTensorType::get(rhsTy.getShape(), outElemTy);
+      rhs = stablehlo::ConvertOp::create(rewriter, op->getLoc(), rhsTy, rhs);
+    }
+
+    auto dotDimensionNumbers = stablehlo::DotDimensionNumbersAttr::get(
+        rewriter.getContext(), {}, {}, {}, {});
+    rewriter.replaceOpWithNewOp<stablehlo::DotGeneralOp>(
+        op, outTy, lhs, rhs, dotDimensionNumbers, nullptr, nullptr);
+    return success();
+  }
+};
+
 } // namespace
 
 void mlir::torch::torch_to_stablehlo::populateLinearOpPatternsAndLegality(
@@ -880,4 +927,10 @@ void mlir::torch::torch_to_stablehlo::populateLinearOpPatternsAndLegality(
   patterns.add<ConvertAtenConvolutionOp>(typeConverter, context, options)
   INSERT_CONVOLUTION_ATENOP_PATTERN(AtenConvolutionOp);
 #undef INSERT_CONVOLUTION_ATENOP_PATTERN
+
+#define INSERT_OUTER_ATENOP_PATTERN(AtenOp)                                    \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<ConvertAtenOuterOp>(typeConverter, context, options)
+  INSERT_OUTER_ATENOP_PATTERN(AtenOuterOp);
+#undef INSERT_OUTER_ATENOP_PATTERN
 }

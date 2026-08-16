@@ -8,6 +8,8 @@ add_library(TorchMLIRJITIRImporter STATIC
   ivalue_importer.cpp
   torch_to_mlir_utils.cpp
   )
+# PyTorch headers now use C++20-only syntax that MSVC rejects in C++17 mode.
+target_compile_features(TorchMLIRJITIRImporter PUBLIC cxx_std_20)
 message(STATUS "Linking TorchMLIRJITImporter with ${TORCH_LIBRARIES}")
 target_link_libraries(TorchMLIRJITIRImporter
   TorchMLIRAggregateCAPI

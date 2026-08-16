@@ -442,6 +442,16 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
   llvm_unreachable("convertScalarToDtype should handle all the types");
 }
 
+Value materializeScalarToDtype(OpBuilder &b, Location loc,
+                               const TypeConverter *converter, Value scalar,
+                               Type dtype) {
+  Type convertedType = converter->convertType(scalar.getType());
+  if (scalar.getType() != convertedType)
+    scalar =
+        converter->materializeTargetConversion(b, loc, convertedType, scalar);
+  return convertScalarToDtype(b, loc, scalar, dtype);
+}
+
 Value toPositiveValidDim(ConversionPatternRewriter &rewriter, Location loc,
                          Value torchOptionalInt, Value builtinInt,
                          Value defaultValue, Value dimSize) {
@@ -619,6 +629,34 @@ LogicalResult getQuantizationParams(Value value, Value &zeropoint, Value &scale,
       .Case<AtenQuantizePerTensorOp>(setParams)
       .Case<Aten_MakePerChannelQuantizedTensorOp>(setParams)
       .Default([](auto) { return failure(); });
+}
+
+LogicalResult
+getConstantPerTensorQParams(PatternRewriter &rewriter, Operation *op,
+                            Value scale, Value zeroPoint, Value quantMin,
+                            Value quantMax, bool requireNonZeroScale,
+                            bool requireClampRange, PerTensorQParams &qparams) {
+  if (!matchPattern(scale, m_TorchConstantFloat(&qparams.scale)))
+    return rewriter.notifyMatchFailure(
+        op, "dynamic per-tensor scale not supported; scale must be a constant");
+  if (requireNonZeroScale && qparams.scale == 0.0)
+    return rewriter.notifyMatchFailure(op, "scale must be non-zero");
+
+  if (!matchPattern(zeroPoint, m_TorchConstantInt(&qparams.zeroPoint)))
+    return rewriter.notifyMatchFailure(
+        op, "dynamic per-tensor zero_point not supported; zero_point must be a "
+            "constant");
+
+  if (requireClampRange) {
+    if (!matchPattern(quantMin, m_TorchConstantInt(&qparams.quantMin)))
+      return rewriter.notifyMatchFailure(
+          op, "dynamic per-tensor quant_min not supported");
+    if (!matchPattern(quantMax, m_TorchConstantInt(&qparams.quantMax)))
+      return rewriter.notifyMatchFailure(
+          op, "dynamic per-tensor quant_max not supported");
+  }
+
+  return success();
 }
 
 APFloat getFloatInf(mlir::FloatType fpType, bool negative,

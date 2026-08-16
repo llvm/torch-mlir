@@ -237,3 +237,133 @@ class QuantizePerTensorModule(torch.nn.Module):
 def QuantizePerTensorModule_basic(module, tu: TestUtils):
     # use values within [-5, 5] to ensure we run into overflow/underflow
     module.forward(10 * torch.rand(1, 64, 112, 112) - 5)
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedDequantizePerTensor(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 8], torch.int8, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            x, 0.03, -10, -128, 127, torch.int8
+        )
+
+
+@register_test_case(module_factory=lambda: QuantizedDecomposedDequantizePerTensor())
+def QuantizedDecomposedDequantizePerTensor_basic(module, tu: TestUtils):
+    module.forward(tu.randint(4, 8, low=-128, high=127).to(torch.int8))
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedQuantizePerTensor(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 8], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.quantized_decomposed.quantize_per_tensor.default(
+            x, 0.03, -10, -128, 127, torch.int8
+        )
+
+
+@register_test_case(module_factory=lambda: QuantizedDecomposedQuantizePerTensor())
+def QuantizedDecomposedQuantizePerTensor_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 8))
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedDequantizePerChannel(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 8], torch.int8, True),
+            ([8], torch.float32, True),
+            ([8], torch.int64, True),
+        ]
+    )
+    def forward(self, x, scales, zero_points):
+        return torch.ops.quantized_decomposed.dequantize_per_channel.default(
+            x, scales, zero_points, 1, -128, 127, torch.int8
+        )
+
+
+@register_test_case(module_factory=lambda: QuantizedDecomposedDequantizePerChannel())
+def QuantizedDecomposedDequantizePerChannel_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(4, 8, low=-128, high=127).to(torch.int8),
+        tu.rand(8) + 0.01,
+        tu.randint(8, low=-128, high=127).to(torch.int64),
+    )
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedDequantizePerChannelUnsignedSymmetric(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 8], torch.uint8, True),
+            ([8], torch.float32, True),
+        ]
+    )
+    def forward(self, x, scales):
+        return torch.ops.quantized_decomposed.dequantize_per_channel.default(
+            x, scales, None, 1, 0, 255, torch.uint8
+        )
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedDequantizePerChannelUnsignedSymmetric()
+)
+def QuantizedDecomposedDequantizePerChannelUnsignedSymmetric_basic(
+    module, tu: TestUtils
+):
+    module.forward(
+        tu.randint(4, 8, low=128, high=255).to(torch.uint8),
+        tu.rand(8) + 0.01,
+    )
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedQuantizePerChannel(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 8], torch.float32, True),
+            ([8], torch.float32, True),
+            ([8], torch.int64, True),
+        ]
+    )
+    def forward(self, x, scales, zero_points):
+        return torch.ops.quantized_decomposed.quantize_per_channel.default(
+            x, scales, zero_points, 1, -128, 127, torch.int8
+        )
+
+
+@register_test_case(module_factory=lambda: QuantizedDecomposedQuantizePerChannel())
+def QuantizedDecomposedQuantizePerChannel_basic(module, tu: TestUtils):
+    module.forward(
+        10 * tu.rand(4, 8) - 5,
+        tu.rand(8) + 0.01,
+        tu.randint(8, low=-128, high=127).to(torch.int64),
+    )

@@ -9,7 +9,7 @@ from typing import Any
 import io
 import onnx
 import torch
-from torch.onnx._constants import ONNX_TORCHSCRIPT_EXPORTER_MAX_OPSET as max_opset_ver
+from torch.onnx._constants import ONNX_DEFAULT_OPSET as opset_ver
 import torch_mlir
 
 from torch_mlir_e2e_test.framework import TestConfig, Trace, TraceItem
@@ -37,6 +37,11 @@ ONNX_TO_TORCH_FUNC_PIPELINE = ",".join(
     ]
 )
 
+# Dynamic dims need a concrete extent in the example input. torch.export
+# 0/1-specializes an extent of 1, which would leak a static dim into the exported
+# graph.
+DYNAMIC_DIM_PLACEHOLDER = 2
+
 
 def import_onnx(contents):
     # Import the ONNX model proto from the file contents:
@@ -60,22 +65,20 @@ def convert_onnx(model, inputs):
     # Process the type information so we export with the dynamic shape information
     examples = []
     input_names = []
-    dynamic_tensors = {}
+    dynamic_shapes = []
     for index, arg in enumerate(inputs):
-        shape = map(lambda d: d if d >= 0 else 1, arg.shape)
-        shape = tuple(shape)
+        shape = tuple(d if d >= 0 else DYNAMIC_DIM_PLACEHOLDER for d in arg.shape)
         examples.append(torch.zeros(size=shape, dtype=arg.dtype))
 
         input_name = "input_{}".format(index)
         input_names.append(input_name)
 
-        dynamic_dims = {}
-        for dimindex, dim in enumerate(arg.shape):
-            if dim < 0:
-                dynamic_dims[dimindex] = "dim_{}_{}".format(index, dimindex)
-
-        if dynamic_dims:
-            dynamic_tensors[input_name] = dynamic_dims
+        dynamic_dims = {
+            dimindex: torch.export.Dim.AUTO
+            for dimindex, dim in enumerate(arg.shape)
+            if dim < 0
+        }
+        dynamic_shapes.append(dynamic_dims or None)
 
     examples = tuple(examples)
     torch.onnx.export(
@@ -83,9 +86,9 @@ def convert_onnx(model, inputs):
         examples,
         buffer,
         input_names=input_names,
-        dynamic_axes=dynamic_tensors,
-        opset_version=max_opset_ver,
-        dynamo=False,
+        dynamic_shapes=dynamic_shapes,
+        opset_version=opset_ver,
+        dynamo=True,
     )
     buffer = buffer.getvalue()
     return import_onnx(buffer)

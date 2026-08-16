@@ -40,6 +40,8 @@ import torch.export
 import torch.fx as torch_fx
 from torch.fx.passes.shape_prop import TensorMetadata
 
+from .fx_as_strided import rewrite_as_strided
+
 from torch import (
     dtype as TorchDtype,
     FunctionSchema,
@@ -110,6 +112,7 @@ from ..ir import (
     FloatAttr,
     BF16Type,
     ComplexType,
+    Float4E2M1FNType,
     Float8E5M2Type,
     Float8E4M3FNType,
     Float8E5M2FNUZType,
@@ -172,6 +175,7 @@ OPTIONAL_TORCH_DTYPE_TO_MLIR_TYPE_ASM = {
     "float8_e5m2fnuz": "f8E5M2FNUZ",
     "float8_e4m3fnuz": "f8E4M3FNUZ",
     "float8_e8m0fnu": "f8E8M0FNU",
+    "float4_e2m1fn_x2": "f4E2M1FN",
 }
 for dtype_str, dtype_asm in OPTIONAL_TORCH_DTYPE_TO_MLIR_TYPE_ASM.items():
     if hasattr(torch, dtype_str):
@@ -201,6 +205,7 @@ OPTIONAL_TORCH_DTYPE_TO_MLIR_TYPE = {
     "float8_e5m2fnuz": lambda: Float8E5M2FNUZType.get(),
     "float8_e4m3fnuz": lambda: Float8E4M3FNUZType.get(),
     "float8_e8m0fnu": lambda: Float8E8M0FNUType.get(),
+    "float4_e2m1fn_x2": lambda: Float4E2M1FNType.get(),
 }
 for dtype_str, mlir_type in OPTIONAL_TORCH_DTYPE_TO_MLIR_TYPE.items():
     if hasattr(torch, dtype_str):
@@ -255,6 +260,7 @@ OPTIONAL_TORCH_DTYPE_TO_INT = {
     "float8_e5m2fnuz": 25,
     "float8_e4m3fnuz": 26,
     "float8_e8m0fnu": 28,
+    "float4_e2m1fn_x2": 29,
 }
 for dtype_str, dtype_int in OPTIONAL_TORCH_DTYPE_TO_INT.items():
     if hasattr(torch, dtype_str):
@@ -634,6 +640,9 @@ class FxImporter:
         method to control access to mutable buffers and parameters. Without that, the
         default policy is to capture them as frozen values.
         """
+        # Run before Torch IR import while FakeTensor storage metadata is still
+        # available.
+        rewrite_as_strided(prog.graph)
         # Create lookaside table of placeholders/outputs.
         placeholder_nodes: Dict[str, Node] = {}
         all_producer_nodes: Dict[str, Node] = {}
@@ -949,16 +958,14 @@ class FxImporter:
                         "Could not find state mapping for tensor constants"
                     ) from e
                 arg_replacements[input_name] = state_value
-        else:
-            # Lift buffers.
-            for input_name, state_name in sig.inputs_to_buffers.items():
-                try:
-                    state_value = state_dict[state_name]
-                except KeyError as e:
-                    raise AssertionError(
-                        "Could not find state mapping for buffer"
-                    ) from e
-                arg_replacements[input_name] = state_value
+
+        # Always lift buffers.
+        for input_name, state_name in sig.inputs_to_buffers.items():
+            try:
+                state_value = state_dict[state_name]
+            except KeyError as e:
+                raise AssertionError("Could not find state mapping for buffer") from e
+            arg_replacements[input_name] = state_value
 
         # Lift parameters.
         for input_name, state_name in sig.inputs_to_parameters.items():
@@ -1048,6 +1055,10 @@ class FxImporter:
         TODO: This mechanism is deprecated by the `import_program` entry-point and
         it should be removed when no longer required for backwards compatibility.
         """
+        # Run before Torch IR import while FakeTensor storage metadata is still
+        # available. Graph-only callers may be rejected if safe rewriting needs
+        # owning GraphModule state for generated index tensors.
+        rewrite_as_strided(g)
         ftype, loc = self._graph_to_function_meta(g)
         # TODO: The FuncOp constructor requires a context-manager context.
         # Fix upstream and then unnest.
@@ -2078,6 +2089,11 @@ class GraphNodeImporter:
         else:
             target = concrete_target
 
+        if target == torch.ops.aten.as_strided.default:
+            raise NotImplementedError(
+                "aten.as_strided.default must be rewritten before Torch IR import"
+            )
+
         schema = target._schema
         assert isinstance(schema, FunctionSchema)
         mlir_op_name = _get_mlir_op_name_for_schema(schema)
@@ -2369,6 +2385,14 @@ class GraphNodeImporter:
             if isinstance(operand, Node):
                 if operand in self._multi_result_nodes:
                     raise RuntimeError(f"Attempt to de-reference a multi-result node")
+                if operand.op == "get_attr" and (operand, 0) not in self._v:
+                    gm = operand.graph.owning_module
+                    assert hasattr(
+                        gm, operand.target
+                    ), f"Attempting to retrieve attribute '{operand.target}' from module, but no such attribute exists"
+                    obj = getattr(gm, operand.target)
+                    with loc:
+                        self.bind_node_value(operand, self._import_literal(obj))
                 val = self.resolve_node_value(operand)
                 val_type = str(val.type)
                 assert (

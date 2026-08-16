@@ -866,14 +866,14 @@ class PermuteNegativeIndexModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([None, ([3, 4, 2], torch.float32, True)])
+    @annotate_args([None, ([1, 2, 3, 4], torch.float32, True)])
     def forward(self, x):
-        return x.permute(0, -1, 1)
+        return x.permute(0, -2, -1, 1)
 
 
 @register_test_case(module_factory=lambda: PermuteNegativeIndexModule())
 def PermuteNegativeIndexModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 2))
+    module.forward(tu.rand(1, 2, 3, 4))
 
 
 # ==============================================================================
@@ -2127,6 +2127,33 @@ def EmbeddingModule1DIndices_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class EmbeddingForwardFlagsModule(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([10, 4], torch.float32, True),
+            ([2, 2], torch.int64, True),
+        ]
+    )
+    def forward(self, weight, indices):
+        scale_grad_by_freq = torch.nn.functional.embedding(
+            indices, weight, padding_idx=-1, scale_grad_by_freq=True
+        )
+        sparse = torch.nn.functional.embedding(
+            indices, weight, padding_idx=-1, sparse=True
+        )
+        return scale_grad_by_freq, sparse
+
+
+@register_test_case(module_factory=lambda: EmbeddingForwardFlagsModule())
+def EmbeddingForwardFlagsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(10, 4), tu.randint(2, 2, high=10))
+
+
+# ==============================================================================
+
+
 class SoftmaxIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -2671,6 +2698,49 @@ class RepeatInterleaveSelfIntNoDimModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: RepeatInterleaveSelfIntNoDimModule())
 def RepeatInterleaveSelfIntNoDimModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
+
+
+# ==============================================================================
+
+
+class RepeatInterleaveTensorModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2], torch.int32, True),
+        ]
+    )
+    def forward(self, repeats):
+        return torch.ops.aten.repeat_interleave.Tensor(repeats, output_size=200)
+
+
+@register_test_case(module_factory=lambda: RepeatInterleaveTensorModule())
+def RepeatInterleaveTensorModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([100, 100], dtype=torch.int32))
+
+
+class RepeatInterleaveTensorInt64Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4], torch.int64, True),
+        ]
+    )
+    def forward(self, repeats):
+        return torch.ops.aten.repeat_interleave.Tensor(repeats, output_size=6)
+
+
+@register_test_case(module_factory=lambda: RepeatInterleaveTensorInt64Module())
+def RepeatInterleaveTensorInt64Module_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([0, 1, 2, 3], dtype=torch.int64))
 
 
 # ==============================================================================
@@ -5405,6 +5475,49 @@ def Aten_EmbeddingBagExample_basic(module, tu: TestUtils):
         [0, 1, 2, 2, 0, 2, 1, 3, 20, 50, 99, 2, 4, 5, 6, 7, 34, 54]
     )
     offsets = torch.LongTensor([0, 3, 5, 7, 9, 10, 15])
+    module.forward(weight, indices, offsets)
+
+
+class AtenEmbeddingBagLastBagBoundaryModule(torch.nn.Module):
+    """Verifies correct numeric results for embedding_bag when the last bag's
+    upper bound is derived from the total number of indices rather than
+    offsets[i+1].
+    """
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1], torch.int64, True),
+            ([-1], torch.int64, True),
+        ]
+    )
+    def forward(self, weight, indices, offsets):
+        return torch.ops.aten.embedding_bag(
+            weight,
+            indices,
+            offsets,
+            scale_grad_by_freq=False,
+            mode=0,
+            sparse=False,
+            per_sample_weights=None,
+            include_last_offset=False,
+            padding_idx=None,
+        )
+
+
+@register_test_case(module_factory=lambda: AtenEmbeddingBagLastBagBoundaryModule())
+def AtenEmbeddingBagLastBagBoundaryModule_basic(module, tu: TestUtils):
+    # weight rows: [1,2], [3,4], [5,6], [7,8]
+    # bag 0: indices[0:2] = [0,1] -> weight[0]+weight[1] = [4, 6]
+    # bag 1: indices[2:4] = [2,3] -> weight[2]+weight[3] = [12,14]  (last bag, i+1==num_offsets)
+    weight = torch.tensor([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]])
+    indices = torch.LongTensor([0, 1, 2, 3])
+    offsets = torch.LongTensor([0, 2])
     module.forward(weight, indices, offsets)
 
 

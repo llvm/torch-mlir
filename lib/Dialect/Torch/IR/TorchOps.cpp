@@ -25,6 +25,7 @@
 #include "llvm/ADT/BitVector.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/MathExtras.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -437,12 +438,13 @@ void PrimLoopOp::getSuccessorRegions(
   }
   assert(point.getTerminatorPredecessorOrNull()->getParentRegion() == &region);
   regions.emplace_back(&region);
-  regions.emplace_back(RegionSuccessor::parent());
+  regions.emplace_back(RegionSuccessor(getOperation()));
 }
 
 ValueRange PrimLoopOp::getSuccessorInputs(RegionSuccessor successor) {
-  return successor.isParent() ? ValueRange(getResults())
-                              : ValueRange(getRegion().getArguments().slice(1));
+  return successor.isOperation()
+             ? ValueRange(getResults())
+             : ValueRange(getRegion().getArguments().slice(1));
 }
 
 bool PrimLoopOp::isForLike() {
@@ -508,7 +510,7 @@ void PrimIfOp::getSuccessorRegions(RegionBranchPoint point,
                                    SmallVectorImpl<RegionSuccessor> &regions) {
   // The `then` and the `else` region branch back to the parent operation.
   if (point.getTerminatorPredecessorOrNull()) {
-    regions.push_back(RegionSuccessor::parent());
+    regions.push_back(RegionSuccessor(getOperation()));
     return;
   }
 
@@ -527,7 +529,7 @@ void PrimIfOp::getSuccessorRegions(RegionBranchPoint point,
 }
 
 ValueRange PrimIfOp::getSuccessorInputs(RegionSuccessor successor) {
-  return successor.isParent() ? ValueRange(getResults()) : ValueRange();
+  return successor.isOperation() ? ValueRange(getResults()) : ValueRange();
 }
 
 /// Replaces the given op with the contents of the given single-block region,
@@ -5461,7 +5463,7 @@ getSuccessorRegionsForCalculateOp(CalculateOp op, RegionBranchPoint point,
   Region *region = point.getTerminatorPredecessorOrNull()->getParentRegion();
   if (region == &op.getBody()) {
     // Body returns control to the outer op, passing through results.
-    regions.emplace_back(RegionSuccessor::parent());
+    regions.emplace_back(RegionSuccessor(op.getOperation()));
     return;
   }
   assert(region == &op.getCalculation());
@@ -5475,7 +5477,7 @@ void ShapeCalculateOp::getSuccessorRegions(
 }
 
 ValueRange ShapeCalculateOp::getSuccessorInputs(RegionSuccessor successor) {
-  return successor.isParent() ? ValueRange(getResults()) : ValueRange();
+  return successor.isOperation() ? ValueRange(getResults()) : ValueRange();
 }
 
 //===----------------------------------------------------------------------===//
@@ -5488,7 +5490,7 @@ void DtypeCalculateOp::getSuccessorRegions(
 }
 
 ValueRange DtypeCalculateOp::getSuccessorInputs(RegionSuccessor successor) {
-  return successor.isParent() ? ValueRange(getResults()) : ValueRange();
+  return successor.isOperation() ? ValueRange(getResults()) : ValueRange();
 }
 
 //===----------------------------------------------------------------------===//
@@ -5676,14 +5678,12 @@ LogicalResult AtenPermuteOp::verify() {
       continue;
     }
 
-    // if 'from' is the unkwown index, continue.
-    if (from == -1) {
-      continue;
-    }
+    const int64_t originalFrom = from;
+    from = toPositiveDim(from, outRank);
 
     if (!isValidDim(from, outRank)) {
       return emitError("observed invalid index in permutation (")
-             << from << ") for input tensor of rank " << outRank << '.';
+             << originalFrom << ") for input tensor of rank " << outRank << '.';
     }
 
     if (reversePermutation[from] != -1) {
@@ -6311,6 +6311,969 @@ LogicalResult AtenKthvalueOp::verify() {
   if (selfShape[dim] != kUnknownSize && (k < 1 || k > selfShape[dim]))
     return emitOpError("k expected to be in range of [")
            << 1 << ", " << selfShape[dim] << "], but got " << k;
+
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// Aten_ScaledMmOp
+//===----------------------------------------------------------------------===//
+
+static bool isScaledMmDataDtype(Type dtype) {
+  return isa<Float4E2M1FNType, Float8E4M3FNType, Float8E4M3FNUZType,
+             Float8E5M2Type, Float8E5M2FNUZType>(dtype);
+}
+
+static bool isScaledMmTensorwiseOrRowwiseScaleDtype(Type dtype) {
+  return dtype.isF32();
+}
+
+static bool isScaledMmBlockwiseScaleDtype(Type dtype) {
+  return isa<Float8E8M0FNUType, Float8E4M3FNType>(dtype);
+}
+
+static bool isScaledMmBlockwiseScaling(Type scaleADtype, Type scaleBDtype) {
+  return scaleADtype == scaleBDtype &&
+         isScaledMmBlockwiseScaleDtype(scaleADtype);
+}
+
+static int64_t getNumel(ArrayRef<int64_t> sizes) {
+  int64_t numel = 1;
+  for (int64_t size : sizes) {
+    if (size == kUnknownSize)
+      return kUnknownSize;
+    numel *= size;
+  }
+  return numel;
+}
+
+static int64_t getScaledMmBlockSizeK(Type scaleDtype) {
+  return isa<Float8E4M3FNType>(scaleDtype) ? 16 : 32;
+}
+
+static int64_t getScaledMmScaleK(int64_t contractingDim, Type dataDtype,
+                                 Type scaleDtype) {
+  if (contractingDim == kUnknownSize)
+    return kUnknownSize;
+  return isa<Float4E2M1FNType>(dataDtype) || isa<Float8E4M3FNType>(scaleDtype)
+             ? contractingDim * 2
+             : contractingDim;
+}
+
+static bool hasShape(ArrayRef<int64_t> sizes, ArrayRef<int64_t> expected) {
+  return sizes.size() == expected.size() && llvm::equal(sizes, expected);
+}
+
+LogicalResult Aten_ScaledMmOp::verify() {
+  // Mirror the statically checkable parts of PyTorch's _scaled_mm metadata
+  // validation:
+  // https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/cuda/ScaledBlas.cpp
+  auto selfType = cast<BaseTensorType>(getSelf().getType());
+  auto mat2Type = cast<BaseTensorType>(getMat2().getType());
+  auto scaleAType = cast<BaseTensorType>(getScaleA().getType());
+  auto scaleBType = cast<BaseTensorType>(getScaleB().getType());
+  auto resultType = cast<BaseTensorType>(getResult().getType());
+
+  if (selfType.hasDtype() && !isScaledMmDataDtype(selfType.getDtype()))
+    return emitOpError("expected self to have an FP8 or FP4 dtype, but got ")
+           << selfType.getDtype();
+  if (mat2Type.hasDtype() && !isScaledMmDataDtype(mat2Type.getDtype()))
+    return emitOpError("expected mat2 to have an FP8 or FP4 dtype, but got ")
+           << mat2Type.getDtype();
+
+  if (!selfType.hasSizes() || !mat2Type.hasSizes())
+    return success();
+
+  ArrayRef<int64_t> selfShape = selfType.getSizes();
+  ArrayRef<int64_t> mat2Shape = mat2Type.getSizes();
+  if (selfShape.size() != 2 || mat2Shape.size() != 2)
+    return emitOpError("expected self and mat2 to be rank 2, but got ranks ")
+           << selfShape.size() << " and " << mat2Shape.size();
+
+  int64_t m = selfShape[0];
+  int64_t k = selfShape[1];
+  int64_t mat2K = mat2Shape[0];
+  int64_t n = mat2Shape[1];
+
+  if (k != kUnknownSize && mat2K != kUnknownSize && k != mat2K)
+    return emitOpError("expected self and mat2 contracting dimensions to "
+                       "match, but got ")
+           << k << " and " << mat2K;
+  if (k != kUnknownSize && k % 16 != 0)
+    return emitOpError("expected self contracting dimension to be divisible "
+                       "by 16, but got ")
+           << k;
+  if (mat2K != kUnknownSize && mat2K % 16 != 0)
+    return emitOpError("expected mat2 contracting dimension to be divisible "
+                       "by 16, but got ")
+           << mat2K;
+  if (n != kUnknownSize && n % 16 != 0)
+    return emitOpError("expected mat2 non-contracting dimension to be "
+                       "divisible by 16, but got ")
+           << n;
+
+  if (!isa<Torch::NoneType>(getBias().getType())) {
+    auto biasType = dyn_cast<BaseTensorType>(getBias().getType());
+    if (!biasType)
+      return success();
+    if (biasType.hasSizes()) {
+      int64_t biasNumel = getNumel(biasType.getSizes());
+      if (biasNumel != kUnknownSize && n != kUnknownSize && biasNumel != n)
+        return emitOpError("expected bias to have ")
+               << n << " elements, but got " << biasNumel;
+    }
+    if (biasType.hasDtype()) {
+      Type biasDtype = biasType.getDtype();
+      if (!biasDtype.isBF16() && !biasDtype.isF16())
+        return emitOpError("expected bias to have bf16 or f16 dtype, but got ")
+               << biasDtype;
+      if (resultType.hasDtype()) {
+        Type resultDtype = resultType.getDtype();
+        if (resultDtype.isF32())
+          return emitOpError("expected bias to be absent for f32 result dtype");
+        if (resultDtype.isBF16() && !biasDtype.isBF16())
+          return emitOpError("expected bias to have bf16 dtype for bf16 "
+                             "result dtype, but got ")
+                 << biasDtype;
+        if (resultDtype.isF16() && !biasDtype.isF16())
+          return emitOpError("expected bias to have f16 dtype for f16 "
+                             "result dtype, but got ")
+                 << biasDtype;
+      }
+    }
+  }
+
+  if (!isa<Torch::NoneType>(getScaleResult().getType())) {
+    auto scaleResultType = dyn_cast<BaseTensorType>(getScaleResult().getType());
+    if (!scaleResultType)
+      return success();
+    if (scaleResultType.hasDtype() && !scaleResultType.getDtype().isF32())
+      return emitOpError("expected scale_result to have f32 dtype, but got ")
+             << scaleResultType.getDtype();
+    if (scaleResultType.hasSizes()) {
+      int64_t scaleResultNumel = getNumel(scaleResultType.getSizes());
+      if (scaleResultNumel != kUnknownSize && scaleResultNumel != 1)
+        return emitOpError("expected scale_result to have 1 element, but got ")
+               << scaleResultNumel;
+    }
+  }
+
+  if (!scaleAType.hasDtype() || !scaleBType.hasDtype() ||
+      !scaleAType.hasSizes() || !scaleBType.hasSizes() ||
+      !selfType.areAllSizesKnown() || !mat2Type.areAllSizesKnown())
+    return success();
+
+  Type scaleADtype = scaleAType.getDtype();
+  Type scaleBDtype = scaleBType.getDtype();
+  ArrayRef<int64_t> scaleAShape = scaleAType.getSizes();
+  ArrayRef<int64_t> scaleBShape = scaleBType.getSizes();
+
+  bool isBlockwiseScaling =
+      isScaledMmBlockwiseScaling(scaleADtype, scaleBDtype);
+
+  if (!selfType.hasDtype() || !mat2Type.hasDtype())
+    return success();
+
+  int64_t scaleANumel = getNumel(scaleAShape);
+  int64_t scaleBNumel = getNumel(scaleBShape);
+  if (scaleANumel == kUnknownSize || scaleBNumel == kUnknownSize)
+    return success();
+
+  // Tensorwise scaling.
+  if (scaleANumel == 1 || scaleBNumel == 1) {
+    if (scaleANumel != 1 || scaleBNumel != 1)
+      return emitOpError("expected scale_a and scale_b to both be scalar for "
+                         "tensorwise scaling");
+    if (!isScaledMmTensorwiseOrRowwiseScaleDtype(scaleADtype) ||
+        !isScaledMmTensorwiseOrRowwiseScaleDtype(scaleBDtype))
+      return emitOpError(
+          "expected tensorwise scale_a and scale_b to have f32 dtype");
+    return success();
+  }
+
+  // Blockwise scaling. Match PyTorch's _check_scaled_mm_sizes scale-recipe
+  // branch.
+  if (isBlockwiseScaling) {
+    int64_t blockSizeMN = 128;
+    int64_t scaleAK = getScaledMmScaleK(k, selfType.getDtype(), scaleADtype);
+    int64_t scaleBK =
+        getScaledMmScaleK(mat2K, mat2Type.getDtype(), scaleBDtype);
+    int64_t numAKBlocks =
+        llvm::divideCeil(scaleAK, getScaledMmBlockSizeK(scaleADtype));
+    int64_t numBKBlocks =
+        llvm::divideCeil(scaleBK, getScaledMmBlockSizeK(scaleBDtype));
+    int64_t paddedNumAKBlocks = llvm::divideCeil(numAKBlocks, int64_t{4}) * 4;
+    int64_t paddedNumBKBlocks = llvm::divideCeil(numBKBlocks, int64_t{4}) * 4;
+    int64_t expectedScaleANumel =
+        blockSizeMN * llvm::divideCeil(m, blockSizeMN) * paddedNumAKBlocks;
+    int64_t expectedScaleBNumel =
+        blockSizeMN * llvm::divideCeil(n, blockSizeMN) * paddedNumBKBlocks;
+    if (scaleANumel != expectedScaleANumel ||
+        scaleBNumel != expectedScaleBNumel)
+      return emitOpError("invalid blockwise scaling configuration: expected "
+                         "scale_a to have ")
+             << expectedScaleANumel << " elements and scale_b to have "
+             << expectedScaleBNumel << " elements, but got " << scaleANumel
+             << " and " << scaleBNumel;
+    return success();
+  }
+
+  // Rowwise and f32 blockwise scale recipes.
+  if (!isScaledMmTensorwiseOrRowwiseScaleDtype(scaleADtype) ||
+      !isScaledMmTensorwiseOrRowwiseScaleDtype(scaleBDtype))
+    return emitOpError("expected non-tensorwise, non-blockwise scale_a and "
+                       "scale_b to have f32 dtype");
+
+  if (scaleAShape.size() != 2 || scaleBShape.size() != 2)
+    return emitOpError("expected non-tensorwise scale_a and scale_b to be "
+                       "rank 2, but got ranks ")
+           << scaleAShape.size() << " and " << scaleBShape.size();
+
+  int64_t kBlocks = llvm::divideCeil(k, int64_t{128});
+  int64_t mBlocks = llvm::divideCeil(m, int64_t{128});
+  int64_t nBlocks = llvm::divideCeil(n, int64_t{128});
+  if (hasShape(scaleAShape, {m, 1}) && hasShape(scaleBShape, {1, n}))
+    return success();
+  if (hasShape(scaleAShape, {m, kBlocks}) &&
+      hasShape(scaleBShape, {kBlocks, nBlocks}))
+    return success();
+  if (hasShape(scaleAShape, {m, kBlocks}) &&
+      hasShape(scaleBShape, {kBlocks, n}))
+    return success();
+  if (hasShape(scaleAShape, {mBlocks, kBlocks}) &&
+      hasShape(scaleBShape, {kBlocks, n}))
+    return success();
+
+  return emitOpError("invalid scaling configuration for scale_a and scale_b");
+}
+
+//===----------------------------------------------------------------------===//
+// Aten_ScaledMmV2Op
+//===----------------------------------------------------------------------===//
+
+static LogicalResult
+getTensorTypesFromList(Value value,
+                       SmallVectorImpl<BaseTensorType> &tensorTypes) {
+  tensorTypes.clear();
+  auto list = value.getDefiningOp<PrimListConstructOp>();
+  if (!list)
+    return failure();
+
+  for (Value element : list.getElements()) {
+    auto tensorType = dyn_cast<BaseTensorType>(element.getType());
+    if (!tensorType)
+      return failure();
+    tensorTypes.push_back(tensorType);
+  }
+  return success();
+}
+
+static LogicalResult getConstantIntList(Value value,
+                                        SmallVectorImpl<int64_t> &values) {
+  values.clear();
+  if (!matchPattern(value, m_TorchListOfConstantInts(values)))
+    return failure();
+  return success();
+}
+
+// Mirrors PyTorch ScalingType and SwizzleType enum values used by
+// aten._scaled_mm_v2 metadata.
+// https://github.com/pytorch/pytorch/blob/449aa5b695056c4c14c3134909de5ad1a3078cc8/aten/src/ATen/BlasBackend.h#L34-L43
+enum class ScaledMmV2ScalingType : int64_t {
+  TensorWise = 0,
+  RowWise = 1,
+  BlockWise1x16 = 2,
+  BlockWise1x32 = 3,
+  BlockWise1x128 = 4,
+  BlockWise128x128 = 5,
+};
+
+enum class ScaledMmV2SwizzleType : int64_t {
+  NoSwizzle = 0,
+  Swizzle32x4x4 = 1,
+};
+
+enum class ScaledMmV2RecipeMode {
+  Unknown,
+  Tensorwise,
+  Rowwise,
+  NvSingleLevel,
+  NvTwoLevel,
+  MxBlockwise,
+  Blockwise1x128_1x128,
+  Blockwise1x128_128x128,
+  Blockwise128x128_1x128,
+};
+
+struct ScaledMmV2ScaleInfo {
+  ArrayRef<BaseTensorType> scaleATypes;
+  ArrayRef<BaseTensorType> scaleBTypes;
+};
+
+struct ScaledMmV2RecipeInfo {
+  ScaledMmV2RecipeMode mode = ScaledMmV2RecipeMode::Unknown;
+  ArrayRef<int64_t> recipeAValues;
+  ArrayRef<int64_t> recipeBValues;
+};
+
+struct ScaledMmV2SwizzleInfo {
+  ArrayRef<int64_t> swizzleAValues;
+  ArrayRef<int64_t> swizzleBValues;
+};
+
+struct ScaledMmV2MatrixInfo {
+  bool hasKnownMatrixSizes = false;
+  int64_t m = kUnknownSize;
+  int64_t k = kUnknownSize;
+  int64_t n = kUnknownSize;
+  int64_t logicalK = kUnknownSize;
+};
+
+static bool isScaledMmV2Recipe(int64_t recipe, ScaledMmV2ScalingType type) {
+  return recipe == static_cast<int64_t>(type);
+}
+
+static bool isScaledMmV2Swizzle(int64_t swizzle, ScaledMmV2SwizzleType type) {
+  return swizzle == static_cast<int64_t>(type);
+}
+
+static bool isScaledMmV2Mode(ScaledMmV2RecipeMode mode,
+                             ScaledMmV2RecipeMode expectedMode) {
+  return mode == expectedMode;
+}
+
+static bool isScaledMmV2NvBlockwiseMode(ScaledMmV2RecipeMode mode) {
+  return isScaledMmV2Mode(mode, ScaledMmV2RecipeMode::NvSingleLevel) ||
+         isScaledMmV2Mode(mode, ScaledMmV2RecipeMode::NvTwoLevel);
+}
+
+static bool isScaledMmV2F32BlockwiseMode(ScaledMmV2RecipeMode mode) {
+  return isScaledMmV2Mode(mode, ScaledMmV2RecipeMode::Blockwise1x128_1x128) ||
+         isScaledMmV2Mode(mode, ScaledMmV2RecipeMode::Blockwise1x128_128x128) ||
+         isScaledMmV2Mode(mode, ScaledMmV2RecipeMode::Blockwise128x128_1x128);
+}
+
+static FailureOr<ScaledMmV2ScaleInfo>
+getScaledMmV2ScaleInfo(Aten_ScaledMmV2Op op,
+                       SmallVectorImpl<BaseTensorType> &scaleATypesStorage,
+                       SmallVectorImpl<BaseTensorType> &scaleBTypesStorage) {
+  ScaledMmV2ScaleInfo info;
+  if (op.getScaleA().getDefiningOp<PrimListConstructOp>()) {
+    auto &scaleATypes = scaleATypesStorage;
+    if (failed(getTensorTypesFromList(op.getScaleA(), scaleATypes))) {
+      op.emitOpError(
+          "expected scale_a to be a statically constructed tensor list");
+      return failure();
+    }
+    if (scaleATypes.empty()) {
+      op.emitOpError(
+          "expected scale_a, recipe_a, scale_b and recipe_b lists to be "
+          "non-empty");
+      return failure();
+    }
+    info.scaleATypes = scaleATypes;
+  }
+  if (op.getScaleB().getDefiningOp<PrimListConstructOp>()) {
+    auto &scaleBTypes = scaleBTypesStorage;
+    if (failed(getTensorTypesFromList(op.getScaleB(), scaleBTypes))) {
+      op.emitOpError(
+          "expected scale_b to be a statically constructed tensor list");
+      return failure();
+    }
+    if (scaleBTypes.empty()) {
+      op.emitOpError(
+          "expected scale_a, recipe_a, scale_b and recipe_b lists to be "
+          "non-empty");
+      return failure();
+    }
+    info.scaleBTypes = scaleBTypes;
+  }
+  return info;
+}
+
+static FailureOr<ScaledMmV2RecipeInfo>
+getScaledMmV2RecipeInfo(Aten_ScaledMmV2Op op,
+                        SmallVectorImpl<int64_t> &recipeAValuesStorage,
+                        SmallVectorImpl<int64_t> &recipeBValuesStorage) {
+  ScaledMmV2RecipeInfo info;
+  if (op.getRecipeA().getDefiningOp<PrimListConstructOp>()) {
+    auto &recipeAValues = recipeAValuesStorage;
+    if (failed(getConstantIntList(op.getRecipeA(), recipeAValues))) {
+      op.emitOpError(
+          "expected recipe_a to be a statically constructed int list");
+      return failure();
+    }
+    if (recipeAValues.empty()) {
+      op.emitOpError(
+          "expected scale_a, recipe_a, scale_b and recipe_b lists to be "
+          "non-empty");
+      return failure();
+    }
+    info.recipeAValues = recipeAValues;
+  }
+  if (op.getRecipeB().getDefiningOp<PrimListConstructOp>()) {
+    auto &recipeBValues = recipeBValuesStorage;
+    if (failed(getConstantIntList(op.getRecipeB(), recipeBValues))) {
+      op.emitOpError(
+          "expected recipe_b to be a statically constructed int list");
+      return failure();
+    }
+    if (recipeBValues.empty()) {
+      op.emitOpError(
+          "expected scale_a, recipe_a, scale_b and recipe_b lists to be "
+          "non-empty");
+      return failure();
+    }
+    info.recipeBValues = recipeBValues;
+  }
+  return info;
+}
+
+static FailureOr<ScaledMmV2SwizzleInfo>
+getScaledMmV2SwizzleInfo(Aten_ScaledMmV2Op op,
+                         SmallVectorImpl<int64_t> &swizzleAValuesStorage,
+                         SmallVectorImpl<int64_t> &swizzleBValuesStorage) {
+  ScaledMmV2SwizzleInfo info;
+  if (op.getSwizzleA().getDefiningOp<PrimListConstructOp>()) {
+    auto &swizzleAValues = swizzleAValuesStorage;
+    if (failed(getConstantIntList(op.getSwizzleA(), swizzleAValues))) {
+      op.emitOpError(
+          "expected swizzle_a to be a statically constructed int list");
+      return failure();
+    }
+    if (swizzleAValues.empty()) {
+      op.emitOpError("expected swizzle_a and swizzle_b lists to be non-empty");
+      return failure();
+    }
+    info.swizzleAValues = swizzleAValues;
+  }
+  if (op.getSwizzleB().getDefiningOp<PrimListConstructOp>()) {
+    auto &swizzleBValues = swizzleBValuesStorage;
+    if (failed(getConstantIntList(op.getSwizzleB(), swizzleBValues))) {
+      op.emitOpError(
+          "expected swizzle_b to be a statically constructed int list");
+      return failure();
+    }
+    if (swizzleBValues.empty()) {
+      op.emitOpError("expected swizzle_a and swizzle_b lists to be non-empty");
+      return failure();
+    }
+    info.swizzleBValues = swizzleBValues;
+  }
+  return info;
+}
+
+static LogicalResult
+verifyScaledMmV2ListLengths(Aten_ScaledMmV2Op op,
+                            const ScaledMmV2ScaleInfo &scaleInfo,
+                            const ScaledMmV2RecipeInfo &recipeInfo) {
+  if (scaleInfo.scaleATypes.size() > 2 || scaleInfo.scaleBTypes.size() > 2 ||
+      recipeInfo.recipeAValues.size() > 2 ||
+      recipeInfo.recipeBValues.size() > 2)
+    return op.emitOpError(
+        "expected scale_a, recipe_a, scale_b and recipe_b lists to have at "
+        "most two elements");
+
+  if (!scaleInfo.scaleATypes.empty() && !recipeInfo.recipeAValues.empty() &&
+      scaleInfo.scaleATypes.size() != recipeInfo.recipeAValues.size())
+    return op.emitOpError(
+        "expected scale_a and recipe_a lists to have the same length");
+  if (!scaleInfo.scaleBTypes.empty() && !recipeInfo.recipeBValues.empty() &&
+      scaleInfo.scaleBTypes.size() != recipeInfo.recipeBValues.size())
+    return op.emitOpError(
+        "expected scale_b and recipe_b lists to have the same length");
+
+  return success();
+}
+
+static LogicalResult
+classifyScaledMmV2RecipeMode(Aten_ScaledMmV2Op op,
+                             ScaledMmV2RecipeInfo &recipeInfo) {
+  if (recipeInfo.recipeAValues.empty() || recipeInfo.recipeBValues.empty())
+    return success();
+
+  ArrayRef<int64_t> recipeAValues = recipeInfo.recipeAValues;
+  ArrayRef<int64_t> recipeBValues = recipeInfo.recipeBValues;
+
+  if (recipeAValues.size() == 2 && recipeBValues.size() == 2 &&
+      isScaledMmV2Recipe(recipeAValues[0],
+                         ScaledMmV2ScalingType::BlockWise1x16) &&
+      isScaledMmV2Recipe(recipeBValues[0],
+                         ScaledMmV2ScalingType::BlockWise1x16) &&
+      isScaledMmV2Recipe(recipeAValues[1], ScaledMmV2ScalingType::TensorWise) &&
+      isScaledMmV2Recipe(recipeBValues[1], ScaledMmV2ScalingType::TensorWise)) {
+    recipeInfo.mode = ScaledMmV2RecipeMode::NvTwoLevel;
+    return success();
+  }
+
+  if (recipeAValues.size() != 1 || recipeBValues.size() != 1)
+    return op.emitOpError(
+        "invalid scaling configuration for recipe_a and recipe_b");
+
+  int64_t recipeA = recipeAValues[0];
+  int64_t recipeB = recipeBValues[0];
+
+  if (isScaledMmV2Recipe(recipeA, ScaledMmV2ScalingType::TensorWise) &&
+      isScaledMmV2Recipe(recipeB, ScaledMmV2ScalingType::TensorWise)) {
+    recipeInfo.mode = ScaledMmV2RecipeMode::Tensorwise;
+    return success();
+  }
+
+  if (isScaledMmV2Recipe(recipeA, ScaledMmV2ScalingType::RowWise) &&
+      isScaledMmV2Recipe(recipeB, ScaledMmV2ScalingType::RowWise)) {
+    recipeInfo.mode = ScaledMmV2RecipeMode::Rowwise;
+    return success();
+  }
+
+  if (isScaledMmV2Recipe(recipeA, ScaledMmV2ScalingType::BlockWise1x16) &&
+      isScaledMmV2Recipe(recipeB, ScaledMmV2ScalingType::BlockWise1x16)) {
+    recipeInfo.mode = ScaledMmV2RecipeMode::NvSingleLevel;
+    return success();
+  }
+
+  if (isScaledMmV2Recipe(recipeA, ScaledMmV2ScalingType::BlockWise1x32) &&
+      isScaledMmV2Recipe(recipeB, ScaledMmV2ScalingType::BlockWise1x32)) {
+    recipeInfo.mode = ScaledMmV2RecipeMode::MxBlockwise;
+    return success();
+  }
+
+  if (isScaledMmV2Recipe(recipeA, ScaledMmV2ScalingType::BlockWise1x128) &&
+      isScaledMmV2Recipe(recipeB, ScaledMmV2ScalingType::BlockWise1x128)) {
+    recipeInfo.mode = ScaledMmV2RecipeMode::Blockwise1x128_1x128;
+    return success();
+  }
+
+  if (isScaledMmV2Recipe(recipeA, ScaledMmV2ScalingType::BlockWise1x128) &&
+      isScaledMmV2Recipe(recipeB, ScaledMmV2ScalingType::BlockWise128x128)) {
+    recipeInfo.mode = ScaledMmV2RecipeMode::Blockwise1x128_128x128;
+    return success();
+  }
+
+  if (isScaledMmV2Recipe(recipeA, ScaledMmV2ScalingType::BlockWise128x128) &&
+      isScaledMmV2Recipe(recipeB, ScaledMmV2ScalingType::BlockWise1x128)) {
+    recipeInfo.mode = ScaledMmV2RecipeMode::Blockwise128x128_1x128;
+    return success();
+  }
+
+  return op.emitOpError(
+      "invalid scaling configuration for recipe_a and recipe_b");
+}
+
+static LogicalResult
+verifyScaledMmV2Swizzles(Aten_ScaledMmV2Op op,
+                         const ScaledMmV2RecipeInfo &recipeInfo,
+                         const ScaledMmV2SwizzleInfo &swizzleInfo) {
+  if (recipeInfo.mode == ScaledMmV2RecipeMode::Unknown ||
+      swizzleInfo.swizzleAValues.empty() || swizzleInfo.swizzleBValues.empty())
+    return success();
+
+  ScaledMmV2RecipeMode mode = recipeInfo.mode;
+  if (!isScaledMmV2NvBlockwiseMode(mode) &&
+      !isScaledMmV2Mode(mode, ScaledMmV2RecipeMode::MxBlockwise))
+    return success();
+
+  if (swizzleInfo.swizzleAValues.empty() || swizzleInfo.swizzleBValues.empty())
+    return op.emitOpError(
+        "expected swizzle_a and swizzle_b to have entries for blockwise "
+        "scaling");
+  if (!isScaledMmV2Swizzle(swizzleInfo.swizzleAValues[0],
+                           ScaledMmV2SwizzleType::Swizzle32x4x4) ||
+      !isScaledMmV2Swizzle(swizzleInfo.swizzleBValues[0],
+                           ScaledMmV2SwizzleType::Swizzle32x4x4))
+    return op.emitOpError("expected blockwise swizzle_a and swizzle_b to be "
+                          "SWIZZLE_32_4_4");
+
+  return success();
+}
+
+static LogicalResult
+verifyScaledMmV2ScaleDtypes(Aten_ScaledMmV2Op op,
+                            const ScaledMmV2ScaleInfo &scaleInfo,
+                            const ScaledMmV2RecipeInfo &recipeInfo) {
+  if (recipeInfo.mode == ScaledMmV2RecipeMode::Unknown ||
+      scaleInfo.scaleATypes.empty() || scaleInfo.scaleBTypes.empty())
+    return success();
+
+  ScaledMmV2RecipeMode mode = recipeInfo.mode;
+  BaseTensorType scaleAType = scaleInfo.scaleATypes[0];
+  BaseTensorType scaleBType = scaleInfo.scaleBTypes[0];
+  bool firstScaleHasDtypes = scaleAType.hasDtype() && scaleBType.hasDtype();
+  Type scaleADtype;
+  Type scaleBDtype;
+  if (firstScaleHasDtypes) {
+    scaleADtype = scaleAType.getDtype();
+    scaleBDtype = scaleBType.getDtype();
+  }
+
+  bool firstScaleHasSizes = scaleAType.hasSizes() && scaleBType.hasSizes();
+  ArrayRef<int64_t> scaleAShape;
+  ArrayRef<int64_t> scaleBShape;
+  int64_t scaleANumel = kUnknownSize;
+  int64_t scaleBNumel = kUnknownSize;
+  if (firstScaleHasSizes) {
+    scaleAShape = scaleAType.getSizes();
+    scaleBShape = scaleBType.getSizes();
+    scaleANumel = getNumel(scaleAShape);
+    scaleBNumel = getNumel(scaleBShape);
+  }
+
+  if (isScaledMmV2Mode(mode, ScaledMmV2RecipeMode::Tensorwise)) {
+    if (firstScaleHasDtypes &&
+        (!isScaledMmTensorwiseOrRowwiseScaleDtype(scaleADtype) ||
+         !isScaledMmTensorwiseOrRowwiseScaleDtype(scaleBDtype)))
+      return op.emitOpError(
+          "expected tensorwise scale_a and scale_b to have f32 dtype");
+    if (firstScaleHasSizes && scaleANumel != kUnknownSize &&
+        scaleBNumel != kUnknownSize && (scaleANumel != 1 || scaleBNumel != 1))
+      return op.emitOpError("expected scale_a and scale_b to both be scalar "
+                            "for tensorwise scaling");
+  }
+
+  if (isScaledMmV2Mode(mode, ScaledMmV2RecipeMode::Rowwise) &&
+      firstScaleHasDtypes &&
+      (!isScaledMmTensorwiseOrRowwiseScaleDtype(scaleADtype) ||
+       !isScaledMmTensorwiseOrRowwiseScaleDtype(scaleBDtype)))
+    return op.emitOpError(
+        "expected rowwise scale_a and scale_b to have f32 dtype");
+
+  if (isScaledMmV2NvBlockwiseMode(mode) && firstScaleHasDtypes &&
+      (!isa<Float8E4M3FNType>(scaleADtype) ||
+       !isa<Float8E4M3FNType>(scaleBDtype)))
+    return op.emitOpError(
+        "expected NV blockwise scale_a and scale_b to have f8E4M3FN dtype");
+
+  if (isScaledMmV2Mode(mode, ScaledMmV2RecipeMode::NvTwoLevel)) {
+    BaseTensorType tensorwiseScaleAType = scaleInfo.scaleATypes[1];
+    BaseTensorType tensorwiseScaleBType = scaleInfo.scaleBTypes[1];
+    if (tensorwiseScaleAType.hasDtype() && tensorwiseScaleBType.hasDtype()) {
+      Type tensorwiseScaleADtype = tensorwiseScaleAType.getDtype();
+      Type tensorwiseScaleBDtype = tensorwiseScaleBType.getDtype();
+      if (!isScaledMmTensorwiseOrRowwiseScaleDtype(tensorwiseScaleADtype) ||
+          !isScaledMmTensorwiseOrRowwiseScaleDtype(tensorwiseScaleBDtype))
+        return op.emitOpError("expected two-level NV tensorwise scale_a and "
+                              "scale_b to have f32 dtype");
+    }
+    if (tensorwiseScaleAType.hasSizes() && tensorwiseScaleBType.hasSizes()) {
+      int64_t tensorwiseScaleANumel = getNumel(tensorwiseScaleAType.getSizes());
+      int64_t tensorwiseScaleBNumel = getNumel(tensorwiseScaleBType.getSizes());
+      if (tensorwiseScaleANumel != kUnknownSize &&
+          tensorwiseScaleBNumel != kUnknownSize &&
+          (tensorwiseScaleANumel != 1 || tensorwiseScaleBNumel != 1))
+        return op.emitOpError("expected two-level NV tensorwise scale_a and "
+                              "scale_b to both be scalar");
+    }
+  }
+
+  if (isScaledMmV2F32BlockwiseMode(mode) && firstScaleHasDtypes &&
+      (!isScaledMmTensorwiseOrRowwiseScaleDtype(scaleADtype) ||
+       !isScaledMmTensorwiseOrRowwiseScaleDtype(scaleBDtype)))
+    return op.emitOpError(
+        "expected f32 blockwise scale_a and scale_b to have f32 dtype");
+
+  if (isScaledMmV2F32BlockwiseMode(mode) && firstScaleHasSizes &&
+      (scaleAShape.size() != 2 || scaleBShape.size() != 2))
+    return op.emitOpError("expected f32 blockwise scale_a and scale_b to be "
+                          "rank 2, but got ranks ")
+           << scaleAShape.size() << " and " << scaleBShape.size();
+
+  if (isScaledMmV2Mode(mode, ScaledMmV2RecipeMode::MxBlockwise) &&
+      firstScaleHasDtypes &&
+      (!isa<Float8E8M0FNUType>(scaleADtype) ||
+       !isa<Float8E8M0FNUType>(scaleBDtype)))
+    return op.emitOpError(
+        "expected MX blockwise scale_a and scale_b to have f8E8M0FNU dtype");
+
+  return success();
+}
+
+static FailureOr<ScaledMmV2MatrixInfo>
+verifyScaledMmV2MatrixShapes(Aten_ScaledMmV2Op op) {
+  ScaledMmV2MatrixInfo info;
+  auto selfType = cast<BaseTensorType>(op.getSelf().getType());
+  auto mat2Type = cast<BaseTensorType>(op.getMat2().getType());
+
+  bool hasStaticContractionDims =
+      op.getContractionDim().getDefiningOp<PrimListConstructOp>();
+  SmallVector<int64_t> contractionDims;
+  if (hasStaticContractionDims) {
+    if (failed(getConstantIntList(op.getContractionDim(), contractionDims))) {
+      op.emitOpError(
+          "expected contraction_dim to be a statically constructed int list");
+      return failure();
+    }
+    if (!contractionDims.empty() && contractionDims.size() != 2) {
+      op.emitOpError("contraction_dim must have exactly 2 elements");
+      return failure();
+    }
+  }
+
+  if (!selfType.hasSizes() || !mat2Type.hasSizes())
+    return info;
+
+  ArrayRef<int64_t> selfShape = selfType.getSizes();
+  ArrayRef<int64_t> mat2Shape = mat2Type.getSizes();
+  if (selfShape.size() != 2 || mat2Shape.size() != 2) {
+    op.emitOpError("expected self and mat2 to be rank 2, but got ranks ")
+        << selfShape.size() << " and " << mat2Shape.size();
+    return failure();
+  }
+
+  bool hasExplicitContractionDims = false;
+  int64_t selfContractionDim = 1;
+  int64_t mat2ContractionDim = 0;
+  if (!contractionDims.empty()) {
+    auto normalizeRank2Dim = [](int64_t dim) {
+      if (dim < 0)
+        dim += 2;
+      return dim;
+    };
+    selfContractionDim = normalizeRank2Dim(contractionDims[0]);
+    mat2ContractionDim = normalizeRank2Dim(contractionDims[1]);
+    if (selfContractionDim < 0 || selfContractionDim >= 2 ||
+        mat2ContractionDim < 0 || mat2ContractionDim >= 2) {
+      op.emitOpError(
+          "expected contraction_dim values to be valid rank-2 dimensions, "
+          "but got ")
+          << contractionDims[0] << " and " << contractionDims[1];
+      return failure();
+    }
+    hasExplicitContractionDims = true;
+  }
+
+  info.hasKnownMatrixSizes =
+      selfType.areAllSizesKnown() && mat2Type.areAllSizesKnown();
+  info.m = selfShape[0];
+  info.k = selfShape[1];
+  int64_t mat2K = mat2Shape[0];
+  info.n = mat2Shape[1];
+
+  bool selfIsFp4 =
+      selfType.hasDtype() && isa<Float4E2M1FNType>(selfType.getDtype());
+  bool mat2IsFp4 =
+      mat2Type.hasDtype() && isa<Float4E2M1FNType>(mat2Type.getDtype());
+  // `k` is the statically visible storage dimension. For FP4, the
+  // float4_e2m1fn_x2 representation packs two logical FP4 values into each
+  // storage element. PyTorch _scaled_mm_v2 applies that packed-K multiplier
+  // only when both matrix operands are FP4.
+  info.logicalK = info.k;
+  int64_t mat2LogicalK = mat2K;
+  if (selfIsFp4 && mat2IsFp4) {
+    if (info.k != kUnknownSize)
+      info.logicalK = info.k * 2;
+    if (mat2K != kUnknownSize)
+      mat2LogicalK = mat2K * 2;
+  }
+
+  if (hasStaticContractionDims) {
+    int64_t selfContractionSize = hasExplicitContractionDims
+                                      ? selfShape[selfContractionDim]
+                                      : info.logicalK;
+    int64_t mat2ContractionSize = hasExplicitContractionDims
+                                      ? mat2Shape[mat2ContractionDim]
+                                      : mat2LogicalK;
+    if (selfContractionSize != kUnknownSize &&
+        mat2ContractionSize != kUnknownSize &&
+        selfContractionSize != mat2ContractionSize) {
+      if (hasExplicitContractionDims) {
+        op.emitOpError("expected self and mat2 contraction_dim-selected "
+                       "dimensions to match, but got ")
+            << selfContractionSize << " and " << mat2ContractionSize;
+        return failure();
+      }
+      op.emitOpError("expected self and mat2 contracting dimensions to "
+                     "match, but got ")
+          << selfContractionSize << " and " << mat2ContractionSize;
+      return failure();
+    }
+  }
+  if (info.logicalK != kUnknownSize && info.logicalK % 16 != 0) {
+    op.emitOpError("expected self contracting dimension to be divisible "
+                   "by 16, but got ")
+        << info.logicalK;
+    return failure();
+  }
+  if (mat2LogicalK != kUnknownSize && mat2LogicalK % 16 != 0) {
+    op.emitOpError("expected mat2 contracting dimension to be divisible "
+                   "by 16, but got ")
+        << mat2LogicalK;
+    return failure();
+  }
+  if (info.n != kUnknownSize && info.n % 16 != 0) {
+    op.emitOpError("expected mat2 non-contracting dimension to be "
+                   "divisible by 16, but got ")
+        << info.n;
+    return failure();
+  }
+
+  return info;
+}
+
+static LogicalResult
+verifyScaledMmV2ScaleNumel(Aten_ScaledMmV2Op op,
+                           const ScaledMmV2ScaleInfo &scaleInfo,
+                           const ScaledMmV2RecipeInfo &recipeInfo,
+                           const ScaledMmV2MatrixInfo &matrixInfo) {
+  if (recipeInfo.mode == ScaledMmV2RecipeMode::Unknown ||
+      scaleInfo.scaleATypes.empty() || scaleInfo.scaleBTypes.empty() ||
+      isScaledMmV2Mode(recipeInfo.mode, ScaledMmV2RecipeMode::Tensorwise) ||
+      !matrixInfo.hasKnownMatrixSizes)
+    return success();
+
+  BaseTensorType scaleAType = scaleInfo.scaleATypes[0];
+  BaseTensorType scaleBType = scaleInfo.scaleBTypes[0];
+  if (!scaleAType.hasSizes() || !scaleBType.hasSizes())
+    return success();
+
+  ArrayRef<int64_t> scaleAShape = scaleAType.getSizes();
+  ArrayRef<int64_t> scaleBShape = scaleBType.getSizes();
+  int64_t scaleANumel = getNumel(scaleAShape);
+  int64_t scaleBNumel = getNumel(scaleBShape);
+  if (scaleANumel == kUnknownSize || scaleBNumel == kUnknownSize)
+    return success();
+
+  int64_t m = matrixInfo.m;
+  int64_t k = matrixInfo.k;
+  int64_t n = matrixInfo.n;
+  int64_t logicalK = matrixInfo.logicalK;
+  ScaledMmV2RecipeMode mode = recipeInfo.mode;
+
+  if (isScaledMmV2Mode(mode, ScaledMmV2RecipeMode::Rowwise)) {
+    if (scaleAShape.empty() || scaleAShape[0] != m || scaleANumel != m ||
+        scaleBNumel != n)
+      return op.emitOpError("invalid rowwise scaling configuration: expected "
+                            "scale_a to have ")
+             << m << " elements and scale_b to have " << n
+             << " elements, but got " << scaleANumel << " and " << scaleBNumel;
+    return success();
+  }
+
+  if (isScaledMmV2NvBlockwiseMode(mode)) {
+    int64_t blockSizeMN = 128;
+    int64_t blockSizeK = 16;
+    int64_t numKBlocks = llvm::divideCeil(logicalK, blockSizeK);
+    int64_t paddedNumKBlocks = llvm::divideCeil(numKBlocks, int64_t{4}) * 4;
+    int64_t expectedScaleANumel =
+        blockSizeMN * llvm::divideCeil(m, blockSizeMN) * paddedNumKBlocks;
+    int64_t expectedScaleBNumel =
+        blockSizeMN * llvm::divideCeil(n, blockSizeMN) * paddedNumKBlocks;
+    if (scaleANumel != expectedScaleANumel ||
+        scaleBNumel != expectedScaleBNumel)
+      return op.emitOpError(
+                 "invalid NV blockwise scaling configuration: expected "
+                 "scale_a to have ")
+             << expectedScaleANumel << " elements and scale_b to have "
+             << expectedScaleBNumel << " elements, but got " << scaleANumel
+             << " and " << scaleBNumel;
+    return success();
+  }
+
+  if (isScaledMmV2F32BlockwiseMode(mode)) {
+    if (logicalK % 128 != 0)
+      return op.emitOpError(
+          "expected contracting dimension to be divisible by 128 for "
+          "1x128/128x128 blockwise scaling");
+
+    int64_t kBlocks128 = logicalK / 128;
+    int64_t paddedKBlocks128 = llvm::divideCeil(kBlocks128, int64_t{4}) * 4;
+    int64_t mBlocks128 = m / 128;
+    int64_t nBlocks128 = n / 128;
+
+    if (isScaledMmV2Mode(mode, ScaledMmV2RecipeMode::Blockwise1x128_1x128)) {
+      if (!hasShape(scaleAShape, {m, kBlocks128}) ||
+          !hasShape(scaleBShape, {n, kBlocks128}))
+        return op.emitOpError("invalid 1x128 x 1x128 blockwise scaling "
+                              "configuration: expected scale_a shape [")
+               << m << ", " << kBlocks128 << "] and scale_b shape [" << n
+               << ", " << kBlocks128 << "]";
+      return success();
+    }
+
+    if (isScaledMmV2Mode(mode, ScaledMmV2RecipeMode::Blockwise1x128_128x128)) {
+      if (!hasShape(scaleAShape, {m, kBlocks128}) ||
+          !hasShape(scaleBShape, {paddedKBlocks128, nBlocks128}))
+        return op.emitOpError("invalid 1x128 x 128x128 blockwise scaling "
+                              "configuration: expected scale_a shape [")
+               << m << ", " << kBlocks128 << "] and scale_b shape ["
+               << paddedKBlocks128 << ", " << nBlocks128 << "]";
+      return success();
+    }
+
+    if (!hasShape(scaleAShape, {paddedKBlocks128, mBlocks128}) ||
+        !hasShape(scaleBShape, {n, kBlocks128}))
+      return op.emitOpError("invalid 128x128 x 1x128 blockwise scaling "
+                            "configuration: expected scale_a shape [")
+             << paddedKBlocks128 << ", " << mBlocks128
+             << "] and scale_b shape [" << n << ", " << kBlocks128 << "]";
+    return success();
+  }
+
+  int64_t blockSizeMN = 128;
+  int64_t blockSizeK = 32;
+  int64_t numKBlocks = llvm::divideCeil(k, blockSizeK);
+  int64_t paddedNumKBlocks = llvm::divideCeil(numKBlocks, int64_t{4}) * 4;
+  int64_t expectedScaleANumel =
+      blockSizeMN * llvm::divideCeil(m, blockSizeMN) * paddedNumKBlocks;
+  int64_t expectedScaleBNumel =
+      blockSizeMN * llvm::divideCeil(n, blockSizeMN) * paddedNumKBlocks;
+  if (scaleANumel != expectedScaleANumel || scaleBNumel != expectedScaleBNumel)
+    return op.emitOpError("invalid blockwise scaling configuration: expected "
+                          "scale_a to have ")
+           << expectedScaleANumel << " elements and scale_b to have "
+           << expectedScaleBNumel << " elements, but got " << scaleANumel
+           << " and " << scaleBNumel;
+
+  return success();
+}
+
+LogicalResult Aten_ScaledMmV2Op::verify() {
+  auto selfType = cast<BaseTensorType>(getSelf().getType());
+  auto mat2Type = cast<BaseTensorType>(getMat2().getType());
+
+  if (selfType.hasDtype() && !isScaledMmDataDtype(selfType.getDtype()))
+    return emitOpError("expected self to have an FP8 or FP4 dtype, but got ")
+           << selfType.getDtype();
+  if (mat2Type.hasDtype() && !isScaledMmDataDtype(mat2Type.getDtype()))
+    return emitOpError("expected mat2 to have an FP8 or FP4 dtype, but got ")
+           << mat2Type.getDtype();
+
+  SmallVector<BaseTensorType> scaleATypesStorage;
+  SmallVector<BaseTensorType> scaleBTypesStorage;
+  FailureOr<ScaledMmV2ScaleInfo> scaleInfo =
+      getScaledMmV2ScaleInfo(*this, scaleATypesStorage, scaleBTypesStorage);
+  if (failed(scaleInfo))
+    return failure();
+
+  SmallVector<int64_t> recipeAValuesStorage;
+  SmallVector<int64_t> recipeBValuesStorage;
+  FailureOr<ScaledMmV2RecipeInfo> recipeInfo = getScaledMmV2RecipeInfo(
+      *this, recipeAValuesStorage, recipeBValuesStorage);
+  if (failed(recipeInfo))
+    return failure();
+
+  SmallVector<int64_t> swizzleAValuesStorage;
+  SmallVector<int64_t> swizzleBValuesStorage;
+  FailureOr<ScaledMmV2SwizzleInfo> swizzleInfo = getScaledMmV2SwizzleInfo(
+      *this, swizzleAValuesStorage, swizzleBValuesStorage);
+  if (failed(swizzleInfo))
+    return failure();
+
+  if (failed(verifyScaledMmV2ListLengths(*this, *scaleInfo, *recipeInfo)))
+    return failure();
+  if (failed(classifyScaledMmV2RecipeMode(*this, *recipeInfo)))
+    return failure();
+  if (failed(verifyScaledMmV2ScaleDtypes(*this, *scaleInfo, *recipeInfo)))
+    return failure();
+  if (failed(verifyScaledMmV2Swizzles(*this, *recipeInfo, *swizzleInfo)))
+    return failure();
+
+  FailureOr<ScaledMmV2MatrixInfo> matrixInfo =
+      verifyScaledMmV2MatrixShapes(*this);
+  if (failed(matrixInfo))
+    return failure();
+
+  if (failed(verifyScaledMmV2ScaleNumel(*this, *scaleInfo, *recipeInfo,
+                                        *matrixInfo)))
+    return failure();
 
   return success();
 }

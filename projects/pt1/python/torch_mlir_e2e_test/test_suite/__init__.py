@@ -46,6 +46,7 @@ def register_all_tests():
     from . import nll_loss
     from . import index_select
     from . import linalg_algorithms
+    from . import as_strided
     from . import arange
     from . import constant_alloc
     from . import threshold
@@ -59,6 +60,7 @@ def register_all_tests():
     from . import stats
     from . import padding
     from . import diagonal
+    from . import diag
     from . import gridsampler
     from . import meshgrid
     from . import timeout

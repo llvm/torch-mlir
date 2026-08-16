@@ -35,6 +35,52 @@ def MeanModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class MeanDimRank0Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.mean(x, dim=0)
+
+
+@register_test_case(module_factory=lambda: MeanDimRank0Module())
+def MeanDimRank0Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand())
+
+
+# ==============================================================================
+
+
+class MeanDimRank0DtypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.mean(x, dim=0, dtype=torch.float64)
+
+
+@register_test_case(module_factory=lambda: MeanDimRank0DtypeModule())
+def MeanDimRank0DtypeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand())
+
+
+# ==============================================================================
+
+
 class MeanDynamicSizesModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

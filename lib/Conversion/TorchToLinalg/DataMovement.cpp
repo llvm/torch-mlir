@@ -26,6 +26,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/APInt.h"
 
+#include <limits>
 #include <numeric>
 
 using namespace mlir;
@@ -82,17 +83,26 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
   if (isa<Torch::NoneType>(torchTypeEnd.getType())) {
     end = dimSize;
   } else {
-    end = castIntToIndex(rewriter, loc, end);
-    Value endcmp = arith::CmpIOp::create(rewriter, loc,
-                                         arith::CmpIPredicate::slt, end, zero);
-    Value endadd = arith::AddIOp::create(rewriter, loc, end, dimSize);
-    end = arith::SelectOp::create(rewriter, loc, endcmp, endadd, end);
-    endcmp = arith::CmpIOp::create(rewriter, loc, arith::CmpIPredicate::slt,
-                                   end, zero);
-    end = arith::SelectOp::create(rewriter, loc, endcmp, negone, end);
-    endcmp = arith::CmpIOp::create(rewriter, loc, arith::CmpIPredicate::sgt,
-                                   end, dimSize);
-    end = arith::SelectOp::create(rewriter, loc, endcmp, dimSize, end);
+    // If end is INT64_MAX (PyTorch sentinel for "slice to the end"), use
+    // dimSize directly to avoid materializing a large index constant that
+    // downstream targets with 32-bit index cannot represent.
+    int64_t endConst;
+    if (matchPattern(torchTypeEnd, m_TorchConstantInt(&endConst)) &&
+        endConst == std::numeric_limits<int64_t>::max()) {
+      end = dimSize;
+    } else {
+      end = castIntToIndex(rewriter, loc, end);
+      Value endcmp = arith::CmpIOp::create(
+          rewriter, loc, arith::CmpIPredicate::slt, end, zero);
+      Value endadd = arith::AddIOp::create(rewriter, loc, end, dimSize);
+      end = arith::SelectOp::create(rewriter, loc, endcmp, endadd, end);
+      endcmp = arith::CmpIOp::create(rewriter, loc, arith::CmpIPredicate::slt,
+                                     end, zero);
+      end = arith::SelectOp::create(rewriter, loc, endcmp, negone, end);
+      endcmp = arith::CmpIOp::create(rewriter, loc, arith::CmpIPredicate::sgt,
+                                     end, dimSize);
+      end = arith::SelectOp::create(rewriter, loc, endcmp, dimSize, end);
+    }
   }
 
   // Slice logic: resultSize = floordiv(end - start + step - 1,  step)
@@ -1860,15 +1870,15 @@ public:
     // If stride is negative, then flip the input tensor corresponding to that
     // dim, update the stride for flipped tensor by multiplying it by -1, and
     // update the offset as follows:
-    // flipped_offset = input_shape[dim] - (result_shape[dim] * flipped_stride)
+    // flipped_offset[dim] = input_shape[dim] - 1 - offsets[dim]
     //
     // For example:
     // Input = [0, 1, 2, 3, 4, 5]
-    // stride = [-2], result_shape = [2], offset = [3]
+    // stride = [-2], offset = [3]
     // Result = [3, 1]
     // After flipping:
     // Input = [5, 4, 3, 2, 1, 0]
-    // stride = [2], result_shape = [2], offset = [6 - (2 * 2)] = [2]
+    // stride = [2], offset = [6 - 1 - 3] = [2]
     // Result = [3, 1]
 
     Value flippedInput = torch_to_linalg::flipTensor(rewriter, loc, input,
@@ -1878,11 +1888,12 @@ public:
     Value isNegativeStride = arith::CmpIOp::create(
         rewriter, loc, arith::CmpIPredicate::slt, strides[dim], zero);
     strides[dim] = math::AbsIOp::create(rewriter, loc, strides[dim]);
-    Value resShapeMulStride =
-        arith::MulIOp::create(rewriter, loc, resultShape[dim], strides[dim]);
+    Value one = arith::ConstantIndexOp::create(rewriter, loc, 1);
     Value inputDim = tensor::DimOp::create(rewriter, loc, input, cstDim);
+    Value inputDimMinusOne =
+        arith::SubIOp::create(rewriter, loc, inputDim, one);
     Value flippedOffset =
-        arith::SubIOp::create(rewriter, loc, inputDim, resShapeMulStride);
+        arith::SubIOp::create(rewriter, loc, inputDimMinusOne, offsets[dim]);
     offsets[dim] = arith::SelectOp::create(rewriter, loc, isNegativeStride,
                                            flippedOffset, offsets[dim]);
 
@@ -2560,22 +2571,34 @@ public:
               // on offset
               Value dim1IdxAdjusted;
               Value dim2IdxAdjusted;
+              Value lastInputIdx;
               if (offset < 0) {
                 Value absOffset =
                     arith::ConstantIndexOp::create(b, loc, -offset);
                 dim1IdxAdjusted = dim1Index;
                 dim2IdxAdjusted =
                     arith::AddIOp::create(b, loc, dim2Index, absOffset);
-                inputIndices.push_back(linalg::IndexOp::create(b, loc, dim2));
+                lastInputIdx = linalg::IndexOp::create(b, loc, dim2);
               } else {
                 Value constOffset =
                     arith::ConstantIndexOp::create(b, loc, offset);
                 dim1IdxAdjusted =
                     arith::AddIOp::create(b, loc, dim1Index, constOffset);
                 dim2IdxAdjusted = dim2Index;
-                inputIndices.push_back(linalg::IndexOp::create(b, loc, dim1));
+                lastInputIdx = linalg::IndexOp::create(b, loc, dim1);
               }
-
+              // Clamp the last input index to prevent out-of-bounds access.
+              // The loop iterates over the output dimensions which are larger
+              // than the input's last dimension when offset != 0. The
+              // out-of-bounds elements are discarded by the select below, but
+              // the extract itself must not read past the end of the tensor.
+              Value lastDimSize = getDimOp(b, loc, input, inputRank - 1);
+              Value lastDimSizeMinusOne = arith::SubIOp::create(
+                  b, loc, lastDimSize,
+                  arith::ConstantIndexOp::create(b, loc, 1));
+              Value clampedIdx = arith::MinUIOp::create(b, loc, lastInputIdx,
+                                                        lastDimSizeMinusOne);
+              inputIndices.push_back(clampedIdx);
               Value isDiagonal =
                   arith::CmpIOp::create(b, loc, arith::CmpIPredicate::eq,
                                         dim1IdxAdjusted, dim2IdxAdjusted);

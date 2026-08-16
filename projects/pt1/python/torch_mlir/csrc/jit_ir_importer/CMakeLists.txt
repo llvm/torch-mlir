@@ -7,6 +7,7 @@ Python3_add_library(TorchMLIRJITIRImporterPybind MODULE WITH_SOABI
   init_python_bindings.cpp
   module_builder.cpp
   )
+target_compile_features(TorchMLIRJITIRImporterPybind PRIVATE cxx_std_20)
 add_dependencies(TorchMLIRJITIRImporterPybind
   TorchMLIRJITIRImporter
   )
