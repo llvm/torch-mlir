@@ -7315,7 +7315,7 @@ LogicalResult DtypeCalculateYieldDtypesOp::verify() {
 // GlobalSlotModuleInitializerOp
 //===----------------------------------------------------------------------===//
 
-LogicalResult GlobalSlotModuleInitializerOp::verify() {
+LogicalResult GlobalSlotModuleInitializerOp::verifyRegions() {
   // We centralize all verification of the global slots and the
   // InitializeGlobalSlotsOp into here, since it requires processing the whole
   // module.
