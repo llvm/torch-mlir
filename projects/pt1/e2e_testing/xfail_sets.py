@@ -651,6 +651,8 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenIntBoolOpConstFalseModule_basic",
     "AtenIntBoolOpConstTrueModule_basic",
     "AtenIntBoolOpModule_basic",
+    # stablehlo matmul requires both operands to have the same element type
+    "AtenIntMMMixedSigni8_basic",
     "AtenItemFpOpModule_basic",
     "AtenMmF16Types_basic",
     "AtenRealView128Module_basic",
