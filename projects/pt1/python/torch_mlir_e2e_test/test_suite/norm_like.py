@@ -165,6 +165,46 @@ def BatchNorm1DStaticShapeModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class BatchNormInferenceF16Module(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 2, 3], torch.float16, True),
+            ([2], torch.float16, True),
+            ([2], torch.float16, True),
+            ([2], torch.float16, True),
+            ([2], torch.float16, True),
+        ]
+    )
+    def forward(self, x, weight, bias, running_mean, running_var):
+        return torch.ops.aten.batch_norm(
+            x,
+            weight,
+            bias,
+            running_mean,
+            running_var,
+            training=False,
+            momentum=0.1,
+            eps=0.5,
+            cudnn_enabled=False,
+        )
+
+
+@register_test_case(module_factory=lambda: BatchNormInferenceF16Module())
+def BatchNormInferenceF16Module_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(2, 2, 3).to(torch.float16),
+        tu.rand(2).to(torch.float16),
+        tu.rand(2).to(torch.float16),
+        tu.rand(2).to(torch.float16),
+        tu.rand(2).to(torch.float16),
+    )
+
+
+# ==============================================================================
+
+
 class NativeBatchNorm1DModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

@@ -8727,6 +8727,22 @@ class DecomposeAtenNativeBatchNormOp
         return rewriter.notifyMatchFailure(op, "expected bias to be rank 1");
     }
 
+    auto inputType = dyn_cast<BaseTensorType>(input.getType());
+    if (!inputType || !inputType.hasDtype())
+      return rewriter.notifyMatchFailure(op, "expected input to have a dtype");
+    Type originalDtype = inputType.getDtype();
+    bool useF32Opmath = !training && originalDtype.isF16();
+    if (useF32Opmath) {
+      Type f32Type = rewriter.getF32Type();
+      input = convertTensorToDtype(rewriter, loc, input, f32Type);
+      runningMean = convertTensorToDtype(rewriter, loc, runningMean, f32Type);
+      runningVar = convertTensorToDtype(rewriter, loc, runningVar, f32Type);
+      if (!isa<Torch::NoneType>(weight.getType()))
+        weight = convertTensorToDtype(rewriter, loc, weight, f32Type);
+      if (!isa<Torch::NoneType>(bias.getType()))
+        bias = convertTensorToDtype(rewriter, loc, bias, f32Type);
+    }
+
     Value zero =
         ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
     Value one =
@@ -8832,6 +8848,10 @@ class DecomposeAtenNativeBatchNormOp
           AtenAddTensorOp::create(rewriter, loc, batchNormOutput.getType(),
                                   batchNormOutput, biasBC, one);
     }
+
+    if (useF32Opmath)
+      batchNormOutput =
+          convertTensorToDtype(rewriter, loc, batchNormOutput, originalDtype);
 
     rewriter.replaceOp(op, {batchNormOutput, meanOut, invstdOut});
     return success();
