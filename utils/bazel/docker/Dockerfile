@@ -1,5 +1,5 @@
 ARG BASE_IMG=ubuntu:22.04
-FROM ${BASE_IMG} AS dev-base
+FROM ${BASE_IMG} as dev-base
 
 # Install basic packages
 RUN apt-get update && \
@@ -21,9 +21,11 @@ RUN echo $REPO_NAME >> /etc/apt/sources.list.d/llvm.list && \
     clang-16
 
 # Install bazel
-ARG ARCH="x86_64"
-ARG BAZEL_VERSION=8.4.2
-RUN wget -q https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-${ARCH} -O /usr/bin/bazel \
+ARG TARGETARCH
+ARG BAZEL_VERSION=8.7.0
+RUN ARCH=${TARGETARCH} \
+    && if [ ${TARGETARCH} = "amd64" ]; then ARCH="x86_64"; fi \
+    && wget -q https://github.com/bazelbuild/bazel/releases/download/${BAZEL_VERSION}/bazel-${BAZEL_VERSION}-linux-${ARCH} -O /usr/bin/bazel \
     && chmod a+x /usr/bin/bazel
 
 # Install torch-mlir requirements
@@ -36,6 +38,9 @@ COPY externals/llvm-project/mlir/python/requirements.txt /opt/app/externals/llvm
 WORKDIR /opt/app
 RUN python3 -m pip install --upgrade pip
 RUN python3 -m pip install --upgrade --ignore-installed -r requirements.txt
+
+RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-16 100 && \
+    update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-16 100
 
 # Clean up
 RUN apt-get clean \

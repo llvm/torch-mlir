@@ -158,6 +158,11 @@ LogicalResult getPermutedType(BaseTensorType inType,
                               SmallVector<int64_t> permuteDims,
                               Type &permutedType);
 
+// Returns true when an IntegerType requires unsigned comparison/arithmetic
+// semantics: explicitly unsigned types, and signless i1 (bool) where unsigned
+// comparison correctly ranks true (1) above false (0).
+bool useUnsignedIntegerSemantics(IntegerType intType);
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

@@ -438,12 +438,13 @@ void PrimLoopOp::getSuccessorRegions(
   }
   assert(point.getTerminatorPredecessorOrNull()->getParentRegion() == &region);
   regions.emplace_back(&region);
-  regions.emplace_back(RegionSuccessor::parent());
+  regions.emplace_back(RegionSuccessor(getOperation()));
 }
 
 ValueRange PrimLoopOp::getSuccessorInputs(RegionSuccessor successor) {
-  return successor.isParent() ? ValueRange(getResults())
-                              : ValueRange(getRegion().getArguments().slice(1));
+  return successor.isOperation()
+             ? ValueRange(getResults())
+             : ValueRange(getRegion().getArguments().slice(1));
 }
 
 bool PrimLoopOp::isForLike() {
@@ -509,7 +510,7 @@ void PrimIfOp::getSuccessorRegions(RegionBranchPoint point,
                                    SmallVectorImpl<RegionSuccessor> &regions) {
   // The `then` and the `else` region branch back to the parent operation.
   if (point.getTerminatorPredecessorOrNull()) {
-    regions.push_back(RegionSuccessor::parent());
+    regions.push_back(RegionSuccessor(getOperation()));
     return;
   }
 
@@ -528,7 +529,7 @@ void PrimIfOp::getSuccessorRegions(RegionBranchPoint point,
 }
 
 ValueRange PrimIfOp::getSuccessorInputs(RegionSuccessor successor) {
-  return successor.isParent() ? ValueRange(getResults()) : ValueRange();
+  return successor.isOperation() ? ValueRange(getResults()) : ValueRange();
 }
 
 /// Replaces the given op with the contents of the given single-block region,
@@ -650,6 +651,21 @@ void AtenDotOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 
     rewriter.replaceOpWithNewOp<AtenMatmulOp>(op, op.getResult().getType(),
                                               op.getSelf(), op.getTensor());
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
+// Aten_IntMmOp
+//===----------------------------------------------------------------------===//
+
+void Aten_IntMmOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                               MLIRContext *context) {
+  // `aten._int_mm` -> `aten.mm`. Eager `torch.mm` returns the operand dtype
+  // while `_int_mm` returns int32, so the int32 result type is kept.
+  patterns.add(+[](Aten_IntMmOp op, PatternRewriter &rewriter) {
+    rewriter.replaceOpWithNewOp<AtenMmOp>(op, op.getType(), op.getSelf(),
+                                          op.getMat2());
     return success();
   });
 }
@@ -5461,7 +5477,7 @@ getSuccessorRegionsForCalculateOp(CalculateOp op, RegionBranchPoint point,
   Region *region = point.getTerminatorPredecessorOrNull()->getParentRegion();
   if (region == &op.getBody()) {
     // Body returns control to the outer op, passing through results.
-    regions.emplace_back(RegionSuccessor::parent());
+    regions.emplace_back(RegionSuccessor(op.getOperation()));
     return;
   }
   assert(region == &op.getCalculation());
@@ -5475,7 +5491,7 @@ void ShapeCalculateOp::getSuccessorRegions(
 }
 
 ValueRange ShapeCalculateOp::getSuccessorInputs(RegionSuccessor successor) {
-  return successor.isParent() ? ValueRange(getResults()) : ValueRange();
+  return successor.isOperation() ? ValueRange(getResults()) : ValueRange();
 }
 
 //===----------------------------------------------------------------------===//
@@ -5488,7 +5504,7 @@ void DtypeCalculateOp::getSuccessorRegions(
 }
 
 ValueRange DtypeCalculateOp::getSuccessorInputs(RegionSuccessor successor) {
-  return successor.isParent() ? ValueRange(getResults()) : ValueRange();
+  return successor.isOperation() ? ValueRange(getResults()) : ValueRange();
 }
 
 //===----------------------------------------------------------------------===//

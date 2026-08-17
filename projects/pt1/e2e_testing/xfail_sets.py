@@ -1018,6 +1018,7 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
     "BatchNorm1DModule_basic",
     "BatchNorm2DModule_basic",
     "BatchNorm3DModule_basic",
+    "BatchNormInferenceF16Module_basic",
     "ResNet18Module_basic",
     "ResNet18StaticModule_basic",
     "MobilenetV3Module_basic",
@@ -1684,6 +1685,7 @@ STABLEHLO_PASS_SET = {
     "IndexTensorStaticNonContiguousWithNoneModule_basic",
     "LayerNormLastDimModule_basic",
     "LayerNormModule_basic",
+    "LayerNormNoBiasModule_basic",
     "LayerNormNormalizeOverAllDimsModule_basic",
     "MaxPool2dWithIndicesStaticModule_basic",
     "MeanDimAllReduceKeepdimModule_basic",
@@ -2138,6 +2140,9 @@ TOSA_PASS_SET = {
     "ReduceMinUnsignedIntModule_basic",
     "ReduceProdDtypeFloatModule_basic",
     "ReduceProdDtypeIntModule_basic",
+    "ReduceProdDimIntInt8Module_basic",
+    "ReduceProdDimIntInt16Module_basic",
+    "ReduceProdDimIntInt32Module_basic",
     "ReduceProdElementTypeBoolModule_basic",
     "ReduceProdFloatModule_basic",
     "ReduceProdSignedIntModule_basic",
@@ -2234,6 +2239,7 @@ TOSA_PASS_SET = {
     "BatchNorm1DWith2DInputModule_basic",
     "BatchNorm2DModule_basic",
     "BatchNorm3DModule_basic",
+    "BatchNormInferenceF16Module_basic",
     "BmmFloatModule_basic",
     "BoolTensorHandleSignless_basic",
     "BoolTensorReturnFalseModule_basic",
@@ -2259,6 +2265,8 @@ TOSA_PASS_SET = {
     "Conv2dWithPaddingDilationStrideStaticModule_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise",
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
+    "Conv2dWithPaddingDilationStrideStaticModule_grouped",
+    "Conv2dWithPaddingDilationStrideStaticModule_grouped_multiplier",
     "Conv2dWithPaddingModule_basic",
     "Conv2dWithValidPaddingModule_basic",
     "Conv2dWithSamePaddingModule_basic",
@@ -2840,6 +2848,12 @@ LTC_XFAIL_SET = {
 }
 
 ONNX_XFAIL_SET = {
+    # The ONNX test configuration replaces annotated integer inputs with
+    # zero-filled placeholders. Their sums do not match these tests' fixed
+    # nonzero output_size values, so eager repeat_interleave rejects them
+    # before ONNX export.
+    "RepeatInterleaveTensorInt64Module_basic",
+    "RepeatInterleaveTensorModule_basic",
     # ONNX export applies explicit offset to materialized slice storage.
     "AtenAsStridedAfterAliasDetachModule_basic",
     # ONNX transpose materializes movedim before gather, so indexing uses new storage.
@@ -3256,6 +3270,9 @@ ONNX_XFAIL_SET = {
     "CumprodStaticModule_basic",
     "CumprodStaticNegativeDimModule_basic",
     "ElementwiseToDtypeI64ToUI8Module_basic",
+    # onnx: xlogy lowering is incorrect for inputs whose result contains NaN
+    "ElementwiseXlogyTensorBroadcastModule_basic",
+    "ElementwiseXlogyTensorZeroAndNanModule_basic",
     "ElementwiseFloatTensorGtIntTensorModule_basic",
     "ElementwiseSignbitModule_basic",
     "ElementwiseCopysignModule_basic",
@@ -3567,20 +3584,15 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "CeilFloatModule_basic",
     "ContainsIntList_False",
     "ContainsIntList_True",
-    "Conv1dGroupModule_basic",
-    "Conv2dQInt8Module_grouped",
     "Conv2dQInt8PerChannelModule_basic",
     "Conv2dQInt8PerChannelModule_depthwise",
     "Conv2dQInt8PerChannelModule_grouped",
-    "Conv2dWithPaddingDilationStrideStaticModule_grouped",
-    "Conv2dWithPaddingDilationStrideStaticModule_grouped_multiplier",
     "ConvTbcModule_basic",
     "ConvolutionBackwardModule2DDilated_basic",
     "ConvolutionBackwardModule2DPadded_basic",
     "ConvolutionBackwardModule2DStridedPaddedDilatedGrouped_basic",
     "ConvolutionBackwardModule3DStatic_basic",
     "ConvolutionBackwardModule2D_basic",
-    "ConvolutionModule2DGroups_basic",
     "ConvolutionModule2DGroupedTranspose_basic",
     "ConvolutionModule3DGroups_basic",
     "ConvolutionModule3DGroupsStrided_basic",
@@ -3978,6 +3990,12 @@ ONNX_TOSA_XFAIL_SET = {
     "RreluWithNoiseBackwardTrainModule_basic",
     "RreluWithNoiseBackwardTrainStaticModule_basic",
     "RreluWithNoiseForwardBackwardModule_basic",
+    # The ONNX test configuration replaces annotated integer inputs with
+    # zero-filled placeholders. Their sums do not match these tests' fixed
+    # nonzero output_size values, so eager repeat_interleave rejects them
+    # before ONNX export.
+    "RepeatInterleaveTensorInt64Module_basic",
+    "RepeatInterleaveTensorModule_basic",
     "Unfold_Module_Dynamic_basic",
     "Unfold_Module_Rank_4",
     "Unfold_Module_Rank_Zero_Size_Zero_basic",

@@ -18,6 +18,10 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
+bool Torch::useUnsignedIntegerSemantics(IntegerType intType) {
+  return intType.isUnsigned() || intType.getWidth() == 1;
+}
+
 int64_t Torch::toPositiveDim(int64_t dim, int64_t inputRank) {
   return dim >= 0 ? dim : dim + inputRank;
 }

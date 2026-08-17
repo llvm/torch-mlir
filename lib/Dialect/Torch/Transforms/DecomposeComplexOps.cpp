@@ -3454,23 +3454,6 @@ public:
 };
 } // namespace
 
-// Decompose aten._int_mm into: aten.mm.
-//
-// Eager `torch.mm` returns the operand dtype while `_int_mm` returns int32, so
-// the resulting `aten.mm` keeps the original int32 result type.
-namespace {
-class DecomposeAten_IntMmOp : public OpRewritePattern<Aten_IntMmOp> {
-public:
-  using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(Aten_IntMmOp op,
-                                PatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<AtenMmOp>(op, op.getType(), op.getSelf(),
-                                          op.getMat2());
-    return success();
-  }
-};
-} // namespace
-
 // Decompose aten.mv into: aten.matmul.
 namespace {
 class DecomposeAtenMvOp : public OpRewritePattern<AtenMvOp> {
@@ -5305,6 +5288,106 @@ public:
 };
 } // namespace
 
+// Decompose aten.repeat_interleave.Tensor into an index tensor. For example,
+// repeats [0, 1, 2, 3] produces indices [1, 2, 2, 3, 3, 3]. This decomposition
+// assumes that repeats are nonnegative and output_size equals sum(repeats),
+// which are input preconditions of this operation.
+namespace {
+class DecomposeAtenRepeatInterleaveTensorOp
+    : public OpRewritePattern<AtenRepeatInterleaveTensorOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenRepeatInterleaveTensorOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    MLIRContext *context = op.getContext();
+    auto repeatsType = cast<BaseTensorType>(op.getRepeats().getType());
+    auto resultType = cast<BaseTensorType>(op.getType());
+    if (!repeatsType.hasSizes() || repeatsType.getSizes().size() != 1 ||
+        !repeatsType.hasDtype() || !resultType.hasSizes() ||
+        resultType.getSizes().size() != 1 || !resultType.hasDtype())
+      return rewriter.notifyMatchFailure(
+          op, "expected ranked one-dimensional tensors with known dtypes");
+    Type repeatsDtype = repeatsType.getDtype();
+    if (!repeatsDtype.isSignedInteger(32) && !repeatsDtype.isSignedInteger(64))
+      return rewriter.notifyMatchFailure(
+          op, "expected repeats to have int32 or int64 dtype");
+
+    int64_t outputSize;
+    if (!matchPattern(op.getOutputSize(), m_TorchConstantInt(&outputSize)))
+      return rewriter.notifyMatchFailure(
+          op, "expected output_size to be a constant int");
+
+    int64_t repeatsLength = repeatsType.getSizes()[0];
+    int64_t outputLength = resultType.getSizes()[0];
+    if (repeatsLength == kUnknownSize || outputLength == kUnknownSize ||
+        outputSize < 0 || outputSize != outputLength)
+      return rewriter.notifyMatchFailure(
+          op, "expected static sizes consistent with output_size");
+
+    // This decomposition constructs an intermediate of shape
+    // [repeatsLength, outputLength]. Keep its size bounded.
+    constexpr int64_t maxIntermediateElements = 1 << 20;
+    if (outputLength != 0 &&
+        repeatsLength > maxIntermediateElements / outputLength)
+      return rewriter.notifyMatchFailure(
+          op, "repeat_interleave intermediate exceeds the size limit");
+
+    Value zero =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
+    Value one =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
+    Value none = ConstantNoneOp::create(rewriter, loc);
+    Value falseValue = ConstantBoolOp::create(rewriter, loc, false);
+    Type int64Dtype = IntegerType::get(context, 64, IntegerType::Signed);
+    Value int64DtypeValue = getDtypeIntValueForType(rewriter, loc, int64Dtype);
+    Value repeats = op.getRepeats();
+    if (!repeatsDtype.isSignedInteger(64))
+      repeats = convertTensorToDtype(rewriter, loc, repeats, int64Dtype);
+    auto repeatsInt64Type = cast<BaseTensorType>(repeats.getType());
+
+    Value cumulative = AtenCumsumOp::create(rewriter, loc, repeatsInt64Type,
+                                            repeats, zero, int64DtypeValue);
+    auto resultInt64Type = cast<BaseTensorType>(
+        resultType.getWithSizesAndDtype(resultType.getSizes(), int64Dtype));
+    Value positions =
+        AtenArangeOp::create(rewriter, loc, resultInt64Type, op.getOutputSize(),
+                             int64DtypeValue, none, none, none);
+
+    auto cumulativeColumnType = repeatsInt64Type.getWithSizesAndDtype(
+        SmallVector<int64_t>{repeatsLength, 1}, int64Dtype);
+    auto positionsRowType = resultInt64Type.getWithSizesAndDtype(
+        SmallVector<int64_t>{1, outputLength}, int64Dtype);
+    Value cumulativeColumn = AtenUnsqueezeOp::create(
+        rewriter, loc, cumulativeColumnType, cumulative, one);
+    Value positionsRow = AtenUnsqueezeOp::create(
+        rewriter, loc, positionsRowType, positions, zero);
+
+    SmallVector<int64_t> comparisonShape{repeatsLength, outputLength};
+    auto comparisonType = repeatsInt64Type.getWithSizesAndDtype(
+        comparisonShape, rewriter.getI1Type());
+    Value comparison = AtenGeTensorOp::create(rewriter, loc, comparisonType,
+                                              positionsRow, cumulativeColumn);
+    auto comparisonInt64Type =
+        repeatsInt64Type.getWithSizesAndDtype(comparisonShape, int64Dtype);
+    Value comparisonInt64 =
+        AtenToDtypeOp::create(rewriter, loc, comparisonInt64Type, comparison,
+                              int64DtypeValue, falseValue, falseValue, none);
+
+    Value dims = PrimListConstructOp::create(
+        rewriter, loc, ListType::get(IntType::get(context)), zero);
+    Value result = AtenSumDimIntListOp::create(rewriter, loc, resultInt64Type,
+                                               comparisonInt64, dims,
+                                               falseValue, int64DtypeValue);
+    if (!resultType.getDtype().isSignedInteger(64))
+      result =
+          convertTensorToDtype(rewriter, loc, result, resultType.getDtype());
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.flatten.using_ints into aten.view op.
 namespace {
 class DecomposeAtenFlattenUsingIntsOp
@@ -6560,15 +6643,20 @@ class DecomposeAtenNonzeroOp : public OpRewritePattern<AtenNonzeroOp> {
     int64_t flattenedSize = 1;
     if (inputType.hasSizes()) {
       for (auto size : inputType.getSizes()) {
+        // Any dynamic input dimension makes the flattened size dynamic.
+        if (size == kUnknownSize) {
+          flattenedSize = kUnknownSize;
+          break;
+        }
         flattenedSize *= size;
       }
     } else {
       flattenedSize = kUnknownSize;
     }
 
-    auto flattendInputShape = SmallVector<int64_t>{flattenedSize};
+    auto flattenedInputShape = SmallVector<int64_t>{flattenedSize};
     auto flattenedInputType = rewriter.getType<Torch::ValueTensorType>(
-        flattendInputShape, inputType.getOptionalDtype());
+        flattenedInputShape, inputType.getOptionalDtype());
 
     // %1 = torch.aten.flatten.using_ints %arg0, %int0, %int0_0 :
     auto inputDimsEnd = ConstantIntOp::create(
@@ -6641,10 +6729,8 @@ class DecomposeAtenNonzeroOp : public OpRewritePattern<AtenNonzeroOp> {
                                   /*end=*/numNonzero,
                                   /*step=*/constantOne);
 
-    // TODO fix multidim dynamic support. The following code only work for
-    // static multidim. Convert flattened indices back to multi-dimensional
-    // indices original_shape = t.shape input_shape_tensor =
-    // torch.tensor(original_shape)
+    // Convert flattened indices back to multi-dimensional indices using the
+    // input shape queried at runtime.
     auto shapeType = Torch::ValueTensorType::get(
         rewriter.getContext(), SmallVector<int64_t>{inputRank}, intType);
     SmallVector<Value> shapeValues;
@@ -8641,6 +8727,22 @@ class DecomposeAtenNativeBatchNormOp
         return rewriter.notifyMatchFailure(op, "expected bias to be rank 1");
     }
 
+    auto inputType = dyn_cast<BaseTensorType>(input.getType());
+    if (!inputType || !inputType.hasDtype())
+      return rewriter.notifyMatchFailure(op, "expected input to have a dtype");
+    Type originalDtype = inputType.getDtype();
+    bool useF32Opmath = !training && originalDtype.isF16();
+    if (useF32Opmath) {
+      Type f32Type = rewriter.getF32Type();
+      input = convertTensorToDtype(rewriter, loc, input, f32Type);
+      runningMean = convertTensorToDtype(rewriter, loc, runningMean, f32Type);
+      runningVar = convertTensorToDtype(rewriter, loc, runningVar, f32Type);
+      if (!isa<Torch::NoneType>(weight.getType()))
+        weight = convertTensorToDtype(rewriter, loc, weight, f32Type);
+      if (!isa<Torch::NoneType>(bias.getType()))
+        bias = convertTensorToDtype(rewriter, loc, bias, f32Type);
+    }
+
     Value zero =
         ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
     Value one =
@@ -8746,6 +8848,10 @@ class DecomposeAtenNativeBatchNormOp
           AtenAddTensorOp::create(rewriter, loc, batchNormOutput.getType(),
                                   batchNormOutput, biasBC, one);
     }
+
+    if (useF32Opmath)
+      batchNormOutput =
+          convertTensorToDtype(rewriter, loc, batchNormOutput, originalDtype);
 
     rewriter.replaceOp(op, {batchNormOutput, meanOut, invstdOut});
     return success();
@@ -13448,6 +13554,8 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRepeatOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRepeatInterleaveSelfIntOp>(
         patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenRepeatInterleaveTensorOp>(
+        patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenExpandOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFlattenUsingIntsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenUnflattenIntOp>(patterns);
@@ -13476,7 +13584,6 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenStftCenterOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSelectIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMatmulOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAten_IntMmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMvOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRenormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLinalgCrossOp>(patterns);

@@ -3,24 +3,6 @@ name: "Setup build environment"
 description: "Setup the build environment. An action so that it can be shared between in-tree/out-of-tree jobs"
 
 inputs:
-  cache-enabled:
-    required: true
-    default: true
-
-  cache-suffix:
-    description: |
-      Additional string that is used to compute the ccache hash.
-      Different jobs running the action need distinct values for this key,
-      but the content is irrelevant.
-    required: false
-    default: ''
-  torch-version:
-    description: |
-      Additional string to determine wether to test against a stable
-      torch release or against the nightly build
-    required: false
-    default: 'nightly'
-
   python-version:
     description: 'Python version to use'
     required: false
@@ -58,24 +40,3 @@ runs:
         pip install ninja
         choco install ccache --yes
       shell: bash
-
-    - name: Configure ccache
-      if: ${{ inputs.cache-enabled == 'true' }}
-      run: |
-        rm -rf ${{ github.workspace }}/.ccache
-        mkdir -p ${{ github.workspace }}/.ccache
-        ccache --set-config "cache_dir=${{ github.workspace }}/.ccache"
-        ccache --set-config "compression=true"
-        ccache --set-config "max_size=300M"
-        ccache --zero-stats
-      shell: bash
-
-    - name: Enable ccache
-      if: ${{ inputs.cache-enabled == 'true' }}
-      uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
-      with:
-        path: ${{ github.workspace }}/.ccache
-        key: ${{ runner.os }}-${{ inputs.cache-suffix }}-${{ github.sha }}
-        restore-keys: |
-          ${{ runner.os }}-${{ inputs.cache-suffix }}-
-          ${{ runner.os }}-

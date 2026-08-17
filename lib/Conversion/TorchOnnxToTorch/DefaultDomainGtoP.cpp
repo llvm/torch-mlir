@@ -2663,7 +2663,6 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         float epsilon;
         if (binder.tensorOperandAtIndex(x, 0) ||
             binder.tensorOperandAtIndex(scale, 1) ||
-            binder.tensorOperandAtIndex(b, 2) ||
             binder.tensorResultTypeAtIndex(yType, 0) ||
             binder.s64IntegerAttr(axis, "axis", -1) ||
             binder.f32FloatAttr(epsilon, "epsilon", 0.00001f) ||
@@ -2697,6 +2696,10 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
               /*memory_format=*/none);
         }
+
+        // The bias operand B is optional and defaults to no bias.
+        if (binder.tensorOperandAtIndex(b, 2))
+          b = none;
 
         Value constEpsilon = Torch::ConstantFloatOp::create(
             rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),

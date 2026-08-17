@@ -2339,6 +2339,56 @@ func.func @torch.aten.prod.dim_int$basic(%arg0: !torch.vtensor<[3,2,3],f32>) -> 
 
 // -----
 
+// CHECK-LABEL:   func.func @torch.aten.prod.dim_int$int(
+// CHECK:           %[[INPUT:.*]] = torch_c.to_builtin_tensor
+// CHECK:           %[[CAST:.*]] = tosa.cast %[[INPUT]] : (tensor<3x2x3xi32>) -> tensor<3x2x3xi64>
+// CHECK:           %[[SLICE_0:.*]] = tosa.slice %[[CAST]]
+// CHECK:           %[[SLICE_1:.*]] = tosa.slice %[[CAST]]
+// CHECK:           %[[PRODUCT_0:.*]] = tosa.mul %[[SLICE_0]], %[[SLICE_1]],
+// CHECK:           %[[SLICE_2:.*]] = tosa.slice %[[CAST]]
+// CHECK:           %[[PRODUCT_1:.*]] = tosa.mul %[[PRODUCT_0]], %[[SLICE_2]],
+func.func @torch.aten.prod.dim_int$int(%arg0: !torch.vtensor<[3,2,3],si32>) -> !torch.vtensor<[3,2,1],si64> {
+  %dim = torch.constant.int 2
+  %keepdims = torch.constant.bool true
+  %dtype = torch.constant.none
+  %0 = torch.aten.prod.dim_int %arg0, %dim, %keepdims, %dtype: !torch.vtensor<[3,2,3],si32>, !torch.int, !torch.bool, !torch.none -> !torch.vtensor<[3,2,1],si64>
+  return %0 : !torch.vtensor<[3,2,1],si64>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.prod.dim_int$int8(
+// CHECK:           %[[INPUT:.*]] = torch_c.to_builtin_tensor
+// CHECK:           %[[CAST:.*]] = tosa.cast %[[INPUT]] : (tensor<3x2x3xi8>) -> tensor<3x2x3xi64>
+// CHECK:           %[[SLICE_0:.*]] = tosa.slice %[[CAST]]
+// CHECK:           %[[SLICE_1:.*]] = tosa.slice %[[CAST]]
+// CHECK:           tosa.mul %[[SLICE_0]], %[[SLICE_1]],
+func.func @torch.aten.prod.dim_int$int8(%arg0: !torch.vtensor<[3,2,3],si8>) -> !torch.vtensor<[3,2,1],si64> {
+  %dim = torch.constant.int 2
+  %keepdims = torch.constant.bool true
+  %dtype = torch.constant.none
+  %0 = torch.aten.prod.dim_int %arg0, %dim, %keepdims, %dtype: !torch.vtensor<[3,2,3],si8>, !torch.int, !torch.bool, !torch.none -> !torch.vtensor<[3,2,1],si64>
+  return %0 : !torch.vtensor<[3,2,1],si64>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.prod.dim_int$int16(
+// CHECK:           %[[INPUT:.*]] = torch_c.to_builtin_tensor
+// CHECK:           %[[CAST:.*]] = tosa.cast %[[INPUT]] : (tensor<3x2x3xi16>) -> tensor<3x2x3xi64>
+// CHECK:           %[[SLICE_0:.*]] = tosa.slice %[[CAST]]
+// CHECK:           %[[SLICE_1:.*]] = tosa.slice %[[CAST]]
+// CHECK:           tosa.mul %[[SLICE_0]], %[[SLICE_1]],
+func.func @torch.aten.prod.dim_int$int16(%arg0: !torch.vtensor<[3,2,3],si16>) -> !torch.vtensor<[3,2,1],si64> {
+  %dim = torch.constant.int 2
+  %keepdims = torch.constant.bool true
+  %dtype = torch.constant.none
+  %0 = torch.aten.prod.dim_int %arg0, %dim, %keepdims, %dtype: !torch.vtensor<[3,2,3],si16>, !torch.int, !torch.bool, !torch.none -> !torch.vtensor<[3,2,1],si64>
+  return %0 : !torch.vtensor<[3,2,1],si64>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.all.dim$basic(
 // CHECK-SAME:                                        %[[VAL_0:.*]]: !torch.vtensor<[3,2,3],i1>) -> !torch.vtensor<[3,2,1],i1> {
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[3,2,3],i1> -> tensor<3x2x3xi1>
@@ -4932,6 +4982,171 @@ func.func @torch.aten.convolution$full_dim_indivisible_by_stride_with_sliced_inp
   %4 = torch.prim.ListConstruct  : () -> !torch.list<int>
   %5 = torch.aten.convolution %arg0, %0, %none, %1, %2, %3, %false, %4, %int1 : !torch.vtensor<[?,3,225,225],f32>, !torch.vtensor<[32,3,3,3],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[?,32,75,75],f32>
   return %5 : !torch.vtensor<[?,32,75,75],f32>
+}
+
+// -----
+
+// Grouped conv2d (groups=2): decomposes to 2 tosa.conv2d + tosa.concat.
+// Dynamic batch: Input [?,64,8,8], weight [64,32,3,3], groups=2 -> 2x conv([?,8,8,32], [32,3,3,32]) + concat dim3.
+// Batch dim propagates as -1 in tosa.const_shape slice sizes (full extent).
+// CHECK-LABEL:   func.func @torch.aten.convolution$grouped_conv2d(
+// CHECK-SAME:      %[[ARG:.*]]: !torch.vtensor<[?,64,8,8],f32>) -> !torch.vtensor<[?,64,8,8],f32> {
+// CHECK:           %[[INPUT:.*]] = torch_c.to_builtin_tensor %[[ARG]]
+// CHECK:           %[[WEIGHT:.*]] = "tosa.const"
+// CHECK:           %[[INPUT_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}>
+// CHECK:           %[[WEIGHT_ZP:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}>
+// CHECK:           %[[NHWC_INPUT:.*]] = tosa.transpose %[[INPUT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<?x64x8x8xf32>) -> tensor<?x8x8x64xf32>
+// CHECK:           %[[TOSA_WEIGHT:.*]] = tosa.transpose %[[WEIGHT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<64x32x3x3xf32>) -> tensor<64x3x3x32xf32>
+// CHECK:           %[[BIAS:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<64xf32>}>
+// Size constants (shared across groups):
+// CHECK-DAG:       %[[IN_SIZE:.*]] = tosa.const_shape  {values = dense<[-1, 8, 8, 32]> : tensor<4xindex>}
+// CHECK-DAG:       %[[W_SIZE:.*]] = tosa.const_shape  {values = dense<[32, 3, 3, 32]> : tensor<4xindex>}
+// Group 0:
+// CHECK-DAG:       %[[IN0_START:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>}
+// CHECK:           %[[IN_G0:.*]] = tosa.slice %[[NHWC_INPUT]], %[[IN0_START]], %[[IN_SIZE]] : (tensor<?x8x8x64xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<?x8x8x32xf32>
+// CHECK-DAG:       %[[W0_START:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>}
+// CHECK:           %[[W_G0:.*]] = tosa.slice %[[TOSA_WEIGHT]], %[[W0_START]], %[[W_SIZE]] : (tensor<64x3x3x32xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<32x3x3x32xf32>
+// CHECK:           %[[CONV_G0:.*]] = tosa.conv2d %[[IN_G0]], %[[W_G0]], {{.*}} {acc_type = f32, dilation = array<i64: 1, 1>, pad = array<i64: 1, 1, 1, 1>, stride = array<i64: 1, 1>} : (tensor<?x8x8x32xf32>, tensor<32x3x3x32xf32>, tensor<32xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<?x8x8x32xf32>
+// Group 1:
+// CHECK-DAG:       %[[IN1_START:.*]] = tosa.const_shape  {values = dense<[0, 0, 0, 32]> : tensor<4xindex>}
+// CHECK:           %[[IN_G1:.*]] = tosa.slice %[[NHWC_INPUT]], %[[IN1_START]], %[[IN_SIZE]] : (tensor<?x8x8x64xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<?x8x8x32xf32>
+// CHECK-DAG:       %[[W1_START:.*]] = tosa.const_shape  {values = dense<[32, 0, 0, 0]> : tensor<4xindex>}
+// CHECK:           %[[W_G1:.*]] = tosa.slice %[[TOSA_WEIGHT]], %[[W1_START]], %[[W_SIZE]] : (tensor<64x3x3x32xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<32x3x3x32xf32>
+// CHECK:           %[[CONV_G1:.*]] = tosa.conv2d %[[IN_G1]], %[[W_G1]], {{.*}} {acc_type = f32, dilation = array<i64: 1, 1>, pad = array<i64: 1, 1, 1, 1>, stride = array<i64: 1, 1>} : (tensor<?x8x8x32xf32>, tensor<32x3x3x32xf32>, tensor<32xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<?x8x8x32xf32>
+// CHECK:           %[[CONCAT:.*]] = tosa.concat %[[CONV_G0]], %[[CONV_G1]] {axis = 3 : i32} : (tensor<?x8x8x32xf32>, tensor<?x8x8x32xf32>) -> tensor<?x8x8x64xf32>
+// CHECK:           %[[NCHW:.*]] = tosa.transpose %[[CONCAT]] {perms = array<i32: 0, 3, 1, 2>}
+// CHECK:           return
+// CHECK:         }
+func.func @torch.aten.convolution$grouped_conv2d(%arg0: !torch.vtensor<[?,64,8,8],f32>) -> !torch.vtensor<[?,64,8,8],f32> {
+  %false = torch.constant.bool false
+  %int2 = torch.constant.int 2
+  %int1 = torch.constant.int 1
+  %0 = torch.vtensor.literal(dense<0.1> : tensor<64x32x3x3xf32>) : !torch.vtensor<[64,32,3,3],f32>
+  %none = torch.constant.none
+  %1 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %3 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %4 = torch.prim.ListConstruct  : () -> !torch.list<int>
+  %5 = torch.aten.convolution %arg0, %0, %none, %1, %2, %3, %false, %4, %int2 : !torch.vtensor<[?,64,8,8],f32>, !torch.vtensor<[64,32,3,3],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[?,64,8,8],f32>
+  return %5 : !torch.vtensor<[?,64,8,8],f32>
+}
+
+// -----
+
+// Grouped conv2d multiplier (groups=4, out_channels/group=2): 4 tosa.conv2d + tosa.concat.
+// Input [1,8,4,4], weight [8,2,3,3], groups=4 -> 4x conv([1,4,4,2], [2,3,3,2]) + concat dim3.
+// CHECK-LABEL:   func.func @torch.aten.convolution$grouped_conv2d_multiplier(
+// CHECK-SAME:      %[[ARG:.*]]: !torch.vtensor<[1,8,4,4],f32>) -> !torch.vtensor<[1,8,4,4],f32> {
+// CHECK:           %[[NHWC_INPUT:.*]] = tosa.transpose {{.*}} : (tensor<1x8x4x4xf32>) -> tensor<1x4x4x8xf32>
+// CHECK:           %[[TOSA_WEIGHT:.*]] = tosa.transpose {{.*}} : (tensor<8x2x3x3xf32>) -> tensor<8x3x3x2xf32>
+// CHECK-COUNT-4:   tosa.conv2d {{.*}} : (tensor<1x4x4x2xf32>, tensor<2x3x3x2xf32>, tensor<2xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x4x4x2xf32>
+// CHECK:           tosa.concat {{.*}} {axis = 3 : i32} : (tensor<1x4x4x2xf32>, tensor<1x4x4x2xf32>, tensor<1x4x4x2xf32>, tensor<1x4x4x2xf32>) -> tensor<1x4x4x8xf32>
+// CHECK:           return
+// CHECK:         }
+func.func @torch.aten.convolution$grouped_conv2d_multiplier(%arg0: !torch.vtensor<[1,8,4,4],f32>) -> !torch.vtensor<[1,8,4,4],f32> {
+  %false = torch.constant.bool false
+  %int4 = torch.constant.int 4
+  %int1 = torch.constant.int 1
+  %0 = torch.vtensor.literal(dense<0.1> : tensor<8x2x3x3xf32>) : !torch.vtensor<[8,2,3,3],f32>
+  %none = torch.constant.none
+  %1 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %3 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %4 = torch.prim.ListConstruct  : () -> !torch.list<int>
+  %5 = torch.aten.convolution %arg0, %0, %none, %1, %2, %3, %false, %4, %int4 : !torch.vtensor<[1,8,4,4],f32>, !torch.vtensor<[8,2,3,3],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,8,4,4],f32>
+  return %5 : !torch.vtensor<[1,8,4,4],f32>
+}
+
+// -----
+
+// Grouped conv2d with a real bias: bias [64] is sliced per group into [32] each.
+// The bias size const is hoisted (emitted once, reused for both groups).
+// CHECK-LABEL: func.func @torch.aten.convolution$grouped_conv2d_with_bias(
+// CHECK-SAME:    %[[ARG:.*]]: !torch.vtensor<[1,64,8,8],f32>) -> !torch.vtensor<[1,64,8,8],f32>
+// CHECK:         %[[BIAS:.*]] = "tosa.const"() <{values = dense<1.000000e+00> : tensor<64xf32>}>
+// CHECK:         %[[B_SIZE:.*]] = tosa.const_shape  {values = dense<32> : tensor<1xindex>}
+// Group 0 bias slice:
+// CHECK:         %[[B0_START:.*]] = tosa.const_shape  {values = dense<0> : tensor<1xindex>}
+// CHECK:         %[[B_G0:.*]] = tosa.slice %[[BIAS]], %[[B0_START]], %[[B_SIZE]] : (tensor<64xf32>, !tosa.shape<1>, !tosa.shape<1>) -> tensor<32xf32>
+// CHECK:         tosa.conv2d {{.*}}, %[[B_G0]], {{.*}} -> tensor<1x8x8x32xf32>
+// Group 1 bias slice:
+// CHECK:         %[[B1_START:.*]] = tosa.const_shape  {values = dense<32> : tensor<1xindex>}
+// CHECK:         %[[B_G1:.*]] = tosa.slice %[[BIAS]], %[[B1_START]], %[[B_SIZE]] : (tensor<64xf32>, !tosa.shape<1>, !tosa.shape<1>) -> tensor<32xf32>
+// CHECK:         tosa.conv2d {{.*}}, %[[B_G1]], {{.*}} -> tensor<1x8x8x32xf32>
+// CHECK:         tosa.concat {{.*}} {axis = 3 : i32} : (tensor<1x8x8x32xf32>, tensor<1x8x8x32xf32>) -> tensor<1x8x8x64xf32>
+func.func @torch.aten.convolution$grouped_conv2d_with_bias(%arg0: !torch.vtensor<[1,64,8,8],f32>) -> !torch.vtensor<[1,64,8,8],f32> {
+  %false = torch.constant.bool false
+  %int2 = torch.constant.int 2
+  %int1 = torch.constant.int 1
+  %weight = torch.vtensor.literal(dense<0.1> : tensor<64x32x3x3xf32>) : !torch.vtensor<[64,32,3,3],f32>
+  %bias = torch.vtensor.literal(dense<1.0> : tensor<64xf32>) : !torch.vtensor<[64],f32>
+  %1 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %3 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %4 = torch.prim.ListConstruct  : () -> !torch.list<int>
+  %5 = torch.aten.convolution %arg0, %weight, %bias, %1, %2, %3, %false, %4, %int2 : !torch.vtensor<[1,64,8,8],f32>, !torch.vtensor<[64,32,3,3],f32>, !torch.vtensor<[64],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,64,8,8],f32>
+  return %5 : !torch.vtensor<[1,64,8,8],f32>
+}
+
+// -----
+
+// Grouped conv2d with channels not divisible by groups must fail.
+// Input [1,5,4,4], weight [6,5,3,3], groups=2: C_in=5 not divisible by 2.
+func.func @torch.aten.convolution$grouped_conv2d_indivisible_channels(%arg0: !torch.vtensor<[1,5,4,4],f32>) -> !torch.vtensor<[1,6,2,2],f32> {
+  %false = torch.constant.bool false
+  %int2 = torch.constant.int 2
+  %int1 = torch.constant.int 1
+  %0 = torch.vtensor.literal(dense<0.1> : tensor<6x5x3x3xf32>) : !torch.vtensor<[6,5,3,3],f32>
+  %none = torch.constant.none
+  %1 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %3 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %4 = torch.prim.ListConstruct  : () -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.convolution' that was explicitly marked illegal}}
+  %5 = torch.aten.convolution %arg0, %0, %none, %1, %2, %3, %false, %4, %int2 : !torch.vtensor<[1,5,4,4],f32>, !torch.vtensor<[6,5,3,3],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,6,2,2],f32>
+  return %5 : !torch.vtensor<[1,6,2,2],f32>
+}
+
+// -----
+
+// Grouped conv2d with groups >= 32 must bail out before emitting any IR.
+// Input [1,32,4,4], weight [32,1,3,3] would be depthwise; use [64,2,3,3] with
+// groups=32 so weight.dim(1) != 1 and the grouped path is taken.
+func.func @torch.aten.convolution$grouped_conv2d_too_many_groups(%arg0: !torch.vtensor<[1,64,4,4],f32>) -> !torch.vtensor<[1,64,2,2],f32> {
+  %false = torch.constant.bool false
+  %int32 = torch.constant.int 32
+  %int1 = torch.constant.int 1
+  %0 = torch.vtensor.literal(dense<0.1> : tensor<64x2x3x3xf32>) : !torch.vtensor<[64,2,3,3],f32>
+  %none = torch.constant.none
+  %1 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %3 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %4 = torch.prim.ListConstruct  : () -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.convolution' that was explicitly marked illegal}}
+  %5 = torch.aten.convolution %arg0, %0, %none, %1, %2, %3, %false, %4, %int32 : !torch.vtensor<[1,64,4,4],f32>, !torch.vtensor<[64,2,3,3],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,64,2,2],f32>
+  return %5 : !torch.vtensor<[1,64,2,2],f32>
+}
+
+// -----
+
+// Depthwise conv2d with a large group count (groups=64 == C_in) is not subject
+// to the grouped-conv groups >= 32 bailout: it lowers to a single
+// tosa.depthwise_conv2d with no per-group decomposition.
+// CHECK-LABEL:   func.func @torch.aten.convolution$depthwise_conv2d_many_groups(
+// CHECK:           tosa.depthwise_conv2d
+// CHECK-NOT:       tosa.concat
+func.func @torch.aten.convolution$depthwise_conv2d_many_groups(%arg0: !torch.vtensor<[1,64,8,8],f32>) -> !torch.vtensor<[1,64,8,8],f32> {
+  %false = torch.constant.bool false
+  %int64 = torch.constant.int 64
+  %int1 = torch.constant.int 1
+  %0 = torch.vtensor.literal(dense<0.1> : tensor<64x1x3x3xf32>) : !torch.vtensor<[64,1,3,3],f32>
+  %none = torch.constant.none
+  %1 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %3 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %4 = torch.prim.ListConstruct  : () -> !torch.list<int>
+  %5 = torch.aten.convolution %arg0, %0, %none, %1, %2, %3, %false, %4, %int64 : !torch.vtensor<[1,64,8,8],f32>, !torch.vtensor<[64,1,3,3],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,64,8,8],f32>
+  return %5 : !torch.vtensor<[1,64,8,8],f32>
 }
 
 // -----
