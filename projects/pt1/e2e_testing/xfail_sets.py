@@ -34,7 +34,8 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "ElementwiseClampInt16Module_basic",
     # TODO: The values are extremely close to the golden values, but the test fails because of strict rtol/atol.
     "AtenInstanceNormModuleFp16_basic",
-    "AtenIntMM_basic",
+    # mixed uint8 x int8 aten.mm has no lowering yet
+    "AtenIntMMMixedSigni8_basic",
     # unimplemented lowering torch -> linalg for torchvision.deform_conv2d
     # this is added to check the torch.onnx.export -> import_onnx -> torch path
     "DeformConv2D_basic",
@@ -416,10 +417,11 @@ FX_IMPORTER_XFAIL_SET = {
     "AtenFloatScalarModule_basic",
     # TODO: The values are extremely close to the golden values, but the test fails because of strict rtol/atol.
     "AtenInstanceNormModuleFp16_basic",
+    # mixed uint8 x int8 aten.mm has no lowering yet
+    "AtenIntMMMixedSigni8_basic",
     "AtenIntBoolOpConstFalseModule_basic",
     "AtenIntBoolOpConstTrueModule_basic",
     "AtenIntBoolOpModule_basic",
-    "AtenIntMM_basic",
     "AtenNonzero1DDynamicModule_basic",  # no lowering for torch.aten.sym_constrain_range_for_size
     "AtenScaledMmBlockScaledFp8Module_basic",
     "AtenScaledMmBlockScaledFp8SwizzledModule_basic",
@@ -2958,6 +2960,7 @@ ONNX_XFAIL_SET = {
     "AtenIntTensorByteDtypeModule_basic",
     "AtenIntTensorCharDtypeModule_basic",
     "AtenIntMM_basic",
+    "AtenIntMMMixedSigni8_basic",
     "AtenItemFpOpModule_basic",
     "AtenItemIntOpModule_basic",
     "AtenKthvalueModule_basic",
@@ -3479,6 +3482,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenPolarFloatModule_basic",
     "HstackBasicComplexModule_basic",
     "AtenIntMM_basic",
+    "AtenIntMMMixedSigni8_basic",
     "AtenKthvalueDynamicDimsModule_basic",
     "AtenKthvalueFloat64DynamicDimsModule_basic",
     "AtenKthvalueFloat64Module_basic",
@@ -4020,6 +4024,7 @@ ONNX_TOSA_XFAIL_SET = {
     # TODO: The values are extremely close to the golden values, but the test fails because of strict rtol/atol.
     "AtenInstanceNormModuleFp16_basic",
     "AtenIntMM_basic",
+    "AtenIntMMMixedSigni8_basic",
     "AtenKthvalueDynamicDimsModule_basic",
     "AtenKthvalueFloat64DynamicDimsModule_basic",
     "AtenKthvalueFloat64Module_basic",
