@@ -1304,12 +1304,23 @@ public:
         cast<RankedTensorType>(weight.getType()).getShape());
     if (inShape[1] == numGroups && weightShape[0] == numGroups &&
         weightShape[1] == 1) {
-      // Collapse weight shape (C/G == 1)
-      SmallVector<ReassociationIndices> collapsedDims = {{0, 1}};
-      SmallVector<int64_t> collapsedShape{weightShape[0] * weightShape[1]};
+      // Collapse weight shape (C/G == 1).
+      // For transposed grouped conv the weight has been pre-expanded by
+      // expandWeight (e.g. [G,1,kH,kW] -> [G,1,1,kH,kW]), adding an extra
+      // leading dim. Derive numLeadingGroupDims from the actual weight rank so
+      // the reassociation covers all leading dims in both the regular (rank 4)
+      // and transposed (rank 5) cases. All leading dims after the first are 1
+      // (depthwise invariant), so the collapsed group size is weightShape[0].
+      int weightRank = cast<RankedTensorType>(weight.getType()).getRank();
+      int numLeadingGroupDims = weightRank - (int)numSpatialDims;
+      ReassociationIndices leadingGroupIndices;
+      for (int i = 0; i < numLeadingGroupDims; i++)
+        leadingGroupIndices.push_back(i);
+      SmallVector<ReassociationIndices> collapsedDims = {leadingGroupIndices};
+      SmallVector<int64_t> collapsedShape{weightShape[0]};
       for (unsigned i = 0; i < numSpatialDims; i++) {
-        collapsedDims.push_back({i + 2});
-        collapsedShape.push_back(weightShape[i + 2]);
+        collapsedDims.push_back({numLeadingGroupDims + (int)i});
+        collapsedShape.push_back(weightShape[numLeadingGroupDims + i]);
       }
       Type collapsedType = RankedTensorType::get(
           makeShapeLLVMCompatible(collapsedShape), weightDTy);
