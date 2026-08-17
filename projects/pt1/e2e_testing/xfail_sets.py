@@ -3483,7 +3483,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenPolarDoubleModule_basic",
     "AtenPolarFloatModule_basic",
     "HstackBasicComplexModule_basic",
-    "AtenIntMM_basic",
     "AtenIntMMMixedSigni8_basic",
     "AtenKthvalueDynamicDimsModule_basic",
     "AtenKthvalueFloat64DynamicDimsModule_basic",
