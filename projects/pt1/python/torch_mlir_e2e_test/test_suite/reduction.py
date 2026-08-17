@@ -881,6 +881,79 @@ def ReduceProdDimIntFloatModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ReduceProdDimIntInt8Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4, 5], torch.int8, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.prod(a, 1)
+
+
+@register_test_case(module_factory=lambda: ReduceProdDimIntInt8Module())
+def ReduceProdDimIntInt8Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, 5).to(torch.int8))
+
+
+# ==============================================================================
+
+
+class ReduceProdDimIntInt16Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4, 5], torch.int16, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.prod(a, 1)
+
+
+@register_test_case(module_factory=lambda: ReduceProdDimIntInt16Module())
+def ReduceProdDimIntInt16Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, 5).to(torch.int16))
+
+
+# ==============================================================================
+
+
+class ReduceProdDimIntInt32Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            (
+                [3, 4, 5],
+                torch.int32,
+                True,
+            ),  # Dynamic shapes not supported for prod int, using static
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.prod(a, 1)  # Implicit conversion int32->int64
+
+
+@register_test_case(module_factory=lambda: ReduceProdDimIntInt32Module())
+def ReduceProdDimIntInt32Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, 5).to(torch.int32))
+
+
+# ==============================================================================
+
+
 class ReduceAllDimEmpty(torch.nn.Module):
     def __init__(self):
         super().__init__()
