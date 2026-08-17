@@ -116,17 +116,23 @@ public:
           op, "unsupported: aten.mm with mixed quantization");
     }
 
+    bool isUnsignedLhs = torch_to_linalg::isUnsignedTorchType(lhsTorchType);
+    bool isUnsignedRhs = torch_to_linalg::isUnsignedTorchType(rhsTorchType);
+
+    auto lhsIntType = dyn_cast<mlir::IntegerType>(lhsType.getElementType());
+    auto rhsIntType = dyn_cast<mlir::IntegerType>(rhsType.getElementType());
+    bool isMixedSignedness = lhsIntType && rhsIntType &&
+                             lhsIntType.getWidth() == rhsIntType.getWidth() &&
+                             isUnsignedLhs != isUnsignedRhs;
+
     if (lhsTorchType.getDtype() != rhsTorchType.getDtype()) {
-      if (!lhsZeroPoint) {
+      if (!lhsZeroPoint && !isMixedSignedness) {
         return rewriter.notifyMatchFailure(
             op, "unsupported: aten.mm with different input element types");
       }
       // Allows quantized types to mismatch since they will be cast to the same
       // type.
     }
-
-    bool isUnsigned = torch_to_linalg::isUnsignedTorchType(lhsTorchType);
-    bool isUnsignedR = torch_to_linalg::isUnsignedTorchType(rhsTorchType);
 
     Value lhsDim0 = tensor::DimOp::create(rewriter, loc, lhs, 0);
     Value rhsDim1 = tensor::DimOp::create(rewriter, loc, rhs, 1);
@@ -171,15 +177,43 @@ public:
       // change uint8 quantization -> int8 quantization
       int64_t numBits =
           cast<mlir::IntegerType>(lhsType.getElementType()).getWidth();
-      signShift(rewriter, loc, lhs, lhsZeroPoint, isUnsigned, numBits);
+      signShift(rewriter, loc, lhs, lhsZeroPoint, isUnsignedLhs, numBits);
       numBits = cast<mlir::IntegerType>(rhsType.getElementType()).getWidth();
-      signShift(rewriter, loc, rhs, rhsZeroPoint, isUnsignedR, numBits);
+      signShift(rewriter, loc, rhs, rhsZeroPoint, isUnsignedRhs, numBits);
 
       matmul = linalg::QuantizedMatmulOp::create(
                    rewriter, loc, zeroFill.getType(),
                    ValueRange{lhs, rhs, lhsZeroPoint, rhsZeroPoint}, zeroFill)
                    .getResult(0);
-    } else if (isUnsigned) {
+    } else if (isMixedSignedness) {
+      // `linalg.matmul` extends both operands with the same type function, so
+      // the contraction is written as a generic that extends each operand
+      // according to its own signedness instead.
+      MLIRContext *context = op.getContext();
+      AffineExpr m, n, k;
+      bindDims(context, m, n, k);
+      SmallVector<AffineMap> indexingMaps = {
+          AffineMap::get(3, 0, {m, k}, context),
+          AffineMap::get(3, 0, {k, n}, context),
+          AffineMap::get(3, 0, {m, n}, context)};
+      SmallVector<utils::IteratorType> iteratorTypes = {
+          utils::IteratorType::parallel, utils::IteratorType::parallel,
+          utils::IteratorType::reduction};
+      matmul =
+          linalg::GenericOp::create(
+              rewriter, loc, zeroFill.getType(), ValueRange{lhs, rhs}, zeroFill,
+              indexingMaps, iteratorTypes,
+              [&](OpBuilder &b, Location loc, ValueRange args) {
+                Value lhsElem = convertScalarToDtype(
+                    b, loc, args[0], elementType, lhsTorchType.getDtype());
+                Value rhsElem = convertScalarToDtype(
+                    b, loc, args[1], elementType, rhsTorchType.getDtype());
+                Value product = arith::MulIOp::create(b, loc, lhsElem, rhsElem);
+                Value sum = arith::AddIOp::create(b, loc, args[2], product);
+                linalg::YieldOp::create(b, loc, sum);
+              })
+              .getResult(0);
+    } else if (isUnsignedLhs && isUnsignedRhs) {
       auto matmulOp = linalg::MatmulOp::create(
           rewriter, loc, zeroFill.getType(), ValueRange{lhs, rhs}, zeroFill);
       matmulOp.setCast(linalg::TypeFn::cast_unsigned);

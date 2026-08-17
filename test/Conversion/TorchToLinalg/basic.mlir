@@ -201,6 +201,35 @@ func.func @torch.aten.mm$basic_unsigned(%arg0: !torch.vtensor<[?,?],ui32>, %arg1
 
 // -----
 
+// CHECK-LABEL: func.func @torch.aten.mm$mixed_signedness_lhs_unsigned(
+// CHECK: linalg.generic
+// CHECK-SAME: iterator_types = ["parallel", "parallel", "reduction"]
+// CHECK-SAME: ins(%{{.*}}, %{{.*}} : tensor<3x4xi8>, tensor<4x3xi8>)
+// CHECK: ^bb0(%[[LHS:.*]]: i8, %[[RHS:.*]]: i8, %[[ACC:.*]]: i32):
+// CHECK-DAG: %[[LHS_EXT:.*]] = arith.extui %[[LHS]] : i8 to i32
+// CHECK-DAG: %[[RHS_EXT:.*]] = arith.extsi %[[RHS]] : i8 to i32
+// CHECK: %[[MUL:.*]] = arith.muli %[[LHS_EXT]], %[[RHS_EXT]] : i32
+// CHECK: %[[SUM:.*]] = arith.addi %[[ACC]], %[[MUL]] : i32
+// CHECK: linalg.yield %[[SUM]] : i32
+func.func @torch.aten.mm$mixed_signedness_lhs_unsigned(%arg0: !torch.vtensor<[3,4],ui8>, %arg1: !torch.vtensor<[4,3],si8>) -> !torch.vtensor<[3,3],si32> {
+  %0 = torch.aten.mm %arg0, %arg1 : !torch.vtensor<[3,4],ui8>, !torch.vtensor<[4,3],si8> -> !torch.vtensor<[3,3],si32>
+  return %0 : !torch.vtensor<[3,3],si32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.mm$mixed_signedness_rhs_unsigned(
+// CHECK: ^bb0(%[[LHS:.*]]: i8, %[[RHS:.*]]: i8, %[[ACC:.*]]: i32):
+// CHECK-DAG: %[[LHS_EXT:.*]] = arith.extsi %[[LHS]] : i8 to i32
+// CHECK-DAG: %[[RHS_EXT:.*]] = arith.extui %[[RHS]] : i8 to i32
+// CHECK: arith.muli %[[LHS_EXT]], %[[RHS_EXT]] : i32
+func.func @torch.aten.mm$mixed_signedness_rhs_unsigned(%arg0: !torch.vtensor<[3,4],si8>, %arg1: !torch.vtensor<[4,3],ui8>) -> !torch.vtensor<[3,3],si32> {
+  %0 = torch.aten.mm %arg0, %arg1 : !torch.vtensor<[3,4],si8>, !torch.vtensor<[4,3],ui8> -> !torch.vtensor<[3,3],si32>
+  return %0 : !torch.vtensor<[3,3],si32>
+}
+
+// -----
+
 // If the operands are missing dtype, we cannot lower it.
 func.func @torch.aten.mm$no_convert$missing_dtype(%arg0: !torch.vtensor, %arg1: !torch.vtensor) -> !torch.vtensor {
   // expected-error@+1 {{failed to legalize}}
