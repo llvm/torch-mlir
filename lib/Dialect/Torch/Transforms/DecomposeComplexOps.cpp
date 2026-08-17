@@ -3454,23 +3454,6 @@ public:
 };
 } // namespace
 
-// Decompose aten._int_mm into: aten.mm.
-//
-// Eager `torch.mm` returns the operand dtype while `_int_mm` returns int32, so
-// the resulting `aten.mm` keeps the original int32 result type.
-namespace {
-class DecomposeAten_IntMmOp : public OpRewritePattern<Aten_IntMmOp> {
-public:
-  using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(Aten_IntMmOp op,
-                                PatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<AtenMmOp>(op, op.getType(), op.getSelf(),
-                                          op.getMat2());
-    return success();
-  }
-};
-} // namespace
-
 // Decompose aten.mv into: aten.matmul.
 namespace {
 class DecomposeAtenMvOp : public OpRewritePattern<AtenMvOp> {
@@ -13581,7 +13564,6 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenStftCenterOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSelectIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMatmulOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAten_IntMmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMvOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRenormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLinalgCrossOp>(patterns);
