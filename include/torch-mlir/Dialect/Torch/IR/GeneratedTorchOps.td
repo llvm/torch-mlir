@@ -6782,6 +6782,7 @@ def Torch_Aten_IntMmOp : Torch_Op<"aten._int_mm", [
       printDefaultTorchOp(printer, *this, 2, 1);
     }
   }];
+  let hasCanonicalizer = 1;
 }
 
 def Torch_AtenAddmmOp : Torch_Op<"aten.addmm", [

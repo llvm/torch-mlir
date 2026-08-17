@@ -656,6 +656,21 @@ void AtenDotOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 }
 
 //===----------------------------------------------------------------------===//
+// Aten_IntMmOp
+//===----------------------------------------------------------------------===//
+
+void Aten_IntMmOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                               MLIRContext *context) {
+  // `aten._int_mm` -> `aten.mm`. Eager `torch.mm` returns the operand dtype
+  // while `_int_mm` returns int32, so the int32 result type is kept.
+  patterns.add(+[](Aten_IntMmOp op, PatternRewriter &rewriter) {
+    rewriter.replaceOpWithNewOp<AtenMmOp>(op, op.getType(), op.getSelf(),
+                                          op.getMat2());
+    return success();
+  });
+}
+
+//===----------------------------------------------------------------------===//
 // RuntimeAssertOp
 //===----------------------------------------------------------------------===//
 
