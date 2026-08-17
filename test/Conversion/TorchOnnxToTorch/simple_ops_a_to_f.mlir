@@ -829,6 +829,180 @@ func.func @test_dequantizelinear_per_channel_si8(%arg0: !torch.vtensor<[64,3,3,3
 
 // -----
 
+// Block quantization: 3D, axis=2, ui8→f16
+// CHECK-LABEL: @test_dequantizelinear_blocked_ui8
+func.func @test_dequantizelinear_blocked_ui8(%arg0: !torch.vtensor<[60,2816,2048],ui8>, %arg1: !torch.vtensor<[60,2816,16],f16>, %arg2: !torch.vtensor<[60,2816,16],ui8>) -> !torch.vtensor<[60,2816,2048],f16> attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 21 : si64} {
+  // CHECK-DAG: %[[CST60:.*]] = torch.constant.int 60
+  // CHECK-DAG: %[[CST2816:.*]] = torch.constant.int 2816
+  // CHECK-DAG: %[[CST16:.*]] = torch.constant.int 16
+  // CHECK-DAG: %[[CST128:.*]] = torch.constant.int 128
+  // CHECK: %[[SHAPE:.*]] = torch.prim.ListConstruct %[[CST60]], %[[CST2816]], %[[CST16]], %[[CST128]]
+  // CHECK: %[[RESHAPED:.*]] = torch.aten.reshape %arg0, %[[SHAPE]]
+  // CHECK: %[[CASTED:.*]] = torch.aten.to.dtype %[[RESHAPED]],
+  // CHECK-SAME: -> !torch.vtensor<[60,2816,16,128],f16>
+  // CHECK: %[[AXIS:.*]] = torch.constant.int 3
+  // CHECK: %[[ZP_USQ:.*]] = torch.aten.unsqueeze %arg2, %[[AXIS]]
+  // CHECK: %[[ZP_CAST:.*]] = torch.aten.to.dtype %[[ZP_USQ]],
+  // CHECK-SAME: -> !torch.vtensor<[60,2816,16,1],f16>
+  // CHECK: %[[DIFF:.*]] = torch.aten.sub.Tensor %[[CASTED]], %[[ZP_CAST]],
+  // CHECK: %[[S_USQ:.*]] = torch.aten.unsqueeze %arg1, %[[AXIS]]
+  // CHECK: %[[SCALED:.*]] = torch.aten.mul.Tensor %[[DIFF]], %[[S_USQ]]
+  // CHECK-DAG: %[[CST2048:.*]] = torch.constant.int 2048
+  // CHECK: %[[OUT_SHAPE:.*]] = torch.prim.ListConstruct
+  // CHECK: %[[RESULT:.*]] = torch.aten.reshape %[[SCALED]], %[[OUT_SHAPE]]
+  // CHECK-SAME: -> !torch.vtensor<[60,2816,2048],f16>
+  // CHECK: return %[[RESULT]]
+  %0 = torch.operator "onnx.DequantizeLinear"(%arg0, %arg1, %arg2) {torch.onnx.axis = 2 : si64, torch.onnx.block_size = 128 : si64} : (!torch.vtensor<[60,2816,2048],ui8>, !torch.vtensor<[60,2816,16],f16>, !torch.vtensor<[60,2816,16],ui8>) -> !torch.vtensor<[60,2816,2048],f16>
+  return %0 : !torch.vtensor<[60,2816,2048],f16>
+}
+
+// -----
+
+// Block quantization: 2D, default axis=1, ui8→f32 (typical weight matrix)
+// CHECK-LABEL: @test_dequantizelinear_blocked_2d
+func.func @test_dequantizelinear_blocked_2d(%arg0: !torch.vtensor<[4,1024],ui8>, %arg1: !torch.vtensor<[4,8],f32>, %arg2: !torch.vtensor<[4,8],ui8>) -> !torch.vtensor<[4,1024],f32> attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 21 : si64} {
+  // CHECK-DAG: %[[CST4:.*]] = torch.constant.int 4
+  // CHECK-DAG: %[[CST8:.*]] = torch.constant.int 8
+  // CHECK-DAG: %[[CST128:.*]] = torch.constant.int 128
+  // CHECK: %[[SHAPE:.*]] = torch.prim.ListConstruct %[[CST4]], %[[CST8]], %[[CST128]]
+  // CHECK: %[[RESHAPED:.*]] = torch.aten.reshape %arg0, %[[SHAPE]]
+  // CHECK: %[[CASTED:.*]] = torch.aten.to.dtype %[[RESHAPED]],
+  // CHECK-SAME: -> !torch.vtensor<[4,8,128],f32>
+  // CHECK: %[[AXIS:.*]] = torch.constant.int 2
+  // CHECK: %[[ZP_USQ:.*]] = torch.aten.unsqueeze %arg2, %[[AXIS]]
+  // CHECK: %[[ZP_CAST:.*]] = torch.aten.to.dtype %[[ZP_USQ]],
+  // CHECK-SAME: -> !torch.vtensor<[4,8,1],f32>
+  // CHECK: %[[DIFF:.*]] = torch.aten.sub.Tensor %[[CASTED]], %[[ZP_CAST]],
+  // CHECK: %[[S_USQ:.*]] = torch.aten.unsqueeze %arg1, %[[AXIS]]
+  // CHECK: %[[SCALED:.*]] = torch.aten.mul.Tensor %[[DIFF]], %[[S_USQ]]
+  // CHECK-DAG: %[[CST1024:.*]] = torch.constant.int 1024
+  // CHECK: %[[OUT_SHAPE:.*]] = torch.prim.ListConstruct
+  // CHECK: %[[RESULT:.*]] = torch.aten.reshape %[[SCALED]], %[[OUT_SHAPE]]
+  // CHECK-SAME: -> !torch.vtensor<[4,1024],f32>
+  // CHECK: return %[[RESULT]]
+  %0 = torch.operator "onnx.DequantizeLinear"(%arg0, %arg1, %arg2) {torch.onnx.axis = 1 : si64, torch.onnx.block_size = 128 : si64} : (!torch.vtensor<[4,1024],ui8>, !torch.vtensor<[4,8],f32>, !torch.vtensor<[4,8],ui8>) -> !torch.vtensor<[4,1024],f32>
+  return %0 : !torch.vtensor<[4,1024],f32>
+}
+
+// -----
+
+// Block quantization: axis=0 (quantizing along first dim)
+// CHECK-LABEL: @test_dequantizelinear_blocked_axis0
+func.func @test_dequantizelinear_blocked_axis0(%arg0: !torch.vtensor<[256,64],ui8>, %arg1: !torch.vtensor<[4,64],f16>, %arg2: !torch.vtensor<[4,64],ui8>) -> !torch.vtensor<[256,64],f16> attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 21 : si64} {
+  // CHECK-DAG: %[[CST4:.*]] = torch.constant.int 4
+  // CHECK-DAG: %[[CST64_0:.*]] = torch.constant.int 64
+  // CHECK-DAG: %[[CST64_1:.*]] = torch.constant.int 64
+  // CHECK: %[[SHAPE:.*]] = torch.prim.ListConstruct %[[CST4]], %[[CST64_0]], %[[CST64_1]]
+  // CHECK: %[[RESHAPED:.*]] = torch.aten.reshape %arg0, %[[SHAPE]]
+  // CHECK: %[[CASTED:.*]] = torch.aten.to.dtype %[[RESHAPED]],
+  // CHECK-SAME: -> !torch.vtensor<[4,64,64],f16>
+  // CHECK: %[[AXIS:.*]] = torch.constant.int 1
+  // CHECK: %[[ZP_USQ:.*]] = torch.aten.unsqueeze %arg2, %[[AXIS]]
+  // CHECK: %[[ZP_CAST:.*]] = torch.aten.to.dtype %[[ZP_USQ]],
+  // CHECK-SAME: -> !torch.vtensor<[4,1,64],f16>
+  // CHECK: %[[DIFF:.*]] = torch.aten.sub.Tensor %[[CASTED]], %[[ZP_CAST]],
+  // CHECK: %[[S_USQ:.*]] = torch.aten.unsqueeze %arg1, %[[AXIS]]
+  // CHECK: %[[SCALED:.*]] = torch.aten.mul.Tensor %[[DIFF]], %[[S_USQ]]
+  // CHECK-DAG: %[[CST256:.*]] = torch.constant.int 256
+  // CHECK: %[[OUT_SHAPE:.*]] = torch.prim.ListConstruct
+  // CHECK: %[[RESULT:.*]] = torch.aten.reshape %[[SCALED]], %[[OUT_SHAPE]]
+  // CHECK-SAME: -> !torch.vtensor<[256,64],f16>
+  // CHECK: return %[[RESULT]]
+  %0 = torch.operator "onnx.DequantizeLinear"(%arg0, %arg1, %arg2) {torch.onnx.axis = 0 : si64, torch.onnx.block_size = 64 : si64} : (!torch.vtensor<[256,64],ui8>, !torch.vtensor<[4,64],f16>, !torch.vtensor<[4,64],ui8>) -> !torch.vtensor<[256,64],f16>
+  return %0 : !torch.vtensor<[256,64],f16>
+}
+
+// -----
+
+// Block quantization: negative axis (-1 = last dim)
+// CHECK-LABEL: @test_dequantizelinear_blocked_neg_axis
+func.func @test_dequantizelinear_blocked_neg_axis(%arg0: !torch.vtensor<[4,512],ui8>, %arg1: !torch.vtensor<[4,4],f16>, %arg2: !torch.vtensor<[4,4],ui8>) -> !torch.vtensor<[4,512],f16> attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 21 : si64} {
+  // CHECK-DAG: %[[CST4_0:.*]] = torch.constant.int 4
+  // CHECK-DAG: %[[CST4_1:.*]] = torch.constant.int 4
+  // CHECK-DAG: %[[CST128:.*]] = torch.constant.int 128
+  // CHECK: %[[SHAPE:.*]] = torch.prim.ListConstruct %[[CST4_0]], %[[CST4_1]], %[[CST128]]
+  // CHECK: %[[RESHAPED:.*]] = torch.aten.reshape %arg0, %[[SHAPE]]
+  // CHECK: %[[CASTED:.*]] = torch.aten.to.dtype %[[RESHAPED]],
+  // CHECK-SAME: -> !torch.vtensor<[4,4,128],f16>
+  // CHECK: %[[DIFF:.*]] = torch.aten.sub.Tensor
+  // CHECK: %[[SCALED:.*]] = torch.aten.mul.Tensor
+  // CHECK-DAG: %[[CST512:.*]] = torch.constant.int 512
+  // CHECK: %[[OUT_SHAPE:.*]] = torch.prim.ListConstruct
+  // CHECK: %[[RESULT:.*]] = torch.aten.reshape %[[SCALED]], %[[OUT_SHAPE]]
+  // CHECK-SAME: -> !torch.vtensor<[4,512],f16>
+  // CHECK: return %[[RESULT]]
+  %0 = torch.operator "onnx.DequantizeLinear"(%arg0, %arg1, %arg2) {torch.onnx.axis = -1 : si64, torch.onnx.block_size = 128 : si64} : (!torch.vtensor<[4,512],ui8>, !torch.vtensor<[4,4],f16>, !torch.vtensor<[4,4],ui8>) -> !torch.vtensor<[4,512],f16>
+  return %0 : !torch.vtensor<[4,512],f16>
+}
+
+// -----
+
+// Block quantization: dynamic batch dimension (exercises aten.size.int path)
+// CHECK-LABEL: @test_dequantizelinear_blocked_dynamic_batch
+func.func @test_dequantizelinear_blocked_dynamic_batch(%arg0: !torch.vtensor<[?,2048],ui8>, %arg1: !torch.vtensor<[?,16],f16>, %arg2: !torch.vtensor<[?,16],ui8>) -> !torch.vtensor<[?,2048],f16> attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 21 : si64} {
+  // CHECK-DAG: %[[DIM0:.*]] = torch.aten.size.int %arg0,
+  // CHECK-DAG: %[[CST16:.*]] = torch.constant.int 16
+  // CHECK-DAG: %[[CST128:.*]] = torch.constant.int 128
+  // CHECK: %[[SHAPE:.*]] = torch.prim.ListConstruct %[[DIM0]], %[[CST16]], %[[CST128]]
+  // CHECK: %[[RESHAPED:.*]] = torch.aten.reshape %arg0, %[[SHAPE]]
+  // CHECK: %[[CASTED:.*]] = torch.aten.to.dtype %[[RESHAPED]],
+  // CHECK-SAME: -> !torch.vtensor<[?,16,128],f16>
+  // CHECK: %[[DIFF:.*]] = torch.aten.sub.Tensor
+  // CHECK: %[[SCALED:.*]] = torch.aten.mul.Tensor
+  // CHECK-DAG: %[[OUT_DIM0:.*]] = torch.aten.size.int %arg0,
+  // CHECK-DAG: %[[CST2048:.*]] = torch.constant.int 2048
+  // CHECK: %[[OUT_SHAPE:.*]] = torch.prim.ListConstruct %[[OUT_DIM0]], %[[CST2048]]
+  // CHECK: %[[RESULT:.*]] = torch.aten.reshape %[[SCALED]], %[[OUT_SHAPE]]
+  // CHECK-SAME: -> !torch.vtensor<[?,2048],f16>
+  // CHECK: return %[[RESULT]]
+  %0 = torch.operator "onnx.DequantizeLinear"(%arg0, %arg1, %arg2) {torch.onnx.axis = 1 : si64, torch.onnx.block_size = 128 : si64} : (!torch.vtensor<[?,2048],ui8>, !torch.vtensor<[?,16],f16>, !torch.vtensor<[?,16],ui8>) -> !torch.vtensor<[?,2048],f16>
+  return %0 : !torch.vtensor<[?,2048],f16>
+}
+
+// -----
+
+// Block quantization: 4D tensor (convolution weight pattern)
+// CHECK-LABEL: @test_dequantizelinear_blocked_4d
+func.func @test_dequantizelinear_blocked_4d(%arg0: !torch.vtensor<[64,128,3,3],ui8>, %arg1: !torch.vtensor<[64,4,3,3],f32>, %arg2: !torch.vtensor<[64,4,3,3],ui8>) -> !torch.vtensor<[64,128,3,3],f32> attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 21 : si64} {
+  // CHECK-DAG: %[[CST64:.*]] = torch.constant.int 64
+  // CHECK-DAG: %[[CST4:.*]] = torch.constant.int 4
+  // CHECK-DAG: %[[CST32:.*]] = torch.constant.int 32
+  // CHECK-DAG: %[[CST3_0:.*]] = torch.constant.int 3
+  // CHECK-DAG: %[[CST3_1:.*]] = torch.constant.int 3
+  // CHECK: %[[SHAPE:.*]] = torch.prim.ListConstruct %[[CST64]], %[[CST4]], %[[CST32]], %[[CST3_0]], %[[CST3_1]]
+  // CHECK: %[[RESHAPED:.*]] = torch.aten.reshape %arg0, %[[SHAPE]]
+  // CHECK: %[[CASTED:.*]] = torch.aten.to.dtype %[[RESHAPED]],
+  // CHECK-SAME: -> !torch.vtensor<[64,4,32,3,3],f32>
+  // CHECK: %[[DIFF:.*]] = torch.aten.sub.Tensor
+  // CHECK: %[[SCALED:.*]] = torch.aten.mul.Tensor
+  // CHECK-DAG: %[[CST128:.*]] = torch.constant.int 128
+  // CHECK: %[[OUT_SHAPE:.*]] = torch.prim.ListConstruct
+  // CHECK: %[[RESULT:.*]] = torch.aten.reshape %[[SCALED]], %[[OUT_SHAPE]]
+  // CHECK-SAME: -> !torch.vtensor<[64,128,3,3],f32>
+  // CHECK: return %[[RESULT]]
+  %0 = torch.operator "onnx.DequantizeLinear"(%arg0, %arg1, %arg2) {torch.onnx.axis = 1 : si64, torch.onnx.block_size = 32 : si64} : (!torch.vtensor<[64,128,3,3],ui8>, !torch.vtensor<[64,4,3,3],f32>, !torch.vtensor<[64,4,3,3],ui8>) -> !torch.vtensor<[64,128,3,3],f32>
+  return %0 : !torch.vtensor<[64,128,3,3],f32>
+}
+
+// -----
+
+// Block quantization: signed int8 input (si8→f32)
+// CHECK-LABEL: @test_dequantizelinear_blocked_si8
+func.func @test_dequantizelinear_blocked_si8(%arg0: !torch.vtensor<[8,256],si8>, %arg1: !torch.vtensor<[8,4],f32>, %arg2: !torch.vtensor<[8,4],si8>) -> !torch.vtensor<[8,256],f32> attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 21 : si64} {
+  // CHECK: %[[RESHAPED:.*]] = torch.aten.reshape
+  // CHECK: %[[CASTED:.*]] = torch.aten.to.dtype %[[RESHAPED]],
+  // CHECK-SAME: -> !torch.vtensor<[8,4,64],f32>
+  // CHECK: %[[DIFF:.*]] = torch.aten.sub.Tensor
+  // CHECK: %[[SCALED:.*]] = torch.aten.mul.Tensor
+  // CHECK: %[[RESULT:.*]] = torch.aten.reshape %[[SCALED]],
+  // CHECK-SAME: -> !torch.vtensor<[8,256],f32>
+  // CHECK: return %[[RESULT]]
+  %0 = torch.operator "onnx.DequantizeLinear"(%arg0, %arg1, %arg2) {torch.onnx.axis = 1 : si64, torch.onnx.block_size = 64 : si64} : (!torch.vtensor<[8,256],si8>, !torch.vtensor<[8,4],f32>, !torch.vtensor<[8,4],si8>) -> !torch.vtensor<[8,256],f32>
+  return %0 : !torch.vtensor<[8,256],f32>
+}
+
+// -----
+
 // CHECK-LABEL: @test_div_bcast
 func.func @test_div_bcast(%arg0: !torch.vtensor<[3,4,5],f32>, %arg1: !torch.vtensor<[5],f32>) -> !torch.vtensor<[3,4,5],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 14 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   // CHECK: torch.aten.div.Tensor %arg0, %arg1 : !torch.vtensor<[3,4,5],f32>, !torch.vtensor<[5],f32> -> !torch.vtensor<[3,4,5],f32>
