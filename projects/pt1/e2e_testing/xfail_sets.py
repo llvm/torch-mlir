@@ -3488,7 +3488,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenPolarDoubleModule_basic",
     "AtenPolarFloatModule_basic",
     "HstackBasicComplexModule_basic",
-    "AtenIntMM_basic",
     # TOSA lowering rejects matmul-like ops with zero-sized output tensors.
     "AtenLinearZeroBatch_basic",
     "AtenIntMMMixedSigni8_basic",
