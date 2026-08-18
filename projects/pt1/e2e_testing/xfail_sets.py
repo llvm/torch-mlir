@@ -1847,6 +1847,8 @@ FX_IMPORTER_TOSA_CRASHING_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "AddbmmBetaZeroNonFiniteInputModule_basic",
+    "AddbmmWithAlphaBetaModule_basic",
     "AtenAsStridedAfterAliasDetachModule_basic",
     "AtenAsStridedAfterBroadcastToModule_basic",
     "AtenAsStridedAfterChainedViewsModule_basic",
@@ -3350,9 +3352,19 @@ ONNX_XFAIL_SET = {
     "ScaledDotProductAttentionSameDynamicModule_basic",
     "ScaledDotProductAttentionSameModule_basic",
     "ScatterValueIntModule_basic",
+    # PyTorch's ONNX exporter does not support aten::addbmm.
+    "AddbmmBetaZeroNonFiniteInputModule_basic",
+    # PyTorch's ONNX exporter does not support aten::addbmm.
+    "AddbmmWithAlphaBetaModule_basic",
     "TrilIndicesAllZerosModule_basic",
     "TriuIndicesAllZerosModule_basic",
 }
+
+if torch_version_for_comparison() >= version.parse("2.13.0"):
+    # PyTorch 2.13 and newer ONNX exporters support this addbmm case.
+    ONNX_XFAIL_SET = ONNX_XFAIL_SET - {
+        "AddbmmWithAlphaBetaModule_basic",
+    }
 
 if torch_version_for_comparison() > version.parse("2.4.0.dev"):
     STABLEHLO_PASS_SET = STABLEHLO_PASS_SET - {
@@ -3905,6 +3917,10 @@ ONNX_TOSA_CRASHING_SET = {
 }
 
 ONNX_TOSA_XFAIL_SET = {
+    # PyTorch's ONNX exporter does not support aten::addbmm.
+    "AddbmmBetaZeroNonFiniteInputModule_basic",
+    # PyTorch's ONNX exporter does not support aten::addbmm.
+    "AddbmmWithAlphaBetaModule_basic",
     # ONNX export applies explicit offset to materialized slice storage.
     "AtenAsStridedAfterAliasDetachModule_basic",
     # ONNX export gathers from the materialized empty slice.
