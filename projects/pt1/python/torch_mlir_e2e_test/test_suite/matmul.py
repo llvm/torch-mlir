@@ -757,6 +757,35 @@ def AtenIntMM_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class AtenIntMMMixedSigni8(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.uint8, True),
+            ([4, 3], torch.int8, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch._int_mm(x, y)
+
+
+# Values above 127 on the unsigned operand are where a sign-extended cast would
+# silently differ from the reference, so the range is exercised in full.
+@register_test_case(module_factory=lambda: AtenIntMMMixedSigni8())
+def AtenIntMMMixedSigni8_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(3, 4, low=0, high=255).to(torch.uint8),
+        tu.randint(4, 3, low=-128, high=127).to(torch.int8),
+    )
+
+
+# ==============================================================================
+
+
 class AtenMatmulQint8VM(torch.nn.Module):
     def __init__(self):
         super().__init__()

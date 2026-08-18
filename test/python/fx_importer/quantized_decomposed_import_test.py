@@ -95,3 +95,45 @@ def test_dq_mm_q_chain():
         func_name="test_dq_mm_q_chain",
     )
     print(m)
+
+
+@run
+# CHECK-LABEL: test_quantize_per_channel
+# CHECK: torch.quantized_decomposed.quantize_per_channel
+# CHECK-NOT: torch.operator
+def test_quantize_per_channel():
+    class QuantizePerChannel(nn.Module):
+        def forward(self, x, scales, zero_points):
+            return torch.ops.quantized_decomposed.quantize_per_channel.default(
+                x, scales, zero_points, 0, -128, 127, torch.int8
+            )
+
+    m = fx.export_and_import(
+        QuantizePerChannel(),
+        torch.randn(4, 8),
+        torch.rand(4),
+        torch.zeros(4, dtype=torch.int64),
+        func_name="test_quantize_per_channel",
+    )
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_dequantize_per_channel
+# CHECK: torch.quantized_decomposed.dequantize_per_channel
+# CHECK-NOT: torch.operator
+def test_dequantize_per_channel():
+    class DequantizePerChannel(nn.Module):
+        def forward(self, x, scales, zero_points):
+            return torch.ops.quantized_decomposed.dequantize_per_channel.default(
+                x, scales, zero_points, 0, -128, 127, torch.int8
+            )
+
+    m = fx.export_and_import(
+        DequantizePerChannel(),
+        torch.zeros(4, 8, dtype=torch.int8),
+        torch.rand(4),
+        torch.zeros(4, dtype=torch.int64),
+        func_name="test_dequantize_per_channel",
+    )
+    print(m)

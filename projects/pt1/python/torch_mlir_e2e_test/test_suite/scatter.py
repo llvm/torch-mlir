@@ -1352,3 +1352,141 @@ def IndexPutWithNoneAndBroadcastModule_basic(module, tu: TestUtils):
         tu.randint(7, high=5),
         tu.rand(1, 6, 7),  # broadcasted to (2, 3, 6, 7)
     )
+
+
+# index_put with a boolean mask index — rows where mask=True are overwritten.
+class IndexPutBoolMask2DModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([5, 5], torch.float32, True),
+            ([5], torch.bool, True),
+            ([-1, 5], torch.float32, True),
+        ]
+    )
+    def forward(self, input, mask, values):
+        return torch.ops.aten.index_put(input, (mask,), values, accumulate=False)
+
+
+@register_test_case(module_factory=lambda: IndexPutBoolMask2DModule())
+def IndexPutBoolMask2DModule_multiple_true(module, tu: TestUtils):
+    input_t = tu.rand(5, 5)
+    mask = torch.tensor([True, False, True, True, False])
+    values = tu.rand(3, 5)
+    module.forward(input_t, mask, values)
+
+
+# index_put with boolean mask and accumulate=True.
+class IndexPutBoolMaskAccumulateModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([5, 5], torch.float32, True),
+            ([5], torch.bool, True),
+            ([-1, 5], torch.float32, True),
+        ]
+    )
+    def forward(self, input, mask, values):
+        return torch.ops.aten.index_put(input, (mask,), values, accumulate=True)
+
+
+@register_test_case(module_factory=lambda: IndexPutBoolMaskAccumulateModule())
+def IndexPutBoolMaskAccumulateModule_basic(module, tu: TestUtils):
+    input_t = tu.rand(5, 5)
+    mask = torch.tensor([True, False, True, False, True])
+    values = tu.rand(3, 5)
+    module.forward(input_t, mask, values)
+
+
+# index_put with a rank-4 boolean mask — selects individual elements across all
+# four dimensions simultaneously.
+class IndexPutBoolMask4DModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3, 4, 5], torch.float32, True),
+            ([2, 3, 4, 5], torch.bool, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, input, mask, values):
+        return torch.ops.aten.index_put(input, (mask,), values, accumulate=False)
+
+
+@register_test_case(module_factory=lambda: IndexPutBoolMask4DModule())
+def IndexPutBoolMask4DModule_basic(module, tu: TestUtils):
+    input_t = tu.rand(2, 3, 4, 5)
+    mask = torch.zeros(2, 3, 4, 5, dtype=torch.bool)
+    mask[0, 1, 2, 3] = True
+    mask[1, 0, 1, 2] = True
+    mask[1, 2, 3, 4] = True
+    values = tu.rand(3)
+    module.forward(input_t, mask, values)
+
+
+# index_put with a rank-1 bool mask where both the input and mask dims are dynamic.
+class IndexPutBoolMaskDynamicModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1], torch.bool, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, input, mask, values):
+        return torch.ops.aten.index_put(input, (mask,), values, accumulate=False)
+
+
+@register_test_case(module_factory=lambda: IndexPutBoolMaskDynamicModule())
+def IndexPutBoolMaskDynamicModule_basic(module, tu: TestUtils):
+    input_t = tu.rand(5, 5)
+    mask = torch.tensor([True, False, True, True, False])
+    values = tu.rand(3, 5)
+    module.forward(input_t, mask, values)
+
+
+# index_put with mixed int and bool indices: an integer index tensor selects
+# rows (dim 0) and a bool mask selects columns (dim 1).  The two index tensors
+# broadcast together, so values has shape [3] — one scalar per selected element.
+class IndexPutMixedIntBoolModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([5, 5], torch.float32, True),
+            ([3], torch.int64, True),
+            ([5], torch.bool, True),
+            ([3], torch.float32, True),
+        ]
+    )
+    def forward(self, input, idx, mask, values):
+        return torch.ops.aten.index_put(input, (idx, mask), values, accumulate=False)
+
+
+@register_test_case(module_factory=lambda: IndexPutMixedIntBoolModule())
+def IndexPutMixedIntBoolModule_basic(module, tu: TestUtils):
+    input_t = tu.rand(5, 5)
+    idx = torch.tensor([0, 2, 4])
+    mask = torch.tensor([True, False, True, True, False])
+    values = tu.rand(3)
+    module.forward(input_t, idx, mask, values)

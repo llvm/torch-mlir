@@ -866,14 +866,14 @@ class PermuteNegativeIndexModule(torch.nn.Module):
         super().__init__()
 
     @export
-    @annotate_args([None, ([3, 4, 2], torch.float32, True)])
+    @annotate_args([None, ([1, 2, 3, 4], torch.float32, True)])
     def forward(self, x):
-        return x.permute(0, -1, 1)
+        return x.permute(0, -2, -1, 1)
 
 
 @register_test_case(module_factory=lambda: PermuteNegativeIndexModule())
 def PermuteNegativeIndexModule_basic(module, tu: TestUtils):
-    module.forward(tu.rand(3, 4, 2))
+    module.forward(tu.rand(1, 2, 3, 4))
 
 
 # ==============================================================================
@@ -2127,6 +2127,33 @@ def EmbeddingModule1DIndices_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class EmbeddingForwardFlagsModule(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([10, 4], torch.float32, True),
+            ([2, 2], torch.int64, True),
+        ]
+    )
+    def forward(self, weight, indices):
+        scale_grad_by_freq = torch.nn.functional.embedding(
+            indices, weight, padding_idx=-1, scale_grad_by_freq=True
+        )
+        sparse = torch.nn.functional.embedding(
+            indices, weight, padding_idx=-1, sparse=True
+        )
+        return scale_grad_by_freq, sparse
+
+
+@register_test_case(module_factory=lambda: EmbeddingForwardFlagsModule())
+def EmbeddingForwardFlagsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(10, 4), tu.randint(2, 2, high=10))
+
+
+# ==============================================================================
+
+
 class SoftmaxIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -2671,6 +2698,49 @@ class RepeatInterleaveSelfIntNoDimModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: RepeatInterleaveSelfIntNoDimModule())
 def RepeatInterleaveSelfIntNoDimModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
+
+
+# ==============================================================================
+
+
+class RepeatInterleaveTensorModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2], torch.int32, True),
+        ]
+    )
+    def forward(self, repeats):
+        return torch.ops.aten.repeat_interleave.Tensor(repeats, output_size=200)
+
+
+@register_test_case(module_factory=lambda: RepeatInterleaveTensorModule())
+def RepeatInterleaveTensorModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([100, 100], dtype=torch.int32))
+
+
+class RepeatInterleaveTensorInt64Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4], torch.int64, True),
+        ]
+    )
+    def forward(self, repeats):
+        return torch.ops.aten.repeat_interleave.Tensor(repeats, output_size=6)
+
+
+@register_test_case(module_factory=lambda: RepeatInterleaveTensorInt64Module())
+def RepeatInterleaveTensorInt64Module_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([0, 1, 2, 3], dtype=torch.int64))
 
 
 # ==============================================================================

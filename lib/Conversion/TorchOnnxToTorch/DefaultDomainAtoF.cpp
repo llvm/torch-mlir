@@ -1627,10 +1627,11 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         std::string autoPad;
         if (binder.customOpNameStringAttr(autoPad, "auto_pad", "NOTSET"))
           return failure();
-        if (autoPad != "NOTSET")
-          // TODO: Add support for `auto_pad` != "NOTSET"
+        if (autoPad != "NOTSET" && autoPad != "VALID")
+          // TODO: Add support for "SAME_UPPER" and "SAME_LOWER" auto_pad
           return rewriter.notifyMatchFailure(
-              binder.op, "unsupported conversion: auto_pad != NOTSET");
+              binder.op, "unsupported conversion: only NOTSET and VALID "
+                         "auto_pad supported");
 
         Torch::ValueTensorType resultType;
         Value input, weight, inputZp, weightZp;
@@ -1683,11 +1684,16 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         // x2_begin…x1_end, x2_end,…], where xi_begin the number of pixels added
         // at the beginning of axis i and xi_end, the number of pixels added at
         // the end of axis i.
-        if (binder.s64IntegerArrayAttr(padding, "pads", defaultPadding))
-          return failure();
-        if (padding.size() != rank - 2 && padding.size() != 2 * (rank - 2))
-          return rewriter.notifyMatchFailure(
-              binder.op, "padding list size does not match the number of axes");
+        if (autoPad == "VALID")
+          padding = defaultPadding;
+        else if (autoPad == "NOTSET") {
+          if (binder.s64IntegerArrayAttr(padding, "pads", defaultPadding))
+            return failure();
+          if (padding.size() != rank - 2 && padding.size() != 2 * (rank - 2))
+            return rewriter.notifyMatchFailure(
+                binder.op,
+                "padding list size does not match the number of axes");
+        }
         if (binder.s64IntegerArrayAttr(dilations, "dilations",
                                        defaultDilations))
           return failure();

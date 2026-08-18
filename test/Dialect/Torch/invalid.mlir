@@ -331,6 +331,22 @@ func.func @torch.permute$duplicate_index_in_permutation (%arg0: !torch.vtensor<[
 
 // -----
 
+func.func @torch.permute$duplicate_negative_index_in_permutation (%arg0: !torch.vtensor<[1,2,3,4],f32>) -> !torch.vtensor<[1,2,4,4],f32> {
+
+  %intm1 = torch.constant.int -1
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int3 = torch.constant.int 3
+  %perm = torch.prim.ListConstruct %int0, %int1, %int3, %intm1 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+
+  // expected-error@+1 {{'torch.aten.permute' op has a duplicate dimension (3) in its permutation}}
+  %3 = torch.aten.permute %arg0, %perm : !torch.vtensor<[1,2,3,4],f32>, !torch.list<int> -> !torch.vtensor<[1,2,4,4],f32>
+
+  return %3 : !torch.vtensor<[1,2,4,4],f32>
+}
+
+// -----
+
 func.func @torch.permute$incorrect_output_shape (%arg0: !torch.vtensor<[1,2,3],f32>) -> !torch.vtensor<[3,1,2],f32> {
 
   %int0 = torch.constant.int 0
@@ -361,6 +377,22 @@ func.func @torch.permute$invalid_index_in_permutation (%arg0: !torch.vtensor<[1,
   %3 = torch.aten.permute %arg0, %perm : !torch.vtensor<[1,2,3],f32>, !torch.list<int> -> !torch.vtensor<[1,2,3],f32>
 
    return %3 : !torch.vtensor<[1,2,3],f32>
+}
+
+// -----
+
+func.func @torch.permute$invalid_negative_index_in_permutation (%arg0: !torch.vtensor<[1,2,3,4],f32>) -> !torch.vtensor<[1,2,3,4],f32> {
+
+  %intm5 = torch.constant.int -5
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %perm = torch.prim.ListConstruct %int0, %int1, %int2, %intm5 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+
+  // expected-error@+1 {{observed invalid index in permutation (-5) for input tensor of rank 4.}}
+  %3 = torch.aten.permute %arg0, %perm : !torch.vtensor<[1,2,3,4],f32>, !torch.list<int> -> !torch.vtensor<[1,2,3,4],f32>
+
+  return %3 : !torch.vtensor<[1,2,3,4],f32>
 }
 
 // -----
