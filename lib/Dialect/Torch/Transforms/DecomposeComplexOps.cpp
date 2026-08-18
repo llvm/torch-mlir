@@ -10099,6 +10099,10 @@ class DecomposeAtenAddbmmOp : public OpRewritePattern<AtenAddbmmOp> {
         rewriter, loc, ListType::get(zero.getType()),
         ArrayRef<Value>{one, zero, two});
 
+    // Unlike baddbmm, addbmm sums the batch matmul results into a rank-2
+    // output. A direct bmm followed by sum would materialize a [B, N, P]
+    // intermediate. Instead, fold B and K into one contraction dimension and
+    // compute [N, B*K] @ [B*K, P], performing both reductions in one mm.
     SmallVector<int64_t> permutedBatch1Sizes{batch1Sizes[1], batch1Sizes[0],
                                              batch1Sizes[2]};
     Type permutedBatch1Type =
