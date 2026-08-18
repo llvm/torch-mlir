@@ -2388,6 +2388,8 @@ public:
     }
   }
 
+  // When keepRank3Result is true, return the native rank-3 TOSA matmul result;
+  // the caller is responsible for reshaping it to the operation's result shape.
   LogicalResult performMatmul(AtenOpT op, OpAdaptor adaptor,
                               ConversionPatternRewriter &rewriter, Value &lhs,
                               Value &rhs, Value &lhsZp, Value &rhsZp,
