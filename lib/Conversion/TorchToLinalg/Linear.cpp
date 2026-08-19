@@ -121,9 +121,17 @@ public:
 
     auto lhsIntType = dyn_cast<mlir::IntegerType>(lhsType.getElementType());
     auto rhsIntType = dyn_cast<mlir::IntegerType>(rhsType.getElementType());
-    bool isMixedSignedness = lhsIntType && rhsIntType &&
-                             lhsIntType.getWidth() == rhsIntType.getWidth() &&
-                             isUnsignedLhs != isUnsignedRhs;
+
+    bool bothInt = lhsIntType && rhsIntType;
+
+    // Mixing integer widths would require extending the narrower operand to the
+    // wider one before the contraction, which none of the paths below do.
+    if (bothInt && lhsIntType.getWidth() != rhsIntType.getWidth()) {
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: aten.mm with mixed integer widths");
+    }
+
+    bool isMixedSignedness = bothInt && isUnsignedLhs != isUnsignedRhs;
 
     if (lhsTorchType.getDtype() != rhsTorchType.getDtype()) {
       if (!lhsZeroPoint && !isMixedSignedness) {
