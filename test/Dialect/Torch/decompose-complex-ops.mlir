@@ -1005,6 +1005,29 @@ func.func @torch.aten.stft.center_2D_hop_length_3_window_pad_both(%arg0: !torch.
 // -----
 
 
+// CHECK-LABEL: func.func @batch_norm_fp16_opmath
+// CHECK-COUNT-5: torch.aten.to.dtype
+// CHECK-NOT: torch.aten.to.dtype
+// CHECK: torch.aten.rsqrt {{.*}} -> !torch.vtensor<[1,2,1],f32>
+// CHECK: %[[RESULT:.*]] = torch.aten.to.dtype {{.*}} -> !torch.vtensor<[2,2,3],f16>
+// CHECK: return %[[RESULT]] : !torch.vtensor<[2,2,3],f16>
+func.func @batch_norm_fp16_opmath(
+    %input: !torch.vtensor<[2,2,3],f16>,
+    %weight: !torch.vtensor<[2],f16>,
+    %bias: !torch.vtensor<[2],f16>,
+    %running_mean: !torch.vtensor<[2],f16>,
+    %running_var: !torch.vtensor<[2],f16>)
+    -> !torch.vtensor<[2,2,3],f16> {
+  %false = torch.constant.bool false
+  %true = torch.constant.bool true
+  %momentum = torch.constant.float 1.000000e-01
+  %eps = torch.constant.float 5.000000e-01
+  %0 = torch.aten.batch_norm %input, %weight, %bias, %running_mean, %running_var, %false, %momentum, %eps, %true : !torch.vtensor<[2,2,3],f16>, !torch.vtensor<[2],f16>, !torch.vtensor<[2],f16>, !torch.vtensor<[2],f16>, !torch.vtensor<[2],f16>, !torch.bool, !torch.float, !torch.float, !torch.bool -> !torch.vtensor<[2,2,3],f16>
+  return %0 : !torch.vtensor<[2,2,3],f16>
+}
+
+// -----
+
 // CHECK-LABEL:  func.func @native_layer_norm(
 // CHECK-SAME:          %[[ARG0:.*]]: !torch.vtensor<[1,56,56,96],f32>, %[[ARG1:.*]]: !torch.list<int>, %[[ARG2:.*]]: !torch.vtensor<[96],f32>, %[[ARG3:.*]]: !torch.vtensor<[96],f32>, %[[ARG4:.*]]: !torch.float) -> (!torch.vtensor<[1,56,56,96],f32>, !torch.vtensor<[1,56,56,1],f32>, !torch.vtensor<[1,56,56,1],f32>) {
 // CHECK-DAG:      %[[INT96:.*]] = torch.constant.int 96
@@ -1451,4 +1474,72 @@ func.func @mixed_int_and_bool(%input: !torch.vtensor<[5,5],f32>,
       : !torch.vtensor<[5,5],f32>, !torch.list<optional<vtensor>>, !torch.vtensor<[3],f32>, !torch.bool
       -> !torch.vtensor<[5,5],f32>
   return %result : !torch.vtensor<[5,5],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @addbmm
+// CHECK-DAG:     %[[HALF:.*]] = torch.constant.float 5.000000e-01
+// CHECK-DAG:     %[[ALPHA:.*]] = torch.constant.float 2.000000e+00
+// CHECK-DAG:     %[[ZERO:.*]] = torch.constant.int 0
+// CHECK-DAG:     %[[ONE:.*]] = torch.constant.int 1
+// CHECK-DAG:     %[[TWO:.*]] = torch.constant.int 2
+// CHECK:         %[[PERMUTED:.*]] = torch.aten.permute %arg1,
+// CHECK:         %[[LHS:.*]] = torch.prims.collapse %[[PERMUTED]], %[[ONE]], %[[TWO]]
+// CHECK:         %[[RHS:.*]] = torch.prims.collapse %arg2, %[[ZERO]], %[[ONE]]
+// CHECK:         %[[CONTRACTION:.*]] = torch.aten.mm %[[LHS]], %[[RHS]]
+// CHECK:         %[[SCALED_INPUT:.*]] = torch.aten.mul.Scalar %arg0, %[[HALF]]
+// CHECK:         %[[RESULT:.*]] = torch.aten.add.Tensor %[[SCALED_INPUT]], %[[CONTRACTION]], %[[ALPHA]]
+// CHECK:         return %[[RESULT]]
+func.func @addbmm(%arg0: !torch.vtensor<[2,7],f32>, %arg1: !torch.vtensor<[5,2,9],f32>, %arg2: !torch.vtensor<[5,9,7],f32>) -> !torch.vtensor<[2,7],f32> {
+  %float0_5 = torch.constant.float 5.000000e-01
+  %float2 = torch.constant.float 2.000000e+00
+  %0 = torch.aten.addbmm %arg0, %arg1, %arg2, %float0_5, %float2 : !torch.vtensor<[2,7],f32>, !torch.vtensor<[5,2,9],f32>, !torch.vtensor<[5,9,7],f32>, !torch.float, !torch.float -> !torch.vtensor<[2,7],f32>
+  return %0 : !torch.vtensor<[2,7],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @addbmm_beta_zero
+// CHECK-NOT:     torch.aten.mul.Scalar %arg0
+// CHECK:         %[[PERMUTED:.*]] = torch.aten.permute %arg1,
+// CHECK:         %[[LHS:.*]] = torch.prims.collapse %[[PERMUTED]],
+// CHECK:         %[[RHS:.*]] = torch.prims.collapse %arg2,
+// CHECK:         %[[CONTRACTION:.*]] = torch.aten.mm %[[LHS]], %[[RHS]]
+// CHECK:         %[[RESULT:.*]] = torch.aten.mul.Scalar %[[CONTRACTION]], %{{.*}}
+// CHECK:         return %[[RESULT]]
+func.func @addbmm_beta_zero(%arg0: !torch.vtensor<[2,7],f32>, %arg1: !torch.vtensor<[5,2,9],f32>, %arg2: !torch.vtensor<[5,9,7],f32>) -> !torch.vtensor<[2,7],f32> {
+  %float0 = torch.constant.float 0.000000e+00
+  %float2 = torch.constant.float 2.000000e+00
+  %0 = torch.aten.addbmm %arg0, %arg1, %arg2, %float0, %float2 : !torch.vtensor<[2,7],f32>, !torch.vtensor<[5,2,9],f32>, !torch.vtensor<[5,9,7],f32>, !torch.float, !torch.float -> !torch.vtensor<[2,7],f32>
+  return %0 : !torch.vtensor<[2,7],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @addbmm_f16
+// CHECK-SAME: (%[[ARG0:.*]]: !torch.vtensor<[2,7],f16>, %[[ARG1:.*]]: !torch.vtensor<[5,2,9],f16>, %[[ARG2:.*]]: !torch.vtensor<[5,9,7],f16>) -> !torch.vtensor<[2,7],f16>
+// CHECK-DAG: %[[BETA:.*]] = torch.constant.float 5.000000e-01
+// CHECK-DAG: %[[ALPHA:.*]] = torch.constant.float 2.000000e+00
+// CHECK: %[[RESULT:.*]] = torch.aten.addbmm %[[ARG0]], %[[ARG1]], %[[ARG2]], %[[BETA]], %[[ALPHA]] : !torch.vtensor<[2,7],f16>, !torch.vtensor<[5,2,9],f16>, !torch.vtensor<[5,9,7],f16>, !torch.float, !torch.float -> !torch.vtensor<[2,7],f16>
+// CHECK: return %[[RESULT]] : !torch.vtensor<[2,7],f16>
+func.func @addbmm_f16(%arg0: !torch.vtensor<[2,7],f16>, %arg1: !torch.vtensor<[5,2,9],f16>, %arg2: !torch.vtensor<[5,9,7],f16>) -> !torch.vtensor<[2,7],f16> {
+  %float0_5 = torch.constant.float 5.000000e-01
+  %float2 = torch.constant.float 2.000000e+00
+  %0 = torch.aten.addbmm %arg0, %arg1, %arg2, %float0_5, %float2 : !torch.vtensor<[2,7],f16>, !torch.vtensor<[5,2,9],f16>, !torch.vtensor<[5,9,7],f16>, !torch.float, !torch.float -> !torch.vtensor<[2,7],f16>
+  return %0 : !torch.vtensor<[2,7],f16>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @addbmm_zero_batch
+// CHECK:         %[[PERMUTED:.*]] = torch.aten.permute %arg1,
+// CHECK:         %[[LHS:.*]] = torch.prims.collapse %[[PERMUTED]], {{.*}} : !torch.vtensor<[2,0,9],f32>, !torch.int, !torch.int -> !torch.vtensor<[2,0],f32>
+// CHECK:         %[[RHS:.*]] = torch.prims.collapse %arg2, {{.*}} : !torch.vtensor<[0,9,7],f32>, !torch.int, !torch.int -> !torch.vtensor<[0,7],f32>
+// CHECK:         %[[CONTRACTION:.*]] = torch.aten.mm %[[LHS]], %[[RHS]]
+// CHECK:         return
+func.func @addbmm_zero_batch(%arg0: !torch.vtensor<[2,7],f32>, %arg1: !torch.vtensor<[0,2,9],f32>, %arg2: !torch.vtensor<[0,9,7],f32>) -> !torch.vtensor<[2,7],f32> {
+  %float1 = torch.constant.float 1.000000e+00
+  %0 = torch.aten.addbmm %arg0, %arg1, %arg2, %float1, %float1 : !torch.vtensor<[2,7],f32>, !torch.vtensor<[0,2,9],f32>, !torch.vtensor<[0,9,7],f32>, !torch.float, !torch.float -> !torch.vtensor<[2,7],f32>
+  return %0 : !torch.vtensor<[2,7],f32>
 }

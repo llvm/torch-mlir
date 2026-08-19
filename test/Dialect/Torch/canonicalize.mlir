@@ -3839,3 +3839,15 @@ func.func @torch.aten.convolution.single_int_tuple(%arg0: !torch.vtensor<[1,1,5,
     %6 = torch.aten.convolution %arg0, %w, %b, %stride, %padding, %dilation, %true, %output_padding, %int1 : !torch.vtensor<[1,1,5,5],f32>, !torch.vtensor<[1,1,1,1],f32>, !torch.vtensor<[1],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,1,5,5],f32>
     return %6 : !torch.vtensor<[1,1,5,5],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten._int_mm(
+// CHECK-SAME:                                  %[[LHS:.*]]: !torch.vtensor<[3,4],si8>, %[[RHS:.*]]: !torch.vtensor<[4,3],si8>
+// CHECK-NOT:       torch.aten._int_mm
+// CHECK:           %[[MM:.*]] = torch.aten.mm %[[LHS]], %[[RHS]] : !torch.vtensor<[3,4],si8>, !torch.vtensor<[4,3],si8> -> !torch.vtensor<[3,3],si32>
+// CHECK:           return %[[MM]] : !torch.vtensor<[3,3],si32>
+func.func @torch.aten._int_mm(%arg0: !torch.vtensor<[3,4],si8>, %arg1: !torch.vtensor<[4,3],si8>) -> !torch.vtensor<[3,3],si32> {
+  %0 = torch.aten._int_mm %arg0, %arg1 : !torch.vtensor<[3,4],si8>, !torch.vtensor<[4,3],si8> -> !torch.vtensor<[3,3],si32>
+  return %0 : !torch.vtensor<[3,3],si32>
+}
