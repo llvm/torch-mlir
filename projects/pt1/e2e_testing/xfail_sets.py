@@ -420,11 +420,6 @@ FX_IMPORTER_XFAIL_SET = {
     "AtenIntBoolOpConstTrueModule_basic",
     "AtenIntBoolOpModule_basic",
     "AtenIntMM_basic",
-    # TMTensor uses ordered floating-point comparisons, which do not reproduce
-    # PyTorch's required NaN placement for sort and topk.
-    "AtenTopKNaNInfStaticModule_basic",
-    "AtenTopKSmallestNaNInfStaticModule_basic",
-    "SortTensorNaNInfStaticModule_basic",
     "AtenNonzero1DDynamicModule_basic",  # no lowering for torch.aten.sym_constrain_range_for_size
     "AtenScaledMmBlockScaledFp8Module_basic",
     "AtenScaledMmBlockScaledFp8SwizzledModule_basic",
@@ -432,6 +427,10 @@ FX_IMPORTER_XFAIL_SET = {
     "AtenScaledMmPerTensorF16Module_basic",
     "AtenScaledMmPerTensorF32Module_basic",
     "AtenScaledMmPerTensorModule_basic",
+    # TMTensor uses ordered floating-point comparisons, which do not reproduce
+    # PyTorch's required NaN placement for topk.
+    "AtenTopKNaNInfStaticModule_basic",
+    "AtenTopKSmallestNaNInfStaticModule_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
     "QuantizedReluInt32_basic",
     "QuantizedReluInt8_basic",
@@ -487,6 +486,9 @@ FX_IMPORTER_XFAIL_SET = {
     "QuantizedSingleLayer_basic",
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
+    # TMTensor uses ordered floating-point comparisons, which do not reproduce
+    # PyTorch's required NaN placement for sort.
+    "SortTensorNaNInfStaticModule_basic",
     "SplitDimDynamicModule_basic",
     "SplitDimStaticModule_basic",
     "SqrtIntModule_basic",
