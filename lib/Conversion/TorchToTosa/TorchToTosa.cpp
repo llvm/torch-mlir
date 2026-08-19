@@ -1495,6 +1495,19 @@ Value truncFloatDiv(PatternRewriter &rewriter, Operation *op,
   return truncFloatDivWithDivResult(rewriter, op, outType, divResult).value();
 }
 
+// tosa.intdiv only legalizes i32 and i64 element types. Pick the element type
+// used for the trunc-divide and its floor/sign correction arithmetic: keep i64
+// inputs in i64 so that neither the divide nor the `input * divisor` products
+// overflow (a large i64 divisor otherwise wraps in i32 and yields a wrong
+// quotient), and widen narrower integer types to i32 as before.
+static RankedTensorType getIntDivComputeType(TensorType outType,
+                                             PatternRewriter &rewriter) {
+  Type computeElemTy = outType.getElementType().isInteger(64)
+                           ? rewriter.getIntegerType(64)
+                           : rewriter.getIntegerType(32);
+  return RankedTensorType::get(outType.getShape(), computeElemTy);
+}
+
 // Function to perform division with floor rounding mode (rounding result
 // down) for integer type inputs.
 std::optional<Value> floorIntDiv(PatternRewriter &rewriter, Operation *op,
@@ -1507,18 +1520,21 @@ std::optional<Value> floorIntDiv(PatternRewriter &rewriter, Operation *op,
   if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), lhs, rhs).failed())
     return std::nullopt;
 
-  // TOSA IntDiv requires inputs to be i32
-  auto i32Type =
-      RankedTensorType::get(outType.getShape(), rewriter.getIntegerType(32));
-  lhs = tosa::tosaCastTensorToType(rewriter, lhs, i32Type).value();
-  rhs = tosa::tosaCastTensorToType(rewriter, rhs, i32Type).value();
+  auto computeType = getIntDivComputeType(outType, rewriter);
+  lhs = tosa::tosaCastTensorToType(rewriter, lhs, computeType).value();
+  rhs = tosa::tosaCastTensorToType(rewriter, rhs, computeType).value();
 
   auto intDivOp =
-      tosa::IntDivOp::create(rewriter, op->getLoc(), i32Type, lhs, rhs);
+      tosa::IntDivOp::create(rewriter, op->getLoc(), computeType, lhs, rhs);
 
-  auto zero = tosa::getConstTensor<int32_t>(rewriter, op, 0, {}).value();
-
-  auto one = tosa::getConstTensor<int32_t>(rewriter, op, 1, {}).value();
+  Value zero, one;
+  if (computeType.getElementType().isInteger(64)) {
+    zero = tosa::getConstTensor<int64_t>(rewriter, op, 0, {}).value();
+    one = tosa::getConstTensor<int64_t>(rewriter, op, 1, {}).value();
+  } else {
+    zero = tosa::getConstTensor<int32_t>(rewriter, op, 0, {}).value();
+    one = tosa::getConstTensor<int32_t>(rewriter, op, 1, {}).value();
+  }
 
   if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), lhs, one).failed() ||
       mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), lhs, zero).failed())
@@ -1527,14 +1543,14 @@ std::optional<Value> floorIntDiv(PatternRewriter &rewriter, Operation *op,
   auto boolType =
       RankedTensorType::get(outType.getShape(), rewriter.getIntegerType(1));
 
-  auto lhsMulRhs = tosa::createMulOpAndCast(rewriter, op, i32Type, lhs, rhs,
+  auto lhsMulRhs = tosa::createMulOpAndCast(rewriter, op, computeType, lhs, rhs,
                                             /*shift=*/0);
 
   auto lhsRhsDifferentSign = tosa::GreaterOp::create(rewriter, op->getLoc(),
                                                      boolType, zero, lhsMulRhs);
 
-  auto truncMulRhs = tosa::createMulOpAndCast(rewriter, op, i32Type, intDivOp,
-                                              rhs, /*shift=*/0);
+  auto truncMulRhs = tosa::createMulOpAndCast(rewriter, op, computeType,
+                                              intDivOp, rhs, /*shift=*/0);
 
   auto truncMulRhsEqualLhs =
       tosa::EqualOp::create(rewriter, op->getLoc(), boolType, truncMulRhs, lhs);
@@ -1543,14 +1559,14 @@ std::optional<Value> floorIntDiv(PatternRewriter &rewriter, Operation *op,
       rewriter, op->getLoc(), boolType, truncMulRhsEqualLhs);
 
   auto truncMinusOne =
-      tosa::SubOp::create(rewriter, op->getLoc(), i32Type, intDivOp, one);
+      tosa::SubOp::create(rewriter, op->getLoc(), computeType, intDivOp, one);
 
   auto cond =
       tosa::LogicalAndOp::create(rewriter, op->getLoc(), boolType,
                                  lhsRhsDifferentSign, truncMulRhsNotEqualLhs);
 
-  auto selectOp = tosa::SelectOp::create(rewriter, op->getLoc(), i32Type, cond,
-                                         truncMinusOne, intDivOp);
+  auto selectOp = tosa::SelectOp::create(rewriter, op->getLoc(), computeType,
+                                         cond, truncMinusOne, intDivOp);
 
   Value result =
       tosa::tosaCastTensorToType(rewriter, selectOp, outType).value();
@@ -1647,15 +1663,13 @@ public:
         // to C-style integer division.
         // None: no rounding mode.
 
-        // TOSA IntDiv requires inputs to be i32
-        auto i32Type = RankedTensorType::get(outType.getShape(),
-                                             rewriter.getIntegerType(32));
-        lhs = tosa::tosaCastTensorToType(rewriter, lhs, i32Type).value();
-        rhsTensor =
-            tosa::tosaCastTensorToType(rewriter, rhsTensor, i32Type).value();
+        auto computeType = getIntDivComputeType(outType, rewriter);
+        lhs = tosa::tosaCastTensorToType(rewriter, lhs, computeType).value();
+        rhsTensor = tosa::tosaCastTensorToType(rewriter, rhsTensor, computeType)
+                        .value();
 
-        auto intDivOp = tosa::IntDivOp::create(rewriter, op->getLoc(), i32Type,
-                                               lhs, rhsTensor);
+        auto intDivOp = tosa::IntDivOp::create(rewriter, op->getLoc(),
+                                               computeType, lhs, rhsTensor);
 
         result =
             tosa::tosaCastTensorToType(rewriter, intDivOp, outType).value();
