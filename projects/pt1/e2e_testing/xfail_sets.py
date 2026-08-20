@@ -34,8 +34,6 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "ElementwiseClampInt16Module_basic",
     # TODO: The values are extremely close to the golden values, but the test fails because of strict rtol/atol.
     "AtenInstanceNormModuleFp16_basic",
-    # mixed uint8 x int8 aten.mm has no lowering yet
-    "AtenIntMMMixedSigni8_basic",
     # unimplemented lowering torch -> linalg for torchvision.deform_conv2d
     # this is added to check the torch.onnx.export -> import_onnx -> torch path
     "DeformConv2D_basic",
@@ -417,8 +415,6 @@ FX_IMPORTER_XFAIL_SET = {
     "AtenFloatScalarModule_basic",
     # TODO: The values are extremely close to the golden values, but the test fails because of strict rtol/atol.
     "AtenInstanceNormModuleFp16_basic",
-    # mixed uint8 x int8 aten.mm has no lowering yet
-    "AtenIntMMMixedSigni8_basic",
     "AtenIntBoolOpConstFalseModule_basic",
     "AtenIntBoolOpConstTrueModule_basic",
     "AtenIntBoolOpModule_basic",
