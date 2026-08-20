@@ -352,6 +352,8 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::clamp_min.Tensor : (Tensor, Tensor) -> (Tensor)",
         "aten::clamp_max : (Tensor, Scalar) -> (Tensor)",
         "aten::clamp_max.Tensor : (Tensor, Tensor) -> (Tensor)",
+        "aten::clip : (Tensor, Scalar?, Scalar?) -> (Tensor)",
+        "aten::clip.Tensor : (Tensor, Tensor?, Tensor?) -> (Tensor)",
         "aten::log2 : (Tensor) -> (Tensor)",
         "aten::log10 : (Tensor) -> (Tensor)",
         "aten::sqrt : (Tensor) -> (Tensor)",
