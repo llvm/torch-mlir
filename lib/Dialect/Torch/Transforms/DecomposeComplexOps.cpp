@@ -13605,15 +13605,17 @@ public:
 } // namespace
 
 namespace {
-    class DecomposeAtenClipTensorOp : public OpRewritePattern<AtenClipTensorOp> {
-        public:
-            using OpRewritePattern::OpRewritePattern;
-            LogicalResult matchAndRewrite(AtenClipTensorOp op, PatternRewriter &rewriter) const override {
-                rewriter.replaceOpWithNewOp<AtenClampTensorOp>(op, op.getType(), op.getSelf(), op.getMin(), op.getMax());
-                return success();
-            }
-    };
-}
+class DecomposeAtenClipTensorOp : public OpRewritePattern<AtenClipTensorOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenClipTensorOp op,
+                                PatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<AtenClampTensorOp>(
+        op, op.getType(), op.getSelf(), op.getMin(), op.getMax());
+    return success();
+  }
+};
+} // namespace
 
 namespace {
 
