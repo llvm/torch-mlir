@@ -2504,6 +2504,88 @@ class ElementwiseClipFloat16Module(torch.nn.Module):
 def ElementwiseClipModule_float16(module, tu: TestUtils):
     module.forward(tu.rand(3, 5, low=-10, high=10).to(torch.float16))
 
+# ==============================================================================
+
+
+class ElementwiseClipTensorFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([1], torch.float32, True),
+            ([1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, min, max):
+        min_clip = torch.aten.ops.clip(x, min)
+        max_clip = torch.aten.ops.clip(x, max=max)
+        both_cimp = torch.aten.ops.clip(x, min=min, max=max)
+        return min_clip, max_clip, both_clip
+
+
+@register_test_case(module_factory=lambda: ElementwiseClipTensorFloatModule())
+def ElementwiseClipTensorFloatModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(3, 5, low=-10, high=10), torch.tensor([-5.0]), torch.tensor([5.0])
+    )
+
+
+# ==============================================================================
+
+
+class ElementwiseClipTensorIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int64, True),
+            ([1], torch.int64, True),
+            ([1], torch.int64, True),
+        ]
+    )
+    def forward(self, x, min, max):
+        min_clamp = torch.aten.ops.clip(x, min)
+        max_clamp = torch.aten.ops.clip(x, max=max)
+        both_clamp = torch.aten.ops.clip(x, min=min, max=max)
+        return min_clamp, max_clamp, both_clamp
+
+
+@register_test_case(module_factory=lambda: ElementwiseClipTensorIntModule())
+def ElementwiseClipTensorIntModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(3, 5, low=-10, high=10), torch.tensor([-5]), torch.tensor([5])
+    )
+
+
+# ==============================================================================
+
+
+class ElementwiseClipTensorInt8Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1], torch.int8, True)])
+    def forward(self, x):
+        min = -5
+        max = 5
+        min_clip = torch.clip(x, min)
+        max_clip = torch.clip(x, max=max)
+        both_clip = torch.clip(x, min=min, max=max)
+        return min_clip, max_clip, both_clip
+
+
+@register_test_case(module_factory=lambda: ElementwiseClipTensorInt8Module())
+def ElementwiseClipTensorInt8Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 5, low=-10, high=10, dtype=torch.int8))
+
 
 # ==============================================================================
 
