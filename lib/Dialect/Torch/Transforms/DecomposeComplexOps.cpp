@@ -13605,6 +13605,17 @@ public:
 } // namespace
 
 namespace {
+    class DecomposeAtenClipTensorOp : public OpRewritePattern<AtenClipTensorOp> {
+        public:
+            using OpRewritePattern::OpRewritePattern;
+            LogicalResult matchAndRewrite(AtenClipTensorOp op, PatternRewriter &rewriter) const override {
+                rewriter.replaceOpWithNewOp<AtenClampTensorOp>(op, op.getType(), op.getSelf(), op.getMin(), op.getMax());
+                return success();
+            }
+    };
+}
+
+namespace {
 
 class DecomposeComplexOpsPass
     : public impl::DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
@@ -13945,6 +13956,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRoundDecimalsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAbsoluteOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClipOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenClipTensorOp>(patterns);
 
     GreedyRewriteConfig config;
     config.setUseTopDownTraversal(true);
