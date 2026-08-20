@@ -2332,7 +2332,7 @@ def ElementwiseClampMinTensorIntModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class ElementWiseClipModule(torch.nn.Module):
+class ElementwiseClipModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
