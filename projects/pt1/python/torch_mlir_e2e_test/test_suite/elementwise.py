@@ -2332,6 +2332,182 @@ def ElementwiseClampMinTensorIntModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementWiseClipModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        float_min = torch.clip(x, min=-2.0)
+        int_min = torch.clip(x, min=-3)
+        float_max = torch.clip(x, max=2.0)
+        int_max = torch.clip(x, max=3)
+        both = torch.clip(x, min=-5, max=5)
+        return float_min, int_min, float_max, int_max, both
+
+
+@register_test_case(module_factory=lambda: ElementwiseClipModule())
+def ElementwiseClipModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, low=-10, high=10))
+
+
+# ==============================================================================
+
+
+class ElementwiseClipInt16Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int16, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.clip(x, min=-5, max=5)
+
+
+@register_test_case(module_factory=lambda: ElementwiseClipInt16Module())
+def ElementwiseClipInt16Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 5, low=-10, high=10, dtype=torch.int16))
+
+
+# ==============================================================================
+
+
+class ElementwiseClipInt32Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.clip(x, min=-5, max=5)
+
+
+@register_test_case(module_factory=lambda: ElementwiseClipInt32Module())
+def ElementwiseClipInt32Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 5, low=-10, high=10, dtype=torch.int32))
+
+
+# ==============================================================================
+
+
+class ElementwiseClipInt64Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int64, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.clip(x, min=-5, max=5)
+
+
+@register_test_case(module_factory=lambda: ElementwiseClipInt64Module())
+def ElementwiseClipInt64Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 5, low=-10, high=10, dtype=torch.int64))
+
+
+# ==============================================================================
+
+
+class ElementwiseClipIntToFloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int64, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.clip(x, min=-2.5, max=2.5)
+
+
+@register_test_case(module_factory=lambda: ElementwiseClipIntToFloatModule())
+def ElementwiseClipIntToFloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 5, low=-10, high=10))
+
+
+# ==============================================================================
+
+
+class ElementwiseCliBFloat16Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.bfloat16, True),
+        ]
+    )
+    def forward(self, x):
+        float_min = torch.clip(x, min=-2.0)
+        int_min = torch.clip(x, min=-3)
+        float_max = torch.clip(x, max=2.0)
+        int_max = torch.clip(x, max=3)
+        both = torch.clip(x, min=-5, max=5)
+        return float_min, int_min, float_max, int_max, both
+
+
+@register_test_case(module_factory=lambda: ElementwiseClipBFloat16Module())
+def ElementwiseClipModule_bfloat16(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, low=-10, high=10).to(torch.bfloat16))
+
+
+# ==============================================================================
+
+
+class ElementwiseClipFloat16Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float16, True),
+        ]
+    )
+    def forward(self, x):
+        float_min = torch.clip(x, min=-2.0)
+        int_min = torch.clip(x, min=-3)
+        float_max = torch.clip(x, max=2.0)
+        int_max = torch.clip(x, max=3)
+        both = torch.clip(x, min=-5, max=5)
+        return float_min, int_min, float_max, int_max, both
+
+
+@register_test_case(module_factory=lambda: ElementwiseClipFloat16Module())
+def ElementwiseClipModule_float16(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5, low=-10, high=10).to(torch.float16))
+
+
+# ==============================================================================
+
+
 class RsubFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
