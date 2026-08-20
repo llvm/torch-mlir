@@ -2555,7 +2555,7 @@ class ElementwiseClipTensorIntModule(torch.nn.Module):
         min_clip = torch.ops.aten.clip(x, min)
         max_clip = torch.ops.aten.clip(x, max=max)
         both_clip = torch.ops.aten.clip(x, min=min, max=max)
-        return min_clip, max_climp, both_clip
+        return min_clip, max_clip, both_clip
 
 
 @register_test_case(module_factory=lambda: ElementwiseClipTensorIntModule())
