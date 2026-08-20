@@ -35,8 +35,24 @@ module {
 
 // expected-error@+1 {{Module does not conform to the TOSA backend contract.}}
 module {
+  // expected-error@+1 {{failed to legalize operation 'func.func'}}
   func.func @disallowed(%arg0: !torch.tensor) -> !torch.tensor {
-    // expected-error@+1 {{failed to legalize operation 'func.return'}}
     return %arg0 : !torch.tensor
+  }
+}
+
+// -----
+
+// A non-shaped function argument (e.g. `!torch.optional`) that is dead --
+// referenced by no op in the body -- must still be rejected. The signature type
+// lives in the func's `FunctionType` attribute, not as an op operand/result, so
+// this is only caught by explicitly checking `isSignatureLegal`.
+
+// expected-error@+1 {{Module does not conform to the TOSA backend contract.}}
+module {
+  // expected-error@+1 {{failed to legalize operation 'func.func'}}
+  func.func @dead_optional_arg(%arg0: !torch.optional<vtensor<[4],f32>>) -> tensor<1xi64> {
+    %cst = arith.constant dense<1> : tensor<1xi64>
+    return %cst : tensor<1xi64>
   }
 }

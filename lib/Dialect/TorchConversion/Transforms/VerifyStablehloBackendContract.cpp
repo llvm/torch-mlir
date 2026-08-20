@@ -42,13 +42,22 @@ class VerifyStablehloBackendContractPass
     });
 
     auto opHasLegalTypes = [&](Operation *op) { return converter.isLegal(op); };
+    // A `func.func` carries its argument/result types in its `FunctionType`
+    // attribute rather than as op operands/results, so `converter.isLegal(op)`
+    // never inspects the signature. Check it explicitly, otherwise a function
+    // argument of a non-shaped type (e.g. `!torch.optional`) that is dead
+    // (referenced by no op in the body) would slip through the contract check.
+    auto funcHasLegalTypes = [&](func::FuncOp func) {
+      return converter.isSignatureLegal(func.getFunctionType()) &&
+             converter.isLegal(func);
+    };
 
     MLIRContext *context = &getContext();
     ConversionTarget target(*context);
 
     // Structural operations.
-    target.addDynamicallyLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>(
-        opHasLegalTypes);
+    target.addDynamicallyLegalOp<func::FuncOp>(funcHasLegalTypes);
+    target.addDynamicallyLegalOp<ModuleOp, func::ReturnOp>(opHasLegalTypes);
 
     target.addLegalDialect<chlo::ChloDialect>();
     target.addLegalDialect<stablehlo::StablehloDialect>();
