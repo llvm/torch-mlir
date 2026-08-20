@@ -2524,7 +2524,7 @@ class ElementwiseClipTensorFloatModule(torch.nn.Module):
     def forward(self, x, min, max):
         min_clip = torch.ops.aten.clip(x, min)
         max_clip = torch.ops.aten.clip(x, max=max)
-        both_cimp = torch.ops.aten.clip(x, min=min, max=max)
+        both_clip = torch.ops.aten.clip(x, min=min, max=max)
         return min_clip, max_clip, both_clip
 
 
@@ -2552,10 +2552,10 @@ class ElementwiseClipTensorIntModule(torch.nn.Module):
         ]
     )
     def forward(self, x, min, max):
-        min_clamp = torch.ops.aten.clip(x, min)
-        max_clamp = torch.ops.aten.clip(x, max=max)
-        both_clamp = torch.ops.aten.clip(x, min=min, max=max)
-        return min_clamp, max_clamp, both_clamp
+        min_clip = torch.ops.aten.clip(x, min)
+        max_clip = torch.ops.aten.clip(x, max=max)
+        both_clip = torch.ops.aten.clip(x, min=min, max=max)
+        return min_clip, max_climp, both_clip
 
 
 @register_test_case(module_factory=lambda: ElementwiseClipTensorIntModule())
