@@ -1286,8 +1286,14 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           result = Torch::AtenUnsqueezeOp::create(rewriter, loc, unsqueezeType,
                                                   result, cstDim);
         }
-        rewriter.replaceOpWithNewOp<Torch::TensorStaticInfoCastOp>(
-            binder.op, resultType, result);
+        if (result.getType() != resultType &&
+            Torch::isValidSubtype(result.getType(), resultType)) {
+          // "downcast" if the unsqueeze result type is strictly less precise
+          // than the input type
+          result = Torch::TensorStaticInfoCastOp::create(rewriter, loc,
+                                                         resultType, result);
+        }
+        rewriter.replaceOp(binder.op, result);
         return success();
       });
   patterns.onOp(
