@@ -3886,7 +3886,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AdaptiveAvgPool2dDynamic_basic",
     "CrossEntropyLossModule_basic",
     "CrossEntropyLossNoReductionModule_basic",
-    "IouOfModule_basic",
     "NmsModule_basic",
     "MeshgridIndexingIJ_basic",
     "MeshgridIndexingXY_basic",
