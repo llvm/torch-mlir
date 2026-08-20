@@ -9,6 +9,7 @@ set(LinkedLibs
   MLIRVectorTransforms
   TorchMLIRTorchConversionDialect
   TorchMLIRTorchDialect
+  TorchMLIRTorchUtils
   TorchMLIRTorchPasses
   TorchMLIRConversionPasses
   )
