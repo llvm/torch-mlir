@@ -2537,9 +2537,7 @@ func.func @torch.aten.sort.int$reverse_true() -> !torch.list<int> {
 }
 
 // CHECK-LABEL: @torch.aten.sort$unary_element
-// CHECK      : %[[INDICES:.*]] = torch.vtensor.literal(dense<0> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
-// CHECK-NOT  : torch.aten.sort %arg
-// CHECK      : return %arg0, %[[INDICES]] : !torch.vtensor<[1],si64>, !torch.vtensor<[1],si64>
+// CHECK: torch.aten.sort %arg
 func.func @torch.aten.sort$unary_element(%arg0 : !torch.vtensor<[1],si64>, %arg1 : !torch.int, %arg2 : !torch.bool) -> (!torch.vtensor<[1],si64>, !torch.vtensor<[1],si64>) {
   %0, %1 = torch.aten.sort %arg0, %arg1, %arg2 : !torch.vtensor<[1],si64>, !torch.int, !torch.bool -> !torch.vtensor<[1],si64>, !torch.vtensor<[1],si64>
   return %0, %1 : !torch.vtensor<[1],si64>, !torch.vtensor<[1],si64>
@@ -2547,9 +2545,9 @@ func.func @torch.aten.sort$unary_element(%arg0 : !torch.vtensor<[1],si64>, %arg1
 
 
 // CHECK-LABEL: @torch.aten.sort$unary_dim
-// CHECK      : %[[INDICES:.*]] = torch.vtensor.literal(dense<1> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
-// CHECK-NOT  : torch.aten.sort %arg
-// CHECK      : return %arg0, %[[INDICES]] : !torch.vtensor<[3, 1,4],si64>, !torch.vtensor<[1],si64>
+// CHECK: %[[INDICES:.*]] = torch.vtensor.literal(dense<0> : tensor<1xsi64>) : !torch.vtensor<[1],si64>
+// CHECK-NOT: torch.aten.sort %arg
+// CHECK: return %arg0, %[[INDICES]] : !torch.vtensor<[3,1,4],si64>, !torch.vtensor<[1],si64>
 func.func @torch.aten.sort$unary_dim(%arg0 : !torch.vtensor<[3, 1, 4],si64>, %arg1 : !torch.bool) -> (!torch.vtensor<[3, 1, 4],si64>, !torch.vtensor<[1],si64>) {
   %dim = torch.constant.int 1
   %0, %1 = torch.aten.sort %arg0, %dim, %arg1 : !torch.vtensor<[3, 1, 4],si64>, !torch.int, !torch.bool -> !torch.vtensor<[3, 1, 4],si64>, !torch.vtensor<[1],si64>
@@ -2557,11 +2555,39 @@ func.func @torch.aten.sort$unary_dim(%arg0 : !torch.vtensor<[3, 1, 4],si64>, %ar
 }
 
 // CHECK-LABEL: @torch.aten.sort$nofold
-// CHECK      : torch.aten.sort %arg
+// CHECK: torch.aten.sort %arg
 func.func @torch.aten.sort$nofold (%arg0 : !torch.vtensor<[3, 1, 4],si64>, %arg1 : !torch.bool) -> (!torch.vtensor<[3, 1, 4],si64>, !torch.vtensor<[3],si64>) {
   %dim = torch.constant.int 0
   %0, %1 = torch.aten.sort %arg0, %dim, %arg1 : !torch.vtensor<[3, 1, 4],si64>, !torch.int, !torch.bool -> !torch.vtensor<[3, 1, 4],si64>, !torch.vtensor<[3],si64>
   return %0, %1 : !torch.vtensor<[3, 1, 4],si64>, !torch.vtensor<[3],si64>
+}
+
+// CHECK-LABEL: @torch.aten.sort$rank_zero_dim_zero
+// CHECK: %[[INDICES:.*]] = torch.vtensor.literal(dense<0> : tensor<si64>) : !torch.vtensor<[],si64>
+// CHECK-NOT: torch.aten.sort %arg
+// CHECK: return %arg0, %[[INDICES]] : !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+func.func @torch.aten.sort$rank_zero_dim_zero(%arg0 : !torch.vtensor<[],f32>, %arg1 : !torch.bool) -> (!torch.vtensor<[],f32>, !torch.vtensor<[],si64>) {
+  %dim = torch.constant.int 0
+  %0, %1 = torch.aten.sort %arg0, %dim, %arg1 : !torch.vtensor<[],f32>, !torch.int, !torch.bool -> !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+  return %0, %1 : !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+}
+
+// CHECK-LABEL: @torch.aten.sort$rank_zero_dim_negative_one
+// CHECK: %[[INDICES:.*]] = torch.vtensor.literal(dense<0> : tensor<si64>) : !torch.vtensor<[],si64>
+// CHECK-NOT: torch.aten.sort %arg
+// CHECK: return %arg0, %[[INDICES]] : !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+func.func @torch.aten.sort$rank_zero_dim_negative_one(%arg0 : !torch.vtensor<[],f32>, %arg1 : !torch.bool) -> (!torch.vtensor<[],f32>, !torch.vtensor<[],si64>) {
+  %dim = torch.constant.int -1
+  %0, %1 = torch.aten.sort %arg0, %dim, %arg1 : !torch.vtensor<[],f32>, !torch.int, !torch.bool -> !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+  return %0, %1 : !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+}
+
+// CHECK-LABEL: @torch.aten.sort$invalid_dim_nofold
+// CHECK: torch.aten.sort %arg
+func.func @torch.aten.sort$invalid_dim_nofold(%arg0 : !torch.vtensor<[3, 1, 4],si64>, %arg1 : !torch.bool) -> (!torch.vtensor<[3, 1, 4],si64>, !torch.vtensor<[1],si64>) {
+  %dim = torch.constant.int 3
+  %0, %1 = torch.aten.sort %arg0, %dim, %arg1 : !torch.vtensor<[3, 1, 4],si64>, !torch.int, !torch.bool -> !torch.vtensor<[3, 1, 4],si64>, !torch.vtensor<[1],si64>
+  return %0, %1 : !torch.vtensor<[3, 1, 4],si64>, !torch.vtensor<[1],si64>
 }
 
 // -----
