@@ -11,6 +11,7 @@
 #include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -13591,6 +13592,17 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenClipOp : public OpRewritePattern<AtenClipOp> {
+public:
+    using OpRewritePattern::OpRewritePattern;
+    LogicalResult matchAndRewrite(AtenClipOp op, PatternRewriter &rewriter) const override {
+        rewriter.replaceOpWithNewOp<AtenClampOp>(op, op.getType(), op.getSelf(), op.getMin(), op.getMax());
+        return success();
+    }
+};
+}
+
+namespace {
 
 class DecomposeComplexOpsPass
     : public impl::DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
@@ -13930,6 +13942,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAten_AssertScalarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRoundDecimalsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAbsoluteOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenClipOp>(patterns);
 
     GreedyRewriteConfig config;
     config.setUseTopDownTraversal(true);
