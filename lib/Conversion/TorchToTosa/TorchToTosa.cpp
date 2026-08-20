@@ -3171,7 +3171,10 @@ public:
       return rewriter.notifyMatchFailure(
           op, "requires static broadcastable bias of rank at most 2");
     }
-    if (!isa<FloatType>(lhsTy.getElementType())) {
+    if (!isa<FloatType>(lhsTy.getElementType()) ||
+        !isa<FloatType>(rhsTy.getElementType()) ||
+        !isa<FloatType>(biasTy.getElementType()) ||
+        !isa<FloatType>(resultTy.getElementType())) {
       return rewriter.notifyMatchFailure(op, "requires floating-point tensors");
     }
 
