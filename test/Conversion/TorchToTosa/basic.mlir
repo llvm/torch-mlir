@@ -5521,6 +5521,121 @@ func.func @torch.aten.mm$f32(%arg0: !torch.vtensor<[1,22],f32>, %arg1: !torch.vt
 }
 
 // -----
+// CHECK-LABEL: func.func @torch.aten.addmm$f32
+// CHECK: %[[MATMUL:.*]] = tosa.matmul
+// CHECK-SAME: -> tensor<1x6x4xf32>
+// CHECK: %[[ADD:.*]] = tosa.add
+// CHECK-SAME: (tensor<1x6x4xf32>, tensor<1x1x4xf32>) -> tensor<1x6x4xf32>
+// CHECK: %[[RESULT:.*]] = tosa.reshape %[[ADD]]
+// CHECK-SAME: -> tensor<6x4xf32>
+// CHECK-NOT: torch.aten.addmm
+func.func @torch.aten.addmm$f32(%bias: !torch.vtensor<[4],f32>, %mat1: !torch.vtensor<[6,8],f32>, %mat2: !torch.vtensor<[8,4],f32>) -> !torch.vtensor<[6,4],f32> {
+  %one = torch.constant.int 1
+  %0 = torch.aten.addmm %bias, %mat1, %mat2, %one, %one : !torch.vtensor<[4],f32>, !torch.vtensor<[6,8],f32>, !torch.vtensor<[8,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[6,4],f32>
+  return %0 : !torch.vtensor<[6,4],f32>
+}
+
+// -----
+// CHECK-LABEL: func.func @torch.aten.addmm$scaled_f32
+// CHECK: %[[MATMUL:.*]] = tosa.matmul
+// CHECK-SAME: -> tensor<1x6x4xf32>
+// CHECK-DAG: %[[BETA:.*]] = tosa.mul {{.*}} -> tensor<4xf32>
+// CHECK-DAG: %[[ALPHA:.*]] = tosa.mul %[[MATMUL]]{{.*}} -> tensor<1x6x4xf32>
+// CHECK: %[[ADD:.*]] = tosa.add
+// CHECK-SAME: -> tensor<1x6x4xf32>
+// CHECK: tosa.reshape %[[ADD]]
+// CHECK-SAME: -> tensor<6x4xf32>
+// CHECK-NOT: torch.aten.addmm
+func.func @torch.aten.addmm$scaled_f32(%bias: !torch.vtensor<[4],f32>, %mat1: !torch.vtensor<[6,8],f32>, %mat2: !torch.vtensor<[8,4],f32>) -> !torch.vtensor<[6,4],f32> {
+  %two = torch.constant.int 2
+  %three = torch.constant.int 3
+  %0 = torch.aten.addmm %bias, %mat1, %mat2, %three, %two : !torch.vtensor<[4],f32>, !torch.vtensor<[6,8],f32>, !torch.vtensor<[8,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[6,4],f32>
+  return %0 : !torch.vtensor<[6,4],f32>
+}
+
+// -----
+// CHECK-LABEL: func.func @torch.aten.addmm$float_scalars_scalar_bias
+// CHECK: %[[MATMUL:.*]] = tosa.matmul
+// CHECK-SAME: -> tensor<1x6x4xf32>
+// CHECK: tosa.mul %[[MATMUL]]
+// CHECK-SAME: -> tensor<1x6x4xf32>
+// CHECK: tosa.mul
+// CHECK-SAME: -> tensor<f32>
+// CHECK: %[[ADD:.*]] = tosa.add
+// CHECK-SAME: -> tensor<1x6x4xf32>
+// CHECK: tosa.reshape %[[ADD]]
+// CHECK-SAME: -> tensor<6x4xf32>
+// CHECK-NOT: torch.aten.addmm
+func.func @torch.aten.addmm$float_scalars_scalar_bias(%bias: !torch.vtensor<[],f32>, %mat1: !torch.vtensor<[6,8],f32>, %mat2: !torch.vtensor<[8,4],f32>) -> !torch.vtensor<[6,4],f32> {
+  %half = torch.constant.float 5.000000e-01
+  %two = torch.constant.float 2.000000e+00
+  %0 = torch.aten.addmm %bias, %mat1, %mat2, %two, %half : !torch.vtensor<[],f32>, !torch.vtensor<[6,8],f32>, !torch.vtensor<[8,4],f32>, !torch.float, !torch.float -> !torch.vtensor<[6,4],f32>
+  return %0 : !torch.vtensor<[6,4],f32>
+}
+
+// -----
+// CHECK-LABEL: func.func @torch.aten.addmm$beta_zero_f32
+// CHECK: %[[MATMUL:.*]] = tosa.matmul
+// CHECK-SAME: -> tensor<1x6x4xf32>
+// CHECK-NOT: tosa.mul
+// CHECK-NOT: tosa.add
+// CHECK: tosa.reshape %[[MATMUL]]
+// CHECK-SAME: -> tensor<6x4xf32>
+// CHECK-NOT: torch.aten.addmm
+func.func @torch.aten.addmm$beta_zero_f32(%bias: !torch.vtensor<[4],f32>, %mat1: !torch.vtensor<[6,8],f32>, %mat2: !torch.vtensor<[8,4],f32>) -> !torch.vtensor<[6,4],f32> {
+  %zero = torch.constant.int 0
+  %one = torch.constant.int 1
+  %0 = torch.aten.addmm %bias, %mat1, %mat2, %zero, %one : !torch.vtensor<[4],f32>, !torch.vtensor<[6,8],f32>, !torch.vtensor<[8,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[6,4],f32>
+  return %0 : !torch.vtensor<[6,4],f32>
+}
+
+// -----
+// CHECK-LABEL: func.func @torch.aten.addmm$f16
+// CHECK: %[[MATMUL:.*]] = tosa.matmul
+// CHECK-SAME: -> tensor<1x6x4xf32>
+// CHECK: %[[CAST:.*]] = tosa.cast %[[MATMUL]]
+// CHECK-SAME: -> tensor<1x6x4xf16>
+// CHECK: %[[ADD:.*]] = tosa.add
+// CHECK-SAME: -> tensor<1x6x4xf16>
+// CHECK: tosa.reshape %[[ADD]]
+// CHECK-SAME: -> tensor<6x4xf16>
+// CHECK-NOT: torch.aten.addmm
+func.func @torch.aten.addmm$f16(%bias: !torch.vtensor<[4],f16>, %mat1: !torch.vtensor<[6,8],f16>, %mat2: !torch.vtensor<[8,4],f16>) -> !torch.vtensor<[6,4],f16> {
+  %one = torch.constant.int 1
+  %0 = torch.aten.addmm %bias, %mat1, %mat2, %one, %one : !torch.vtensor<[4],f16>, !torch.vtensor<[6,8],f16>, !torch.vtensor<[8,4],f16>, !torch.int, !torch.int -> !torch.vtensor<[6,4],f16>
+  return %0 : !torch.vtensor<[6,4],f16>
+}
+
+// -----
+// CHECK-LABEL: func.func @torch.aten.addmm$rank2_bias
+// CHECK: %[[MATMUL:.*]] = tosa.matmul
+// CHECK-SAME: -> tensor<1x6x4xf32>
+// CHECK: %[[ADD:.*]] = tosa.add
+// CHECK-SAME: -> tensor<1x6x4xf32>
+// CHECK: tosa.reshape %[[ADD]]
+// CHECK-SAME: -> tensor<6x4xf32>
+// CHECK-NOT: torch.aten.addmm
+func.func @torch.aten.addmm$rank2_bias(%bias: !torch.vtensor<[6,4],f32>, %mat1: !torch.vtensor<[6,8],f32>, %mat2: !torch.vtensor<[8,4],f32>) -> !torch.vtensor<[6,4],f32> {
+  %one = torch.constant.int 1
+  %0 = torch.aten.addmm %bias, %mat1, %mat2, %one, %one : !torch.vtensor<[6,4],f32>, !torch.vtensor<[6,8],f32>, !torch.vtensor<[8,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[6,4],f32>
+  return %0 : !torch.vtensor<[6,4],f32>
+}
+
+// -----
+// CHECK-LABEL: func.func @torch.aten.addmm$zero_k
+// CHECK-NOT: tosa.matmul
+// CHECK: %[[ZERO:.*]] = "tosa.const"()
+// CHECK-SAME: tensor<6x4xf32>
+// CHECK: %[[ADD:.*]] = tosa.add
+// CHECK-SAME: (tensor<6x4xf32>, tensor<1x4xf32>) -> tensor<6x4xf32>
+// CHECK-NOT: torch.aten.addmm
+func.func @torch.aten.addmm$zero_k(%bias: !torch.vtensor<[4],f32>, %mat1: !torch.vtensor<[6,0],f32>, %mat2: !torch.vtensor<[0,4],f32>) -> !torch.vtensor<[6,4],f32> {
+  %one = torch.constant.int 1
+  %0 = torch.aten.addmm %bias, %mat1, %mat2, %one, %one : !torch.vtensor<[4],f32>, !torch.vtensor<[6,0],f32>, !torch.vtensor<[0,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[6,4],f32>
+  return %0 : !torch.vtensor<[6,4],f32>
+}
+
+// -----
 // CHECK-LABEL:   func.func @torch.aten.mm$si8
 // CHECK: tosa.matmul
 // CHECK-SAME: (tensor<1x1x22xi8>, tensor<1x22x10xi8>, tensor<1xi8>, tensor<1xi8>) -> tensor<1x1x10xi32>
