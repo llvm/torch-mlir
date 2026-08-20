@@ -533,8 +533,7 @@ FX_IMPORTER_XFAIL_SET = {
     "ElementwiseClampMaxModule_bfloat16",
     "ElementwiseClampMinModule_bfloat16",
     "ElementwiseClampModule_bfloat16",
-    "ElementwiseClipModule_bfloat16"
-    "ElementwiseReluModule_bfloat16",
+    "ElementwiseClipModule_bfloat16" "ElementwiseReluModule_bfloat16",
 }
 
 FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
