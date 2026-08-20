@@ -425,6 +425,9 @@ FX_IMPORTER_XFAIL_SET = {
     "AtenScaledMmPerTensorF16Module_basic",
     "AtenScaledMmPerTensorF32Module_basic",
     "AtenScaledMmPerTensorModule_basic",
+    # The generic FX importer path has no executable backend path for
+    # blockwise MXFP4 _scaled_mm_v2 with FP4 shell tensor inputs yet.
+    "AtenScaledMmV2BlockwiseMxFP4Module_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
     "QuantizedReluInt32_basic",
     "QuantizedReluInt8_basic",
@@ -659,6 +662,9 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenScaledMmPerTensorF16Module_basic",
     "AtenScaledMmPerTensorF32Module_basic",
     "AtenScaledMmPerTensorModule_basic",
+    # StableHLO does not have a lowering for blockwise MXFP4 _scaled_mm_v2
+    # with FP4 shell tensor inputs and E8M0 block scales yet.
+    "AtenScaledMmV2BlockwiseMxFP4Module_basic",
     "AtenStftCenter1D_basic",
     "AtenStftCenter1DUnkSigLen_basic",
     "AtenStftCenter2D_basic",
@@ -2980,6 +2986,9 @@ ONNX_XFAIL_SET = {
     "AtenScaledMmPerTensorF16Module_basic",
     "AtenScaledMmPerTensorF32Module_basic",
     "AtenScaledMmPerTensorModule_basic",
+    # The ONNX exporter/importer path cannot represent blockwise MXFP4
+    # _scaled_mm_v2 with FP4 shell tensor inputs and E8M0 block scales yet.
+    "AtenScaledMmV2BlockwiseMxFP4Module_basic",
     "AtenPolarFloatModule_basic",
     "AtenPolarDoubleModule_basic",
     "AtenSubFloatModule_basic",
@@ -3452,16 +3461,18 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenSymConstrainRange_basic",
     "Aten_AssertScalar_basic",
     # These import through FX and lower to TOSA. To enable them end-to-end, the
-    # TOSA execution backend needs support for loading the FP8 input tensors and
-    # float8_e8m0fnu blocked-scale tensors used by matmul_t_block_scaled. The
-    # e2e framework also needs a non-CPU reference path because PyTorch CPU does
-    # not execute blocked-scale _scaled_mm.
+    # TOSA execution backend needs support for loading/executing the FP8 inputs
+    # used by _scaled_mm, and the FP4 inputs plus E8M0 block scales used by
+    # blockwise MXFP4 _scaled_mm_v2 in matmul_t_block_scaled. The e2e framework
+    # also needs a non-CPU reference path because PyTorch CPU does not execute
+    # blocked-scale _scaled_mm.
     "AtenScaledMmBlockScaledFp8Module_basic",
     "AtenScaledMmBlockScaledFp8SwizzledModule_basic",
     "AtenScaledMmPerTensorE5M2Module_basic",
     "AtenScaledMmPerTensorF16Module_basic",
     "AtenScaledMmPerTensorF32Module_basic",
     "AtenScaledMmPerTensorModule_basic",
+    "AtenScaledMmV2BlockwiseMxFP4Module_basic",
     "ScatterAddDynamicModule_basic",
     "UniformModule_basic",
     "UniformStaticShapeModule_basic",
