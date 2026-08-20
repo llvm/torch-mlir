@@ -1547,7 +1547,7 @@ func.func @addbmm_zero_batch(%arg0: !torch.vtensor<[2,7],f32>, %arg1: !torch.vte
 // -----
 
 // CHECK-LABEL: func.func @torch.aten.clip_decompose
-// CHECK:         %[[CLAMP:.*]] = torch.aten.clamp %arg0, %[[MIN:.*]], %[[MAX:.*]]
+// CHECK:         %[[CLAMP:.*]] = torch.aten.clamp %arg0, %float-2.000000e00, %float2.000000e00
 // CHECK-SAME:      : !torch.vtensor<[3],f32>, !torch.float, !torch.float -> !torch.vtensor<[3],f32>
 // CHECK:         return %[[CLAMP]] : !torch.vtensor<[3],f32>
 func.func @torch.aten.clip_decompose(%arg0: !torch.vtensor<[3],f32>) -> !torch.vtensor<[3],f32> {
