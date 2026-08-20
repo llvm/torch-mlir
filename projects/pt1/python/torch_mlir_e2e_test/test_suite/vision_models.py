@@ -70,8 +70,8 @@ class IouOfModule(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([-1, -1], torch.float32, True),
-            ([-1, -1], torch.float32, True),
+            ([-1, 4], torch.float32, True),
+            ([-1, 4], torch.float32, True),
         ]
     )
     def forward(self, bbox1, bbox2):

@@ -32,6 +32,8 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "ElementwiseFloatTensorGtIntTensorModule_basic",
     "ElementwiseClampIntToFloatModule_basic",
     "ElementwiseClampInt16Module_basic",
+    "ElementwiseClipIntToFloatModule_basic",
+    "ElementwiseClipInt16Module_basic",
     # TODO: The values are extremely close to the golden values, but the test fails because of strict rtol/atol.
     "AtenInstanceNormModuleFp16_basic",
     # unimplemented lowering torch -> linalg for torchvision.deform_conv2d
@@ -503,7 +505,6 @@ FX_IMPORTER_XFAIL_SET = {
     "CrossEntropyLossModule_basic",
     "CrossEntropyLossNoReductionModule_basic",
     "IsInfiniteModule_basic",
-    "IouOfModule_basic",
     "NmsModule_basic",
     "MeshgridIndexingIJ_basic",
     "MeshgridIndexingXY_basic",
@@ -522,10 +523,12 @@ FX_IMPORTER_XFAIL_SET = {
     "ReflectionPad3dModuleFront_basic",
     "ReflectionPad3dModuleBack_basic",
     "ElementwiseClampIntToFloatModule_basic",
+    "ElementwiseClipIntToFloatModule_basic",
     # error: argument must be a memref of f32, f64, i32, i64, i8, i1, c32, c64, but got 'memref<3x5xbf16>'
     "ElementwiseClampMaxModule_bfloat16",
     "ElementwiseClampMinModule_bfloat16",
     "ElementwiseClampModule_bfloat16",
+    "ElementwiseClipModule_bfloat16",
     "ElementwiseReluModule_bfloat16",
 }
 
@@ -560,6 +563,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "EmbeddingForwardFlagsModule_basic",
     "ElementwiseAtanTensorBFloat16SpecialValuesModule_basic",
     "ElementwiseClampIntToFloatModule_basic",
+    "ElementwiseClipIntToFloatModule_basic",
     "ElementwiseRemainderScalarModule_Bool_NegativeDivisor_basic",
     "ElementwiseRemainderScalarModule_Float_NegativeDividend_basic",
     "ElementwiseRemainderScalarModule_Float_NegativeDivisor_basic",
@@ -974,7 +978,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "CrossEntropyLossModule_basic",
     "CrossEntropyLossNoReductionModule_basic",
     "InterpolateDynamicModule_sizes_nearest",
-    "IouOfModule_basic",
     "NmsModule_basic",
     "IscloseStaticModuleTrue_basic",
     "IscloseStaticModule_basic",
@@ -1009,6 +1012,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ElementwiseClampMaxModule_bfloat16",
     "ElementwiseClampMinModule_bfloat16",
     "ElementwiseClampModule_bfloat16",
+    "ElementwiseClipModule_bfloat16",
     "ElementwiseReluModule_bfloat16",
     # Runtime error: failed to legalize operation 'torch.constant.int'
     "TorchPrimLoopWhileLikeHOPModule_basic",
@@ -1254,9 +1258,13 @@ STABLEHLO_PASS_SET = {
     "ElementwiseClampMinTensorFloatModule_basic",
     "ElementwiseClampMinTensorIntModule_basic",
     "ElementwiseClampModule_basic",
+    "ElementwiseClipModule_basic",
     "ElementwiseClampTensorFloatModule_basic",
     "ElementwiseClampTensorIntModule_basic",
     "ElementwiseClampTensorInt8Module_basic",
+    "ElementwiseClipTensorFloatModule_basic",
+    "ElementwiseClipTensorIntModule_basic",
+    "ElementwiseClipTensorInt8Module_basic",
     "ElementwiseCloneChannelsLastMemoryFormatModule_basic",
     "ElementwiseCloneContiguousModule_basic",
     "ElementwiseCloneModule_basic",
@@ -1796,6 +1804,8 @@ STABLEHLO_CRASHING_SET = {
     "ElementwiseClampMinTensorIntModule_basic",
     "ElementwiseClampTensorFloatModule_basic",
     "ElementwiseClampTensorIntModule_basic",
+    "ElementwiseClipTensorFloatModule_basic",
+    "ElementwiseClipTensorIntModule_basic",
     # Hanging tests:
     "ConvolutionBackwardModule2DDilated_basic",
     "ConvolutionBackwardModule2DStridedPaddedDilatedGrouped_basic",
@@ -1971,6 +1981,8 @@ TOSA_PASS_SET = {
     "ElementwiseClampMinTensorIntModule_basic",
     "ElementwiseClampTensorFloatModule_basic",
     "ElementwiseClampTensorIntModule_basic",
+    "ElementwiseClipTensorFloatModule_basic",
+    "ElementwiseClipTensorIntModule_basic",
     "ElementwiseFracModule_basic",
     "ElementwiseLdexpModule_basic",
     "ElementwiseSignbitIntModule_basic",
@@ -2333,6 +2345,9 @@ TOSA_PASS_SET = {
     "ElementwiseClampTensorInt8Module_basic",
     "ElementwiseClampInt32Module_basic",
     "ElementwiseClampInt64Module_basic",
+    "ElementwiseClipTensorInt8Module_basic",
+    "ElementwiseClipInt32Module_basic",
+    "ElementwiseClipInt64Module_basic",
     "ElementwiseCloneChannelsLastMemoryFormatModule_basic",
     "ElementwiseCloneContiguousModule_basic",
     "ElementwiseCloneModule_basic",
@@ -3083,7 +3098,6 @@ ONNX_XFAIL_SET = {
     "IndexPutImplIndexWithNoneModule_basic",
     "IntFloatModule_basic",
     "IntImplicitModule_basic",
-    "IouOfModule_basic",
     "IsFloatingPointFloat_True",
     "IsFloatingPointInt_False",
     "LenStrModule_basic",
@@ -3303,6 +3317,7 @@ ONNX_XFAIL_SET = {
     "ElementwiseClampMaxModule_bfloat16",
     "ElementwiseClampMinModule_bfloat16",
     "ElementwiseClampModule_bfloat16",
+    "ElementwiseClipModule_bfloat16",
     "ElementwiseReluModule_bfloat16",
     # Regressed by the switch to the dynamo ONNX exporter, see https://github.com/llvm/torch-mlir/issues/4690
     "ArgmaxKeepdimModule_basic",
@@ -3867,7 +3882,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AdaptiveAvgPool2dDynamic_basic",
     "CrossEntropyLossModule_basic",
     "CrossEntropyLossNoReductionModule_basic",
-    "IouOfModule_basic",
     "NmsModule_basic",
     "MeshgridIndexingIJ_basic",
     "MeshgridIndexingXY_basic",
@@ -3896,6 +3910,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ElementwiseClampMaxModule_bfloat16",
     "ElementwiseClampMinModule_bfloat16",
     "ElementwiseClampModule_bfloat16",
+    "ElementwiseClipModule_bfloat16",
     "ElementwiseReluModule_bfloat16",
 }
 
@@ -3968,6 +3983,7 @@ ONNX_TOSA_XFAIL_SET = {
     "L1LossNoReductionModule_basic",
     "L1LossSumReductionModule_basic",
     "ElementwiseClampIntToFloatModule_basic",
+    "ElementwiseClipIntToFloatModule_basic",
     "ElementwiseLogAddExpModule_basic",
     "ElementwiseLogAddExpBroadcastModule_basic",
     "ElementwiseLogAddExp2Module_basic",
@@ -5093,4 +5109,5 @@ if torch_version_for_comparison() > version.parse("2.5.1"):
         # torch.onnx.export produces onnx.MaxPool op with incorrect output shape of 2x6x5x3 instead of 2x6x4x3
         "MaxPool2dStaticCeilModeTrueReduceOutputModule_basic",
         "ElementwiseClampInt16Module_basic",
+        "ElementwiseClipInt16Module_basic",
     }
