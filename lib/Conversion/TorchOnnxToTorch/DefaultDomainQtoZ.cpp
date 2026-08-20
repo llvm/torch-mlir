@@ -1286,7 +1286,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           result = Torch::AtenUnsqueezeOp::create(rewriter, loc, unsqueezeType,
                                                   result, cstDim);
         }
-        rewriter.replaceOp(binder.op, result);
+        rewriter.replaceOpWithNewOp<Torch::TensorStaticInfoCastOp>(
+            binder.op, resultType, result);
         return success();
       });
   patterns.onOp(

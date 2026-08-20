@@ -711,6 +711,27 @@ func.func @test_unsqueeze_three_axes(%arg0: !torch.vtensor<[3,4,5],f32>, %arg1: 
 
 // -----
 
+// CHECK-LABEL: func.func @unsqueeze_type_mismatch
+func.func @unsqueeze_type_mismatch(%arg0: !torch.vtensor<[1,?,16],f32>, %arg1: !torch.vtensor<[3,4,5],f32>) -> (!torch.vtensor<[?,?,16,1],f32>, !torch.vtensor<[3,4,1,5,1,?],f32>) attributes {torch.onnx_meta.opset_version = 18 : si64} {
+  %0 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<-1> : tensor<1xsi64>} : () -> !torch.vtensor<[1],si64>
+  %1 = torch.operator "onnx.Unsqueeze"(%arg0, %0) : (!torch.vtensor<[1,?,16],f32>, !torch.vtensor<[1],si64>) -> !torch.vtensor<[?,?,16,1],f32>
+  // CHECK: %[[INT3:.*]] = torch.constant.int 3
+  // CHECK: %[[UNSQ:.*]] = torch.aten.unsqueeze %arg0, %[[INT3]] : !torch.vtensor<[1,?,16],f32>, !torch.int -> !torch.vtensor<[1,?,16,1],f32>
+  // CHECK: torch.tensor_static_info_cast %[[UNSQ]] : !torch.vtensor<[1,?,16,1],f32> to !torch.vtensor<[?,?,16,1],f32>
+  %2 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<[2, 4, 5]> : tensor<3xsi64>} : () -> !torch.vtensor<[3],si64>
+  %3 = torch.operator "onnx.Unsqueeze"(%arg1, %2) : (!torch.vtensor<[3,4,5],f32>, !torch.vtensor<[3],si64>) -> !torch.vtensor<[3,4,1,5,1,?],f32>
+  // CHECK: %[[INT2:.*]] = torch.constant.int 2
+  // CHECK: %[[UNSQ0:.*]] = torch.aten.unsqueeze %arg1, %[[INT2]] : !torch.vtensor<[3,4,5],f32>, !torch.int -> !torch.vtensor<[3,4,1,5],f32>
+  // CHECK: %[[INT4:.*]] = torch.constant.int 4
+  // CHECK: %[[UNSQ1:.*]] = torch.aten.unsqueeze %[[UNSQ0]], %[[INT4]] : !torch.vtensor<[3,4,1,5],f32>, !torch.int -> !torch.vtensor<[3,4,1,5,1],f32>
+  // CHECK: %[[INT5:.*]] = torch.constant.int 5
+  // CHECK: %[[UNSQ2:.*]] = torch.aten.unsqueeze %[[UNSQ1]], %[[INT5]] : !torch.vtensor<[3,4,1,5,1],f32>, !torch.int -> !torch.vtensor<[3,4,1,5,1,1],f32>
+  // CHECK: torch.tensor_static_info_cast %[[UNSQ2]] : !torch.vtensor<[3,4,1,5,1,1],f32> to !torch.vtensor<[3,4,1,5,1,?],f32>
+  return %1, %3 : !torch.vtensor<[?,?,16,1],f32>, !torch.vtensor<[3,4,1,5,1,?],f32>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @test_softmax_axis_0
 func.func @test_softmax_axis_0(%arg0: !torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[3,4,5],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 13 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   // CHECK: %[[INT0:.*]] = torch.constant.int 0
