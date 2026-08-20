@@ -3102,7 +3102,6 @@ ONNX_XFAIL_SET = {
     "IndexPutImplIndexWithNoneModule_basic",
     "IntFloatModule_basic",
     "IntImplicitModule_basic",
-    "IouOfModule_basic",
     "IsFloatingPointFloat_True",
     "IsFloatingPointInt_False",
     "LenStrModule_basic",

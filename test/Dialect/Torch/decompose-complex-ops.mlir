@@ -1543,3 +1543,27 @@ func.func @addbmm_zero_batch(%arg0: !torch.vtensor<[2,7],f32>, %arg1: !torch.vte
   %0 = torch.aten.addbmm %arg0, %arg1, %arg2, %float1, %float1 : !torch.vtensor<[2,7],f32>, !torch.vtensor<[0,2,9],f32>, !torch.vtensor<[0,9,7],f32>, !torch.float, !torch.float -> !torch.vtensor<[2,7],f32>
   return %0 : !torch.vtensor<[2,7],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.clip_decompose
+// CHECK:         %[[CLAMP:.*]] = torch.aten.clamp %arg0, %[[MIN:.*]], %[[MAX:.*]]
+// CHECK-SAME:      : !torch.vtensor<[3],f32>, !torch.float, !torch.float -> !torch.vtensor<[3],f32>
+// CHECK:         return %[[CLAMP]] : !torch.vtensor<[3],f32>
+func.func @torch.aten.clip_decompose(%arg0: !torch.vtensor<[3],f32>) -> !torch.vtensor<[3],f32> {
+  %min = torch.constant.float -2.0
+  %max = torch.constant.float 2.0
+  %0 = torch.aten.clip %arg0, %min, %max : !torch.vtensor<[3],f32>, !torch.float, !torch.float -> !torch.vtensor<[3],f32>
+  return %0 : !torch.vtensor<[3],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.clip.Tensor_decompose
+// CHECK:         %[[CLAMP:.*]] = torch.aten.clamp.Tensor %arg0, %arg1, %arg2
+// CHECK-SAME:      : !torch.vtensor<[3],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32> -> !torch.vtensor<[3],f32>
+// CHECK:         return %[[CLAMP]] : !torch.vtensor<[3],f32>
+func.func @torch.aten.clip.Tensor_decompose(%arg0: !torch.vtensor<[3],f32>, %arg1: !torch.vtensor<[],f32>, %arg2: !torch.vtensor<[],f32>) -> !torch.vtensor<[3],f32> {
+  %0 = torch.aten.clip.Tensor %arg0, %arg1, %arg2 : !torch.vtensor<[3],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32> -> !torch.vtensor<[3],f32>
+  return %0 : !torch.vtensor<[3],f32>
+}
