@@ -2193,7 +2193,7 @@ def aten〇slice〇Tensor〡shape(self: List[int], dim: int = 0, start: Optional
         # should have swapped_end = d, but adding 1 to start before making it valid would result in an
         # incorrect, but "valid", swapped_end = 0 for forward slicing.
         # Additionally, if adding d doesn't make these values positive, but adding twice would, we need
-        # to lafter resolving, otherwise the upstream function will try to resolve a second time.
+        # to clamp after resolving, otherwise the upstream function will try to resolve a second time.
         if start_val < 0:
             start_val += self[dim]
         if start_val < 0:
