@@ -13594,13 +13594,15 @@ public:
 namespace {
 class DecomposeAtenClipOp : public OpRewritePattern<AtenClipOp> {
 public:
-    using OpRewritePattern::OpRewritePattern;
-    LogicalResult matchAndRewrite(AtenClipOp op, PatternRewriter &rewriter) const override {
-        rewriter.replaceOpWithNewOp<AtenClampOp>(op, op.getType(), op.getSelf(), op.getMin(), op.getMax());
-        return success();
-    }
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenClipOp op,
+                                PatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<AtenClampOp>(op, op.getType(), op.getSelf(),
+                                             op.getMin(), op.getMax());
+    return success();
+  }
 };
-}
+} // namespace
 
 namespace {
 
