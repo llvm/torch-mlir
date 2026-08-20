@@ -20,6 +20,7 @@
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/Support/MathExtras.h"
@@ -8284,8 +8285,12 @@ class DecomposeAtenRMSLayerNormOp : public OpRewritePattern<AtenRmsNormOp> {
           op, "Expected input to be a tensor with sizes and a dtype");
 
     auto outputTy = dyn_cast<ValueTensorType>(op.getType());
-    if (!outputTy.hasDtype())
+    if (!outputTy || !outputTy.hasDtype())
       return rewriter.notifyMatchFailure(op, "output should have a dtype.");
+    if (!isa<mlir::FloatType>(inputTy.getDtype()) ||
+        !isa<mlir::FloatType>(outputTy.getDtype()))
+      return rewriter.notifyMatchFailure(
+          op, "input and output should have floating point dtypes.");
 
     int64_t inputRank = inputTy.getSizes().size();
     Value normalizedShape = op.getNormalizedShape();
@@ -8295,8 +8300,49 @@ class DecomposeAtenRMSLayerNormOp : public OpRewritePattern<AtenRmsNormOp> {
       return rewriter.notifyMatchFailure(op,
                                          "should have constant shape values.");
 
-    int64_t normalize_from_idx =
-        inputRank - normalizedShapeSizesTorchInt.size();
+    if (static_cast<int64_t>(normalizedShapeSizesTorchInt.size()) > inputRank)
+      return rewriter.notifyMatchFailure(
+          op, "normalized shape cannot be larger than the input rank.");
+    SmallVector<int64_t> normalizedShapeSizes;
+    normalizedShapeSizes.reserve(normalizedShapeSizesTorchInt.size());
+    for (Value size : normalizedShapeSizesTorchInt) {
+      int64_t sizeInt;
+      if (!matchPattern(size, m_TorchConstantInt(&sizeInt)))
+        return rewriter.notifyMatchFailure(
+            op, "normalized shape should contain constant integers.");
+      normalizedShapeSizes.push_back(sizeInt);
+    }
+
+    int64_t normalize_from_idx = inputRank - normalizedShapeSizes.size();
+    for (auto [idx, expectedSize] : llvm::enumerate(normalizedShapeSizes)) {
+      int64_t inputSize = inputTy.getSizes()[normalize_from_idx + idx];
+      if (inputSize != Torch::kUnknownSize && inputSize != expectedSize)
+        return rewriter.notifyMatchFailure(
+            op, "normalized shape should match the input trailing sizes.");
+    }
+
+    Value weight = op.getWeight();
+    if (!isa<Torch::NoneType>(weight.getType())) {
+      auto weightTy = dyn_cast<ValueTensorType>(weight.getType());
+      if (!weightTy || !weightTy.areAllSizesKnown() || !weightTy.hasDtype())
+        return rewriter.notifyMatchFailure(
+            op, "weight should have known sizes and a dtype.");
+      if (!isa<mlir::FloatType>(weightTy.getDtype()))
+        return rewriter.notifyMatchFailure(
+            op, "weight should have a floating point dtype.");
+      if (!llvm::equal(weightTy.getSizes(), normalizedShapeSizes))
+        return rewriter.notifyMatchFailure(
+            op, "weight sizes should match normalized shape.");
+    }
+
+    if (llvm::is_contained(inputTy.getSizes(), 0)) {
+      if (input.getType() != op.getType())
+        return rewriter.notifyMatchFailure(
+            op, "zero-extent input and output types should match.");
+      rewriter.replaceOp(op, input);
+      return success();
+    }
+
     auto reduceDimInts =
         llvm::to_vector<4>(llvm::seq<int64_t>(normalize_from_idx, inputRank));
     auto sizeListType = ListType::get(IntType::get(context));
@@ -8314,8 +8360,10 @@ class DecomposeAtenRMSLayerNormOp : public OpRewritePattern<AtenRmsNormOp> {
       reducedShape[i] = 1;
     auto reducedTy =
         ValueTensorType::get(context, reducedShape, inputTy.getDtype());
-    // x^2
-    Value inputSquared = AtenSquareOp::create(rewriter, loc, inputTy, input);
+    // x^2. Emit multiplication directly instead of aten.square so zero-extent
+    // tensors do not depend on later pow.Tensor_Scalar legalization.
+    Value inputSquared =
+        AtenMulTensorOp::create(rewriter, loc, inputTy, input, input);
     Value cstTrue = Torch::ConstantBoolOp::create(rewriter, loc, true);
     Value none = Torch::ConstantNoneOp::create(rewriter, loc);
     // mean(x^2)
@@ -8334,7 +8382,6 @@ class DecomposeAtenRMSLayerNormOp : public OpRewritePattern<AtenRmsNormOp> {
     Value normalized =
         AtenMulTensorOp::create(rewriter, loc, inputTy, input, invRMS);
     // Optionally multiply by weight if provided
-    Value weight = op.getWeight();
     if (!isa<Torch::NoneType>(weight.getType())) {
       normalized =
           AtenMulTensorOp::create(rewriter, loc, outputTy, normalized, weight);
