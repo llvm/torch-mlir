@@ -2344,11 +2344,11 @@ class ElementWiseClipModule(torch.nn.Module):
         ]
     )
     def forward(self, x):
-        float_min = torch.clip(x, min=-2.0)
-        int_min = torch.clip(x, min=-3)
-        float_max = torch.clip(x, max=2.0)
-        int_max = torch.clip(x, max=3)
-        both = torch.clip(x, min=-5, max=5)
+        float_min = torch.ops.aten.clip(x, min=-2.0)
+        int_min = torch.ops.aten.clip(x, min=-3)
+        float_max = torch.ops.aten.clip(x, max=2.0)
+        int_max = torch.ops.aten.clip(x, max=3)
+        both = torch.ops.aten.clip(x, min=-5, max=5)
         return float_min, int_min, float_max, int_max, both
 
 
@@ -2372,7 +2372,7 @@ class ElementwiseClipInt16Module(torch.nn.Module):
         ]
     )
     def forward(self, x):
-        return torch.clip(x, min=-5, max=5)
+        return torch.ops.aten.clip(x, min=-5, max=5)
 
 
 @register_test_case(module_factory=lambda: ElementwiseClipInt16Module())
@@ -2395,7 +2395,7 @@ class ElementwiseClipInt32Module(torch.nn.Module):
         ]
     )
     def forward(self, x):
-        return torch.clip(x, min=-5, max=5)
+        return torch.ops.aten.clip(x, min=-5, max=5)
 
 
 @register_test_case(module_factory=lambda: ElementwiseClipInt32Module())
@@ -2418,7 +2418,7 @@ class ElementwiseClipInt64Module(torch.nn.Module):
         ]
     )
     def forward(self, x):
-        return torch.clip(x, min=-5, max=5)
+        return torch.ops.aten.clip(x, min=-5, max=5)
 
 
 @register_test_case(module_factory=lambda: ElementwiseClipInt64Module())
@@ -2441,7 +2441,7 @@ class ElementwiseClipIntToFloatModule(torch.nn.Module):
         ]
     )
     def forward(self, x):
-        return torch.clip(x, min=-2.5, max=2.5)
+        return torch.ops.aten.clip(x, min=-2.5, max=2.5)
 
 
 @register_test_case(module_factory=lambda: ElementwiseClipIntToFloatModule())
@@ -2452,7 +2452,7 @@ def ElementwiseClipIntToFloatModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
-class ElementwiseCliBFloat16Module(torch.nn.Module):
+class ElementwiseClipBFloat16Module(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -2464,11 +2464,11 @@ class ElementwiseCliBFloat16Module(torch.nn.Module):
         ]
     )
     def forward(self, x):
-        float_min = torch.clip(x, min=-2.0)
-        int_min = torch.clip(x, min=-3)
-        float_max = torch.clip(x, max=2.0)
-        int_max = torch.clip(x, max=3)
-        both = torch.clip(x, min=-5, max=5)
+        float_min = torch.ops.aten.clip(x, min=-2.0)
+        int_min = torch.ops.aten.clip(x, min=-3)
+        float_max = torch.ops.aten.clip(x, max=2.0)
+        int_max = torch.ops.aten.clip(x, max=3)
+        both = torch.ops.aten.clip(x, min=-5, max=5)
         return float_min, int_min, float_max, int_max, both
 
 
@@ -2492,11 +2492,11 @@ class ElementwiseClipFloat16Module(torch.nn.Module):
         ]
     )
     def forward(self, x):
-        float_min = torch.clip(x, min=-2.0)
-        int_min = torch.clip(x, min=-3)
-        float_max = torch.clip(x, max=2.0)
-        int_max = torch.clip(x, max=3)
-        both = torch.clip(x, min=-5, max=5)
+        float_min = torch.ops.aten.clip(x, min=-2.0)
+        int_min = torch.ops.aten.clip(x, min=-3)
+        float_max = torch.ops.aten.clip(x, max=2.0)
+        int_max = torch.ops.aten.clip(x, max=3)
+        both = torch.ops.aten.clip(x, min=-5, max=5)
         return float_min, int_min, float_max, int_max, both
 
 
