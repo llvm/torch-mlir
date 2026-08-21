@@ -413,6 +413,8 @@ FX_IMPORTER_XFAIL_SET = {
     "AnyBoolTrueModule_basic",
     "ArangeStartOutViewModule_basic",
     "AtenFloatScalarModule_basic",
+    # RefBackend JIT fails to resolve the compiled BF16 grouped_mm function on x86 CI.
+    "AtenGroupedMm2D3DOffsetsModule_basic",
     # TODO: The values are extremely close to the golden values, but the test fails because of strict rtol/atol.
     "AtenInstanceNormModuleFp16_basic",
     "AtenIntBoolOpConstFalseModule_basic",
@@ -642,6 +644,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenFftRfft2DLastDim_basic",
     "AtenFftRfft2DMiddleDim_basic",
     "AtenFloatScalarModule_basic",
+    "AtenGroupedMm2D3DOffsetsModule_basic",
     # TODO: The values are extremely close to the golden values, but the test fails because of strict rtol/atol.
     "AtenInstanceNormModuleFp16_basic",
     "AtenIntBoolOpConstFalseModule_basic",
@@ -2957,6 +2960,7 @@ ONNX_XFAIL_SET = {
     "AtenStftCenter2DWindowPadLeft_basic",
     "AtenStftCenter2DHopLength3WindowPadBoth_basic",
     "AtenFloatScalarModule_basic",
+    "AtenGroupedMm2D3DOffsetsModule_basic",
     # TODO: The values are extremely close to the golden values, but the test fails because of strict rtol/atol.
     "AtenInstanceNormModuleFp16_basic",
     "AtenIntBoolOpConstFalseModule_basic",
@@ -3451,6 +3455,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenSymConstrainRangeForSize_basic",
     "AtenSymConstrainRange_basic",
     "Aten_AssertScalar_basic",
+    "AtenGroupedMm2D3DOffsetsModule_basic",
     # These import through FX and lower to TOSA. To enable them end-to-end, the
     # TOSA execution backend needs support for loading the FP8 input tensors and
     # float8_e8m0fnu blocked-scale tensors used by matmul_t_block_scaled. The
@@ -4167,6 +4172,7 @@ ONNX_TOSA_XFAIL_SET = {
     "AtenEmbeddingBagSumExample_basic",
     "AtenEmbeddingBagLastBagBoundaryModule_basic",
     "AtenFloatScalarModule_basic",
+    "AtenGroupedMm2D3DOffsetsModule_basic",
     "AtenIntBoolOpConstFalseModule_basic",
     "AtenIntBoolOpConstTrueModule_basic",
     "AtenIntBoolOpModule_basic",
