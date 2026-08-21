@@ -2564,6 +2564,53 @@ def ElementwiseMulTensorIntModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseMultiplyTensorModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.multiply(a, b)
+
+
+@register_test_case(module_factory=lambda: ElementwiseMultiplyTensorModule())
+def ElementwiseMultiplyTensorModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, 5), tu.rand(3, 4, 5))
+
+
+# ==============================================================================
+
+
+class ElementwiseMultiplyScalarModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.multiply(x, 8.0)
+
+
+@register_test_case(module_factory=lambda: ElementwiseMultiplyScalarModule())
+def ElementwiseMultiplyScalarModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, high=10).to(torch.int32))
+
+
+# ==============================================================================
+
+
 class ElementwiseCreateComplexModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

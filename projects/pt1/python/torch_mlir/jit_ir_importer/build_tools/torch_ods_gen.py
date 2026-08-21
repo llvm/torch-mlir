@@ -397,6 +397,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         has_folder=True,
     )
     emit_with_mutating_variants(
+        "aten::multiply.Tensor : (Tensor, Tensor) -> (Tensor)",
+    )
+    emit_with_mutating_variants(
         "aten::add.Tensor : (Tensor, Tensor, Scalar) -> (Tensor)",
         has_canonicalizer=True,
         has_folder=True,
@@ -420,6 +423,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::mul.Scalar : (Tensor, Scalar) -> (Tensor)",
         has_canonicalizer=True,
         has_folder=True,
+    )
+    emit_with_mutating_variants(
+        "aten::multiply.Scalar : (Tensor, Scalar) -> (Tensor)",
     )
     emit(
         "aten::ldexp.Tensor : (Tensor, Tensor) -> (Tensor)",
