@@ -7,9 +7,11 @@
 
 import torch
 import torch.nn as nn
+from torch._subclasses.fake_tensor import FakeTensor, unset_fake_temporarily
 from torch.export import Dim
 
 from torch_mlir import fx
+from torch_mlir.extras.fx_as_strided import rewrite_as_strided
 
 
 def run(f):
@@ -41,6 +43,34 @@ def expect_reject(module, *args, **kwargs):
         print(f"ValueError: {e}")
         return
     raise AssertionError("expected aten.as_strided.default import to fail")
+
+
+@run
+# CHECK-LABEL: test_as_strided_rewrite_preserves_fake_tensor_metadata
+def test_as_strided_rewrite_preserves_fake_tensor_metadata():
+    class M(nn.Module):
+        def forward(self, x):
+            return torch.ops.aten.as_strided.default(x, [2, 2], [4, 1], 0)
+
+    program = torch.export.export(
+        M(), (torch.arange(12, dtype=torch.float32).reshape(3, 4),)
+    )
+    original = program.graph.find_nodes(
+        op="call_function", target=torch.ops.aten.as_strided.default
+    )[0]
+    original_value = original.meta["val"]
+    assert isinstance(original_value, FakeTensor)
+
+    with original_value.fake_mode:
+        with unset_fake_temporarily():
+            assert rewrite_as_strided(program.graph)
+
+    replacement = program.graph.find_nodes(
+        op="call_function", target=torch.ops.aten.index.Tensor
+    )[0]
+    replacement_value = replacement.meta["val"]
+    assert isinstance(replacement_value, FakeTensor)
+    assert replacement_value.fake_mode is original_value.fake_mode
 
 
 @run
