@@ -13597,8 +13597,8 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenMultiplyTensorOp op,
                                 PatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<AtenMulTensorOp>(op, op.getType(),
-                                                 op.getSelf(), op.getOther());
+    rewriter.replaceOpWithNewOp<AtenMulTensorOp>(op, op.getType(), op.getSelf(),
+                                                 op.getOther());
     return success();
   }
 };
@@ -13611,8 +13611,8 @@ public:
   using OpRewritePattern::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenMultiplyScalarOp op,
                                 PatternRewriter &rewriter) const override {
-    rewriter.replaceOpWithNewOp<AtenMulScalarOp>(op, op.getType(),
-                                                 op.getSelf(), op.getOther());
+    rewriter.replaceOpWithNewOp<AtenMulScalarOp>(op, op.getType(), op.getSelf(),
+                                                 op.getOther());
     return success();
   }
 };
