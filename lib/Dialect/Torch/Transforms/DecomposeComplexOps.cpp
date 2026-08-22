@@ -13591,6 +13591,34 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenMultiplyTensorOp
+    : public OpRewritePattern<AtenMultiplyTensorOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenMultiplyTensorOp op,
+                                PatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<AtenMulTensorOp>(op, op.getType(), op.getSelf(),
+                                                 op.getOther());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenMultiplyScalarOp
+    : public OpRewritePattern<AtenMultiplyScalarOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenMultiplyScalarOp op,
+                                PatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<AtenMulScalarOp>(op, op.getType(), op.getSelf(),
+                                                 op.getOther());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 
 class DecomposeComplexOpsPass
     : public impl::DecomposeComplexOpsBase<DecomposeComplexOpsPass> {
@@ -13930,6 +13958,8 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAten_AssertScalarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRoundDecimalsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAbsoluteOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenMultiplyTensorOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenMultiplyScalarOp>(patterns);
 
     GreedyRewriteConfig config;
     config.setUseTopDownTraversal(true);
