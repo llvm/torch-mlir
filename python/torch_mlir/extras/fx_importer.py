@@ -157,6 +157,7 @@ TORCH_DTYPE_TO_MLIR_TYPE_ASM = {
     torch.float32: "f32",
     torch.float64: "f64",
     torch.uint8: "ui8",
+    torch.uint32: "ui32",
     torch.int8: "si8",
     torch.int16: "si16",
     torch.int32: "si32",
@@ -187,6 +188,7 @@ TORCH_DTYPE_TO_MLIR_TYPE: Dict[torch.dtype, Callable[[], IrType]] = {
     torch.float32: lambda: F32Type.get(),
     torch.float64: lambda: F64Type.get(),
     torch.uint8: lambda: IntegerType.get_unsigned(8),
+    torch.uint32: lambda: IntegerType.get_unsigned(32),
     torch.int8: lambda: IntegerType.get_signed(8),
     torch.int16: lambda: IntegerType.get_signed(16),
     torch.int32: lambda: IntegerType.get_signed(32),
@@ -215,6 +217,7 @@ TORCH_DTYPE_TO_NPY_TYPE = {
     # torch.qint8: None, # no equivalent np datatype
     # torch.quint8: None,
     torch.uint8: np.uint8,
+    torch.uint32: np.uint32,
     torch.int8: np.int8,
     torch.int16: np.int16,
     torch.int32: np.int32,
@@ -252,6 +255,7 @@ TORCH_DTYPE_TO_INT = {
     # torch.quint8: 13,
     # torch.qint32 14
     torch.bfloat16: 15,
+    torch.uint32: 30,
 }
 # Type entries added only in torch with higher version
 OPTIONAL_TORCH_DTYPE_TO_INT = {
