@@ -1,3 +1,5 @@
+import functools
+
 import torch
 from torch._decomp import get_decompositions
 
@@ -79,6 +81,7 @@ _EXPANDED_DECOMP_EXCLUDE = [
 ]
 
 
+@functools.cache
 def get_expanded_decomposition_table():
     """Use core_aten_decompositions + the extra overloads torch.export produces.
 
