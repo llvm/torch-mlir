@@ -1543,3 +1543,126 @@ func.func @addbmm_zero_batch(%arg0: !torch.vtensor<[2,7],f32>, %arg1: !torch.vte
   %0 = torch.aten.addbmm %arg0, %arg1, %arg2, %float1, %float1 : !torch.vtensor<[2,7],f32>, !torch.vtensor<[0,2,9],f32>, !torch.vtensor<[0,9,7],f32>, !torch.float, !torch.float -> !torch.vtensor<[2,7],f32>
   return %0 : !torch.vtensor<[2,7],f32>
 }
+
+// -----
+
+// ord = +inf: linalg_vector_norm decomposes to abs + amax (amax then further
+// decomposes to max.dim within the same pass run).
+// CHECK-LABEL: func.func @torch.aten.linalg_vector_norm$pos_inf(
+// CHECK:         %[[ABS:.*]] = torch.aten.abs %arg0
+// CHECK:         torch.aten.max.dim %[[ABS]]
+// CHECK-NOT:     torch.aten.linalg_vector_norm
+func.func @torch.aten.linalg_vector_norm$pos_inf(%arg0: !torch.vtensor<[5],f32>) -> !torch.vtensor<[],f32> {
+  %ord = torch.constant.float 0x7FF0000000000000
+  %dim = torch.constant.none
+  %keepdim = torch.constant.bool false
+  %dtype = torch.constant.none
+  %0 = torch.aten.linalg_vector_norm %arg0, %ord, %dim, %keepdim, %dtype : !torch.vtensor<[5],f32>, !torch.float, !torch.none, !torch.bool, !torch.none -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
+}
+
+// -----
+
+// ord = -inf: linalg_vector_norm decomposes to abs + amin (amin then further
+// decomposes to min.dim within the same pass run).
+// CHECK-LABEL: func.func @torch.aten.linalg_vector_norm$neg_inf(
+// CHECK:         %[[ABS:.*]] = torch.aten.abs %arg0
+// CHECK:         torch.aten.min.dim %[[ABS]]
+// CHECK-NOT:     torch.aten.linalg_vector_norm
+func.func @torch.aten.linalg_vector_norm$neg_inf(%arg0: !torch.vtensor<[5],f32>) -> !torch.vtensor<[],f32> {
+  %ord = torch.constant.float 0xFFF0000000000000
+  %dim = torch.constant.none
+  %keepdim = torch.constant.bool false
+  %dtype = torch.constant.none
+  %0 = torch.aten.linalg_vector_norm %arg0, %ord, %dim, %keepdim, %dtype : !torch.vtensor<[5],f32>, !torch.float, !torch.none, !torch.bool, !torch.none -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
+}
+
+// -----
+
+// ord = 0: linalg_vector_norm decomposes to the count of nonzeros,
+// sum(|x| != 0), via abs + ne.Scalar + sum.dim_IntList.
+// CHECK-LABEL: func.func @torch.aten.linalg_vector_norm$zero(
+// CHECK:         %[[ABS:.*]] = torch.aten.abs %arg0
+// CHECK:         %[[NE:.*]] = torch.aten.ne.Scalar %[[ABS]]
+// CHECK:         torch.aten.sum.dim_IntList %[[NE]]
+// CHECK-NOT:     torch.aten.linalg_vector_norm
+func.func @torch.aten.linalg_vector_norm$zero(%arg0: !torch.vtensor<[5],f32>) -> !torch.vtensor<[],f32> {
+  %ord = torch.constant.float 0.0
+  %dim = torch.constant.none
+  %keepdim = torch.constant.bool false
+  %dtype = torch.constant.none
+  %0 = torch.aten.linalg_vector_norm %arg0, %ord, %dim, %keepdim, %dtype : !torch.vtensor<[5],f32>, !torch.float, !torch.none, !torch.bool, !torch.none -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
+}
+
+// -----
+
+// ord is a Scalar, so an integer ord = 0 imports as a torch.constant.int; it
+// must still take the count-of-nonzeros decomposition.
+// CHECK-LABEL: func.func @torch.aten.linalg_vector_norm$zero_int(
+// CHECK:         %[[ABS:.*]] = torch.aten.abs %arg0
+// CHECK:         %[[NE:.*]] = torch.aten.ne.Scalar %[[ABS]]
+// CHECK:         torch.aten.sum.dim_IntList %[[NE]]
+// CHECK-NOT:     torch.aten.linalg_vector_norm
+func.func @torch.aten.linalg_vector_norm$zero_int(%arg0: !torch.vtensor<[5],f32>) -> !torch.vtensor<[],f32> {
+  %ord = torch.constant.int 0
+  %dim = torch.constant.none
+  %keepdim = torch.constant.bool false
+  %dtype = torch.constant.none
+  %0 = torch.aten.linalg_vector_norm %arg0, %ord, %dim, %keepdim, %dtype : !torch.vtensor<[5],f32>, !torch.int, !torch.none, !torch.bool, !torch.none -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
+}
+
+// -----
+
+// Finite ord is left untouched by decomposition (lowered by the backends).
+// CHECK-LABEL: func.func @torch.aten.linalg_vector_norm$finite(
+// CHECK:         torch.aten.linalg_vector_norm
+func.func @torch.aten.linalg_vector_norm$finite(%arg0: !torch.vtensor<[5],f32>) -> !torch.vtensor<[],f32> {
+  %ord = torch.constant.float 3.0
+  %dim = torch.constant.none
+  %keepdim = torch.constant.bool false
+  %dtype = torch.constant.none
+  %0 = torch.aten.linalg_vector_norm %arg0, %ord, %dim, %keepdim, %dtype : !torch.vtensor<[5],f32>, !torch.float, !torch.none, !torch.bool, !torch.none -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
+}
+
+// -----
+
+// ord = +inf with an explicit dim and keepdim = true: the reduced dim is
+// carried through to max.dim (which keeps it as size-1), so the result keeps
+// the input rank.
+// CHECK-LABEL: func.func @torch.aten.linalg_vector_norm$pos_inf_dim_keepdim(
+// CHECK:         %[[ABS:.*]] = torch.aten.abs %arg0
+// CHECK:         torch.aten.max.dim %[[ABS]], %{{.*}}, %true
+// CHECK-NOT:     torch.aten.linalg_vector_norm
+func.func @torch.aten.linalg_vector_norm$pos_inf_dim_keepdim(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,1],f32> {
+  %ord = torch.constant.float 0x7FF0000000000000
+  %d = torch.constant.int 1
+  %dim = torch.prim.ListConstruct %d : (!torch.int) -> !torch.list<int>
+  %keepdim = torch.constant.bool true
+  %dtype = torch.constant.none
+  %0 = torch.aten.linalg_vector_norm %arg0, %ord, %dim, %keepdim, %dtype : !torch.vtensor<[3,4],f32>, !torch.float, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[3,1],f32>
+  return %0 : !torch.vtensor<[3,1],f32>
+}
+
+// -----
+
+// ord = 0 with an explicit dim and keepdim = true: the dim list and keepdim are
+// forwarded to sum.dim_IntList, so the count of nonzeros keeps the reduced dim
+// as size-1.
+// CHECK-LABEL: func.func @torch.aten.linalg_vector_norm$zero_dim_keepdim(
+// CHECK:         %[[ABS:.*]] = torch.aten.abs %arg0
+// CHECK:         %[[NE:.*]] = torch.aten.ne.Scalar %[[ABS]]
+// CHECK:         torch.aten.sum.dim_IntList %[[NE]], %{{.*}}, %true
+// CHECK-NOT:     torch.aten.linalg_vector_norm
+func.func @torch.aten.linalg_vector_norm$zero_dim_keepdim(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,1],f32> {
+  %ord = torch.constant.float 0.0
+  %d = torch.constant.int 1
+  %dim = torch.prim.ListConstruct %d : (!torch.int) -> !torch.list<int>
+  %keepdim = torch.constant.bool true
+  %dtype = torch.constant.none
+  %0 = torch.aten.linalg_vector_norm %arg0, %ord, %dim, %keepdim, %dtype : !torch.vtensor<[3,4],f32>, !torch.float, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[3,1],f32>
+  return %0 : !torch.vtensor<[3,1],f32>
+}

@@ -678,16 +678,6 @@ private:
     // Cast `ord` to float so that we can readily pass it math.powf.
     Value ordValue = convertScalarToDtype(rewriter, loc, ordOp, elemType);
 
-    // TODO: Add support for ord = {0, +inf, -inf}.
-    auto epsilon = 1e-5;
-    auto ordLiteral = 0.0;
-    if (matchPattern(ordValue, m_TorchConstantFloat(&ordLiteral)) &&
-        fabs(ordLiteral) < epsilon)
-      return rewriter.notifyMatchFailure(op, "unimplemented: L0 norm");
-
-    if (std::isinf(ordLiteral))
-      return rewriter.notifyMatchFailure(op, "unimplemented: ord = +/- inf");
-
     // Raise each summed value to the inverse of the order of the norm.
     TypedAttr oneAttr = rewriter.getFloatAttr(elemType, 1.0);
     auto oneValue = arith::ConstantOp::create(rewriter, loc, oneAttr);
@@ -758,6 +748,26 @@ public:
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
       return rewriter.notifyMatchFailure(
           op, "invalid operand or result types to use with linalg on tensors");
+
+    // ord = 0 (count of nonzeros, imported as an int) and ord = +/-inf (min/max
+    // of absolute values, imported as a float) are handled by
+    // DecomposeAtenLinalgVectorNormOp; the generic (sum |x|^ord)^(1/ord)
+    // lowering is undefined for them. Decline before creating any IR so that a
+    // miscompile cannot slip through if decomposition is disabled. Match on the
+    // original `ord` scalar; a non-constant ord is left to the generic path.
+    if (auto normOp = dyn_cast<AtenLinalgVectorNormOp>(op)) {
+      double ordLiteral;
+      int64_t ordInt;
+      bool isConstOrd = true;
+      if (matchPattern(normOp.getOrd(), m_TorchConstantInt(&ordInt)))
+        ordLiteral = static_cast<double>(ordInt);
+      else if (!matchPattern(normOp.getOrd(),
+                             m_TorchConstantFloat(&ordLiteral)))
+        isConstOrd = false;
+      if (isConstOrd && (ordLiteral == 0.0 || std::isinf(ordLiteral)))
+        return rewriter.notifyMatchFailure(
+            op, "ord = 0 / +/-inf are handled by decomposition");
+    }
 
     FailureOr<torch_to_linalg::ReductionOpInfo> opInfo =
         computeReductionOpInfo(op, operands, rewriter);
