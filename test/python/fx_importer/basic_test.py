@@ -239,6 +239,56 @@ def test_full():
 
 
 @run
+# CHECK-LABEL: test_empty_uint32
+# CHECK: func.func @empty_uint32() -> !torch.vtensor<[2,3],ui32>
+# CHECK: %[[DTYPE:.+]] = torch.constant.int 30
+# CHECK: torch.aten.empty.memory_format
+# CHECK-SAME: %[[DTYPE]]
+# CHECK-SAME: -> !torch.vtensor<[2,3],ui32>
+def test_empty_uint32():
+    class Module(torch.nn.Module):
+        def forward(self):
+            return torch.empty((2, 3), dtype=torch.uint32)
+
+    module = fx.export_and_import(Module(), func_name="empty_uint32")
+    print(module)
+
+
+@run
+# CHECK-LABEL: test_uint32_tensor_literal
+# CHECK: func.func @uint32_tensor_literal() -> !torch.vtensor<[2],ui32>
+# CHECK: torch.vtensor.literal
+# CHECK-SAME: tensor<2xui32>
+# CHECK-SAME: !torch.vtensor<[2],ui32>
+def test_uint32_tensor_literal():
+    class Module(torch.nn.Module):
+        def forward(self):
+            return torch.tensor([1, 2], dtype=torch.uint32)
+
+    module = fx.export_and_import(Module(), func_name="uint32_tensor_literal")
+    print(module)
+
+
+@run
+# CHECK-LABEL: test_view_uint32
+# CHECK: func.func @view_uint32(%[[ARG:.+]]: !torch.vtensor<[8],f32>)
+# CHECK-SAME: -> !torch.vtensor<[8],ui32>
+# CHECK: %[[DTYPE:.+]] = torch.constant.int 30
+# CHECK: torch.aten.view.dtype %[[ARG]], %[[DTYPE]]
+# CHECK-SAME: !torch.vtensor<[8],f32>, !torch.int
+# CHECK-SAME: -> !torch.vtensor<[8],ui32>
+def test_view_uint32():
+    class Module(torch.nn.Module):
+        def forward(self, value):
+            return value.view(torch.uint32)
+
+    module = fx.export_and_import(
+        Module(), torch.ones(8, dtype=torch.float32), func_name="view_uint32"
+    )
+    print(module)
+
+
+@run
 # CHECK-LABEL: test_while_loop_two_returns
 # Check that helper functions are emitted first
 # CHECK: func.func private @while_loop_cond_graph_{{[0-9]+}}(%arg0: !torch.vtensor<[],si64>, %arg1: !torch.vtensor<[4,4],f32>) -> !torch.vtensor<[],i1>
