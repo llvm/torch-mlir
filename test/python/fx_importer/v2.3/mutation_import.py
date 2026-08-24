@@ -380,7 +380,9 @@ def test_const_argument_edge_cases():
 # CHECK-SAME: (!torch.vtensor<[1,10,64],f32>, !torch.none)
 # CHECK: %[[int1:.+]] = torch.constant.int 1
 # CHECK: %[[int0:.+]] = torch.constant.int 0
-# CHECK-DAG: %[[buffer:.+]] = torch.aten.transpose.int %arg0, %[[int1]], %[[int0]] : !torch.vtensor<[1,10,64],f32>, !torch.int, !torch.int -> !torch.vtensor<[10,1,64],f32>
+# CHECK: %[[int2:.+]] = torch.constant.int 2
+# CHECK: %[[perm:.+]] = torch.prim.ListConstruct %[[int1]], %[[int0]], %[[int2]] : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+# CHECK-DAG: %[[buffer:.+]] = torch.aten.permute %arg0, %[[perm]] : !torch.vtensor<[1,10,64],f32>, !torch.list<int> -> !torch.vtensor<[10,1,64],f32>
 def test_const_argument_from_multiheadattention_layer():
     """
     Test case using actual MultiheadAttention where a constantArgument appears automatically

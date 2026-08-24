@@ -213,7 +213,8 @@ def test_stateless_fx_import():
 
 @run
 # CHECK-LABEL: test_full
-# CHECK:    %2 = torch.aten.fill.Scalar %1, %int0 : !torch.vtensor<[],i1>, !torch.int -> !torch.vtensor<[],i1>
+# CHECK:    %[[LIT:.*]] = torch.vtensor.literal(dense<false> : tensor<i1>) : !torch.vtensor<[],i1>
+# CHECK:    return %[[LIT]] : !torch.vtensor<[],i1>
 def test_full():
     class Basic(nn.Module):
         def __init__(self):
@@ -289,7 +290,7 @@ def test_while_loop_two_returns():
 # CHECK: func.func private @sdpa_score0(%arg0: !torch.vtensor<[],f32>, %arg1: !torch.vtensor<[],si32>, %arg2: !torch.vtensor<[],si32>, %arg3: !torch.vtensor<[],si32>, %arg4: !torch.vtensor<[],si32>) -> !torch.vtensor<[],f32>
 # CHECK: torch.aten.tanh
 # CHECK: func.func private @sdpa_mask0(%arg0: !torch.vtensor<[],si32>, %arg1: !torch.vtensor<[],si32>, %arg2: !torch.vtensor<[],si32>, %arg3: !torch.vtensor<[],si32>) -> !torch.vtensor<[],i1>
-# CHECK: torch.aten.new_ones
+# CHECK: torch.aten.full_like
 # Then check the main function.
 # CHECK: func.func @test_flex_attention(%arg0: !torch.vtensor<[4,8,1024,64],f32>, %arg1: !torch.vtensor<[4,8,1024,64],f32>, %arg2: !torch.vtensor<[4,8,1024,64],f32>)
 # CHECK-SAME: -> !torch.vtensor<[4,8,1024,64],f32>
@@ -371,7 +372,7 @@ def test_flex_attention():
 # CHECK: torch.aten.tanh
 # Note how the mask function is automatically generated and not provided.
 # CHECK: func.func private @sdpa_mask0(%arg0: !torch.vtensor<[],si32>, %arg1: !torch.vtensor<[],si32>, %arg2: !torch.vtensor<[],si32>, %arg3: !torch.vtensor<[],si32>) -> !torch.vtensor<[],i1>
-# CHECK: torch.aten.new_ones
+# CHECK: torch.aten.full_like
 # Then check the main function.
 # CHECK: func.func @test_flex_attention(%arg0: !torch.vtensor<[4,8,1024,64],f32>, %arg1: !torch.vtensor<[4,8,1024,64],f32>, %arg2: !torch.vtensor<[4,8,1024,64],f32>)
 # CHECK-SAME: -> !torch.vtensor<[4,8,1024,64],f32>
