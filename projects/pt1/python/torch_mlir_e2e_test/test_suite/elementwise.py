@@ -5275,6 +5275,67 @@ def ElementwiseDivScalarRoundingModeFloorIntStaticModule_basic(module, tu: TestU
 # ==============================================================================
 
 
+# Large i64 divisor: the divisor 2**30 and the operands exceed the i32 range, so
+# any lowering that truncates to i32 (or computes the input*divisor floor/sign
+# correction in i32) overflows and yields the wrong quotient. Keeps computation
+# in i64. Regression test for the div.Tensor_mode i64 overflow bug.
+class ElementwiseDivScalarRoundingModeFloorInt64Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4], torch.int64, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.div(a, 1073741824, rounding_mode="floor")
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseDivScalarRoundingModeFloorInt64Module()
+)
+def ElementwiseDivScalarRoundingModeFloorInt64Module_basic(module, tu: TestUtils):
+    module.forward(
+        torch.tensor(
+            [9223372036854775806, -9223372036854775807, 1073741824, -3],
+            dtype=torch.int64,
+        )
+    )
+
+
+class ElementwiseDivScalarRoundingModeTruncInt64Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4], torch.int64, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.div(a, 1073741824, rounding_mode="trunc")
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseDivScalarRoundingModeTruncInt64Module()
+)
+def ElementwiseDivScalarRoundingModeTruncInt64Module_basic(module, tu: TestUtils):
+    module.forward(
+        torch.tensor(
+            [9223372036854775806, -9223372036854775807, 1073741824, -3],
+            dtype=torch.int64,
+        )
+    )
+
+
+# ==============================================================================
+
+
 class ElementwiseDivTensorRoundingModeTruncModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

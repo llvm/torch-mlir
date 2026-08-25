@@ -502,3 +502,47 @@ def test_nonzero():
         import_symbolic_shape_expressions=True,
     )
     print(m)
+
+
+@run
+# CHECK-LABEL: test_slice_with_negated_symbolic_dim
+# CHECK:      func.func @main(
+# CHECK-SAME:       %[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[?,4],f32>,
+# CHECK-SAME:       %[[ARG1:[a-zA-Z0-9]+]]: !torch.vtensor<[?,4],f32>) -> !torch.vtensor<[?,4],f32> {
+# CHECK:        %[[S0:.+]] = torch.symbolic_int "{{[a-z0-9]+}}" {min_val = 2, max_val = {{[0-9]+}}} : !torch.int
+# CHECK:        %[[S1:.+]] = torch.symbolic_int "{{[a-z0-9]+}}" {min_val = 2, max_val = {{[0-9]+}}} : !torch.int
+# CHECK:        torch.bind_symbolic_shape %[[ARG0]], [%[[S0]]], affine_map<()[s0] -> (s0, 4)> : !torch.vtensor<[?,4],f32>
+# CHECK:        torch.bind_symbolic_shape %[[ARG1]], [%[[S1]]], affine_map<()[s0] -> (s0, 4)> : !torch.vtensor<[?,4],f32>
+# CHECK:        %[[SIZE:.+]] = torch.aten.size.int %[[ARG1]], {{.*}} : !torch.vtensor<[?,4],f32>, !torch.int -> !torch.int
+# CHECK:        %[[NEG:.+]] = torch.aten.neg.int %[[SIZE]] : !torch.int -> !torch.int
+# CHECK:        %[[SLICE:.+]] = torch.aten.slice.Tensor %[[ARG0]], {{.*}}, %[[NEG]], {{.*}} -> !torch.vtensor<[?,4],f32>
+# CHECK:        torch.bind_symbolic_shape %[[SLICE]], [%[[S1]]], affine_map<()[s0] -> (s0, 4)> : !torch.vtensor<[?,4],f32>
+# CHECK:        %[[ADD:.+]] = torch.aten.add.Tensor %[[SLICE]], %[[ARG1]], {{.*}} -> !torch.vtensor<[?,4],f32>
+# CHECK:        torch.bind_symbolic_shape %[[ADD]], [%[[S1]]], affine_map<()[s0] -> (s0, 4)> : !torch.vtensor<[?,4],f32>
+# CHECK:        return %[[ADD]] : !torch.vtensor<[?,4],f32>
+def test_slice_with_negated_symbolic_dim():
+    class NegatedSymbolicSlice(nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, state: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+            # torch.export captures the negation as a plain Python operator.neg
+            # on a SymInt, which the importer has to map to aten.neg.
+            keep = x.shape[0]
+            return state[-keep:] + x
+
+    # Sample inputs
+    state = torch.randn(16, 4)
+    x = torch.randn(6, 4)
+
+    # Dynamic dim constraints
+    dynamic_shapes = {"state": {0: Dim("s", min=2)}, "x": {0: Dim("q", min=2)}}
+
+    m = fx.export_and_import(
+        NegatedSymbolicSlice(),
+        state,
+        x,
+        dynamic_shapes=dynamic_shapes,
+        import_symbolic_shape_expressions=True,
+    )
+    print(m)

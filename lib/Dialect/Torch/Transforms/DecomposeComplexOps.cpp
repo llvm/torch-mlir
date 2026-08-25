@@ -10678,6 +10678,82 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.linalg_vector_norm` for the `ord` values where the generic
+// `(sum |x|^ord)^(1/ord)` lowering is undefined: `ord = +inf` is `max(|x|)`,
+// `ord = -inf` is `min(|x|)`, and `ord = 0` is the count of nonzero elements
+// `sum(|x| != 0)`. Handling these here makes every backend correct through the
+// already-supported `aten.amax`/`aten.amin`/`aten.sum.dim_IntList` ops. Finite,
+// nonzero `ord` (and non-constant `ord`) are left for the backends' generic
+// lowering.
+class DecomposeAtenLinalgVectorNormOp
+    : public OpRewritePattern<AtenLinalgVectorNormOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLinalgVectorNormOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+
+    // `ord` is an `AnyTorchScalarType`, so an integer `ord` (e.g. `ord = 0`)
+    // imports as a `torch.constant.int`, not a `torch.constant.float`.
+    double ordLiteral;
+    int64_t ordInt;
+    if (matchPattern(op.getOrd(), m_TorchConstantInt(&ordInt)))
+      ordLiteral = static_cast<double>(ordInt);
+    else if (!matchPattern(op.getOrd(), m_TorchConstantFloat(&ordLiteral)))
+      return rewriter.notifyMatchFailure(op, "non-constant `ord` unsupported");
+
+    bool isInf = std::isinf(ordLiteral);
+    bool isZero = ordLiteral == 0.0;
+    if (!isInf && !isZero)
+      return rewriter.notifyMatchFailure(
+          op, "only ord = 0 / +/-inf are decomposed; finite ord is lowered by "
+              "the backends");
+
+    Value self = op.getSelf();
+    auto selfType = dyn_cast<BaseTensorType>(self.getType());
+    if (!selfType || !selfType.hasSizes())
+      return rewriter.notifyMatchFailure(op, "expected input with known rank");
+
+    // `dim = None` means reduce over all dimensions.
+    Value dim = op.getDim();
+    if (isa<Torch::NoneType>(dim.getType())) {
+      SmallVector<Value> allDims;
+      for (int64_t i = 0, rank = selfType.getSizes().size(); i < rank; ++i)
+        allDims.push_back(ConstantIntOp::create(rewriter, loc,
+                                                rewriter.getI64IntegerAttr(i)));
+      dim = PrimListConstructOp::create(
+          rewriter, loc,
+          Torch::ListType::get(Torch::IntType::get(op.getContext())), allDims);
+    }
+
+    Value abs = AtenAbsOp::create(rewriter, loc, self.getType(), self);
+
+    // `ord = +/-inf` are the max/min of the absolute values.
+    if (isInf) {
+      if (ordLiteral > 0)
+        rewriter.replaceOpWithNewOp<AtenAmaxOp>(op, op.getType(), abs, dim,
+                                                op.getKeepdim());
+      else
+        rewriter.replaceOpWithNewOp<AtenAminOp>(op, op.getType(), abs, dim,
+                                                op.getKeepdim());
+      return success();
+    }
+
+    // `ord = 0` is the count of nonzero elements: `sum(|x| != 0)`.
+    Value zero =
+        ConstantFloatOp::create(rewriter, loc, rewriter.getF64FloatAttr(0.0));
+    auto boolType = selfType.getWithSizesAndDtype(selfType.getOptionalSizes(),
+                                                  rewriter.getI1Type());
+    Value nonzero = AtenNeScalarOp::create(rewriter, loc, boolType, abs, zero);
+    Value none = ConstantNoneOp::create(rewriter, loc);
+    rewriter.replaceOpWithNewOp<AtenSumDimIntListOp>(
+        op, op.getType(), nonzero, dim, op.getKeepdim(), /*dtype=*/none);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenRandintLowOp : public OpRewritePattern<AtenRandintLowOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -13625,6 +13701,20 @@ public:
     legalOpsSet.clear();
     legalOpsSet.insert(legalOps.begin(), legalOps.end());
 
+    // The following 62 patterns are superseded by core_aten_decompositions()
+    // on the FX path, and are not produced by the ONNX import path either.
+    // They are retained and will be removed after a deprecation period:
+    // ScaledDotProductAttention, Hardshrink, Softshrink, Hstack, ColumnStack,
+    // NanToNum, TanhBackward, Mv, Renorm, LinalgCross, PixelShuffle,
+    // PixelUnshuffle, ChannelShuffle, LayerNorm, Linspace, Aminmax, Std,
+    // Zero, Hardsigmoid, Prelu, Celu, Fliplr, Flipud, Diag, Trace, Silu,
+    // Heaviside, Linear, Bilinear, BroadcastTensors, ClampMax,
+    // CosineSimilarity, Fix, Frac, Baddbmm, SelectScatter, CountNonzero,
+    // Glu, MseLoss, Selu, PoissonNllLoss, BinaryCrossEntropyWithLogits,
+    // KlDiv, Argsort, TypeAs, Threshold, Absolute, Deg2rad, Rad2deg,
+    // Isneginf, Isposinf, L1Loss, LogSigmoid, Matmul, Relu6, Rot90,
+    // Rrelu, SpecialExpm1, T, Var, VarMean, GroupNorm
+
     addPatternIfTargetOpIsIllegal<DecomposeAtenScaledDotProductAttentionOp>(
         patterns);
 
@@ -13842,6 +13932,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenMseLossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenL1LossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNormScalarOptDimOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLinalgVectorNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandintOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandintLowOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanCorrectionOp>(patterns);

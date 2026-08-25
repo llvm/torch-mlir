@@ -910,6 +910,23 @@ LogicalResult ConvertAtenReductionOp<AtenLinalgVectorNormOp>::matchAndRewrite(
   }
   int64_t inputRank = inputType.getRank();
 
+  // ord = 0 (count of nonzeros, imported as an int) and ord = +/-inf (min/max
+  // of absolute values, imported as a float) are handled by
+  // DecomposeAtenLinalgVectorNormOp; the generic (sum |x|^ord)^(1/ord) lowering
+  // below is undefined for them. Decline before creating any IR so that a
+  // miscompile cannot slip through if decomposition is disabled. Match on the
+  // original `ord` scalar; a non-constant ord is left to the generic path.
+  double ordFloat;
+  int64_t ordInt;
+  bool isConstOrd = true;
+  if (matchPattern(op.getOrd(), m_TorchConstantInt(&ordInt)))
+    ordFloat = static_cast<double>(ordInt);
+  else if (!matchPattern(op.getOrd(), m_TorchConstantFloat(&ordFloat)))
+    isConstOrd = false;
+  if (isConstOrd && (ordFloat == 0.0 || std::isinf(ordFloat)))
+    return rewriter.notifyMatchFailure(
+        op, "ord = 0 / +/-inf are handled by decomposition");
+
   auto outType =
       cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
   auto outElemType = outType.getElementType();
