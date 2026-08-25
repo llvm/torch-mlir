@@ -141,7 +141,7 @@ def test_as_strided_after_to_channels_last():
 @run
 # CHECK-LABEL: test_as_strided_after_contiguous
 # CHECK: func.func @main(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[2,2],f32>
-# CHECK: %[[CONTIG_VIEW:.*]] = torch.aten.transpose.int %arg0
+# CHECK: %[[CONTIG_VIEW:.*]] = torch.aten.permute %arg0
 # CHECK: %[[CONTIG_BASE:.*]] = torch.aten.clone %[[CONTIG_VIEW]]
 # CHECK: %[[CONTIG_INDEX0:.*]] = torch.vtensor.literal{{.*}}tensor<2x2xsi64>
 # CHECK: %[[CONTIG_INDEX1:.*]] = torch.vtensor.literal{{.*}}tensor<2x2xsi64>

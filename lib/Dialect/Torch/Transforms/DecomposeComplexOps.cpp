@@ -13701,6 +13701,20 @@ public:
     legalOpsSet.clear();
     legalOpsSet.insert(legalOps.begin(), legalOps.end());
 
+    // The following 62 patterns are superseded by core_aten_decompositions()
+    // on the FX path, and are not produced by the ONNX import path either.
+    // They are retained and will be removed after a deprecation period:
+    // ScaledDotProductAttention, Hardshrink, Softshrink, Hstack, ColumnStack,
+    // NanToNum, TanhBackward, Mv, Renorm, LinalgCross, PixelShuffle,
+    // PixelUnshuffle, ChannelShuffle, LayerNorm, Linspace, Aminmax, Std,
+    // Zero, Hardsigmoid, Prelu, Celu, Fliplr, Flipud, Diag, Trace, Silu,
+    // Heaviside, Linear, Bilinear, BroadcastTensors, ClampMax,
+    // CosineSimilarity, Fix, Frac, Baddbmm, SelectScatter, CountNonzero,
+    // Glu, MseLoss, Selu, PoissonNllLoss, BinaryCrossEntropyWithLogits,
+    // KlDiv, Argsort, TypeAs, Threshold, Absolute, Deg2rad, Rad2deg,
+    // Isneginf, Isposinf, L1Loss, LogSigmoid, Matmul, Relu6, Rot90,
+    // Rrelu, SpecialExpm1, T, Var, VarMean, GroupNorm
+
     addPatternIfTargetOpIsIllegal<DecomposeAtenScaledDotProductAttentionOp>(
         patterns);
 
