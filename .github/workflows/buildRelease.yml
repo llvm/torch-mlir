@@ -34,8 +34,6 @@ jobs:
           fetch-depth: 0
 
       - uses: ./.github/actions/setup-build
-        with:
-          cache-enabled: 'false'
       - name: Build Python wheels and smoke test.
         run: |
           cd $GITHUB_WORKSPACE
@@ -102,8 +100,6 @@ jobs:
           fetch-depth: 0
 
       - uses: ./.github/actions/setup-build
-        with:
-          cache-enabled: 'false'
       - name: Build Python wheels and smoke test.
         run: |
           cd $GITHUB_WORKSPACE
@@ -160,8 +156,6 @@ jobs:
         with:
           submodules: 'true'
       - uses: ./.github/actions/setup-build
-        with:
-          cache-enabled: 'false'
       - name: Build Python wheels and smoke test.
         run: |
           cd $GITHUB_WORKSPACE
@@ -220,8 +214,6 @@ jobs:
         with:
           submodules: 'true'
       - uses: ./.github/actions/setup-build
-        with:
-          cache-enabled: 'false'
       - name: Set up Visual Studio shell
         uses: egor-tensin/vs-shell@v2
         with:

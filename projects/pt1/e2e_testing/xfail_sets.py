@@ -34,7 +34,6 @@ LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
     "ElementwiseClampInt16Module_basic",
     # TODO: The values are extremely close to the golden values, but the test fails because of strict rtol/atol.
     "AtenInstanceNormModuleFp16_basic",
-    "AtenIntMM_basic",
     # unimplemented lowering torch -> linalg for torchvision.deform_conv2d
     # this is added to check the torch.onnx.export -> import_onnx -> torch path
     "DeformConv2D_basic",
@@ -419,7 +418,6 @@ FX_IMPORTER_XFAIL_SET = {
     "AtenIntBoolOpConstFalseModule_basic",
     "AtenIntBoolOpConstTrueModule_basic",
     "AtenIntBoolOpModule_basic",
-    "AtenIntMM_basic",
     "AtenNonzero1DDynamicModule_basic",  # no lowering for torch.aten.sym_constrain_range_for_size
     "AtenScaledMmBlockScaledFp8Module_basic",
     "AtenScaledMmBlockScaledFp8SwizzledModule_basic",
@@ -649,6 +647,8 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenIntBoolOpConstFalseModule_basic",
     "AtenIntBoolOpConstTrueModule_basic",
     "AtenIntBoolOpModule_basic",
+    # stablehlo matmul requires both operands to have the same element type
+    "AtenIntMMMixedSigni8_basic",
     "AtenItemFpOpModule_basic",
     "AtenMmF16Types_basic",
     "AtenRealView128Module_basic",
@@ -1018,6 +1018,7 @@ FX_IMPORTER_STABLEHLO_CRASHING_SET = {
     "BatchNorm1DModule_basic",
     "BatchNorm2DModule_basic",
     "BatchNorm3DModule_basic",
+    "BatchNormInferenceF16Module_basic",
     "ResNet18Module_basic",
     "ResNet18StaticModule_basic",
     "MobilenetV3Module_basic",
@@ -1684,6 +1685,7 @@ STABLEHLO_PASS_SET = {
     "IndexTensorStaticNonContiguousWithNoneModule_basic",
     "LayerNormLastDimModule_basic",
     "LayerNormModule_basic",
+    "LayerNormNoBiasModule_basic",
     "LayerNormNormalizeOverAllDimsModule_basic",
     "MaxPool2dWithIndicesStaticModule_basic",
     "MeanDimAllReduceKeepdimModule_basic",
@@ -1841,6 +1843,8 @@ FX_IMPORTER_TOSA_CRASHING_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "AddbmmBetaZeroNonFiniteInputModule_basic",
+    "AddbmmWithAlphaBetaModule_basic",
     "AtenAsStridedAfterAliasDetachModule_basic",
     "AtenAsStridedAfterBroadcastToModule_basic",
     "AtenAsStridedAfterChainedViewsModule_basic",
@@ -2138,6 +2142,9 @@ TOSA_PASS_SET = {
     "ReduceMinUnsignedIntModule_basic",
     "ReduceProdDtypeFloatModule_basic",
     "ReduceProdDtypeIntModule_basic",
+    "ReduceProdDimIntInt8Module_basic",
+    "ReduceProdDimIntInt16Module_basic",
+    "ReduceProdDimIntInt32Module_basic",
     "ReduceProdElementTypeBoolModule_basic",
     "ReduceProdFloatModule_basic",
     "ReduceProdSignedIntModule_basic",
@@ -2234,6 +2241,7 @@ TOSA_PASS_SET = {
     "BatchNorm1DWith2DInputModule_basic",
     "BatchNorm2DModule_basic",
     "BatchNorm3DModule_basic",
+    "BatchNormInferenceF16Module_basic",
     "BmmFloatModule_basic",
     "BoolTensorHandleSignless_basic",
     "BoolTensorReturnFalseModule_basic",
@@ -2259,6 +2267,8 @@ TOSA_PASS_SET = {
     "Conv2dWithPaddingDilationStrideStaticModule_basic",
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise",
     "Conv2dWithPaddingDilationStrideStaticModule_depthwise_multiplier",
+    "Conv2dWithPaddingDilationStrideStaticModule_grouped",
+    "Conv2dWithPaddingDilationStrideStaticModule_grouped_multiplier",
     "Conv2dWithPaddingModule_basic",
     "Conv2dWithValidPaddingModule_basic",
     "Conv2dWithSamePaddingModule_basic",
@@ -2955,6 +2965,7 @@ ONNX_XFAIL_SET = {
     "AtenIntTensorByteDtypeModule_basic",
     "AtenIntTensorCharDtypeModule_basic",
     "AtenIntMM_basic",
+    "AtenIntMMMixedSigni8_basic",
     "AtenItemFpOpModule_basic",
     "AtenItemIntOpModule_basic",
     "AtenKthvalueModule_basic",
@@ -3337,9 +3348,19 @@ ONNX_XFAIL_SET = {
     "ScaledDotProductAttentionSameDynamicModule_basic",
     "ScaledDotProductAttentionSameModule_basic",
     "ScatterValueIntModule_basic",
+    # PyTorch's ONNX exporter does not support aten::addbmm.
+    "AddbmmBetaZeroNonFiniteInputModule_basic",
+    # PyTorch's ONNX exporter does not support aten::addbmm.
+    "AddbmmWithAlphaBetaModule_basic",
     "TrilIndicesAllZerosModule_basic",
     "TriuIndicesAllZerosModule_basic",
 }
+
+if torch_version_for_comparison() >= version.parse("2.13.0"):
+    # PyTorch 2.13 and newer ONNX exporters support this addbmm case.
+    ONNX_XFAIL_SET = ONNX_XFAIL_SET - {
+        "AddbmmWithAlphaBetaModule_basic",
+    }
 
 if torch_version_for_comparison() > version.parse("2.4.0.dev"):
     STABLEHLO_PASS_SET = STABLEHLO_PASS_SET - {
@@ -3475,7 +3496,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenPolarDoubleModule_basic",
     "AtenPolarFloatModule_basic",
     "HstackBasicComplexModule_basic",
-    "AtenIntMM_basic",
+    "AtenIntMMMixedSigni8_basic",
     "AtenKthvalueDynamicDimsModule_basic",
     "AtenKthvalueFloat64DynamicDimsModule_basic",
     "AtenKthvalueFloat64Module_basic",
@@ -3575,20 +3596,15 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "CeilFloatModule_basic",
     "ContainsIntList_False",
     "ContainsIntList_True",
-    "Conv1dGroupModule_basic",
-    "Conv2dQInt8Module_grouped",
     "Conv2dQInt8PerChannelModule_basic",
     "Conv2dQInt8PerChannelModule_depthwise",
     "Conv2dQInt8PerChannelModule_grouped",
-    "Conv2dWithPaddingDilationStrideStaticModule_grouped",
-    "Conv2dWithPaddingDilationStrideStaticModule_grouped_multiplier",
     "ConvTbcModule_basic",
     "ConvolutionBackwardModule2DDilated_basic",
     "ConvolutionBackwardModule2DPadded_basic",
     "ConvolutionBackwardModule2DStridedPaddedDilatedGrouped_basic",
     "ConvolutionBackwardModule3DStatic_basic",
     "ConvolutionBackwardModule2D_basic",
-    "ConvolutionModule2DGroups_basic",
     "ConvolutionModule2DGroupedTranspose_basic",
     "ConvolutionModule3DGroups_basic",
     "ConvolutionModule3DGroupsStrided_basic",
@@ -3897,6 +3913,10 @@ ONNX_TOSA_CRASHING_SET = {
 }
 
 ONNX_TOSA_XFAIL_SET = {
+    # PyTorch's ONNX exporter does not support aten::addbmm.
+    "AddbmmBetaZeroNonFiniteInputModule_basic",
+    # PyTorch's ONNX exporter does not support aten::addbmm.
+    "AddbmmWithAlphaBetaModule_basic",
     # ONNX export applies explicit offset to materialized slice storage.
     "AtenAsStridedAfterAliasDetachModule_basic",
     # ONNX export gathers from the materialized empty slice.
@@ -4022,6 +4042,7 @@ ONNX_TOSA_XFAIL_SET = {
     # TODO: The values are extremely close to the golden values, but the test fails because of strict rtol/atol.
     "AtenInstanceNormModuleFp16_basic",
     "AtenIntMM_basic",
+    "AtenIntMMMixedSigni8_basic",
     "AtenKthvalueDynamicDimsModule_basic",
     "AtenKthvalueFloat64DynamicDimsModule_basic",
     "AtenKthvalueFloat64Module_basic",

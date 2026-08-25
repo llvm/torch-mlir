@@ -27,16 +27,22 @@ and Clang's
 
 - Ramiro Leal-Cavazos (@ramiro050) - emeritus
 - Zach Garvey (@zjgarvey)
+- Renato Golin (@rengolin)
+- Artem Gindinson (@AGindinson)
 
 ### CI / Build system / Packaging / [Release](https://github.com/llvm/torch-mlir-release)
 
 - Anush Elangovan (@powderluv)
+- Jeremy Kun (@j2kun)
+- Sayan Saha (@sahas3)
 - Maybe you!*
 
 ### TorchToTOSA
 
 - Eric Kunze (@eric-k256)
 - Suraj Sudhir (@sjarus)
+- Sayan Saha (@sahas3)
+- Vitalii Shutov (@Lallapallooza)
 
 ### TorchToStablehlo
 
@@ -55,6 +61,7 @@ and Clang's
 
 - Sambhav Jain (@sjain-stanford)
 - Ahmed Taei (@asaadaldien)
+- Artem Gindinson (@AGindinson)
 - Maybe you!*
 
 ### LLVM Integrate

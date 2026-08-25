@@ -6643,15 +6643,20 @@ class DecomposeAtenNonzeroOp : public OpRewritePattern<AtenNonzeroOp> {
     int64_t flattenedSize = 1;
     if (inputType.hasSizes()) {
       for (auto size : inputType.getSizes()) {
+        // Any dynamic input dimension makes the flattened size dynamic.
+        if (size == kUnknownSize) {
+          flattenedSize = kUnknownSize;
+          break;
+        }
         flattenedSize *= size;
       }
     } else {
       flattenedSize = kUnknownSize;
     }
 
-    auto flattendInputShape = SmallVector<int64_t>{flattenedSize};
+    auto flattenedInputShape = SmallVector<int64_t>{flattenedSize};
     auto flattenedInputType = rewriter.getType<Torch::ValueTensorType>(
-        flattendInputShape, inputType.getOptionalDtype());
+        flattenedInputShape, inputType.getOptionalDtype());
 
     // %1 = torch.aten.flatten.using_ints %arg0, %int0, %int0_0 :
     auto inputDimsEnd = ConstantIntOp::create(
@@ -6724,10 +6729,8 @@ class DecomposeAtenNonzeroOp : public OpRewritePattern<AtenNonzeroOp> {
                                   /*end=*/numNonzero,
                                   /*step=*/constantOne);
 
-    // TODO fix multidim dynamic support. The following code only work for
-    // static multidim. Convert flattened indices back to multi-dimensional
-    // indices original_shape = t.shape input_shape_tensor =
-    // torch.tensor(original_shape)
+    // Convert flattened indices back to multi-dimensional indices using the
+    // input shape queried at runtime.
     auto shapeType = Torch::ValueTensorType::get(
         rewriter.getContext(), SmallVector<int64_t>{inputRank}, intType);
     SmallVector<Value> shapeValues;
@@ -8724,6 +8727,22 @@ class DecomposeAtenNativeBatchNormOp
         return rewriter.notifyMatchFailure(op, "expected bias to be rank 1");
     }
 
+    auto inputType = dyn_cast<BaseTensorType>(input.getType());
+    if (!inputType || !inputType.hasDtype())
+      return rewriter.notifyMatchFailure(op, "expected input to have a dtype");
+    Type originalDtype = inputType.getDtype();
+    bool useF32Opmath = !training && originalDtype.isF16();
+    if (useF32Opmath) {
+      Type f32Type = rewriter.getF32Type();
+      input = convertTensorToDtype(rewriter, loc, input, f32Type);
+      runningMean = convertTensorToDtype(rewriter, loc, runningMean, f32Type);
+      runningVar = convertTensorToDtype(rewriter, loc, runningVar, f32Type);
+      if (!isa<Torch::NoneType>(weight.getType()))
+        weight = convertTensorToDtype(rewriter, loc, weight, f32Type);
+      if (!isa<Torch::NoneType>(bias.getType()))
+        bias = convertTensorToDtype(rewriter, loc, bias, f32Type);
+    }
+
     Value zero =
         ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
     Value one =
@@ -8829,6 +8848,10 @@ class DecomposeAtenNativeBatchNormOp
           AtenAddTensorOp::create(rewriter, loc, batchNormOutput.getType(),
                                   batchNormOutput, biasBC, one);
     }
+
+    if (useF32Opmath)
+      batchNormOutput =
+          convertTensorToDtype(rewriter, loc, batchNormOutput, originalDtype);
 
     rewriter.replaceOp(op, {batchNormOutput, meanOut, invstdOut});
     return success();
@@ -10050,6 +10073,105 @@ class DecomposeAtenFmodTensorOp : public OpRewritePattern<AtenFmodTensorOp> {
 } // namespace
 
 namespace {
+// Decompose `aten.addbmm` into a matrix multiplication that contracts both the
+// batch and inner dimensions, followed by a scaled addition.
+class DecomposeAtenAddbmmOp : public OpRewritePattern<AtenAddbmmOp> {
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenAddbmmOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto inputType = cast<BaseTensorType>(op.getSelf().getType());
+    auto batch1Type = cast<BaseTensorType>(op.getBatch1().getType());
+    auto batch2Type = cast<BaseTensorType>(op.getBatch2().getType());
+    auto resultType = cast<BaseTensorType>(op.getType());
+    if (!inputType.hasDtype() || !batch1Type.hasDtype() ||
+        !batch2Type.hasDtype() || !resultType.hasDtype() ||
+        !inputType.getDtype().isF32() || !batch1Type.getDtype().isF32() ||
+        !batch2Type.getDtype().isF32() || !resultType.getDtype().isF32())
+      return rewriter.notifyMatchFailure(
+          op, "expected all tensor operands and the result to be float32");
+    Type resultDtype = resultType.getDtype();
+    Value input = op.getSelf();
+    Value batch1 = op.getBatch1();
+    Value batch2 = op.getBatch2();
+
+    bool betaIsZero;
+    double betaFloat;
+    int64_t betaInt;
+    if (matchPattern(op.getBeta(), m_TorchConstantFloat(&betaFloat))) {
+      betaIsZero = betaFloat == 0.0;
+    } else if (matchPattern(op.getBeta(), m_TorchConstantInt(&betaInt))) {
+      betaIsZero = betaInt == 0;
+    } else {
+      return rewriter.notifyMatchFailure(op, "expected beta to be constant");
+    }
+
+    if (!batch1Type.hasSizes() || !batch2Type.hasSizes())
+      return rewriter.notifyMatchFailure(
+          op, "expected batch1 and batch2 to be ranked");
+    ArrayRef<int64_t> batch1Sizes = batch1Type.getSizes();
+    ArrayRef<int64_t> batch2Sizes = batch2Type.getSizes();
+    if (batch1Sizes.size() != 3 || batch2Sizes.size() != 3)
+      return rewriter.notifyMatchFailure(
+          op, "expected batch1 and batch2 to have rank 3");
+
+    Value zero = ConstantIntOp::create(rewriter, loc, 0);
+    Value one = ConstantIntOp::create(rewriter, loc, 1);
+    Value two = ConstantIntOp::create(rewriter, loc, 2);
+    Value permutation = PrimListConstructOp::create(
+        rewriter, loc, ListType::get(zero.getType()),
+        ArrayRef<Value>{one, zero, two});
+
+    // Unlike baddbmm, addbmm sums the batch matmul results into a rank-2
+    // output. A direct bmm followed by sum would materialize a [B, N, P]
+    // intermediate. Instead, fold B and K into one contraction dimension and
+    // compute [N, B*K] @ [B*K, P], performing both reductions in one mm.
+    SmallVector<int64_t> permutedBatch1Sizes{batch1Sizes[1], batch1Sizes[0],
+                                             batch1Sizes[2]};
+    Type permutedBatch1Type =
+        batch1Type.getWithSizesAndDtype(permutedBatch1Sizes, resultDtype);
+    Value permutedBatch1 = AtenPermuteOp::create(
+        rewriter, loc, permutedBatch1Type, batch1, permutation);
+
+    auto multiplySizes = [](int64_t lhs, int64_t rhs) {
+      if (lhs == kUnknownSize || rhs == kUnknownSize)
+        return kUnknownSize;
+      return lhs * rhs;
+    };
+    int64_t batch1ContractingSize =
+        multiplySizes(batch1Sizes[0], batch1Sizes[2]);
+    int64_t batch2ContractingSize =
+        multiplySizes(batch2Sizes[0], batch2Sizes[1]);
+    SmallVector<int64_t> flattenedBatch1Sizes{batch1Sizes[1],
+                                              batch1ContractingSize};
+    SmallVector<int64_t> flattenedBatch2Sizes{batch2ContractingSize,
+                                              batch2Sizes[2]};
+    Type flattenedBatch1Type =
+        batch1Type.getWithSizesAndDtype(flattenedBatch1Sizes, resultDtype);
+    Type flattenedBatch2Type =
+        batch2Type.getWithSizesAndDtype(flattenedBatch2Sizes, resultDtype);
+    Value flattenedBatch1 = PrimsCollapseOp::create(
+        rewriter, loc, flattenedBatch1Type, permutedBatch1, one, two);
+    Value flattenedBatch2 = PrimsCollapseOp::create(
+        rewriter, loc, flattenedBatch2Type, batch2, zero, one);
+    Value contraction = AtenMmOp::create(rewriter, loc, op.getType(),
+                                         flattenedBatch1, flattenedBatch2);
+    if (betaIsZero) {
+      rewriter.replaceOpWithNewOp<AtenMulScalarOp>(op, op.getType(),
+                                                   contraction, op.getAlpha());
+      return success();
+    }
+    Value scaledInput = AtenMulScalarOp::create(rewriter, loc, input.getType(),
+                                                input, op.getBeta());
+    Value result = AtenAddTensorOp::create(
+        rewriter, loc, op.getType(), scaledInput, contraction, op.getAlpha());
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose `aten.baddbmm` op into `aten.bmm`, `aten.mul.Scalar`, and
 // `aten.add.Tensor` op.
 class DecomposeAtenBaddbmmOp : public OpRewritePattern<AtenBaddbmmOp> {
@@ -10550,6 +10672,82 @@ public:
     rewriter.replaceOpWithNewOp<AtenLinalgVectorNormOp>(
         op, op.getType(), op.getSelf(), ord, op.getDim(), op.getKeepdim(),
         /*dtype=*/none);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+// Decompose `aten.linalg_vector_norm` for the `ord` values where the generic
+// `(sum |x|^ord)^(1/ord)` lowering is undefined: `ord = +inf` is `max(|x|)`,
+// `ord = -inf` is `min(|x|)`, and `ord = 0` is the count of nonzero elements
+// `sum(|x| != 0)`. Handling these here makes every backend correct through the
+// already-supported `aten.amax`/`aten.amin`/`aten.sum.dim_IntList` ops. Finite,
+// nonzero `ord` (and non-constant `ord`) are left for the backends' generic
+// lowering.
+class DecomposeAtenLinalgVectorNormOp
+    : public OpRewritePattern<AtenLinalgVectorNormOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenLinalgVectorNormOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+
+    // `ord` is an `AnyTorchScalarType`, so an integer `ord` (e.g. `ord = 0`)
+    // imports as a `torch.constant.int`, not a `torch.constant.float`.
+    double ordLiteral;
+    int64_t ordInt;
+    if (matchPattern(op.getOrd(), m_TorchConstantInt(&ordInt)))
+      ordLiteral = static_cast<double>(ordInt);
+    else if (!matchPattern(op.getOrd(), m_TorchConstantFloat(&ordLiteral)))
+      return rewriter.notifyMatchFailure(op, "non-constant `ord` unsupported");
+
+    bool isInf = std::isinf(ordLiteral);
+    bool isZero = ordLiteral == 0.0;
+    if (!isInf && !isZero)
+      return rewriter.notifyMatchFailure(
+          op, "only ord = 0 / +/-inf are decomposed; finite ord is lowered by "
+              "the backends");
+
+    Value self = op.getSelf();
+    auto selfType = dyn_cast<BaseTensorType>(self.getType());
+    if (!selfType || !selfType.hasSizes())
+      return rewriter.notifyMatchFailure(op, "expected input with known rank");
+
+    // `dim = None` means reduce over all dimensions.
+    Value dim = op.getDim();
+    if (isa<Torch::NoneType>(dim.getType())) {
+      SmallVector<Value> allDims;
+      for (int64_t i = 0, rank = selfType.getSizes().size(); i < rank; ++i)
+        allDims.push_back(ConstantIntOp::create(rewriter, loc,
+                                                rewriter.getI64IntegerAttr(i)));
+      dim = PrimListConstructOp::create(
+          rewriter, loc,
+          Torch::ListType::get(Torch::IntType::get(op.getContext())), allDims);
+    }
+
+    Value abs = AtenAbsOp::create(rewriter, loc, self.getType(), self);
+
+    // `ord = +/-inf` are the max/min of the absolute values.
+    if (isInf) {
+      if (ordLiteral > 0)
+        rewriter.replaceOpWithNewOp<AtenAmaxOp>(op, op.getType(), abs, dim,
+                                                op.getKeepdim());
+      else
+        rewriter.replaceOpWithNewOp<AtenAminOp>(op, op.getType(), abs, dim,
+                                                op.getKeepdim());
+      return success();
+    }
+
+    // `ord = 0` is the count of nonzero elements: `sum(|x| != 0)`.
+    Value zero =
+        ConstantFloatOp::create(rewriter, loc, rewriter.getF64FloatAttr(0.0));
+    auto boolType = selfType.getWithSizesAndDtype(selfType.getOptionalSizes(),
+                                                  rewriter.getI1Type());
+    Value nonzero = AtenNeScalarOp::create(rewriter, loc, boolType, abs, zero);
+    Value none = ConstantNoneOp::create(rewriter, loc);
+    rewriter.replaceOpWithNewOp<AtenSumDimIntListOp>(
+        op, op.getType(), nonzero, dim, op.getKeepdim(), /*dtype=*/none);
     return success();
   }
 };
@@ -13697,6 +13895,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenCopysignTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenLdexpTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFmodTensorOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenAddbmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBaddbmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideScalarOp>(patterns);
@@ -13719,6 +13918,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenMseLossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenL1LossOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNormScalarOptDimOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenLinalgVectorNormOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandintOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandintLowOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanCorrectionOp>(patterns);

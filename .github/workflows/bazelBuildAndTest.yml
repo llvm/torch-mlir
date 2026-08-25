@@ -69,11 +69,8 @@ jobs:
                     -v "$(pwd)":"/opt/src/torch-mlir" \
                     -v "${HOME}/.cache/bazel":"/root/.cache/bazel" \
                     torch-mlir:ci \
-                    bazel run //:buildifier
-          if [ -n "$(git status --porcelain)" ]; then
-            echo "Please 'bazel run //:buildifier' and commit changes."
-            exit 1
-          fi
+                    bazel run //:buildifier.check \
+            || { echo "Buildifier found formatting or lint issues. Run 'bazel run //:buildifier' to fix them."; exit 1; }
 
       - name: Bazel build torch-mlir
         run: |

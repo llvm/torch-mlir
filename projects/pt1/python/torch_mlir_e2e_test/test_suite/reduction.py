@@ -881,6 +881,79 @@ def ReduceProdDimIntFloatModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ReduceProdDimIntInt8Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4, 5], torch.int8, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.prod(a, 1)
+
+
+@register_test_case(module_factory=lambda: ReduceProdDimIntInt8Module())
+def ReduceProdDimIntInt8Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, 5).to(torch.int8))
+
+
+# ==============================================================================
+
+
+class ReduceProdDimIntInt16Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4, 5], torch.int16, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.prod(a, 1)
+
+
+@register_test_case(module_factory=lambda: ReduceProdDimIntInt16Module())
+def ReduceProdDimIntInt16Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, 5).to(torch.int16))
+
+
+# ==============================================================================
+
+
+class ReduceProdDimIntInt32Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            (
+                [3, 4, 5],
+                torch.int32,
+                True,
+            ),  # Dynamic shapes not supported for prod int, using static
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.prod(a, 1)  # Implicit conversion int32->int64
+
+
+@register_test_case(module_factory=lambda: ReduceProdDimIntInt32Module())
+def ReduceProdDimIntInt32Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, 5).to(torch.int32))
+
+
+# ==============================================================================
+
+
 class ReduceAllDimEmpty(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1991,6 +2064,149 @@ class ReduceLN3NormModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReduceLN3NormModule())
 def ReduceLN3NormModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
+
+
+# ==============================================================================
+
+
+class ReduceLInfNormModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.linalg.vector_norm(a, dim=0, ord=float("inf"))
+
+
+@register_test_case(module_factory=lambda: ReduceLInfNormModule())
+def ReduceLInfNormModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5))
+
+
+# ==============================================================================
+
+
+class ReduceLNegInfNormModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.linalg.vector_norm(a, dim=0, ord=float("-inf"))
+
+
+@register_test_case(module_factory=lambda: ReduceLNegInfNormModule())
+def ReduceLNegInfNormModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5))
+
+
+# ==============================================================================
+
+
+class ReduceL0NormModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.linalg.vector_norm(a, dim=0, ord=0)
+
+
+@register_test_case(module_factory=lambda: ReduceL0NormModule())
+def ReduceL0NormModule_basic(module, tu: TestUtils):
+    # Include exact zeros so the nonzero-count semantics are exercised.
+    module.forward(torch.tensor([0.0, 1.5, 0.0, -2.0, 3.0]))
+
+
+# ==============================================================================
+
+
+# ord = +inf over a single dim of a multidim input, with keepdim.
+class ReduceLInfNormKeepDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.linalg.vector_norm(a, dim=1, keepdim=True, ord=float("inf"))
+
+
+@register_test_case(module_factory=lambda: ReduceLInfNormKeepDimModule())
+def ReduceLInfNormKeepDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+# ord = -inf reducing over all dims (dim=None) of a multidim input.
+class ReduceLNegInfNormNoneDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.linalg.vector_norm(a, dim=None, ord=float("-inf"))
+
+
+@register_test_case(module_factory=lambda: ReduceLNegInfNormNoneDimModule())
+def ReduceLNegInfNormNoneDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4))
+
+
+# ==============================================================================
+
+
+# ord = 0 over multiple dims, with keepdim, of a multidim input.
+class ReduceL0NormMultiDimKeepDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.linalg.vector_norm(a, dim=[0, 1], keepdim=True, ord=0)
+
+
+@register_test_case(module_factory=lambda: ReduceL0NormMultiDimKeepDimModule())
+def ReduceL0NormMultiDimKeepDimModule_basic(module, tu: TestUtils):
+    # Include exact zeros so the nonzero-count semantics are exercised.
+    module.forward(torch.tensor([[0.0, 1.5, 0.0], [-2.0, 0.0, 3.0]]))
 
 
 # ==============================================================================

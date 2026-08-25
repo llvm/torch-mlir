@@ -1495,6 +1495,19 @@ Value truncFloatDiv(PatternRewriter &rewriter, Operation *op,
   return truncFloatDivWithDivResult(rewriter, op, outType, divResult).value();
 }
 
+// tosa.intdiv only legalizes i32 and i64 element types. Pick the element type
+// used for the trunc-divide and its floor/sign correction arithmetic: keep i64
+// inputs in i64 so that neither the divide nor the `input * divisor` products
+// overflow (a large i64 divisor otherwise wraps in i32 and yields a wrong
+// quotient), and widen narrower integer types to i32 as before.
+static RankedTensorType getIntDivComputeType(TensorType outType,
+                                             PatternRewriter &rewriter) {
+  Type computeElemTy = outType.getElementType().isInteger(64)
+                           ? rewriter.getIntegerType(64)
+                           : rewriter.getIntegerType(32);
+  return RankedTensorType::get(outType.getShape(), computeElemTy);
+}
+
 // Function to perform division with floor rounding mode (rounding result
 // down) for integer type inputs.
 std::optional<Value> floorIntDiv(PatternRewriter &rewriter, Operation *op,
@@ -1507,18 +1520,21 @@ std::optional<Value> floorIntDiv(PatternRewriter &rewriter, Operation *op,
   if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), lhs, rhs).failed())
     return std::nullopt;
 
-  // TOSA IntDiv requires inputs to be i32
-  auto i32Type =
-      RankedTensorType::get(outType.getShape(), rewriter.getIntegerType(32));
-  lhs = tosa::tosaCastTensorToType(rewriter, lhs, i32Type).value();
-  rhs = tosa::tosaCastTensorToType(rewriter, rhs, i32Type).value();
+  auto computeType = getIntDivComputeType(outType, rewriter);
+  lhs = tosa::tosaCastTensorToType(rewriter, lhs, computeType).value();
+  rhs = tosa::tosaCastTensorToType(rewriter, rhs, computeType).value();
 
   auto intDivOp =
-      tosa::IntDivOp::create(rewriter, op->getLoc(), i32Type, lhs, rhs);
+      tosa::IntDivOp::create(rewriter, op->getLoc(), computeType, lhs, rhs);
 
-  auto zero = tosa::getConstTensor<int32_t>(rewriter, op, 0, {}).value();
-
-  auto one = tosa::getConstTensor<int32_t>(rewriter, op, 1, {}).value();
+  Value zero, one;
+  if (computeType.getElementType().isInteger(64)) {
+    zero = tosa::getConstTensor<int64_t>(rewriter, op, 0, {}).value();
+    one = tosa::getConstTensor<int64_t>(rewriter, op, 1, {}).value();
+  } else {
+    zero = tosa::getConstTensor<int32_t>(rewriter, op, 0, {}).value();
+    one = tosa::getConstTensor<int32_t>(rewriter, op, 1, {}).value();
+  }
 
   if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), lhs, one).failed() ||
       mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), lhs, zero).failed())
@@ -1527,14 +1543,14 @@ std::optional<Value> floorIntDiv(PatternRewriter &rewriter, Operation *op,
   auto boolType =
       RankedTensorType::get(outType.getShape(), rewriter.getIntegerType(1));
 
-  auto lhsMulRhs = tosa::createMulOpAndCast(rewriter, op, i32Type, lhs, rhs,
+  auto lhsMulRhs = tosa::createMulOpAndCast(rewriter, op, computeType, lhs, rhs,
                                             /*shift=*/0);
 
   auto lhsRhsDifferentSign = tosa::GreaterOp::create(rewriter, op->getLoc(),
                                                      boolType, zero, lhsMulRhs);
 
-  auto truncMulRhs = tosa::createMulOpAndCast(rewriter, op, i32Type, intDivOp,
-                                              rhs, /*shift=*/0);
+  auto truncMulRhs = tosa::createMulOpAndCast(rewriter, op, computeType,
+                                              intDivOp, rhs, /*shift=*/0);
 
   auto truncMulRhsEqualLhs =
       tosa::EqualOp::create(rewriter, op->getLoc(), boolType, truncMulRhs, lhs);
@@ -1543,14 +1559,14 @@ std::optional<Value> floorIntDiv(PatternRewriter &rewriter, Operation *op,
       rewriter, op->getLoc(), boolType, truncMulRhsEqualLhs);
 
   auto truncMinusOne =
-      tosa::SubOp::create(rewriter, op->getLoc(), i32Type, intDivOp, one);
+      tosa::SubOp::create(rewriter, op->getLoc(), computeType, intDivOp, one);
 
   auto cond =
       tosa::LogicalAndOp::create(rewriter, op->getLoc(), boolType,
                                  lhsRhsDifferentSign, truncMulRhsNotEqualLhs);
 
-  auto selectOp = tosa::SelectOp::create(rewriter, op->getLoc(), i32Type, cond,
-                                         truncMinusOne, intDivOp);
+  auto selectOp = tosa::SelectOp::create(rewriter, op->getLoc(), computeType,
+                                         cond, truncMinusOne, intDivOp);
 
   Value result =
       tosa::tosaCastTensorToType(rewriter, selectOp, outType).value();
@@ -1647,15 +1663,13 @@ public:
         // to C-style integer division.
         // None: no rounding mode.
 
-        // TOSA IntDiv requires inputs to be i32
-        auto i32Type = RankedTensorType::get(outType.getShape(),
-                                             rewriter.getIntegerType(32));
-        lhs = tosa::tosaCastTensorToType(rewriter, lhs, i32Type).value();
-        rhsTensor =
-            tosa::tosaCastTensorToType(rewriter, rhsTensor, i32Type).value();
+        auto computeType = getIntDivComputeType(outType, rewriter);
+        lhs = tosa::tosaCastTensorToType(rewriter, lhs, computeType).value();
+        rhsTensor = tosa::tosaCastTensorToType(rewriter, rhsTensor, computeType)
+                        .value();
 
-        auto intDivOp = tosa::IntDivOp::create(rewriter, op->getLoc(), i32Type,
-                                               lhs, rhsTensor);
+        auto intDivOp = tosa::IntDivOp::create(rewriter, op->getLoc(),
+                                               computeType, lhs, rhsTensor);
 
         result =
             tosa::tosaCastTensorToType(rewriter, intDivOp, outType).value();
@@ -2355,10 +2369,19 @@ public:
                          const TypeConverter *typeConverter) const override {
     if constexpr (!std::is_same_v<AtenOpT, AtenMatmulOp> &&
                   !std::is_same_v<AtenOpT, AtenMmOp> &&
-                  !std::is_same_v<AtenOpT, AtenBmmOp>) {
+                  !std::is_same_v<AtenOpT, AtenBmmOp> &&
+                  !std::is_same_v<AtenOpT, AtenAddmmOp>) {
       return false;
     } else {
-      auto lhs = adaptor.getSelf();
+      Value lhs;
+      if constexpr (std::is_same_v<AtenOpT, AtenAddmmOp>) {
+        lhs = adaptor.getMat1();
+        auto biasTy = dyn_cast<RankedTensorType>(adaptor.getSelf().getType());
+        if (biasTy && mlir::tosa::typeHasZeroDim(biasTy))
+          return false;
+      } else {
+        lhs = adaptor.getSelf();
+      }
       Value rhs;
       if constexpr (std::is_same_v<AtenOpT, AtenMatmulOp>)
         rhs = adaptor.getOther();
@@ -2379,10 +2402,13 @@ public:
     }
   }
 
+  // When keepRank3Result is true, return the native rank-3 TOSA matmul result;
+  // the caller is responsible for reshaping it to the operation's result shape.
   LogicalResult performMatmul(AtenOpT op, OpAdaptor adaptor,
                               ConversionPatternRewriter &rewriter, Value &lhs,
                               Value &rhs, Value &lhsZp, Value &rhsZp,
-                              Value &output) const {
+                              Value &output,
+                              bool keepRank3Result = false) const {
 
     auto lhsTy = cast<RankedTensorType>(lhs.getType());
     auto rhsTy = cast<RankedTensorType>(rhs.getType());
@@ -2828,7 +2854,8 @@ public:
     // Perform the reshape to output shape. This is always required unless max
     // input rank=3 and there was no broadcasting, in which case the tosa.matmul
     // output itself is correctly shaped.
-    bool performOpReshape = !(maxInputRank == 3 && !performBatchDimBroadcast);
+    bool performOpReshape =
+        !(maxInputRank == 3 && !performBatchDimBroadcast) && !keepRank3Result;
 
     if (performOpReshape) {
       // Since the output shape may be unknown, we construct it
@@ -3083,6 +3110,127 @@ public:
           op, "unsupported: aten.mm/aten.bmm with mixed quantization");
     }
 
+    return success();
+  }
+};
+
+// Lowers statically shaped floating-point addmm while retaining the rank-3
+// matmul result so that the bias add can be done before the reshape.
+class ConvertAtenAddmmOp : public ConvertAtenMatmulBaseOp<AtenAddmmOp> {
+  static bool isStaticRanked(RankedTensorType type, int64_t rank) {
+    return type && type.hasStaticShape() && type.getRank() == rank;
+  }
+
+  static std::optional<double> getConstantScalar(Value value) {
+    double floatValue;
+    if (matchPattern(value, m_TorchConstantFloat(&floatValue))) {
+      return floatValue;
+    }
+
+    int64_t intValue;
+    if (matchPattern(value, m_TorchConstantInt(&intValue))) {
+      return static_cast<double>(intValue);
+    }
+    return std::nullopt;
+  }
+
+  static FailureOr<Value> scaleTensor(AtenAddmmOp op, Value tensor,
+                                      Value scalar, double scalarValue,
+                                      ConversionPatternRewriter &rewriter) {
+    if (scalarValue == 1.0) {
+      return tensor;
+    }
+
+    auto tensorTy = cast<RankedTensorType>(tensor.getType());
+    SmallVector<int64_t> scalarShape(tensorTy.getRank(), 1);
+    Value scalarTensor;
+    if (failed(torchScalarToTosaTensor(rewriter, op, scalar, scalarTensor,
+                                       tensorTy.getElementType(),
+                                       scalarShape))) {
+      return failure();
+    }
+    return tosa::createMulOpAndCast(rewriter, op, tensorTy, tensor,
+                                    scalarTensor, /*shift=*/0)
+        .getResult();
+  }
+
+public:
+  using ConvertAtenMatmulBaseOp<AtenAddmmOp>::ConvertAtenMatmulBaseOp;
+  using OpAdaptor = AtenAddmmOp::Adaptor;
+
+  LogicalResult
+  matchAndRewriteImpl(AtenAddmmOp op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
+    Value lhs = adaptor.getMat1();
+    Value rhs = adaptor.getMat2();
+    Value bias = adaptor.getSelf();
+    auto lhsTy = dyn_cast<RankedTensorType>(lhs.getType());
+    auto rhsTy = dyn_cast<RankedTensorType>(rhs.getType());
+    auto biasTy = dyn_cast<RankedTensorType>(bias.getType());
+    auto resultTy = dyn_cast<RankedTensorType>(
+        this->getTypeConverter()->convertType(op.getType()));
+
+    std::optional<double> alpha = getConstantScalar(op.getAlpha());
+    std::optional<double> beta = getConstantScalar(op.getBeta());
+    if (!alpha || !beta) {
+      return rewriter.notifyMatchFailure(op,
+                                         "requires constant alpha and beta");
+    }
+    if (!isStaticRanked(lhsTy, 2) || !isStaticRanked(rhsTy, 2) ||
+        !isStaticRanked(resultTy, 2)) {
+      return rewriter.notifyMatchFailure(
+          op, "requires static rank-2 matrices and result");
+    }
+    if (!biasTy || !biasTy.hasStaticShape() || biasTy.getRank() > 2) {
+      return rewriter.notifyMatchFailure(
+          op, "requires static broadcastable bias of rank at most 2");
+    }
+    if (!isa<FloatType>(lhsTy.getElementType()) ||
+        !isa<FloatType>(rhsTy.getElementType()) ||
+        !isa<FloatType>(biasTy.getElementType()) ||
+        !isa<FloatType>(resultTy.getElementType())) {
+      return rewriter.notifyMatchFailure(op, "requires floating-point tensors");
+    }
+
+    Value lhsZp, rhsZp, matmul;
+    if (failed(this->performMatmul(op, adaptor, rewriter, lhs, rhs, lhsZp,
+                                   rhsZp, matmul,
+                                   /*keepRank3Result=*/true))) {
+      return rewriter.notifyMatchFailure(op, "failed to lower addmm matmul");
+    }
+
+    auto matmulTy = cast<RankedTensorType>(matmul.getType());
+    matmul = tosa::tosaCastTensorToType(
+                 rewriter, matmul, matmulTy.clone(resultTy.getElementType()))
+                 .value();
+
+    FailureOr<Value> scaledMatmul =
+        scaleTensor(op, matmul, op.getAlpha(), *alpha, rewriter);
+    if (failed(scaledMatmul)) {
+      return rewriter.notifyMatchFailure(op, "failed to apply addmm alpha");
+    }
+
+    Value result = *scaledMatmul;
+    if (*beta != 0.0) {
+      FailureOr<Value> scaledBias =
+          scaleTensor(op, bias, op.getBeta(), *beta, rewriter);
+      if (failed(scaledBias)) {
+        return rewriter.notifyMatchFailure(op, "failed to apply addmm beta");
+      }
+      bias = *scaledBias;
+
+      if (failed(tosa::EqualizeRanks(rewriter, op.getLoc(), result, bias))) {
+        return rewriter.notifyMatchFailure(
+            op, "failed to broadcast bias to addmm result");
+      }
+      result = tosa::AddOp::create(rewriter, op.getLoc(), result.getType(),
+                                   result, bias)
+                   .getResult();
+    }
+
+    rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
+        op, resultTy, result,
+        tosa::getTosaConstShape(rewriter, op.getLoc(), resultTy.getShape()));
     return success();
   }
 };
@@ -3453,10 +3601,16 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewriteImpl(
   int64_t groups;
   if (!matchPattern(op.getGroups(), m_TorchConstantInt(&groups))) {
     return rewriter.notifyMatchFailure(op, "non-const group size unsupported");
-  } else if (groups != 1 && weightShape[1] != 1) {
+  } else if (groups != 1 && weightShape[1] != 1 && (is3D || transposed)) {
     return rewriter.notifyMatchFailure(
         op, "group size must be 1 (convolution) or weight.dim(1) must be 1 "
-            "(depthwise convolution)");
+            "(depthwise convolution) for 3D or transposed convolutions");
+  } else if (groups >= 32 && weightShape[1] != 1) {
+    // Grouped conv2d is decomposed into one tosa.conv2d per group; bail before
+    // emitting any IR when the group count would produce an excessive number of
+    // ops.
+    return rewriter.notifyMatchFailure(
+        op, "grouped convolution with groups >= 32 is unsupported");
   }
 
   SmallVector<int64_t> stride;
@@ -3896,6 +4050,24 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewriteImpl(
             tosa::getTosaConstShape(rewriter, op->getLoc(),
                                     transformedWeightShape))
             .getResult();
+  } else if (!is3D && !transposed) {
+    // grouped convolution: decompose into `groups` independent conv2d ops.
+    // Torch weight layout: [O, I/G, Kh, Kw] -> TOSA: [O, Kh, Kw, I/G]
+    // See paired emit branch below for the conv2d loop + tosa.concat.
+    outputCDim = makeShapeTorchCompatible(outputTy.getShape())[1];
+    int64_t cIn = inputShape[1];
+    if (outputCDim == kUnknownSize || cIn == kUnknownSize) {
+      return rewriter.notifyMatchFailure(
+          op, "grouped conv requires statically known channel dimensions");
+    }
+    if (cIn % groups != 0 || outputCDim % groups != 0) {
+      return rewriter.notifyMatchFailure(
+          op, "input/output channels must be divisible by groups");
+    }
+    transformedWeightShape = permuteShape(weightShape, weightPermutation);
+    transformedWeight =
+        transposeTensor(weight, weightShape, weightElemTy, weightPermutation,
+                        getTypeConverter(), rewriter, op->getLoc());
   } else {
     return rewriter.notifyMatchFailure(
         op, is3D ? "Unimplemented: grouped or depthwise 3D convolution "
@@ -4068,6 +4240,110 @@ LogicalResult ConvertAtenOp<AtenConvolutionOp>::matchAndRewriteImpl(
             rewriter.getDenseI64ArrayAttr(padding),
             rewriter.getDenseI64ArrayAttr(stride),
             rewriter.getDenseI64ArrayAttr(dilation), accType)
+            .getResult();
+  } else if (!is3D && !transposed) {
+    // grouped convolution: emit one tosa.conv2d per group then concat.
+    // transposedInput is NHWC [N, H, W, C_in]; transformedWeight is
+    // [C_out, Kh, Kw, C_in/G] after the paired weight-transform branch above.
+    auto transposedInputShape = makeShapeTorchCompatible(
+        cast<RankedTensorType>(transposedInput.getType()).getShape());
+    int64_t cInTotal = transposedInputShape[3];
+    int64_t cOutTotal = outputCDim;
+    int64_t cInPerGroup = cInTotal / groups;
+    int64_t cOutPerGroup = cOutTotal / groups;
+
+    auto biasValueOr = getOrCreateBias(cOutTotal);
+    if (failed(biasValueOr))
+      return failure();
+    bias = *biasValueOr;
+    biasElemTy = cast<RankedTensorType>(bias.getType()).getElementType();
+
+    // Per-group output shape: [N, H_out, W_out, C_out/G]
+    SmallVector<int64_t> perGroupOutputShape = {outputShape[0], outputShape[1],
+                                                outputShape[2], cOutPerGroup};
+    auto perGroupOutputTy = RankedTensorType::get(
+        makeShapeLLVMCompatible(perGroupOutputShape), biasElemTy);
+
+    // Per-group slice sizes — identical across all iterations.
+    SmallVector<int64_t> inputSliceSize(transposedInputShape);
+    inputSliceSize[3] = cInPerGroup;
+    auto inputSliceTy = RankedTensorType::get(
+        makeShapeLLVMCompatible(inputSliceSize), inputElemTy);
+    Value inputSizeConst =
+        tosa::getTosaConstShape(rewriter, op->getLoc(), inputSliceSize);
+
+    SmallVector<int64_t> weightSliceSize(transformedWeightShape);
+    weightSliceSize[0] = cOutPerGroup;
+    auto weightSliceTy = RankedTensorType::get(
+        makeShapeLLVMCompatible(weightSliceSize), weightElemTy);
+    Value weightSizeConst =
+        tosa::getTosaConstShape(rewriter, op->getLoc(), weightSliceSize);
+
+    SmallVector<int64_t> biasSliceSize = {cOutPerGroup};
+    auto biasSliceTy = RankedTensorType::get(
+        makeShapeLLVMCompatible(biasSliceSize), biasElemTy);
+    Value biasSizeConst =
+        tosa::getTosaConstShape(rewriter, op->getLoc(), biasSliceSize);
+
+    auto paddingAttr = rewriter.getDenseI64ArrayAttr(padding);
+    auto strideAttr = rewriter.getDenseI64ArrayAttr(stride);
+    auto dilationAttr = rewriter.getDenseI64ArrayAttr(dilation);
+
+    auto convertedInputSliceTy = getTypeConverter()->convertType(inputSliceTy);
+    auto convertedWeightSliceTy =
+        getTypeConverter()->convertType(weightSliceTy);
+    auto convertedBiasSliceTy = getTypeConverter()->convertType(biasSliceTy);
+    auto convertedPerGroupOutTy =
+        getTypeConverter()->convertType(perGroupOutputTy);
+
+    SmallVector<Value> groupResults;
+    groupResults.reserve(groups);
+    for (int64_t g = 0; g < groups; ++g) {
+      // Slice input on dim 3 (NHWC channel): [N, H, W, C_in/G]
+      SmallVector<int64_t> inputSliceStart(transposedInputShape.size(), 0);
+      inputSliceStart[3] = g * cInPerGroup;
+      auto inputSlice =
+          tosa::SliceOp::create(
+              rewriter, op->getLoc(), convertedInputSliceTy, transposedInput,
+              tosa::getTosaConstShape(rewriter, op->getLoc(), inputSliceStart),
+              inputSizeConst)
+              .getResult();
+
+      // Slice weight on dim 0 (output channels): [C_out/G, Kh, Kw, C_in/G]
+      SmallVector<int64_t> weightSliceStart(transformedWeightShape.size(), 0);
+      weightSliceStart[0] = g * cOutPerGroup;
+      auto weightSlice =
+          tosa::SliceOp::create(
+              rewriter, op->getLoc(), convertedWeightSliceTy, transformedWeight,
+              tosa::getTosaConstShape(rewriter, op->getLoc(), weightSliceStart),
+              weightSizeConst)
+              .getResult();
+
+      // Slice bias on dim 0: [C_out/G]
+      SmallVector<int64_t> biasSliceStart = {g * cOutPerGroup};
+      auto biasSlice =
+          tosa::SliceOp::create(
+              rewriter, op->getLoc(), convertedBiasSliceTy, bias,
+              tosa::getTosaConstShape(rewriter, op->getLoc(), biasSliceStart),
+              biasSizeConst)
+              .getResult();
+
+      auto groupConvResult =
+          tosa::Conv2DOp::create(rewriter, op->getLoc(), convertedPerGroupOutTy,
+                                 inputSlice, weightSlice, biasSlice, *inputZp,
+                                 *weightZp, paddingAttr, strideAttr,
+                                 dilationAttr, accType)
+              .getResult();
+      groupResults.push_back(groupConvResult);
+    }
+
+    // Concatenate group results along output-channel dim (NHWC dim 3).
+    auto concatOutputTy =
+        RankedTensorType::get(makeShapeLLVMCompatible(outputShape), biasElemTy);
+    convOpResult =
+        tosa::ConcatOp::create(rewriter, op->getLoc(),
+                               getTypeConverter()->convertType(concatOutputTy),
+                               groupResults, /*axis=*/3)
             .getResult();
   } else {
     return rewriter.notifyMatchFailure(
@@ -11735,6 +12011,10 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
   INSERT_MM_ATENOP_PATTERN(AtenMmOp);
   INSERT_MM_ATENOP_PATTERN(AtenBmmOp);
 #undef INSERT_MM_ATENOP_PATTERN
+
+  illegalOps.insert(AtenAddmmOp::getOperationName());
+  patterns.addWithLabel<ConvertAtenAddmmOp>(AtenAddmmOp::getOperationName(),
+                                            typeConverter, context);
 
 #define INSERT_LINEAR_ATENOP_PATTERN(AtenOp)                                   \
   illegalOps.insert(AtenOp::getOperationName());                               \
