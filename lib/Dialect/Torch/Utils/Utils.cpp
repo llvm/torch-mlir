@@ -80,6 +80,8 @@ torch_upstream::ScalarType Torch::getScalarTypeForType(Type type) {
     return torch_upstream::ScalarType::Half;
   if (type.isUnsignedInteger(8))
     return torch_upstream::ScalarType::Byte;
+  if (type.isUnsignedInteger(32))
+    return torch_upstream::ScalarType::UInt32;
   if (type.isSignedInteger(8))
     return torch_upstream::ScalarType::Char;
   if (isa<QUInt8Type>(type))
@@ -166,6 +168,8 @@ Torch::getTypeForScalarType(MLIRContext *context,
     return mlir::Float16Type::get(context);
   case torch_upstream::ScalarType::Byte:
     return mlir::IntegerType::get(context, 8, mlir::IntegerType::Unsigned);
+  case torch_upstream::ScalarType::UInt32:
+    return mlir::IntegerType::get(context, 32, mlir::IntegerType::Unsigned);
   case torch_upstream::ScalarType::Char:
     return mlir::IntegerType::get(context, 8, mlir::IntegerType::Signed);
   case torch_upstream::ScalarType::QUInt8:
