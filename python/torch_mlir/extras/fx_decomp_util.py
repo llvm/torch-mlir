@@ -21,6 +21,7 @@ DEFAULT_DECOMPOSITIONS = [
     torch.ops.aten.grid_sampler_2d,
     torch.ops.aten._adaptive_avg_pool2d,
     torch.ops.aten.full,
+    torch.ops.aten.logsumexp,
     torch.ops.aten._log_softmax,
     torch.ops.aten._to_copy,
     torch.ops.aten.diag,
