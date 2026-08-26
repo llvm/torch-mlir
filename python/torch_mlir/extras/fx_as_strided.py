@@ -41,7 +41,14 @@ def rewrite_as_strided(g: fx.Graph) -> bool:
             continue
         replacement = _rewrite(g, node)
         node.replace_all_uses_with(replacement)
+        # An ExportedProgram graph_signature references nodes by name (output
+        # specs, buffer/input mutation targets). replace_all_uses_with only
+        # rewires graph edges, so give the replacement the erased node's name to
+        # keep every name-keyed signature entry valid without the callers having
+        # to know about this rewrite.
+        old_name = node.name
         g.erase_node(node)
+        replacement.name = old_name
         changed = True
     if changed:
         g.eliminate_dead_code()

@@ -907,6 +907,55 @@ convertReduceProdOp(PatternRewriter &rewriter, Operation *op,
     return std::nullopt;
   }
 
+  // TOSA does not support integer for REDUCE_PRODUCT. As such, if Prod input is
+  // of int dtype we decompose. Implementation is limited to one reduction axis.
+  if (isa<IntegerType>(input_type.getElementType()) &&
+      axes_elems.getNumElements() == 1) {
+
+    int64_t reduction_axis = axes_elems.getValues<IntegerAttr>()[0].getInt();
+    int64_t reduction_size = input_type.getDimSize(reduction_axis);
+    constexpr int64_t kMaxReductionSize = 16;
+    if (reduction_size <= 0 || reduction_size > kMaxReductionSize)
+      return std::nullopt;
+
+    // Ensure input-/output have the same dtypes
+    auto accumulation_type = input_type.clone(output_type.getElementType());
+    Value casted_input =
+        tosa::tosaCastTensorToType(rewriter, input_value, accumulation_type)
+            .value();
+
+    SmallVector<int64_t> slice_shape(input_type.getShape().begin(),
+                                     input_type.getShape().end());
+    slice_shape[reduction_axis] = 1;
+    auto slice_type =
+        RankedTensorType::get(slice_shape, output_type.getElementType());
+    Value slice_size =
+        tosa::getTosaConstShape(rewriter, op->getLoc(), slice_shape);
+    SmallVector<int64_t> slice_start(input_type.getRank(), 0);
+
+    Value product;
+    for (int64_t index = 0; index < reduction_size; ++index) {
+      slice_start[reduction_axis] = index;
+      Value slice = tosa::SliceOp::create(
+          rewriter, op->getLoc(), slice_type, casted_input,
+          tosa::getTosaConstShape(rewriter, op->getLoc(), slice_start),
+          slice_size);
+      if (!product)
+        product = slice;
+      else
+        product = tosa::createMulOpAndCast(rewriter, op, slice_type, product,
+                                           slice, /*shift=*/0)
+                      .getResult();
+    }
+
+    if (!keep_dims)
+      product = tosa::CreateOpAndInfer<tosa::ReshapeOp>(
+          rewriter, op->getLoc(), output_type, product,
+          tosa::getTosaConstShape(rewriter, op->getLoc(),
+                                  output_type.getShape()));
+    return product;
+  }
+
   return convertReduceOpCommon<tosa::ReduceProductOp>(
       rewriter, op, output_type, input_value, axes_elems, keep_dims,
       output_type.getElementType(), false, 1.0f, 0, 1.0f, 0);
@@ -1072,44 +1121,46 @@ convertLinalgVectorNormOp(PatternRewriter &rewriter, Operation *op,
   }
 
   auto linalgVectorNormOp = cast<AtenLinalgVectorNormOp>(op);
-  // TODO: Add support for ord = {0, +inf, -inf}.
-  auto epsilon = 1e-5;
   double ordLiteralFloat = 1.0;
   int64_t ordLiteralInt = 1;
-  Value ordVal;
-  if (matchPattern(linalgVectorNormOp.getOrd(),
-                   torch::Torch::m_TorchConstantFloat(&ordLiteralFloat))) {
-    ordVal = tosa::getConstTensor<float>(rewriter, op,
-                                         {static_cast<float>(ordLiteralFloat)},
-                                         {}, elemType)
-                 .value();
-  } else if (matchPattern(linalgVectorNormOp.getOrd(),
-                          torch::Torch::m_TorchConstantInt(&ordLiteralInt))) {
-    ordVal = tosa::getConstTensor<float>(rewriter, op,
-                                         {static_cast<float>(ordLiteralInt)},
-                                         {}, elemType)
-                 .value();
-  } else {
+  bool ordIsFloat =
+      matchPattern(linalgVectorNormOp.getOrd(),
+                   torch::Torch::m_TorchConstantFloat(&ordLiteralFloat));
+  bool ordIsInt =
+      !ordIsFloat &&
+      matchPattern(linalgVectorNormOp.getOrd(),
+                   torch::Torch::m_TorchConstantInt(&ordLiteralInt));
+  if (!ordIsFloat && !ordIsInt) {
     op->emitOpError("only support FP or INT type ord parameter");
     return std::nullopt;
   }
 
+  // ord = 0 (count of nonzeros) and ord = +/-inf (min/max of absolute values)
+  // are handled by DecomposeAtenLinalgVectorNormOp; the generic
+  // (sum |x|^ord)^(1/ord) lowering below is undefined for them. Decline before
+  // creating any IR so that a miscompile cannot slip through if decomposition
+  // is disabled.
+  double ordLiteral =
+      ordIsFloat ? ordLiteralFloat : static_cast<double>(ordLiteralInt);
+  if (ordLiteral == 0.0) {
+    (void)rewriter.notifyMatchFailure(op,
+                                      "ord = 0 is handled by decomposition");
+    return std::nullopt;
+  }
+  if (std::isinf(ordLiteral)) {
+    (void)rewriter.notifyMatchFailure(
+        op, "ord = +/-inf are handled by decomposition");
+    return std::nullopt;
+  }
+
+  Value ordVal = tosa::getConstTensor<float>(rewriter, op,
+                                             {static_cast<float>(ordLiteral)},
+                                             {}, elemType)
+                     .value();
   Value ordValRank0 = ordVal;
   if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), input_value, ordVal)
           .failed())
     return std::nullopt;
-
-  if (fabs(ordLiteralFloat) < epsilon ||
-      fabs(static_cast<double>(ordLiteralInt)) < epsilon) {
-    op->emitOpError("unimplemented: L0 norm");
-    return std::nullopt;
-  }
-
-  if (std::isinf(ordLiteralFloat) ||
-      std::isinf(static_cast<double>(ordLiteralInt))) {
-    op->emitOpError("unimplemented: ord = +/- inf");
-    return std::nullopt;
-  }
 
   auto input_value_casted =
       tosa::tosaCastTensorToType(rewriter, input_value, output_type).value();

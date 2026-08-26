@@ -66,6 +66,13 @@ std::optional<Value> getConstTensor(PatternRewriter &rewriter, Operation *op,
                                     ArrayRef<T> vec, ArrayRef<int64_t> shape,
                                     std::optional<Type> dtype = {});
 
+// Create a splat constant without materializing one host value per tensor
+// element.
+template <typename T>
+std::optional<Value>
+getSplatConstTensor(PatternRewriter &rewriter, Operation *op, T value,
+                    ArrayRef<int64_t> shape, std::optional<Type> dtype = {});
+
 // Default function to create tosa.cast op. This should be called instead of
 // directly calling rewriter.create<tosa::CastOp>.
 std::optional<Value> tosaCastTensorToType(PatternRewriter &rewriter, Value src,

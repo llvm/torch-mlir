@@ -52,3 +52,24 @@ func.func @convTransposePositiveEffectivePadding(%arg0: !torch.vtensor<[1,2,4,4]
     %4 = torch.aten.convolution %arg0, %arg1, %none, %0, %1, %2, %true, %3, %int1 : !torch.vtensor<[1,2,4,4],f32>, !torch.vtensor<[2,2,3,3],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,2,10,10],f32>
     return %4 : !torch.vtensor<[1,2,10,10],f32>
   }
+
+// -----
+// CHECK-LABEL: func.func @convTransposeAsymmetricCrop
+// CHECK: %[[TCONV:.*]] = tosa.transpose_conv2d {{.*}} {acc_type = f32, out_pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 3, 3>} {{.*}} -> tensor<1x24x24x2xf32>
+// CHECK-DAG: %[[START_SHAPE:.*]] = tosa.const_shape {values = dense<[0, 2, 2, 0]> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK-DAG: %[[SLICE_SHAPE:.*]] = tosa.const_shape {values = dense<[1, 22, 22, 2]> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK: tosa.slice %[[TCONV]], %[[START_SHAPE]], %[[SLICE_SHAPE]] : (tensor<1x24x24x2xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<1x22x22x2xf32>
+func.func @convTransposeAsymmetricCrop(%arg0: !torch.vtensor<[1,2,8,8],f32>, %arg1: !torch.vtensor<[2,2,3,3],f32>) -> !torch.vtensor<[1,2,22,22],f32> {
+    %true = torch.constant.bool true
+    %int0 = torch.constant.int 0
+    %int1 = torch.constant.int 1
+    %int2 = torch.constant.int 2
+    %int3 = torch.constant.int 3
+    %none = torch.constant.none
+    %stride = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+    %pad = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
+    %dilation = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+    %outpad = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
+    %4 = torch.aten.convolution %arg0, %arg1, %none, %stride, %pad, %dilation, %true, %outpad, %int1 : !torch.vtensor<[1,2,8,8],f32>, !torch.vtensor<[2,2,3,3],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,2,22,22],f32>
+    return %4 : !torch.vtensor<[1,2,22,22],f32>
+  }

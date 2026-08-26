@@ -962,6 +962,15 @@ def aten〇addmm〡shape(self: List[int], mat1: List[int], mat2: List[int], beta
     return upstream_shape_functions.addmm(self, mat1, mat2, beta, alpha)
 
 @check_shape_function([
+    Invocation(TensorOfShape(), TensorOfShape(5, 2, 9), TensorOfShape(5, 9, 7)),
+    Invocation(TensorOfShape(7), TensorOfShape(5, 2, 9), TensorOfShape(5, 9, 7)),
+    ErrorInvocation(TensorOfShape(1, 2, 7), TensorOfShape(5, 2, 9), TensorOfShape(5, 9, 7)),
+])
+def aten〇addbmm〡shape(self: List[int], batch1: List[int], batch2: List[int], beta: float = 1, alpha: float = 1) -> List[int]:
+    bmm_shape = upstream_shape_functions.bmm(batch1, batch2)
+    return upstream_shape_functions.expand(self, bmm_shape[1:])
+
+@check_shape_function([
     Invocation(TensorOfShape(2, 3, 4), TensorOfShape(2, 4, 5)), # Basic case.
     ErrorInvocation(TensorOfShape(2, 3, 7), TensorOfShape(2, 4, 5)), # mismatching contracting dimension.
     ErrorInvocation(TensorOfShape(7, 3, 4), TensorOfShape(2, 4, 5)), # mismatching batch dimension.
@@ -999,6 +1008,10 @@ def aten〇repeat_interleave〇self_int〡shape(self: List[int], repeats: int, d
     else:
         out = self[:dim] + [self[dim] * repeats] + self[dim + 1:]
         return out
+
+def aten〇repeat_interleave〇Tensor〡shape(repeats: List[int], output_size: Optional[int] = None) -> List[int]:
+    assert output_size is not None
+    return [output_size]
 
 
 @check_shape_function([
@@ -1419,6 +1432,30 @@ def aten〇linear〡shape(input: List[int], weight: List[int], bias: Optional[Li
     return upstream_shape_functions.linear(input, weight, bias)
 
 @check_shape_function([
+    Invocation(TensorOfShape(8, 2), TensorOfShape(8, 3), TensorOfShape(4, 2, 3), TensorOfShape(4)), # Basic case
+    Invocation(TensorOfShape(8, 2, 2), TensorOfShape(8, 2, 3), TensorOfShape(4, 2, 3), TensorOfShape(4)), # 3D inputs
+    ErrorInvocation(TensorOfShape(8, 2), TensorOfShape(8, 2, 3), TensorOfShape(4, 2, 3)), # input dimensions don't match
+    ErrorInvocation(TensorOfShape(8, 2), TensorOfShape(8, 3), TensorOfShape(2, 3, 4)), # weight dimensions don't match
+    ErrorInvocation(TensorOfShape(8, 2), TensorOfShape(8, 3), TensorOfShape(4, 2, 3), TensorOfShape(8)), # bias dimensions don't match
+])
+def aten〇bilinear〡shape(input1: List[int], input2: List[int], weight: List[int], bias: Optional[List[int]] = None) -> List[int]:
+    assert len(input1) == len(input2)
+    assert len(weight) == 3
+    assert input1[len(input1)-1] == weight[1]
+    assert input2[len(input2)-1] == weight[2]
+
+    out_shape: List[int] = []
+    for i in range(len(input1)-1):
+        assert input1[i] == input2[i]
+        out_shape.append(input1[i])
+    out_shape.append(weight[0])
+
+    if bias is not None:
+        assert len(bias) == 1 and bias[0] == weight[0]
+        out_shape = upstream_shape_functions.broadcast(out_shape, bias)
+    return out_shape
+
+@check_shape_function([
     Invocation(TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), [], [], [], [], 0), # Basic case
     Invocation(TensorOfShape(4, 5, 6), TensorOfShape(4, 5, 6), TensorOfShape(4, 5, 6), [1], [0], [0], [], 2), # Expansions w/ Non-Zero unroll_dim
     Invocation(TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), TensorOfShape(3, 3, 3), [1, 2], [1, 2], [1, 2], [1, 2], 0), # Multiple expansions
@@ -1529,6 +1566,23 @@ def aten〇new_empty_strided〡shape(self: List[int], size: List[int], stride: L
 ])
 def aten〇diag_embed〡shape(self: List[int], offset: int = 0, dim1: int = -2, dim2: int = -1) -> List[int]:
     return _diag_embed_shape_helper(self, offset, dim1, dim2)
+
+@check_shape_function([
+    Invocation(TensorOfShape(3), diagonal=0), # 1D input, no offset.
+    Invocation(TensorOfShape(3), diagonal=1), # 1D input, positive offset.
+    Invocation(TensorOfShape(3), diagonal=-1), # 1D input, negative offset.
+    Invocation(TensorOfShape(3, 4), diagonal=0), # 2D input, no offset.
+    Invocation(TensorOfShape(3, 4), diagonal=1), # 2D input, positive offset.
+    Invocation(TensorOfShape(3, 4), diagonal=-1), # 2D input, negative offset.
+    ErrorInvocation(TensorOfShape(2, 3, 4)), # Input must be 1D or 2D.
+])
+def aten〇diag〡shape(self: List[int], diagonal: int = 0) -> List[int]:
+    assert len(self) in (1, 2), "Input must be 1-d or 2-d"
+    if len(self) == 1:
+        n = self[0] + abs(diagonal)
+        return [n, n]
+    else:
+        return aten〇diagonal〡shape(self, offset=diagonal, dim1=0, dim2=1)
 
 @check_shape_function([
     Invocation(TensorOfShape(2, 3, 4)), # Basic case.
@@ -3566,9 +3620,9 @@ def aten〇hardswish〡dtype(self_rank_dtype: Tuple[int, int]) -> int:
 @check_dtype_function(_check_two_tensor_op(min_val=0.2, max_val=0.5))
 def aten〇hardtanh_backward〡dtype(grad_output_rank_dtype: Tuple[int, int], self_rank_dtype: Tuple[int, int], min_val: Union[int, float, complex], max_val: Union[int, float, complex]) -> int:
     grad_output_rank, grad_output_dtype = grad_output_rank_dtype
-    if is_integer_dtype(grad_output_dtype):
-        return torch.float32
-    return grad_output_dtype
+    self_rank, self_dtype = self_rank_dtype
+    ranks: List[Optional[int]] = [grad_output_rank, self_rank]
+    return promote_dtypes(ranks, [grad_output_dtype, self_dtype])
 
 @check_dtype_function(_check_two_tensor_op(beta=1.0, threshold=20.0))
 def aten〇softplus_backward〡dtype(grad_output_rank_dtype: Tuple[int, int], self_rank_dtype: Tuple[int, int], beta: Union[int, float, complex], threshold: Union[int, float, complex]) -> int:
@@ -3884,6 +3938,10 @@ def aten〇repeat〡dtype(self_rank_dtype: Tuple[int, int], repeats: List[int]) 
 def aten〇repeat_interleave〇self_int〡dtype(self_rank_dtype: Tuple[int, int], repeats: int, dim: Optional[int] = None, output_size: Optional[int] = None) -> int:
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
+
+def aten〇repeat_interleave〇Tensor〡dtype(repeats_rank_dtype: Tuple[int, int], output_size: Optional[int] = None) -> int:
+    repeats_rank, repeats_dtype = repeats_rank_dtype
+    return repeats_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, dims=[1]))
 def aten〇tile〡dtype(self_rank_dtype: Tuple[int, int], dims: List[int]) -> int:
@@ -4316,8 +4374,7 @@ def aten〇add〡dtype(a: Union[int, float, complex], b: Union[int, float, compl
     dtypes = [get_dtype_of_scalar(a), get_dtype_of_scalar(b)]
     return promote_dtypes(ranks, dtypes)
 
-@check_dtype_function(
-    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bfloat16}))
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇fft_fft〡dtype(self_rank_dtype: Tuple[int, int], n: Optional[int] = None, dim: int = -1, norm: Optional[str] = None) -> int:
     self_rank, self_dtype = self_rank_dtype
     if is_complex_dtype(self_dtype):
@@ -4325,6 +4382,8 @@ def aten〇fft_fft〡dtype(self_rank_dtype: Tuple[int, int], n: Optional[int] = 
     elif self_dtype == torch.float16:
         return torch.complex32
     elif self_dtype == torch.float32:
+        return torch.complex64
+    elif self_dtype == torch.bfloat16:
         return torch.complex64
     elif self_dtype == torch.float64:
         return torch.complex128
@@ -4334,12 +4393,14 @@ def aten〇fft_fft〡dtype(self_rank_dtype: Tuple[int, int], n: Optional[int] = 
         assert False, "Unsupported dtype"
 
 @check_dtype_function(
-    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex32, torch.complex64, torch.complex128, torch.bfloat16}))
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.complex32, torch.complex64, torch.complex128}))
 def aten〇fft_rfft〡dtype(self_rank_dtype: Tuple[int, int], n: Optional[int] = None, dim: int = -1, norm: Optional[str] = None) -> int:
     self_rank, self_dtype = self_rank_dtype
     if self_dtype == torch.float16:
         return torch.complex32
     elif self_dtype == torch.float32:
+        return torch.complex64
+    elif self_dtype == torch.bfloat16:
         return torch.complex64
     elif self_dtype == torch.float64:
         return torch.complex128
@@ -4412,8 +4473,7 @@ def aten〇stft〇center〡dtype(self_rank_dtype: Tuple[int, int], n_fft: int, h
 
     assert False, "Unsupported dtype"
 
-@check_dtype_function(
-    _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bfloat16}))
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
 def aten〇fft_ifft〡dtype(self_rank_dtype: Tuple[int, int], n: Optional[int] = None, dim: int = -1, norm: Optional[str] = None) -> int:
     self_rank, self_dtype = self_rank_dtype
     if is_complex_dtype(self_dtype):
@@ -4421,6 +4481,8 @@ def aten〇fft_ifft〡dtype(self_rank_dtype: Tuple[int, int], n: Optional[int] =
     elif self_dtype == torch.float16:
         return torch.complex32
     elif self_dtype == torch.float32:
+        return torch.complex64
+    elif self_dtype == torch.bfloat16:
         return torch.complex64
     elif self_dtype == torch.float64:
         return torch.complex128
@@ -5114,6 +5176,17 @@ def aten〇addmm〡dtype(self_rank_dtype: Tuple[int, int], mat1_rank_dtype: Tupl
 
     ranks: List[Optional[int]] = [self_rank, mat1_rank, mat2_rank]
     dtypes = [self_dtype, mat1_dtype, mat2_dtype]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1), (1, 1, 1), (1, 1, 1)]))
+def aten〇addbmm〡dtype(self_rank_dtype: Tuple[int, int], batch1_rank_dtype: Tuple[int, int], batch2_rank_dtype: Tuple[int, int], beta: Union[int, float, complex] = 1, alpha: Union[int, float, complex] = 1) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    batch1_rank, batch1_dtype = batch1_rank_dtype
+    batch2_rank, batch2_dtype = batch2_rank_dtype
+
+    ranks: List[Optional[int]] = [self_rank, batch1_rank, batch2_rank]
+    dtypes = [self_dtype, batch1_dtype, batch2_dtype]
     return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(
@@ -5928,6 +6001,11 @@ def aten〇diag_embed〡dtype(self_rank_dtype: Tuple[int, int], offset: int = 0,
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+def aten〇diag〡dtype(self_rank_dtype: Tuple[int, int], diagonal: int = 0) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
 def aten〇count_nonzero〡dtype(self_rank_dtype: Tuple[int, int], dim: Optional[int] = None) -> int:
     return torch.int64
 
@@ -6114,6 +6192,15 @@ def aten〇linear〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_dtype: 
     weight_rank, weight_dtype = weight_rank_dtype
     ranks: List[Optional[int]] = [input_rank, weight_rank]
     dtypes = [input_dtype, weight_dtype]
+    promoted_dtype = promote_dtypes(ranks, dtypes)
+    return promoted_dtype
+
+def aten〇bilinear〡dtype(input1_rank_dtype: Tuple[int, int], input2_rank_dtype: Tuple[int, int], weight_rank_dtype: Tuple[int, int], bias_rank_dtype: Optional[Tuple[int, int]] = None) -> int:
+    input1_rank, input1_dtype = input1_rank_dtype
+    input2_rank, input2_dtype = input2_rank_dtype
+    weight_rank, weight_dtype = weight_rank_dtype
+    ranks: List[Optional[int]] = [input1_rank, input2_rank, weight_rank]
+    dtypes = [input1_dtype, input2_dtype, weight_dtype]
     promoted_dtype = promote_dtypes(ranks, dtypes)
     return promoted_dtype
 
@@ -6403,6 +6490,52 @@ def aten〇unfold〡dtype(self_rank_dtype: Tuple[int, int], dimension: int, size
     return self_dtype
 
 
+
+# ==============================================================================
+# PT2E quantization ops (quantized_decomposed namespace)
+# These ops appear in PT2E-exported graphs as first-class dialect ops.
+# They are NOT in the PyTorch JIT registry so must use @not_present_in_registry.
+# ==============================================================================
+
+@not_present_in_registry
+def quantized_decomposed〇quantize_per_tensor〡shape(input: List[int], scale: float, zero_point: int, quant_min: int, quant_max: int, dtype: int) -> List[int]:
+    return upstream_shape_functions.unary(input)
+
+@not_present_in_registry
+def quantized_decomposed〇quantize_per_tensor〡dtype(input_rank_dtype: Tuple[int, int], scale: float, zero_point: int, quant_min: int, quant_max: int, dtype: int) -> int:
+    # The output dtype is the integer type encoded by the `dtype` arg
+    # (e.g. torch.int8 = 2, torch.uint8 = 0).  Return it directly so that
+    # dtype-refinement propagates the correct integer element type.
+    return dtype
+
+@not_present_in_registry
+def quantized_decomposed〇dequantize_per_tensor〡shape(input: List[int], scale: float, zero_point: int, quant_min: int, quant_max: int, dtype: int, out_dtype: Optional[int]) -> List[int]:
+    return upstream_shape_functions.unary(input)
+
+@not_present_in_registry
+def quantized_decomposed〇dequantize_per_tensor〡dtype(input_rank_dtype: Tuple[int, int], scale: float, zero_point: int, quant_min: int, quant_max: int, dtype: int, out_dtype: Optional[int]) -> int:
+    # If out_dtype is specified, use it; otherwise default to float32.
+    if out_dtype is not None:
+        return out_dtype
+    return torch.float32
+
+@not_present_in_registry
+def quantized_decomposed〇quantize_per_channel〡shape(input: List[int], scales: List[int], zero_points: List[int], axis: int, quant_min: int, quant_max: int, dtype: int) -> List[int]:
+    return upstream_shape_functions.unary(input)
+
+@not_present_in_registry
+def quantized_decomposed〇quantize_per_channel〡dtype(input_rank_dtype: Tuple[int, int], scales_rank_dtype: Tuple[int, int], zero_points_rank_dtype: Tuple[int, int], axis: int, quant_min: int, quant_max: int, dtype: int) -> int:
+    return dtype
+
+@not_present_in_registry
+def quantized_decomposed〇dequantize_per_channel〡shape(input: List[int], scales: List[int], zero_points: Optional[List[int]], axis: int, quant_min: int, quant_max: int, dtype: int, out_dtype: Optional[int]) -> List[int]:
+    return upstream_shape_functions.unary(input)
+
+@not_present_in_registry
+def quantized_decomposed〇dequantize_per_channel〡dtype(input_rank_dtype: Tuple[int, int], scales_rank_dtype: Tuple[int, int], zero_points_rank_dtype: Optional[Tuple[int, int]], axis: int, quant_min: int, quant_max: int, dtype: int, out_dtype: Optional[int]) -> int:
+    if out_dtype is not None:
+        return out_dtype
+    return torch.float32
 
 # ==============================================================================
 # Main

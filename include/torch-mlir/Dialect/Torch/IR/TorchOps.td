@@ -1515,4 +1515,162 @@ def Torch_HigherOrderFlexAttentionOp : Torch_Op<"hop_flex_attention", [
   let hasVerifier = 1;
 }
 
+//===----------------------------------------------------------------------===//
+// PT2E quantization ops
+// Hand-authored for quantized_decomposed ops that appear in PT2E export graphs.
+// These are *not* in the PyTorch JIT registry so they cannot be generated via
+// torch_ods_gen.py; they must be listed here as first-class dialect ops.
+//===----------------------------------------------------------------------===//
+
+def Torch_QuantizedDecomposedQuantizePerTensorOp : Torch_Op<
+    "quantized_decomposed.quantize_per_tensor", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly,
+  ]> {
+  let summary = "PT2E quantize_per_tensor (scalar qparams)";
+  let description = [{
+    Corresponds to `quantized_decomposed::quantize_per_tensor` (the default /
+    scalar-qparams overload, whose schema overload_name is empty) in
+    PT2E-exported graphs.
+
+    Quantizes a floating-point tensor to an integer tensor using per-tensor
+    affine quantization:
+    ```
+    output = clamp(round(input / scale) + zero_point, quant_min, quant_max)
+    ```
+
+    The `dtype` argument encodes the output element type as a `torch.dtype`
+    integer code (e.g. 2 = torch.int8, 0 = torch.uint8).  Output shape is
+    identical to the input shape; the element type is determined at
+    compile-time by dtype refinement or left as an opaque integer tensor.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    Torch_FloatType:$scale,
+    Torch_IntType:$zero_point,
+    Torch_IntType:$quant_min,
+    Torch_IntType:$quant_max,
+    Torch_IntType:$dtype
+  );
+  let results = (outs AnyTorchTensorType:$result);
+  let assemblyFormat = [{
+    $input `,` $scale `,` $zero_point `,` $quant_min `,` $quant_max `,` $dtype
+    attr-dict
+    `:` qualified(type($input)) `,` qualified(type($scale)) `,`
+        qualified(type($zero_point)) `,` qualified(type($quant_min)) `,`
+        qualified(type($quant_max)) `,` qualified(type($dtype))
+    `->` qualified(type($result))
+  }];
+}
+
+def Torch_QuantizedDecomposedDequantizePerTensorOp : Torch_Op<
+    "quantized_decomposed.dequantize_per_tensor", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly,
+  ]> {
+  let summary = "PT2E dequantize_per_tensor (scalar qparams)";
+  let description = [{
+    Corresponds to `quantized_decomposed::dequantize_per_tensor` (the default /
+    scalar-qparams overload, whose schema overload_name is empty) in
+    PT2E-exported graphs.
+
+    Dequantizes an integer tensor back to floating point:
+    ```
+    output = (input - zero_point) * scale
+    ```
+
+    The `dtype` argument encodes the *input* element type as a `torch.dtype`
+    integer code and is used only for range-clamping metadata.  `out_dtype`,
+    when not None, specifies the output element type; otherwise output is
+    `float32`.  Output shape is identical to the input shape.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    Torch_FloatType:$scale,
+    Torch_IntType:$zero_point,
+    Torch_IntType:$quant_min,
+    Torch_IntType:$quant_max,
+    Torch_IntType:$dtype,
+    AnyTorchOptionalIntType:$out_dtype
+  );
+  let results = (outs AnyTorchTensorType:$result);
+  let assemblyFormat = [{
+    $input `,` $scale `,` $zero_point `,` $quant_min `,` $quant_max `,` $dtype `,` $out_dtype
+    attr-dict
+    `:` qualified(type($input)) `,` qualified(type($scale)) `,`
+        qualified(type($zero_point)) `,` qualified(type($quant_min)) `,`
+        qualified(type($quant_max)) `,` qualified(type($dtype)) `,`
+        qualified(type($out_dtype))
+    `->` qualified(type($result))
+  }];
+}
+
+def Torch_QuantizedDecomposedQuantizePerChannelOp : Torch_Op<
+    "quantized_decomposed.quantize_per_channel", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly,
+  ]> {
+  let summary = "PT2E quantize_per_channel";
+  let description = [{
+    Quantizes a floating-point tensor with one affine scale and zero point per
+    channel. `axis` identifies the input dimension indexed by the one
+    dimensional `scales` and `zero_points` tensors.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchTensorType:$scales,
+    AnyTorchTensorType:$zero_points,
+    Torch_IntType:$axis,
+    Torch_IntType:$quant_min,
+    Torch_IntType:$quant_max,
+    Torch_IntType:$dtype
+  );
+  let results = (outs AnyTorchTensorType:$result);
+  let assemblyFormat = [{
+    $input `,` $scales `,` $zero_points `,` $axis `,` $quant_min `,`
+        $quant_max `,` $dtype attr-dict
+    `:` qualified(type($input)) `,` qualified(type($scales)) `,`
+        qualified(type($zero_points)) `,` qualified(type($axis)) `,`
+        qualified(type($quant_min)) `,` qualified(type($quant_max)) `,`
+        qualified(type($dtype))
+    `->` qualified(type($result))
+  }];
+}
+
+def Torch_QuantizedDecomposedDequantizePerChannelOp : Torch_Op<
+    "quantized_decomposed.dequantize_per_channel", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly,
+  ]> {
+  let summary = "PT2E dequantize_per_channel";
+  let description = [{
+    Dequantizes an integer tensor with one scale and optional zero point per
+    channel. A None `zero_points` operand denotes symmetric quantization.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchTensorType:$scales,
+    AnyTorchOptionalTensorType:$zero_points,
+    Torch_IntType:$axis,
+    Torch_IntType:$quant_min,
+    Torch_IntType:$quant_max,
+    Torch_IntType:$dtype,
+    AnyTorchOptionalIntType:$out_dtype
+  );
+  let results = (outs AnyTorchTensorType:$result);
+  let assemblyFormat = [{
+    $input `,` $scales `,` $zero_points `,` $axis `,` $quant_min `,`
+        $quant_max `,` $dtype `,` $out_dtype attr-dict
+    `:` qualified(type($input)) `,` qualified(type($scales)) `,`
+        qualified(type($zero_points)) `,` qualified(type($axis)) `,`
+        qualified(type($quant_min)) `,` qualified(type($quant_max)) `,`
+        qualified(type($dtype)) `,` qualified(type($out_dtype))
+    `->` qualified(type($result))
+  }];
+}
+
 #endif // TORCH_OPS

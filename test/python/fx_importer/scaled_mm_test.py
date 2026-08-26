@@ -301,7 +301,7 @@ def test_import_scaled_mm_v2_out_dtype_fp4():
 
 @run
 # CHECK-LABEL: test_import_scaled_mm_v2_rowwise_fp4
-# CHECK: func.func @test_import_scaled_mm_v2_rowwise_fp4(%arg0: !torch.vtensor<[128,64],f4E2M1FN>, %arg1: !torch.vtensor<[64,128],f4E2M1FN>, %arg2: !torch.vtensor<[128],f32>, %arg3: !torch.vtensor<[128],f32>) -> !torch.vtensor<[128,128],bf16>
+# CHECK: func.func @test_import_scaled_mm_v2_rowwise_fp4(%arg0: !torch.vtensor<[128,64],f4E2M1FN>, %arg1: !torch.vtensor<[64,128],f4E2M1FN>, %arg2: !torch.vtensor<[128,1],f32>, %arg3: !torch.vtensor<[128,1],f32>) -> !torch.vtensor<[128,128],bf16>
 # CHECK-NOT: torch.operator
 # CHECK: %[[SCALE_A:.*]] = torch.prim.ListConstruct %arg2
 # CHECK: %[[RECIPE_A_VALUE:.*]] = torch.constant.int 1
@@ -337,8 +337,8 @@ def test_import_scaled_mm_v2_rowwise_fp4():
 
     a = make_fp4_tensor((128, 64))
     b = make_fp4_tensor((64, 128), stride=(1, 64))
-    a_scale = torch.zeros((128,), dtype=torch.float32)
-    b_scale = torch.zeros((128,), dtype=torch.float32)
+    a_scale = torch.zeros((128, 1), dtype=torch.float32)
+    b_scale = torch.zeros((128, 1), dtype=torch.float32)
 
     m = fx.export_and_import(
         Basic(),

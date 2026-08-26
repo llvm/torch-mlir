@@ -2669,6 +2669,117 @@ def ElementwiseMishModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseXlogyTensorModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.xlogy(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseXlogyTensorModule())
+def ElementwiseXlogyTensorModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 5), tu.rand(3, 5))
+
+
+# ==============================================================================
+
+
+class ElementwiseXlogyTensorIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int64, True),
+            ([-1, -1], torch.int64, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.xlogy(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseXlogyTensorIntModule())
+def ElementwiseXlogyTensorIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 5, high=10), tu.randint(3, 5, high=10))
+
+
+# ==============================================================================
+
+
+class ElementwiseXlogyTensorZeroAndNanModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.xlogy(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseXlogyTensorZeroAndNanModule())
+def ElementwiseXlogyTensorZeroAndNanModule_basic(module, tu: TestUtils):
+    # Exercises every special path of xlogy in one shot:
+    #   x=0            -> 0           (zero convention)
+    #   y=nan          -> nan         (nan propagates)
+    #   x=0, y=nan     -> nan         (nan takes precedence over zero convention)
+    #   otherwise      -> x * log(y)
+    module.forward(
+        torch.tensor([0.0, 2.0, 0.0, 3.0, 1.0]),
+        torch.tensor([2.0, torch.nan, torch.nan, 4.0, 5.0]),
+    )
+
+
+# ==============================================================================
+
+
+class ElementwiseXlogyTensorBroadcastModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 1], torch.float32, True),
+            ([1, 5], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.xlogy(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseXlogyTensorBroadcastModule())
+def ElementwiseXlogyTensorBroadcastModule_basic(module, tu: TestUtils):
+    # Broadcast [3,1] x [1,5] -> [3,5]. Shapes are annotated statically
+    # because the elementwise TorchToLinalg lowering only broadcasts when the
+    # size-1 dims are visible in the type. Also covers y=0 (log(0) = -inf) and
+    # y<0 (log(y) = nan, but isnan(y) is false, so the x==0 convention applies).
+    module.forward(
+        torch.tensor([[0.0], [2.0], [3.0]]),
+        torch.tensor([[2.0, torch.nan, 4.0, 0.0, -1.0]]),
+    )
+
+
+# ==============================================================================
+
+
 class ElementwiseAtanTensorFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -5164,6 +5275,67 @@ def ElementwiseDivScalarRoundingModeFloorIntStaticModule_basic(module, tu: TestU
 # ==============================================================================
 
 
+# Large i64 divisor: the divisor 2**30 and the operands exceed the i32 range, so
+# any lowering that truncates to i32 (or computes the input*divisor floor/sign
+# correction in i32) overflows and yields the wrong quotient. Keeps computation
+# in i64. Regression test for the div.Tensor_mode i64 overflow bug.
+class ElementwiseDivScalarRoundingModeFloorInt64Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4], torch.int64, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.div(a, 1073741824, rounding_mode="floor")
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseDivScalarRoundingModeFloorInt64Module()
+)
+def ElementwiseDivScalarRoundingModeFloorInt64Module_basic(module, tu: TestUtils):
+    module.forward(
+        torch.tensor(
+            [9223372036854775806, -9223372036854775807, 1073741824, -3],
+            dtype=torch.int64,
+        )
+    )
+
+
+class ElementwiseDivScalarRoundingModeTruncInt64Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4], torch.int64, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.div(a, 1073741824, rounding_mode="trunc")
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseDivScalarRoundingModeTruncInt64Module()
+)
+def ElementwiseDivScalarRoundingModeTruncInt64Module_basic(module, tu: TestUtils):
+    module.forward(
+        torch.tensor(
+            [9223372036854775806, -9223372036854775807, 1073741824, -3],
+            dtype=torch.int64,
+        )
+    )
+
+
+# ==============================================================================
+
+
 class ElementwiseDivTensorRoundingModeTruncModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -7151,6 +7323,37 @@ def TriuModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class TrilModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 5], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.tril(x, 1)
+
+
+@register_test_case(module_factory=lambda: TrilModule())
+def TrilModule_basic(module, tu: TestUtils):
+    x = torch.tensor(
+        [
+            [0.5876, -0.0794, -1.8373, 0.6654, 0.2],
+            [-0.2447, 0.9556, -1.2919, 1.3378, 0.3],
+            [0.4333, 0.3146, 0.6576, -1.0432, 0.4],
+            [-0.9888, torch.nan, torch.inf, -torch.inf, 0.5],
+        ]
+    )
+    module.forward(x)
+
+
+# ==============================================================================
+
+
 class TriuBroadcastModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -7686,6 +7889,29 @@ def ElementwiseBitwiseRightShiftInt8Module_basic(module, tu: TestUtils):
         tu.randint(3, 4, low=-100, high=100).to(torch.int8),
         tu.randint(3, 4, low=0, high=8).to(torch.int8),
     )
+
+
+# ==============================================================================
+
+
+class ElementwiseRshiftScalarSignedInt8Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int8, True),
+        ]
+    )
+    def forward(self, x):
+        return x >> 1
+
+
+@register_test_case(module_factory=lambda: ElementwiseRshiftScalarSignedInt8Module())
+def ElementwiseRshiftScalarSignedInt8Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-100, high=100).to(torch.int8))
 
 
 # ==============================================================================

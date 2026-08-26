@@ -574,6 +574,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
 
     # Non-elementwise tensor compute ops
     emit("aten::linear : (Tensor, Tensor, Tensor?) -> (Tensor)")
+    emit("aten::bilinear : (Tensor, Tensor, Tensor, Tensor?) -> (Tensor)")
     emit("aten::mm : (Tensor, Tensor) -> (Tensor)")
     emit(
         "aten::_scaled_mm : (Tensor, Tensor, Tensor, Tensor, Tensor?, Tensor?, int?, bool) -> (Tensor)",
@@ -583,8 +584,9 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::_scaled_mm_v2 : (Tensor, Tensor, Tensor[], int[], int[], Tensor[], int[], int[], Tensor?, int?, int[], bool) -> (Tensor)",
         has_verifier=True,
     )
-    emit("aten::_int_mm : (Tensor, Tensor) -> (Tensor)")
+    emit("aten::_int_mm : (Tensor, Tensor) -> (Tensor)", has_canonicalizer=True)
     emit("aten::addmm : (Tensor, Tensor, Tensor, Scalar, Scalar) -> (Tensor)")
+    emit("aten::addbmm : (Tensor, Tensor, Tensor, Scalar, Scalar) -> (Tensor)")
     emit("aten::matmul : (Tensor, Tensor) -> (Tensor)")
     emit("aten::mv : (Tensor, Tensor) -> (Tensor)")
     emit("aten::dot : (Tensor, Tensor) -> (Tensor)", has_canonicalizer=True)
@@ -819,6 +821,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit(
         "aten::cosine_embedding_loss : (Tensor, Tensor, Tensor, float, int) -> (Tensor)"
     )
+    emit("aten::diag : (Tensor, int) -> (Tensor)")
     emit("aten::diag_embed : (Tensor, int, int, int) -> (Tensor)")
     emit("aten::_weight_norm_interface : (Tensor, Tensor, int) -> (Tensor, Tensor)")
     emit("aten::rot90 : (Tensor, int, int[]) -> (Tensor)", has_verifier=True)
@@ -933,6 +936,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::numel : (Tensor) -> (int)", has_canonicalizer=True)
     emit("aten::repeat : (Tensor, int[]) -> (Tensor)")
     emit("aten::repeat_interleave.self_int : (Tensor, int, int?, int?) -> (Tensor)")
+    emit("aten::repeat_interleave.Tensor : (Tensor, int?) -> (Tensor)")
     emit("aten::tile : (Tensor, int[]) -> (Tensor)")
     emit("aten::reshape : (Tensor, int[]) -> (Tensor)", has_folder=True)
     emit("aten::reshape_as : (Tensor, Tensor) -> (Tensor)")

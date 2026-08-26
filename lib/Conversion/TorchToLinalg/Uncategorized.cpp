@@ -27,6 +27,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/APSInt.h"
 #include <numeric>
+#include <optional>
 #include <string>
 #include <type_traits>
 
@@ -376,6 +377,76 @@ Value createRemainderPayload(OpBuilder &b, Location loc,
   return result;
 }
 
+static Value createQuantizePayload(OpBuilder &b, Location loc,
+                                   const TypeConverter *converter, Value input,
+                                   Value scale, Value zeroPoint, Value quantMin,
+                                   Value quantMax, Type outputType,
+                                   bool outputIsUnsigned) {
+  Type computeType = input.getType();
+  scale = materializeScalarToDtype(b, loc, converter, scale, computeType);
+  zeroPoint =
+      materializeScalarToDtype(b, loc, converter, zeroPoint, computeType);
+  Value value = arith::DivFOp::create(b, loc, input, scale);
+  value = math::RoundEvenOp::create(b, loc, value);
+  value = arith::AddFOp::create(b, loc, value, zeroPoint);
+  value = arith::MaximumFOp::create(b, loc, value, quantMin);
+  value = arith::MinimumFOp::create(b, loc, value, quantMax);
+  if (outputIsUnsigned)
+    return arith::FPToUIOp::create(b, loc, outputType, value);
+  return arith::FPToSIOp::create(b, loc, outputType, value);
+}
+
+static std::optional<unsigned>
+getSafeSubtractionWidth(unsigned inputWidth, unsigned zeroPointWidth) {
+  if (zeroPointWidth > inputWidth)
+    return zeroPointWidth;
+  switch (inputWidth) {
+  case 8:
+    return 16;
+  case 16:
+    return 32;
+  case 32:
+    return 64;
+  default:
+    return std::nullopt;
+  }
+}
+
+static Value createDequantizePayload(OpBuilder &b, Location loc,
+                                     const TypeConverter *converter,
+                                     Value input, Value scale, Value zeroPoint,
+                                     Type outputType, bool inputIsUnsigned) {
+  auto inputIntType = cast<mlir::IntegerType>(input.getType());
+  if (zeroPoint) {
+    Type zeroPointType = converter->convertType(zeroPoint.getType());
+    auto zeroPointIntType = cast<IntegerType>(zeroPointType);
+    std::optional<unsigned> subtractionWidth = getSafeSubtractionWidth(
+        inputIntType.getWidth(), zeroPointIntType.getWidth());
+    assert(subtractionWidth && "unsupported quantized input width");
+    IntegerType subtractionType = b.getIntegerType(*subtractionWidth);
+    zeroPoint =
+        materializeScalarToDtype(b, loc, converter, zeroPoint, subtractionType);
+    if (inputIsUnsigned)
+      input = arith::ExtUIOp::create(b, loc, subtractionType, input);
+    else
+      input = arith::ExtSIOp::create(b, loc, subtractionType, input);
+    input = arith::SubIOp::create(b, loc, input, zeroPoint);
+  }
+  Type scaleType = isa<Torch::FloatType>(scale.getType())
+                       ? getDefaultDtypeForTorchScalar(scale.getType())
+                       : converter->convertType(scale.getType());
+  scale = materializeScalarToDtype(b, loc, converter, scale, scaleType);
+  Value value;
+  if (inputIsUnsigned && !zeroPoint)
+    value = arith::UIToFPOp::create(b, loc, scale.getType(), input);
+  else
+    value = arith::SIToFPOp::create(b, loc, scale.getType(), input);
+  value = arith::MulFOp::create(b, loc, value, scale);
+  if (value.getType() != outputType)
+    value = convertScalarToDtype(b, loc, value, outputType);
+  return value;
+}
+
 static Value createLinalgPayloadCalculationForElementwiseOp(
     OpBuilder &b, Location loc, const TypeConverter *converter,
     ValueRange payloadArgs, Operation *op, ArrayRef<Value> operands) {
@@ -535,6 +606,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     }
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
+    if (torch_to_linalg::isUnsignedTorchType(bitwiseRightShiftTensor.getType()))
+      return arith::ShRUIOp::create(b, loc, lhs, rhs);
     return arith::ShRSIOp::create(b, loc, lhs, rhs);
   }
   if (auto bitwiseLeftShiftTensor =
@@ -965,13 +1038,17 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   if (auto add = dyn_cast<AtenAddTensorOp>(op)) {
     AtenAddTensorOp::Adaptor adaptor(operands);
     Type resultElementType = cast<BaseTensorType>(add.getType()).getDtype();
+    Type lhsOriginalDtype =
+        cast<BaseTensorType>(add.getSelf().getType()).getDtype();
+    Type rhsOriginalDtype =
+        cast<BaseTensorType>(add.getOther().getType()).getDtype();
     Type dtype = cast<RankedTensorType>(converter->convertType(add.getType()))
                      .getElementType();
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype,
-                                     /*srcOriginalDtype=*/std::nullopt,
+                                     /*srcOriginalDtype=*/lhsOriginalDtype,
                                      /*dstOriginalDtype=*/resultElementType);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype,
-                                     /*srcOriginalDtype=*/std::nullopt,
+                                     /*srcOriginalDtype=*/rhsOriginalDtype,
                                      /*dstOriginalDtype=*/resultElementType);
     Value alpha = convertScalarToDtype(b, loc, adaptor.getAlpha(), dtype,
                                        /*srcOriginalDtype=*/std::nullopt,
@@ -992,11 +1069,15 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type dtype = cast<RankedTensorType>(converter->convertType(sub.getType()))
                      .getElementType();
     Type resultElementType = cast<BaseTensorType>(sub.getType()).getDtype();
+    Type lhsOriginalDtype =
+        cast<BaseTensorType>(sub.getSelf().getType()).getDtype();
+    Type rhsOriginalDtype =
+        cast<BaseTensorType>(sub.getOther().getType()).getDtype();
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype,
-                                     /*srcOriginalDtype=*/std::nullopt,
+                                     /*srcOriginalDtype=*/lhsOriginalDtype,
                                      /*dstOriginalDtype=*/resultElementType);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype,
-                                     /*srcOriginalDtype=*/std::nullopt,
+                                     /*srcOriginalDtype=*/rhsOriginalDtype,
                                      /*dstOriginalDtype=*/resultElementType);
     Value alpha = convertScalarToDtype(b, loc, adaptor.getAlpha(), dtype,
                                        /*srcOriginalDtype=*/std::nullopt,
@@ -1030,7 +1111,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
         convertScalarToDtype(b, loc, operands[1], dtype,
                              /*srcOriginalDtype=*/operands[1].getType(),
                              /*dstOriginalDtype=*/dtype);
-    return arith::ShRUIOp::create(b, loc, self, other);
+    if (torch_to_linalg::isUnsignedTorchType(rshiftScalar.getType()))
+      return arith::ShRUIOp::create(b, loc, self, other);
+    return arith::ShRSIOp::create(b, loc, self, other);
   }
   if (auto subScalar = dyn_cast<AtenSubScalarOp>(op)) {
     Type dtype =
@@ -1589,8 +1672,6 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
 
   if (isa<AtenDequantizeTensorOp, AtenDequantizeSelfOp>(op)) {
-    auto value = payloadArgs[0];
-    auto valueTy = value.getType();
     auto qtensor = op->getOperand(0);
     auto qtensorTy = cast<ValueTensorType>(qtensor.getType()).getDtype();
 
@@ -1600,68 +1681,29 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       zp = makeQTensor.getZeroPoint();
       scale = makeQTensor.getScale();
     }
-
     if (auto quant = qtensor.getDefiningOp<AtenQuantizePerTensorOp>()) {
       zp = quant.getZeroPoint();
       scale = quant.getScale();
     }
-
-    if (!zp || !scale) {
+    if (!zp || !scale)
       return nullptr;
-    }
 
-    auto outFpTy = payloadArgs[1].getType();
-    auto outBw = outFpTy.getIntOrFloatBitWidth();
-    auto outIntTy = b.getIntegerType(outBw);
+    bool isUnsigned = torch_to_linalg::isUnsignedTorchType(qtensorTy);
+    return createDequantizePayload(b, loc, converter, payloadArgs[0], scale, zp,
+                                   payloadArgs[1].getType(), isUnsigned);
+  }
 
-    if (valueTy != outIntTy) {
-      if (torch_to_linalg::isUnsignedTorchType(qtensorTy)) {
-        value = arith::ExtUIOp::create(b, loc, outIntTy, value);
-      } else {
-        value = arith::ExtSIOp::create(b, loc, outIntTy, value);
-      }
-    }
-
-    zp = converter->materializeTargetConversion(
-        b, loc, converter->convertType(zp.getType()), zp);
-    auto zpTy = zp.getType();
-
-    if (zpTy != outIntTy) {
-      zp = arith::TruncIOp::create(b, loc, outIntTy, zp);
-    }
-
-    value = arith::SubIOp::create(b, loc, value, zp);
-    // treat the i32 as a signed int regardless of original signed-ness
-    // this will prevent overflow from subtraction for unsigned quantizations.
-    value = arith::SIToFPOp::create(b, loc, outFpTy, value);
-
-    scale = converter->materializeTargetConversion(
-        b, loc, converter->convertType(scale.getType()), scale);
-    if (scale.getType() != value.getType()) {
-      scale = arith::TruncFOp::create(b, loc, value.getType(), scale);
-    }
-    value = arith::MulFOp::create(b, loc, value, scale);
-    return value;
+  if (auto dq = dyn_cast<QuantizedDecomposedDequantizePerTensorOp>(op)) {
+    auto inputTy = cast<ValueTensorType>(dq.getInput().getType()).getDtype();
+    bool isUnsigned = torch_to_linalg::isUnsignedTorchType(inputTy);
+    return createDequantizePayload(b, loc, converter, payloadArgs[0],
+                                   dq.getScale(), dq.getZeroPoint(),
+                                   payloadArgs[1].getType(), isUnsigned);
   }
 
   if (auto quant = dyn_cast<AtenQuantizePerTensorOp>(op)) {
     Value value = payloadArgs[0];
-    Value scale = quant.getScale();
-    Value zp = quant.getZeroPoint();
     auto valueTy = value.getType();
-
-    zp = converter->materializeTargetConversion(
-        b, loc, converter->convertType(zp.getType()), zp);
-    zp = arith::SIToFPOp::create(b, loc, valueTy, zp);
-
-    scale = converter->materializeTargetConversion(
-        b, loc, converter->convertType(scale.getType()), scale);
-    scale = arith::TruncFOp::create(b, loc, valueTy, scale);
-
-    value = arith::DivFOp::create(b, loc, value, scale);
-    value = math::RoundEvenOp::create(b, loc, value);
-    value = arith::AddFOp::create(b, loc, value, zp);
-
     auto destTy = payloadArgs[1].getType();
     auto bitwidth = destTy.getIntOrFloatBitWidth();
     bool isUnsigned = torch_to_linalg::isUnsignedTorchType(quant.getType());
@@ -1669,25 +1711,34 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                            : APInt::getSignedMinValue(bitwidth);
     APInt max = isUnsigned ? APInt::getMaxValue(bitwidth)
                            : APInt::getSignedMaxValue(bitwidth);
-
     double minI = isUnsigned ? static_cast<double>(min.getZExtValue())
                              : static_cast<double>(min.getSExtValue());
     double maxI = isUnsigned ? static_cast<double>(max.getZExtValue())
                              : static_cast<double>(max.getSExtValue());
-    Value minVal =
+    Value qmin =
         arith::ConstantOp::create(b, loc, b.getFloatAttr(valueTy, minI));
-    Value maxVal =
+    Value qmax =
         arith::ConstantOp::create(b, loc, b.getFloatAttr(valueTy, maxI));
-    value = arith::MaximumFOp::create(b, loc, value, minVal);
-    value = arith::MinimumFOp::create(b, loc, value, maxVal);
+    return createQuantizePayload(b, loc, converter, value, quant.getScale(),
+                                 quant.getZeroPoint(), qmin, qmax, destTy,
+                                 isUnsigned);
+  }
 
-    if (isUnsigned) {
-      value = arith::FPToUIOp::create(b, loc, destTy, value);
-    } else {
-      value = arith::FPToSIOp::create(b, loc, destTy, value);
-    }
-
-    return value;
+  if (auto q = dyn_cast<QuantizedDecomposedQuantizePerTensorOp>(op)) {
+    Value value = payloadArgs[0];
+    auto valueTy = value.getType();
+    auto destTy = payloadArgs[1].getType();
+    bool isUnsigned = torch_to_linalg::isUnsignedTorchType(
+        cast<BaseTensorType>(q.getResult().getType()).getDtype());
+    // qmin/qmax are explicit Torch int operands; convert to float for clamping.
+    auto toFloat = [&](Value v) -> Value {
+      return materializeScalarToDtype(b, loc, converter, v, valueTy);
+    };
+    Value qmin = toFloat(q.getQuantMin());
+    Value qmax = toFloat(q.getQuantMax());
+    return createQuantizePayload(b, loc, converter, value, q.getScale(),
+                                 q.getZeroPoint(), qmin, qmax, destTy,
+                                 isUnsigned);
   }
 
   if (auto isClose = dyn_cast<AtenIscloseOp>(op)) {
@@ -1738,6 +1789,157 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
 }
 
 namespace {
+static SmallVector<AffineMap> getPerChannelIndexingMaps(OpBuilder &b,
+                                                        int64_t rank,
+                                                        int64_t axis,
+                                                        bool hasZeroPoints) {
+  AffineMap identity = b.getMultiDimIdentityMap(rank);
+  AffineMap channel =
+      AffineMap::get(rank, 0, {b.getAffineDimExpr(axis)}, b.getContext());
+  SmallVector<AffineMap> maps = {identity, channel};
+  if (hasZeroPoints)
+    maps.push_back(channel);
+  maps.push_back(identity);
+  return maps;
+}
+
+static FailureOr<int64_t> getPerChannelAxis(Value axisValue, int64_t rank) {
+  int64_t axis;
+  if (!matchPattern(axisValue, m_TorchConstantInt(&axis)))
+    return failure();
+  if (axis < 0)
+    axis += rank;
+  if (axis < 0 || axis >= rank)
+    return failure();
+  return axis;
+}
+
+class ConvertQuantizedDecomposedQuantizePerChannelOp
+    : public OpConversionPattern<QuantizedDecomposedQuantizePerChannelOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(QuantizedDecomposedQuantizePerChannelOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (LogicalResult result = verifyLinalgCompatibleTypes(op, rewriter);
+        failed(result))
+      return result;
+    Value input = adaptor.getInput();
+    Value scales = adaptor.getScales();
+    Value zeroPoints = adaptor.getZeroPoints();
+    auto inputType = dyn_cast<RankedTensorType>(input.getType());
+    auto scalesType = dyn_cast<RankedTensorType>(scales.getType());
+    auto zeroPointsType = dyn_cast<RankedTensorType>(zeroPoints.getType());
+    auto resultType = dyn_cast<RankedTensorType>(
+        getTypeConverter()->convertType(op.getResult().getType()));
+    if (!inputType || !scalesType || !zeroPointsType || !resultType ||
+        scalesType.getRank() != 1 || zeroPointsType.getRank() != 1)
+      return rewriter.notifyMatchFailure(
+          op, "expected ranked input/result and rank-1 qparams");
+    FailureOr<int64_t> axis =
+        getPerChannelAxis(op.getAxis(), inputType.getRank());
+    if (failed(axis))
+      return rewriter.notifyMatchFailure(
+          op, "axis must be a constant integer in range [-rank, rank)");
+
+    int64_t quantMin, quantMax;
+    if (!matchPattern(op.getQuantMin(), m_TorchConstantInt(&quantMin)) ||
+        !matchPattern(op.getQuantMax(), m_TorchConstantInt(&quantMax)))
+      return rewriter.notifyMatchFailure(op, "quant_min/max must be constant");
+    Location loc = op.getLoc();
+    Value init = tensor::EmptyOp::create(
+        rewriter, loc, getAsOpFoldResult(getTensorSizes(rewriter, loc, input)),
+        resultType.getElementType());
+    SmallVector<AffineMap> indexingMaps = getPerChannelIndexingMaps(
+        rewriter, inputType.getRank(), *axis, /*hasZeroPoints=*/true);
+    SmallVector<utils::IteratorType> iteratorTypes(
+        inputType.getRank(), utils::IteratorType::parallel);
+    bool resultIsUnsigned = torch_to_linalg::isUnsignedTorchType(
+        cast<BaseTensorType>(op.getResult().getType()).getDtype());
+
+    Value result =
+        linalg::GenericOp::create(
+            rewriter, loc, resultType, ValueRange{input, scales, zeroPoints},
+            init, indexingMaps, iteratorTypes,
+            [&](OpBuilder &b, Location bodyLoc, ValueRange args) {
+              Type fpType = args[0].getType();
+              Type outputType = resultType.getElementType();
+              Value qmin = arith::ConstantOp::create(
+                  b, bodyLoc,
+                  b.getFloatAttr(fpType, static_cast<double>(quantMin)));
+              Value qmax = arith::ConstantOp::create(
+                  b, bodyLoc,
+                  b.getFloatAttr(fpType, static_cast<double>(quantMax)));
+              Value value = createQuantizePayload(
+                  b, bodyLoc, getTypeConverter(), args[0], args[1], args[2],
+                  qmin, qmax, outputType, resultIsUnsigned);
+              linalg::YieldOp::create(b, bodyLoc, value);
+            })
+            .getResult(0);
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+
+class ConvertQuantizedDecomposedDequantizePerChannelOp
+    : public OpConversionPattern<QuantizedDecomposedDequantizePerChannelOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(QuantizedDecomposedDequantizePerChannelOp op,
+                  OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (LogicalResult result = verifyLinalgCompatibleTypes(op, rewriter);
+        failed(result))
+      return result;
+    Value input = adaptor.getInput();
+    Value scales = adaptor.getScales();
+    Value zeroPoints = adaptor.getZeroPoints();
+    auto inputType = dyn_cast<RankedTensorType>(input.getType());
+    auto scalesType = dyn_cast<RankedTensorType>(scales.getType());
+    auto resultType = dyn_cast<RankedTensorType>(
+        getTypeConverter()->convertType(op.getResult().getType()));
+    if (!inputType || !scalesType || !resultType || scalesType.getRank() != 1)
+      return rewriter.notifyMatchFailure(
+          op, "expected ranked input/result and rank-1 scales");
+    FailureOr<int64_t> axis =
+        getPerChannelAxis(op.getAxis(), inputType.getRank());
+    if (failed(axis))
+      return rewriter.notifyMatchFailure(
+          op, "axis must be a constant integer in range [-rank, rank)");
+
+    bool hasZeroPoints = isa<RankedTensorType>(zeroPoints.getType());
+    SmallVector<Value> inputs = {input, scales};
+    if (hasZeroPoints)
+      inputs.push_back(zeroPoints);
+    Location loc = op.getLoc();
+    Value init = tensor::EmptyOp::create(
+        rewriter, loc, getAsOpFoldResult(getTensorSizes(rewriter, loc, input)),
+        resultType.getElementType());
+    SmallVector<AffineMap> indexingMaps = getPerChannelIndexingMaps(
+        rewriter, inputType.getRank(), *axis, hasZeroPoints);
+    SmallVector<utils::IteratorType> iteratorTypes(
+        inputType.getRank(), utils::IteratorType::parallel);
+    bool inputIsUnsigned = torch_to_linalg::isUnsignedTorchType(
+        cast<BaseTensorType>(op.getInput().getType()).getDtype());
+
+    Value result =
+        linalg::GenericOp::create(
+            rewriter, loc, resultType, inputs, init, indexingMaps,
+            iteratorTypes,
+            [&](OpBuilder &b, Location bodyLoc, ValueRange args) {
+              Value zeroPoint = hasZeroPoints ? args[2] : Value();
+              Value value = createDequantizePayload(
+                  b, bodyLoc, getTypeConverter(), args[0], args[1], zeroPoint,
+                  resultType.getElementType(), inputIsUnsigned);
+              linalg::YieldOp::create(b, bodyLoc, value);
+            })
+            .getResult(0);
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+
 // Converts an elementwise op.
 // This specifically includes:
 // - converting elementwise ops of any tensor arity
@@ -1792,7 +1994,9 @@ public:
              AtenFillScalarOp, AtenFillTensorOp, AtenAtanOp, AtenAcosOp,
              AtenAtanhOp, AtenAcoshOp, AtenAsinOp, AtenAsinhOp, AtenRealOp,
              AtenImagOp, AtenDequantizeSelfOp, AtenDequantizeTensorOp,
-             AtenQuantizePerTensorOp, AtenIscloseOp>(op))
+             AtenQuantizePerTensorOp, AtenIscloseOp,
+             QuantizedDecomposedDequantizePerTensorOp,
+             QuantizedDecomposedQuantizePerTensorOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -2419,7 +2623,7 @@ public:
     }
 
     auto operandDTy = cast<ValueTensorType>(operand.getType()).getDtype();
-    auto zeropointDTy = cast<ValueTensorType>(zeropoint.getType()).getDtype();
+    bool operandIsUnsigned = torch_to_linalg::isUnsignedTorchType(operandDTy);
     operand = converter->materializeTargetConversion(
         rewriter, loc, converter->convertType(operand.getType()), operand);
     scale = converter->materializeTargetConversion(
@@ -2440,13 +2644,9 @@ public:
 
     llvm::SmallVector<utils::IteratorType> iterators(
         resultType.getRank(), utils::IteratorType::parallel);
-    llvm::SmallVector<AffineMap> maps(
-        4, {rewriter.getMultiDimIdentityMap(resultType.getRank())});
-    auto broadcastMap = AffineMap::get(
-        resultType.getRank(), /*symbolCount=*/0,
-        {rewriter.getAffineDimExpr(axisAttr.getInt())}, rewriter.getContext());
-    maps[1] = broadcastMap;
-    maps[2] = broadcastMap;
+    SmallVector<AffineMap> maps = getPerChannelIndexingMaps(
+        rewriter, resultType.getRank(), axisAttr.getInt(),
+        /*hasZeroPoints=*/true);
 
     auto empty =
         tensor::EmptyOp::create(rewriter, op.getLoc(), resultType, dynSizes);
@@ -2454,32 +2654,10 @@ public:
         rewriter, loc, resultType, ValueRange{operand, scale, zeropoint},
         ValueRange{empty}, maps, iterators,
         [&](OpBuilder &b, Location loc, ValueRange args) {
-          Value operand = args[0];
-          Value scale = args[1];
-          Value zeropoint = args[2];
-          if (operandDTy.isUnsignedInteger(8)) {
-            operand = arith::ExtUIOp::create(b, loc, b.getI32Type(), operand);
-          } else if (operandDTy.isSignedInteger(8)) {
-            operand = arith::ExtSIOp::create(b, loc, b.getI32Type(), operand);
-          }
-
-          if (zeropointDTy.isUnsignedInteger(8)) {
-            zeropoint =
-                arith::ExtUIOp::create(b, loc, b.getI32Type(), zeropoint);
-          } else if (zeropointDTy.isSignedInteger(8)) {
-            zeropoint =
-                arith::ExtSIOp::create(b, loc, b.getI32Type(), zeropoint);
-          } else if (zeropointDTy.isInteger(64)) {
-            zeropoint =
-                arith::TruncIOp::create(b, loc, b.getI32Type(), zeropoint);
-            op->emitWarning() << "truncated zero point from 64 to 32 bit";
-          }
-
-          Value sub = arith::SubIOp::create(rewriter, loc, operand, zeropoint);
-          Value fp =
-              arith::SIToFPOp::create(rewriter, loc, args[3].getType(), sub);
-          Value mul = arith::MulFOp::create(rewriter, loc, fp, scale);
-          linalg::YieldOp::create(b, loc, mul);
+          Value value = createDequantizePayload(
+              b, loc, converter, args[0], args[1], args[2], args[3].getType(),
+              operandIsUnsigned);
+          linalg::YieldOp::create(b, loc, value);
         });
     rewriter.replaceOp(op, linalgOp.getResults());
     return success();
@@ -4125,7 +4303,14 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenTrilOp, AtenRemainderScalarOp, AtenRemainderTensorOp,
       AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp,
       AtenRealOp, AtenImagOp, AtenDequantizeSelfOp, AtenDequantizeTensorOp,
-      AtenQuantizePerTensorOp, AtenIscloseOp>();
+      AtenQuantizePerTensorOp, AtenIscloseOp,
+      QuantizedDecomposedDequantizePerTensorOp,
+      QuantizedDecomposedQuantizePerTensorOp>();
+  target.addIllegalOp<QuantizedDecomposedQuantizePerChannelOp,
+                      QuantizedDecomposedDequantizePerChannelOp>();
+  patterns.add<ConvertQuantizedDecomposedQuantizePerChannelOp,
+               ConvertQuantizedDecomposedDequantizePerChannelOp>(typeConverter,
+                                                                 context);
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);
