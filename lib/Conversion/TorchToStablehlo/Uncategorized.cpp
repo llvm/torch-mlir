@@ -161,8 +161,35 @@ public:
         !isa<AtenDequantizeSelfOp>(opUser)) {
       return failure();
     }
-    // [TODO] verify that zeroPoint and Scale matches with the input operand
-    // type.
+
+    auto *zeroPoint = op.getZeroPoint().getDefiningOp();
+    if (!zeroPoint || !isa<ConstantIntOp>(zeroPoint)) {
+      return failure();
+    }
+
+    auto zeroPointValue =
+        mlir::cast<ConstantIntOp>(zeroPoint).getValueAttr().getInt();
+
+    auto *scale = op.getScale().getDefiningOp();
+    if (!scale || !isa<ConstantFloatOp>(scale)) {
+      return failure();
+    }
+    auto scaleValue = mlir::cast<ConstantFloatOp>(scale)
+                          .getValueAttr()
+                          .getValue()
+                          .convertToDouble();
+
+    auto inputElemType =
+        mlir::cast<RankedTensorType>(adaptor.getOperands().front().getType())
+            .getElementType();
+    auto quantElemType =
+        mlir::dyn_cast<quant::UniformQuantizedType>(inputElemType);
+
+    if (!quantElemType || quantElemType.getScale() != scaleValue ||
+        quantElemType.getZeroPoint() != zeroPointValue) {
+      return failure();
+    }
+
     RankedTensorType outputType = cast<RankedTensorType>(
         getTypeConverter()->convertType(opUser->getResult(0).getType()));
 
@@ -271,8 +298,49 @@ public:
         !isa<AtenDequantizeSelfOp>(opUser)) {
       return failure();
     }
-    // [TODO] verify that zeroPoint and Scale matches with the input operand
-    // type.
+
+    auto *zeroPoints = op.getZeroPoint().getDefiningOp();
+    if (!zeroPoints || !isa<ValueTensorLiteralOp>(zeroPoints)) {
+      return failure();
+    }
+
+    llvm::SmallVector<int64_t, 4> zeroPointsVec;
+    for (auto zp : mlir::cast<ValueTensorLiteralOp>(zeroPoints)
+                       .getValue()
+                       .getValues<llvm::APInt>()) {
+      zeroPointsVec.emplace_back(zp.getSExtValue());
+    }
+
+    auto *scales = op.getScale().getDefiningOp();
+    if (!scales || !isa<ValueTensorLiteralOp>(scales)) {
+      return failure();
+    }
+
+    llvm::SmallVector<double, 4> scalesVec;
+    for (auto scale : mlir::cast<ValueTensorLiteralOp>(scales)
+                          .getValue()
+                          .getValues<llvm::APFloat>()) {
+      scalesVec.emplace_back(scale.convertToDouble());
+    }
+
+    auto *axis = op.getAxis().getDefiningOp();
+    if (!axis || !isa<ConstantIntOp>(axis)) {
+      return failure();
+    }
+    auto axisValue = mlir::cast<ConstantIntOp>(axis).getValueAttr().getInt();
+
+    auto inputElemType =
+        mlir::cast<RankedTensorType>(adaptor.getOperands().front().getType())
+            .getElementType();
+    auto quantElemType =
+        mlir::dyn_cast<quant::UniformQuantizedPerAxisType>(inputElemType);
+    if (!quantElemType || quantElemType.getQuantizedDimension() != axisValue ||
+        quantElemType.getScales() != llvm::ArrayRef<double>(scalesVec) ||
+        quantElemType.getZeroPoints() !=
+            llvm::ArrayRef<int64_t>(zeroPointsVec)) {
+      return failure();
+    }
+
     RankedTensorType outputType = cast<RankedTensorType>(
         getTypeConverter()->convertType(opUser->getResult(0).getType()));
 
