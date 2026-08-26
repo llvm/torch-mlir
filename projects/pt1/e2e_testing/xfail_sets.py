@@ -3354,7 +3354,6 @@ ONNX_CRASHING_SET -= {
 }
 
 FX_IMPORTER_TOSA_XFAIL_SET = {
-    "ArgsortTensor_basic",
     "ArgsortTensorInteger_basic",
     "AtenSymConstrainRangeForSize_basic",
     "AtenSymConstrainRange_basic",
