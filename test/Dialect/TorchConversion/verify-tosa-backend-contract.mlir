@@ -44,9 +44,7 @@ module {
 // -----
 
 // A non-shaped function argument (e.g. `!torch.optional`) that is dead --
-// referenced by no op in the body -- must still be rejected. The signature type
-// lives in the func's `FunctionType` attribute, not as an op operand/result, so
-// this is only caught by explicitly checking `isSignatureLegal`.
+// referenced by no op in the body -- should be rejected.
 
 // expected-error@+1 {{Module does not conform to the TOSA backend contract.}}
 module {
