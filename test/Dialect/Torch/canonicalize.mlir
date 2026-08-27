@@ -3262,6 +3262,35 @@ func.func @aten_select_int_fold_3D() -> !torch.vtensor<[1, 1, 1],si64> {
 
 // -----
 
+// A negative index must wrap to the end of the selected dimension rather than
+// being used verbatim as a flat offset (which would read the wrong element).
+// CHECK-LABEL: func.func @aten_select_int_fold_negative_index
+// CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<8> : tensor<1x1x1xsi64>) : !torch.vtensor<[1,1,1],si64>
+// CHECK: return %[[RET]]
+func.func @aten_select_int_fold_negative_index() -> !torch.vtensor<[1,1,1],si64> {
+  %index = torch.constant.int -1
+  %dim = torch.constant.int 2
+  %splat = torch.vtensor.literal(dense<[[[5,6,7,8]]]> : tensor<1x1x4xsi64>) : !torch.vtensor<[1,1,4],si64>
+  %select = torch.aten.select.int %splat, %dim, %index : !torch.vtensor<[1,1,4],si64>, !torch.int, !torch.int -> !torch.vtensor<[1,1,1],si64>
+  return %select : !torch.vtensor<[1,1,1],si64>
+}
+
+// -----
+
+// A negative dim must also wrap; -1 here selects the last dimension.
+// CHECK-LABEL: func.func @aten_select_int_fold_negative_dim
+// CHECK: %[[RET:.+]] = torch.vtensor.literal(dense<7> : tensor<1x1x1xsi64>) : !torch.vtensor<[1,1,1],si64>
+// CHECK: return %[[RET]]
+func.func @aten_select_int_fold_negative_dim() -> !torch.vtensor<[1,1,1],si64> {
+  %index = torch.constant.int 2
+  %dim = torch.constant.int -1
+  %splat = torch.vtensor.literal(dense<[[[5,6,7,8]]]> : tensor<1x1x4xsi64>) : !torch.vtensor<[1,1,4],si64>
+  %select = torch.aten.select.int %splat, %dim, %index : !torch.vtensor<[1,1,4],si64>, !torch.int, !torch.int -> !torch.vtensor<[1,1,1],si64>
+  return %select : !torch.vtensor<[1,1,1],si64>
+}
+
+// -----
+
 
 // CHECK-LABEL: @aten_eq_tensor_args
 func.func @aten_eq_tensor_args(%arg0 : !torch.vtensor<[4],si64>) -> !torch.vtensor<[4],i1> {
