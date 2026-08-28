@@ -20,7 +20,8 @@ set(linked_libs TorchMLIRTorchToArith
                 TorchMLIRTorchToTensor
                 TorchMLIRTorchToTMTensor
                 TorchMLIRTorchConversionToMLProgram
-                TorchMLIRConversionUtils)
+                TorchMLIRConversionUtils
+                TorchMLIRTorchConversionDialect)
 if(TORCH_MLIR_ENABLE_STABLEHLO)
   list(APPEND linked_libs TorchMLIRTorchToStablehlo)
 endif()

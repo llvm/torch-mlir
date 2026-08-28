@@ -13,6 +13,10 @@ add_mlir_conversion_library(TorchMLIRTorchConversionToMLProgram
   MLIRMLProgramDialect
   MLIRMathDialect
   MLIRPass
+  MLIRRewrite
+  MLIRTransformUtils
+  TorchMLIRTorchConversionDialect
+  TorchMLIRTorchConversionPasses
   TorchMLIRTorchDialect
 )
 

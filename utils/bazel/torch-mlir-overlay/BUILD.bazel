@@ -85,7 +85,6 @@ gentbl_cc_library(
 cc_library(
     name = "TorchMLIRTorchDialectUtils",
     srcs = [
-        "lib/Dialect/Torch/Utils/SparsityUtils.cpp",
         "lib/Dialect/Torch/Utils/TorchUpstream.cpp",
         "lib/Dialect/Torch/Utils/Utils.cpp",
     ],
@@ -93,7 +92,6 @@ cc_library(
         "include/torch-mlir/Dialect/Torch/IR/TorchOps.h",
         "include/torch-mlir/Dialect/Torch/IR/TorchTraits.h",
         "include/torch-mlir/Dialect/Torch/IR/TorchTypes.h",
-        "include/torch-mlir/Dialect/Torch/Utils/SparsityUtils.h",
         "include/torch-mlir/Dialect/Torch/Utils/TorchUpstream.h",
         "include/torch-mlir/Dialect/Torch/Utils/Utils.h",
     ],
@@ -545,8 +543,10 @@ cc_library(
     ],
     strip_include_prefix = "include",
     deps = [
+        ":TorchMLIRTorchConversionPasses",
         ":TorchMLIRTorchConversionToMLProgram",
         ":TorchMLIRTorchOnnxToTorch",
+        ":TorchMLIRTorchPasses",
         ":TorchMLIRTorchToArith",
         ":TorchMLIRTorchToLinalg",
         ":TorchMLIRTorchToSCF",
@@ -554,6 +554,7 @@ cc_library(
         ":TorchMLIRTorchToTMTensor",
         ":TorchMLIRTorchToTensor",
         ":TorchMLIRTorchToTosa",
+        "@llvm-project//mlir:ConversionPasses",
     ],
 )
 
