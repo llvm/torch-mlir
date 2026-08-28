@@ -3210,12 +3210,24 @@ func.func @test_stft_with_window_and_framelen(%arg0: !torch.vtensor<[1,128,1],f3
 
 // CHECK-LABEL: @test_reversesequence_batch
 func.func @test_reversesequence_batch(%arg0: !torch.vtensor<[4,4],f32>, %arg1: !torch.vtensor<[4],si64>) -> !torch.vtensor<[4,4],f32> attributes {torch.onnx_meta.ir_version = 5 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
-  // CHECK: %[[BATCH_SIZE:.*]] = torch.aten.size.int %arg0
-  // CHECK: %[[LOOP:.*]] = torch.prim.Loop %[[BATCH_SIZE]]
-  // CHECK: torch.aten.select.int %arg1
-  // CHECK: torch.aten.flip
-  // CHECK: torch.aten.slice_scatter
-  // CHECK: torch.prim.Loop.condition
+  // CHECK: %[[C0:.*]] = torch.constant.int 0
+  // CHECK: %[[C1:.*]] = torch.constant.int 1
+  // CHECK: %[[BATCH_AXIS:.*]] = torch.constant.int 0
+  // CHECK: %[[TIME_AXIS:.*]] = torch.constant.int 1
+  // CHECK: %[[BATCH_SIZE:.*]] = torch.aten.size.int %arg0, %[[BATCH_AXIS]]
+  // CHECK: %[[TRUE:.*]] = torch.constant.bool true
+  // CHECK: %[[LOOP:.*]] = torch.prim.Loop %[[BATCH_SIZE]], %[[TRUE]], init(%arg0)
+  // CHECK: ^bb0(%[[K:.*]]: !torch.int, %[[CURRENT:.*]]: !torch.vtensor<[4,4],f32>):
+  // CHECK: %[[END:.*]] = torch.aten.add.int %[[K]], %[[C1]]
+  // CHECK: %[[BATCH_SLICE:.*]] = torch.aten.slice.Tensor %[[CURRENT]], %[[BATCH_AXIS]], %[[K]], %[[END]], %[[C1]]
+  // CHECK: %[[LENGTH_TENSOR:.*]] = torch.aten.select.int %arg1, %[[C0]], %[[K]]
+  // CHECK: %[[LENGTH:.*]] = torch.aten.item %[[LENGTH_TENSOR]]
+  // CHECK: %[[TIME_SLICE:.*]] = torch.aten.slice.Tensor %[[BATCH_SLICE]], %[[TIME_AXIS]], %[[C0]], %[[LENGTH]], %[[C1]]
+  // CHECK: %[[DIMS:.*]] = torch.prim.ListConstruct %[[TIME_AXIS]]
+  // CHECK: %[[FLIPPED:.*]] = torch.aten.flip %[[TIME_SLICE]], %[[DIMS]]
+  // CHECK: %[[UPDATED_BATCH:.*]] = torch.aten.slice_scatter %[[BATCH_SLICE]], %[[FLIPPED]], %[[TIME_AXIS]], %[[C0]], %[[LENGTH]], %[[C1]]
+  // CHECK: %[[UPDATED_INPUT:.*]] = torch.aten.slice_scatter %[[CURRENT]], %[[UPDATED_BATCH]], %[[BATCH_AXIS]], %[[K]], %[[END]], %[[C1]]
+  // CHECK: torch.prim.Loop.condition %[[TRUE]], iter(%[[UPDATED_INPUT]]
   // CHECK: return %[[LOOP]]
   %0 = torch.operator "onnx.ReverseSequence"(%arg0, %arg1) {torch.onnx.batch_axis = 0 : si64, torch.onnx.time_axis = 1 : si64} : (!torch.vtensor<[4,4],f32>, !torch.vtensor<[4],si64>) -> !torch.vtensor<[4,4],f32>
   return %0 : !torch.vtensor<[4,4],f32>
@@ -3225,12 +3237,24 @@ func.func @test_reversesequence_batch(%arg0: !torch.vtensor<[4,4],f32>, %arg1: !
 
 // CHECK-LABEL: @test_reversesequence_time
 func.func @test_reversesequence_time(%arg0: !torch.vtensor<[4,4],f32>, %arg1: !torch.vtensor<[4],si64>) -> !torch.vtensor<[4,4],f32> attributes {torch.onnx_meta.ir_version = 5 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
-  // CHECK: %[[BATCH_SIZE:.*]] = torch.aten.size.int %arg0
-  // CHECK: %[[LOOP:.*]] = torch.prim.Loop %[[BATCH_SIZE]]
-  // CHECK: torch.aten.select.int %arg1
-  // CHECK: torch.aten.flip
-  // CHECK: torch.aten.slice_scatter
-  // CHECK: torch.prim.Loop.condition
+  // CHECK: %[[C0:.*]] = torch.constant.int 0
+  // CHECK: %[[C1:.*]] = torch.constant.int 1
+  // CHECK: %[[BATCH_AXIS:.*]] = torch.constant.int 1
+  // CHECK: %[[TIME_AXIS:.*]] = torch.constant.int 0
+  // CHECK: %[[BATCH_SIZE:.*]] = torch.aten.size.int %arg0, %[[BATCH_AXIS]]
+  // CHECK: %[[TRUE:.*]] = torch.constant.bool true
+  // CHECK: %[[LOOP:.*]] = torch.prim.Loop %[[BATCH_SIZE]], %[[TRUE]], init(%arg0)
+  // CHECK: ^bb0(%[[K:.*]]: !torch.int, %[[CURRENT:.*]]: !torch.vtensor<[4,4],f32>):
+  // CHECK: %[[END:.*]] = torch.aten.add.int %[[K]], %[[C1]]
+  // CHECK: %[[BATCH_SLICE:.*]] = torch.aten.slice.Tensor %[[CURRENT]], %[[BATCH_AXIS]], %[[K]], %[[END]], %[[C1]]
+  // CHECK: %[[LENGTH_TENSOR:.*]] = torch.aten.select.int %arg1, %[[C0]], %[[K]]
+  // CHECK: %[[LENGTH:.*]] = torch.aten.item %[[LENGTH_TENSOR]]
+  // CHECK: %[[TIME_SLICE:.*]] = torch.aten.slice.Tensor %[[BATCH_SLICE]], %[[TIME_AXIS]], %[[C0]], %[[LENGTH]], %[[C1]]
+  // CHECK: %[[DIMS:.*]] = torch.prim.ListConstruct %[[TIME_AXIS]]
+  // CHECK: %[[FLIPPED:.*]] = torch.aten.flip %[[TIME_SLICE]], %[[DIMS]]
+  // CHECK: %[[UPDATED_BATCH:.*]] = torch.aten.slice_scatter %[[BATCH_SLICE]], %[[FLIPPED]], %[[TIME_AXIS]], %[[C0]], %[[LENGTH]], %[[C1]]
+  // CHECK: %[[UPDATED_INPUT:.*]] = torch.aten.slice_scatter %[[CURRENT]], %[[UPDATED_BATCH]], %[[BATCH_AXIS]], %[[K]], %[[END]], %[[C1]]
+  // CHECK: torch.prim.Loop.condition %[[TRUE]], iter(%[[UPDATED_INPUT]]
   // CHECK: return %[[LOOP]]
   %0 = torch.operator "onnx.ReverseSequence"(%arg0, %arg1) {torch.onnx.batch_axis = 1 : si64, torch.onnx.time_axis = 0 : si64} : (!torch.vtensor<[4,4],f32>, !torch.vtensor<[4],si64>) -> !torch.vtensor<[4,4],f32>
   return %0 : !torch.vtensor<[4,4],f32>
@@ -3240,12 +3264,24 @@ func.func @test_reversesequence_time(%arg0: !torch.vtensor<[4,4],f32>, %arg1: !t
 
 // CHECK-LABEL: @test_reversesequence_dynamic_batch
 func.func @test_reversesequence_dynamic_batch(%arg0: !torch.vtensor<[?,4],f32>, %arg1: !torch.vtensor<[?],si64>) -> !torch.vtensor<[?,4],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
-  // CHECK: %[[BATCH_SIZE:.*]] = torch.aten.size.int %arg0
-  // CHECK: %[[LOOP:.*]] = torch.prim.Loop %[[BATCH_SIZE]]
-  // CHECK: torch.aten.select.int %arg1
-  // CHECK: torch.aten.flip
-  // CHECK: torch.aten.slice_scatter
-  // CHECK: torch.prim.Loop.condition
+  // CHECK: %[[C0:.*]] = torch.constant.int 0
+  // CHECK: %[[C1:.*]] = torch.constant.int 1
+  // CHECK: %[[BATCH_AXIS:.*]] = torch.constant.int 0
+  // CHECK: %[[TIME_AXIS:.*]] = torch.constant.int 1
+  // CHECK: %[[BATCH_SIZE:.*]] = torch.aten.size.int %arg0, %[[BATCH_AXIS]]
+  // CHECK: %[[TRUE:.*]] = torch.constant.bool true
+  // CHECK: %[[LOOP:.*]] = torch.prim.Loop %[[BATCH_SIZE]], %[[TRUE]], init(%arg0)
+  // CHECK: ^bb0(%[[K:.*]]: !torch.int, %[[CURRENT:.*]]: !torch.vtensor<[?,4],f32>):
+  // CHECK: %[[END:.*]] = torch.aten.add.int %[[K]], %[[C1]]
+  // CHECK: %[[BATCH_SLICE:.*]] = torch.aten.slice.Tensor %[[CURRENT]], %[[BATCH_AXIS]], %[[K]], %[[END]], %[[C1]]
+  // CHECK: %[[LENGTH_TENSOR:.*]] = torch.aten.select.int %arg1, %[[C0]], %[[K]]
+  // CHECK: %[[LENGTH:.*]] = torch.aten.item %[[LENGTH_TENSOR]]
+  // CHECK: %[[TIME_SLICE:.*]] = torch.aten.slice.Tensor %[[BATCH_SLICE]], %[[TIME_AXIS]], %[[C0]], %[[LENGTH]], %[[C1]]
+  // CHECK: %[[DIMS:.*]] = torch.prim.ListConstruct %[[TIME_AXIS]]
+  // CHECK: %[[FLIPPED:.*]] = torch.aten.flip %[[TIME_SLICE]], %[[DIMS]]
+  // CHECK: %[[UPDATED_BATCH:.*]] = torch.aten.slice_scatter %[[BATCH_SLICE]], %[[FLIPPED]], %[[TIME_AXIS]], %[[C0]], %[[LENGTH]], %[[C1]]
+  // CHECK: %[[UPDATED_INPUT:.*]] = torch.aten.slice_scatter %[[CURRENT]], %[[UPDATED_BATCH]], %[[BATCH_AXIS]], %[[K]], %[[END]], %[[C1]]
+  // CHECK: torch.prim.Loop.condition %[[TRUE]], iter(%[[UPDATED_INPUT]]
   // CHECK: return %[[LOOP]]
   %0 = torch.operator "onnx.ReverseSequence"(%arg0, %arg1) {torch.onnx.batch_axis = 0 : si64, torch.onnx.time_axis = 1 : si64} : (!torch.vtensor<[?,4],f32>, !torch.vtensor<[?],si64>) -> !torch.vtensor<[?,4],f32>
   return %0 : !torch.vtensor<[?,4],f32>
