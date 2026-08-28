@@ -3999,18 +3999,19 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         flipShape[timeAxis] = Torch::kUnknownSize;
         auto flipType =
             rewriter.getType<Torch::ValueTensorType>(flipShape, dtype);
-        // iterate over the batch dimension at runtime.
+        // iterate over the batch dimension at runtime
         Value batchSize = Torch::AtenSizeIntOp::create(
-            rewriter, binder.getLoc(),
-            rewriter.getType<Torch::IntType>(), input, batchAxisVal);
+            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            input, batchAxisVal);
 
         Value loopConditionTrue = Torch::ConstantBoolOp::create(
             rewriter, binder.getLoc(), rewriter.getBoolAttr(true));
         Type loopIndexType = rewriter.getType<Torch::IntType>();
         auto sequenceLensTy =
             cast<Torch::ValueTensorType>(sequenceLens.getType());
-        auto sequenceLengthTensorType = rewriter.getType<Torch::ValueTensorType>(
-            ArrayRef<int64_t>{}, sequenceLensTy.getDtype());
+        auto sequenceLengthTensorType =
+            rewriter.getType<Torch::ValueTensorType>(ArrayRef<int64_t>{},
+                                                     sequenceLensTy.getDtype());
 
         auto loop = Torch::PrimLoopOp::create(
             rewriter, binder.getLoc(), TypeRange({resultType}), batchSize,
@@ -4026,17 +4027,17 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           Value currInput = loopBody->getArgument(1);
 
           // slice k iterating on batch axis
-          Value end = Torch::AtenAddIntOp::create(rewriter, binder.getLoc(), k,
-                                                  cstOne);
+          Value end =
+              Torch::AtenAddIntOp::create(rewriter, binder.getLoc(), k, cstOne);
 
           Value sliceBatch = Torch::AtenSliceTensorOp::create(
               rewriter, binder.getLoc(), sliceType, currInput, batchAxisVal, k,
               end, cstOne);
 
           // get sequence length and slice the reversing part
-          Value sel = Torch::AtenSelectIntOp::create(
-              rewriter, binder.getLoc(), sequenceLengthTensorType, sequenceLens,
-              cstZero, k);
+          Value sel = Torch::AtenSelectIntOp::create(rewriter, binder.getLoc(),
+                                                     sequenceLengthTensorType,
+                                                     sequenceLens, cstZero, k);
           Value len = Torch::AtenItemOp::create(
               rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
               sel);
@@ -4050,8 +4051,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               rewriter.getType<Torch::ListType>(
                   rewriter.getType<Torch::IntType>()),
               SmallVector<Value>{timeAxisVal});
-          Value flip = Torch::AtenFlipOp::create(
-              rewriter, binder.getLoc(), flipType, sliceTime, dims);
+          Value flip = Torch::AtenFlipOp::create(rewriter, binder.getLoc(),
+                                                 flipType, sliceTime, dims);
 
           // embeds the reversed tensor to the input
           Value embedTime = Torch::AtenSliceScatterOp::create(
@@ -4061,9 +4062,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               rewriter, binder.getLoc(), resultType, currInput, embedTime,
               batchAxisVal, /*start=*/k, /*end=*/end, /*step=*/cstOne);
 
-          Torch::PrimLoopConditionOp::create(
-              rewriter, binder.getLoc(), loopConditionTrue,
-              ValueRange({updatedInput}));
+          Torch::PrimLoopConditionOp::create(rewriter, binder.getLoc(),
+                                             loopConditionTrue,
+                                             ValueRange({updatedInput}));
         }
 
         rewriter.replaceOp(binder.op, loop.getResult(0));

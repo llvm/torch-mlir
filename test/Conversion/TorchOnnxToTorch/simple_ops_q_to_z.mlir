@@ -3262,8 +3262,8 @@ func.func @test_reversesequence_time(%arg0: !torch.vtensor<[4,4],f32>, %arg1: !t
 
 // -----
 
-// CHECK-LABEL: @test_reversesequence_dynamic_batch
-func.func @test_reversesequence_dynamic_batch(%arg0: !torch.vtensor<[?,4],f32>, %arg1: !torch.vtensor<[?],si64>) -> !torch.vtensor<[?,4],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+// CHECK-LABEL: @test_reversesequence_dynamic_batch_dim
+func.func @test_reversesequence_dynamic_batch_dim(%arg0: !torch.vtensor<[?,4],f32>, %arg1: !torch.vtensor<[?],si64>) -> !torch.vtensor<[?,4],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   // CHECK: %[[C0:.*]] = torch.constant.int 0
   // CHECK: %[[C1:.*]] = torch.constant.int 1
   // CHECK: %[[BATCH_AXIS:.*]] = torch.constant.int 0
