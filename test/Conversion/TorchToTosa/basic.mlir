@@ -6656,6 +6656,20 @@ func.func @torch.aten.topk.decomposed_prefix_slice_zero_k(%arg0: !torch.vtensor<
 
 // -----
 
+func.func @torch.aten.topk.decomposed_prefix_slice_zero_k_dynamic_results(%arg0: !torch.vtensor<[200],f32>) -> (!torch.vtensor<[?],f32>, !torch.vtensor<[?],si64>) {
+  %dim = torch.constant.int 0
+  %true = torch.constant.bool true
+  %zero = torch.constant.int 0
+  %one = torch.constant.int 1
+  // expected-error @below {{failed to legalize operation 'torch.aten.sort' that was explicitly marked illegal}}
+  %values, %indices = torch.aten.sort %arg0, %dim, %true : !torch.vtensor<[200],f32>, !torch.int, !torch.bool -> !torch.vtensor<[200],f32>, !torch.vtensor<[200],si64>
+  %top_values = torch.aten.slice.Tensor %values, %dim, %zero, %zero, %one : !torch.vtensor<[200],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[?],f32>
+  %top_indices = torch.aten.slice.Tensor %indices, %dim, %zero, %zero, %one : !torch.vtensor<[200],si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[?],si64>
+  return %top_values, %top_indices : !torch.vtensor<[?],f32>, !torch.vtensor<[?],si64>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.sort.full_ascending_last_dim(
 // CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],si64>) {
 // CHECK:           %[[INPUT:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[2,3],f32> -> tensor<2x3xf32>

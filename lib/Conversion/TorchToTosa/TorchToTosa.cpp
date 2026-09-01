@@ -2581,8 +2581,8 @@ LogicalResult ConvertAtenOp<AtenSortOp>::matchAndRewriteImpl(
     return PrefixSliceUsers{valuesSlice, indicesSlice, valuesK};
   };
 
-  std::optional<PrefixSliceUsers> sliceUsers = getPrefixSliceUsers();
-  int64_t selectionCount = sliceUsers ? sliceUsers->k : dimSize;
+  std::optional<PrefixSliceUsers> topkPrefixSlices = getPrefixSliceUsers();
+  int64_t selectionCount = topkPrefixSlices ? topkPrefixSlices->k : dimSize;
   if (selectionCount > kMaxTosaSortSelectionCount)
     return rewriter.notifyMatchFailure(op, [&](Diagnostic &diag) {
       diag << "TOSA sort/topk lowering supports at most "
@@ -2591,25 +2591,29 @@ LogicalResult ConvertAtenOp<AtenSortOp>::matchAndRewriteImpl(
 
   RankedTensorType valuesResultTy = sortValuesResultTy;
   RankedTensorType indicesResultTy = sortIndicesResultTy;
-  if (sliceUsers) {
-    valuesResultTy = dyn_cast<RankedTensorType>(
-        getTypeConverter()->convertType(sliceUsers->valuesSlice.getType()));
-    indicesResultTy = dyn_cast<RankedTensorType>(
-        getTypeConverter()->convertType(sliceUsers->indicesSlice.getType()));
+  if (topkPrefixSlices) {
+    valuesResultTy = dyn_cast<RankedTensorType>(getTypeConverter()->convertType(
+        topkPrefixSlices->valuesSlice.getType()));
+    indicesResultTy =
+        dyn_cast<RankedTensorType>(getTypeConverter()->convertType(
+            topkPrefixSlices->indicesSlice.getType()));
     if (!valuesResultTy || !indicesResultTy)
       return rewriter.notifyMatchFailure(
           op, "expected ranked tensor types for topk slice results");
   }
 
-  if (sliceUsers && selectionCount == 0) {
+  if (topkPrefixSlices && selectionCount == 0) {
+    if (!valuesResultTy.hasStaticShape() || !indicesResultTy.hasStaticShape())
+      return rewriter.notifyMatchFailure(
+          op, "topk with k=0 requires statically shaped slice results");
     Value emptyValues =
         tensor::EmptyOp::create(rewriter, loc, valuesResultTy.getShape(),
                                 valuesResultTy.getElementType());
     Value emptyIndices =
         tensor::EmptyOp::create(rewriter, loc, indicesResultTy.getShape(),
                                 indicesResultTy.getElementType());
-    rewriter.replaceOp(sliceUsers->valuesSlice, emptyValues);
-    rewriter.replaceOp(sliceUsers->indicesSlice, emptyIndices);
+    rewriter.replaceOp(topkPrefixSlices->valuesSlice, emptyValues);
+    rewriter.replaceOp(topkPrefixSlices->indicesSlice, emptyIndices);
     rewriter.eraseOp(op);
     return success();
   }
@@ -2620,9 +2624,9 @@ LogicalResult ConvertAtenOp<AtenSortOp>::matchAndRewriteImpl(
   if (failed(selection))
     return failure();
 
-  if (sliceUsers) {
-    rewriter.replaceOp(sliceUsers->valuesSlice, selection->values);
-    rewriter.replaceOp(sliceUsers->indicesSlice, selection->indices);
+  if (topkPrefixSlices) {
+    rewriter.replaceOp(topkPrefixSlices->valuesSlice, selection->values);
+    rewriter.replaceOp(topkPrefixSlices->indicesSlice, selection->indices);
     rewriter.eraseOp(op);
     return success();
   }
