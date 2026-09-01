@@ -121,16 +121,21 @@ def verify_latest_version(version_str, package_name):
 def get_next_dev_version(package_name, repo=None):
     """Calculate the next .devN version for today's date (YYYYMMDD.devN)."""
     today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d")
+    target_base = packaging.version.parse(today).base_version
     versions = get_github_dev_versions(repo, package_name) if repo else []
 
-    # Find versions matching today's date and the .dev suffix
-    pattern = re.compile(rf"^{re.escape(today)}\.dev(\d+)$")
     max_dev = -1
-
     for v in versions:
-        match = pattern.match(v)
-        if match:
-            max_dev = max(max_dev, int(match.group(1)))
+        try:
+            parsed = packaging.version.parse(v)
+            if (
+                parsed.is_devrelease
+                and parsed.base_version == target_base
+                and parsed.dev is not None
+            ):
+                max_dev = max(max_dev, parsed.dev)
+        except packaging.version.InvalidVersion:
+            continue
 
     next_dev = max_dev + 1
     return f"{today}.dev{next_dev}"
