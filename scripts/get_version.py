@@ -116,9 +116,9 @@ def get_pypi_versions(package_name):
 
 
 def verify_latest_version(version_str, package_name):
-    """Verify that the chosen release version is strictly greater than all existing PyPI releases.
+    """Verify that the chosen release version is not older than existing PyPI releases.
 
-    NOTE: This check enforces that new releases are strictly greater than all
+    NOTE: This check enforces that new releases are greater than or equal to all
     previously published PyPI versions under PEP 440 ordering. This assumes a
     date-based versioning scheme (e.g. YYYYMMDD). This would need to change if
     torch-mlir switches to stable releases with patches (e.g., releasing a patch
@@ -132,11 +132,11 @@ def verify_latest_version(version_str, package_name):
     parsed_existing = [packaging.version.parse(v) for v in pypi_versions]
     latest_existing = max(parsed_existing)
 
-    if parsed_target <= latest_existing:
+    if parsed_target < latest_existing:
         raise ValueError(
             f"Calculated version '{version_str}' is not greater than the latest "
             f"existing PyPI release '{latest_existing}'. "
-            f"New releases must be strictly newer than all existing PyPI releases."
+            f"New releases must not be older than existing PyPI releases."
         )
 
 
@@ -241,7 +241,7 @@ def main():
         args.event, args.ref, args.tag, package, repo
     )
 
-    if should_publish_gh == "true" or should_publish_pypi == "true":
+    if should_publish_pypi == "true":
         verify_latest_version(version, package)
 
     if args.gha:

@@ -170,10 +170,10 @@ class TestGetVersion(unittest.TestCase):
         )
 
     @mock.patch("scripts.get_version.get_pypi_versions")
-    def test_verify_latest_version_equal(self, mock_pypi):
-        mock_pypi.return_value = ["20221213.686"]
-        with self.assertRaises(ValueError):
-            get_version.verify_latest_version("20221213.686", "torch-mlir")
+    def test_verify_latest_version_equal_allowed_for_reruns(self, mock_pypi):
+        mock_pypi.return_value = ["20260831"]
+        # Equal version should pass to support idempotent retries / missing-file uploads
+        get_version.verify_latest_version("20260831", "torch-mlir")
 
     @mock.patch("scripts.get_version.get_pypi_versions")
     def test_verify_latest_version_no_existing(self, mock_pypi):
