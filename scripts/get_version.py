@@ -23,6 +23,9 @@ DEV_BRANCH_REF = "refs/heads/main"
 # Fallback package name if pyproject.toml has no [project] name.
 DEFAULT_PACKAGE = "torch-mlir"
 
+# Strict regex for case-sensitive vYYYYMMDD or vYYYYMMDD.devN tag names.
+TAG_REGEX = re.compile(r"^(?:refs/tags/)?(v\d{8}(?:\.dev\d+)?)$")
+
 
 def get_package_name():
     """Read the package name from pyproject.toml, falling back to the default."""
@@ -32,6 +35,25 @@ def get_package_name():
             return tomllib.load(f)["project"]["name"]
     except (KeyError, FileNotFoundError):
         return DEFAULT_PACKAGE
+
+
+def validate_and_parse_tag(tag: str) -> tuple[str, bool]:
+    """Validate a case-sensitive refs/tags/vYYYYMMDD or vYYYYMMDD(.devN) tag.
+
+    Rejects branch/tag ambiguity, duplicate leading 'v's, wrong capitalization,
+    and invalid formats. Parses with packaging.version.Version and returns
+    (version_str, is_devrelease).
+    """
+    match = TAG_REGEX.match(tag)
+    if not match:
+        raise ValueError(
+            f"Invalid release tag '{tag}'. Expected exact format 'vYYYYMMDD' or "
+            f"'vYYYYMMDD.devN' (e.g. 'v20260831')."
+        )
+    tag_clean = match.group(1)
+    version_str = tag_clean.removeprefix("v")
+    parsed = packaging.version.Version(version_str)
+    return str(parsed), parsed.is_devrelease
 
 
 def get_github_dev_versions(repo, package_name):
@@ -143,6 +165,7 @@ def get_next_dev_version(package_name, repo=None):
 
 def calculate_version(event, ref, tag, package, repo=None):
     version = "0.0.0"
+    target_ref = DEV_BRANCH_REF
     should_publish_gh = "false"
     should_publish_pypi = "false"
 
@@ -150,22 +173,29 @@ def calculate_version(event, ref, tag, package, repo=None):
     # black can parse this file.
     if event == "workflow_dispatch":
         if tag:
-            # Manual release of an existing tag; use for example when the release
-            # workflow fails to trigger the wheel upload.
-            version = tag.lstrip("v")
+            # Manual release of an existing tag; validate and parse with Version
+            version, is_dev = validate_and_parse_tag(tag)
+            clean_tag = tag.removeprefix("refs/tags/")
+            target_ref = f"refs/tags/{clean_tag}"
             should_publish_gh = "true"
-            if "dev" not in version:
+            if not is_dev:
                 should_publish_pypi = "true"
         elif ref == DEV_BRANCH_REF:
-            # For dev releases
+            # For dev releases off main
             version = get_next_dev_version(package, repo)
+            target_ref = DEV_BRANCH_REF
             should_publish_gh = "true"
+        else:
+            target_ref = ref
 
     elif event == "schedule":
         should_publish_gh = "true"
+        target_ref = DEV_BRANCH_REF
         if tag:
-            version = tag.lstrip("v")
-            if "dev" not in version:
+            version, is_dev = validate_and_parse_tag(tag)
+            clean_tag = tag.removeprefix("refs/tags/")
+            target_ref = f"refs/tags/{clean_tag}"
+            if not is_dev:
                 should_publish_pypi = "true"
         else:
             now = datetime.datetime.now(datetime.timezone.utc)
@@ -176,9 +206,9 @@ def calculate_version(event, ref, tag, package, repo=None):
                 version = get_next_dev_version(package, repo)
 
     elif event == "pull_request":
-        pass  # use defaults which are all safe
+        target_ref = ref  # use PR ref
 
-    return version, should_publish_gh, should_publish_pypi
+    return version, target_ref, should_publish_gh, should_publish_pypi
 
 
 def main():
@@ -207,7 +237,7 @@ def main():
 
     package = args.package or get_package_name()
     repo = os.environ.get("GITHUB_REPOSITORY")
-    version, should_publish_gh, should_publish_pypi = calculate_version(
+    version, target_ref, should_publish_gh, should_publish_pypi = calculate_version(
         args.event, args.ref, args.tag, package, repo
     )
 
@@ -220,10 +250,12 @@ def main():
         if output_file:
             with open(output_file, "a") as f:
                 f.write(f"version={version}\n")
+                f.write(f"ref={target_ref}\n")
                 f.write(f"should_publish_gh={should_publish_gh}\n")
                 f.write(f"should_publish_pypi={should_publish_pypi}\n")
 
     print(f"version={version}")
+    print(f"ref={target_ref}")
     print(f"should_publish_gh={should_publish_gh}")
     print(f"should_publish_pypi={should_publish_pypi}")
 

@@ -21,6 +21,46 @@ class TestGetVersion(unittest.TestCase):
         package_name = get_version.get_package_name()
         self.assertEqual(package_name, "torch-mlir")
 
+    def test_validate_and_parse_tag_valid_stable(self):
+        ver, is_dev = get_version.validate_and_parse_tag("v20260831")
+        self.assertEqual(ver, "20260831")
+        self.assertFalse(is_dev)
+
+        ver, is_dev = get_version.validate_and_parse_tag("refs/tags/v20260831")
+        self.assertEqual(ver, "20260831")
+        self.assertFalse(is_dev)
+
+    def test_validate_and_parse_tag_valid_dev(self):
+        ver, is_dev = get_version.validate_and_parse_tag("v20260831.dev0")
+        self.assertEqual(ver, "20260831.dev0")
+        self.assertTrue(is_dev)
+
+        ver, is_dev = get_version.validate_and_parse_tag("refs/tags/v20260831.dev12")
+        self.assertEqual(ver, "20260831.dev12")
+        self.assertTrue(is_dev)
+
+    def test_validate_and_parse_tag_invalid_tags(self):
+        invalid_tags = [
+            "V20260831",  # capital V
+            "vv20260831",  # duplicate v
+            "vvv20260831",
+            "v2026.08.31",  # dotted YYYY.MM.DD
+            "v20260831.DEV1",  # capital DEV
+            "refs/heads/v20260831",  # branch ref
+            "refs/tags/V20260831",  # capital V in refs/tags
+            "refs/tags/vv20260831",
+            "v20260831-dev",  # hyphen instead of dot
+            "v2026083",  # 7 digits
+            "v202608311",  # 9 digits
+            "main",  # branch name
+            "release/v20260831",
+        ]
+        for tag in invalid_tags:
+            with self.subTest(tag=tag):
+                with self.assertRaises(ValueError) as ctx:
+                    get_version.validate_and_parse_tag(tag)
+                self.assertIn("Invalid release tag", str(ctx.exception))
+
     @mock.patch("requests.get")
     def test_get_github_dev_versions(self, mock_get):
         mock_response = mock.Mock()
@@ -181,59 +221,73 @@ class TestGetVersion(unittest.TestCase):
         self.assertEqual(version, f"{today}.dev0")
 
     def test_calculate_version_pull_request(self):
-        v, pub_gh, pub_pypi = get_version.calculate_version(
+        v, ref, pub_gh, pub_pypi = get_version.calculate_version(
             event="pull_request",
             ref="refs/pull/123/merge",
             tag=None,
             package="torch-mlir",
         )
         self.assertEqual(v, "0.0.0")
+        self.assertEqual(ref, "refs/pull/123/merge")
         self.assertEqual(pub_gh, "false")
         self.assertEqual(pub_pypi, "false")
 
     def test_calculate_version_workflow_dispatch_tag(self):
-        v, pub_gh, pub_pypi = get_version.calculate_version(
+        v, ref, pub_gh, pub_pypi = get_version.calculate_version(
             event="workflow_dispatch",
             ref="refs/heads/main",
             tag="v20260831",
             package="torch-mlir",
         )
         self.assertEqual(v, "20260831")
+        self.assertEqual(ref, "refs/tags/v20260831")
         self.assertEqual(pub_gh, "true")
         self.assertEqual(pub_pypi, "true")
 
     def test_calculate_version_workflow_dispatch_dev_tag(self):
-        v, pub_gh, pub_pypi = get_version.calculate_version(
+        v, ref, pub_gh, pub_pypi = get_version.calculate_version(
             event="workflow_dispatch",
             ref="refs/heads/main",
             tag="v20260831.dev1",
             package="torch-mlir",
         )
         self.assertEqual(v, "20260831.dev1")
+        self.assertEqual(ref, "refs/tags/v20260831.dev1")
         self.assertEqual(pub_gh, "true")
         self.assertEqual(pub_pypi, "false")
+
+    def test_calculate_version_workflow_dispatch_invalid_tag(self):
+        with self.assertRaises(ValueError):
+            get_version.calculate_version(
+                event="workflow_dispatch",
+                ref="refs/heads/main",
+                tag="V20260831",
+                package="torch-mlir",
+            )
 
     @mock.patch("scripts.get_version.get_next_dev_version")
     def test_calculate_version_workflow_dispatch_main_dev(self, mock_dev):
         mock_dev.return_value = "20260831.dev0"
-        v, pub_gh, pub_pypi = get_version.calculate_version(
+        v, ref, pub_gh, pub_pypi = get_version.calculate_version(
             event="workflow_dispatch",
             ref="refs/heads/main",
             tag=None,
             package="torch-mlir",
         )
         self.assertEqual(v, "20260831.dev0")
+        self.assertEqual(ref, "refs/heads/main")
         self.assertEqual(pub_gh, "true")
         self.assertEqual(pub_pypi, "false")
 
     def test_calculate_version_workflow_dispatch_feature_branch(self):
-        v, pub_gh, pub_pypi = get_version.calculate_version(
+        v, ref, pub_gh, pub_pypi = get_version.calculate_version(
             event="workflow_dispatch",
             ref="refs/heads/feature-branch",
             tag=None,
             package="torch-mlir",
         )
         self.assertEqual(v, "0.0.0")
+        self.assertEqual(ref, "refs/heads/feature-branch")
         self.assertEqual(pub_gh, "false")
         self.assertEqual(pub_pypi, "false")
 
@@ -245,13 +299,14 @@ class TestGetVersion(unittest.TestCase):
         mock_datetime.now.return_value = mock_now
         mock_datetime.timezone = datetime.timezone
 
-        v, pub_gh, pub_pypi = get_version.calculate_version(
+        v, ref, pub_gh, pub_pypi = get_version.calculate_version(
             event="schedule",
             ref="refs/heads/main",
             tag=None,
             package="torch-mlir",
         )
         self.assertEqual(v, "20260901")
+        self.assertEqual(ref, "refs/heads/main")
         self.assertEqual(pub_gh, "true")
         self.assertEqual(pub_pypi, "true")
 
@@ -264,24 +319,26 @@ class TestGetVersion(unittest.TestCase):
         mock_datetime.timezone = datetime.timezone
         mock_dev.return_value = "20260915.dev0"
 
-        v, pub_gh, pub_pypi = get_version.calculate_version(
+        v, ref, pub_gh, pub_pypi = get_version.calculate_version(
             event="schedule",
             ref="refs/heads/main",
             tag=None,
             package="torch-mlir",
         )
         self.assertEqual(v, "20260915.dev0")
+        self.assertEqual(ref, "refs/heads/main")
         self.assertEqual(pub_gh, "true")
         self.assertEqual(pub_pypi, "false")
 
     def test_calculate_version_schedule_tag(self):
-        v, pub_gh, pub_pypi = get_version.calculate_version(
+        v, ref, pub_gh, pub_pypi = get_version.calculate_version(
             event="schedule",
             ref="refs/heads/main",
             tag="v20260901",
             package="torch-mlir",
         )
         self.assertEqual(v, "20260901")
+        self.assertEqual(ref, "refs/tags/v20260901")
         self.assertEqual(pub_gh, "true")
         self.assertEqual(pub_pypi, "true")
 
@@ -293,6 +350,7 @@ class TestMainCLI(unittest.TestCase):
         with mock.patch("builtins.print") as mock_print:
             get_version.main()
             mock_print.assert_any_call("version=0.0.0")
+            mock_print.assert_any_call("ref=refs/heads/main")
             mock_print.assert_any_call("should_publish_gh=false")
             mock_print.assert_any_call("should_publish_pypi=false")
 
@@ -306,6 +364,7 @@ class TestMainCLI(unittest.TestCase):
             get_version.main()
             mock_verify.assert_called_once_with("20260831", "torch-mlir")
             mock_print.assert_any_call("version=20260831")
+            mock_print.assert_any_call("ref=refs/tags/v20260831")
             mock_print.assert_any_call("should_publish_gh=true")
             mock_print.assert_any_call("should_publish_pypi=true")
 
@@ -335,6 +394,7 @@ class TestMainCLI(unittest.TestCase):
                 content = f.read()
 
             self.assertIn("version=20260831\n", content)
+            self.assertIn("ref=refs/tags/v20260831\n", content)
             self.assertIn("should_publish_gh=true\n", content)
             self.assertIn("should_publish_pypi=true\n", content)
         finally:
