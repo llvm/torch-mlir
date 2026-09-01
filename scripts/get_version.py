@@ -1,9 +1,9 @@
 """Script to calculate the version for the torch-mlir Python package.
 
-Adapted from the HEIR release tooling. Produces a date-based version
-(``YYYY.MM.DD``) for tagged/scheduled releases and an auto-incrementing
-``YYYY.MM.DD.devN`` for development releases off ``main``. The version is fed to
-``setup.py`` via the ``TORCH_MLIR_PYTHON_PACKAGE_VERSION`` environment variable.
+Produces a date-based version (``YYYYMMDD``) for tagged/scheduled releases and
+an auto-incrementing ``YYYYMMDD.devN`` for development releases off ``main``.
+The version is fed to ``setup.py`` via the ``TORCH_MLIR_PYTHON_PACKAGE_VERSION``
+environment variable.
 """
 
 import argparse
@@ -14,6 +14,7 @@ import re
 import sys
 import tomllib
 
+import packaging.version
 import requests
 
 # Branch that development (.devN) releases are cut from.
@@ -66,9 +67,47 @@ def get_github_dev_versions(repo, package_name):
     return []
 
 
+def get_pypi_versions(package_name):
+    """Fetch all release versions for a package from PyPI."""
+    url = f"https://pypi.org/pypi/{package_name}/json"
+    try:
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            return list(data.get("releases", {}).keys())
+    except Exception as e:
+        print(f"Error fetching from PyPI: {e}", file=sys.stderr)
+    return []
+
+
+def verify_latest_version(version_str, package_name):
+    """Verify that the chosen release version is strictly greater than all existing PyPI releases.
+
+    NOTE: This check enforces that new releases are strictly greater than all
+    previously published PyPI versions under PEP 440 ordering. This assumes a
+    date-based versioning scheme (e.g. YYYYMMDD). This would need to change if
+    torch-mlir switches to stable releases with patches (e.g., releasing a patch
+    fix 1.0.1 after 1.1.0 has already been published).
+    """
+    pypi_versions = get_pypi_versions(package_name)
+    if not pypi_versions:
+        return
+
+    parsed_target = packaging.version.parse(version_str)
+    parsed_existing = [packaging.version.parse(v) for v in pypi_versions]
+    latest_existing = max(parsed_existing)
+
+    if parsed_target <= latest_existing:
+        raise ValueError(
+            f"Calculated version '{version_str}' is not greater than the latest "
+            f"existing PyPI release '{latest_existing}'. "
+            f"New releases must be strictly newer than all existing PyPI releases."
+        )
+
+
 def get_next_dev_version(package_name, repo=None):
-    """Calculate the next .devN version for today's date."""
-    today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y.%m.%d")
+    """Calculate the next .devN version for today's date (YYYYMMDD.devN)."""
+    today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d")
     versions = get_github_dev_versions(repo, package_name) if repo else []
 
     # Find versions matching today's date and the .dev suffix
@@ -113,7 +152,7 @@ def calculate_version(event, ref, tag, package, repo=None):
         else:
             now = datetime.datetime.now(datetime.timezone.utc)
             if now.day == 1:
-                version = now.strftime("%Y.%m.%d")
+                version = now.strftime("%Y%m%d")
                 should_publish_pypi = "true"
             else:
                 version = get_next_dev_version(package, repo)
@@ -153,6 +192,9 @@ def main():
     version, should_publish_gh, should_publish_pypi = calculate_version(
         args.event, args.ref, args.tag, package, repo
     )
+
+    if should_publish_gh == "true" or should_publish_pypi == "true":
+        verify_latest_version(version, package)
 
     if args.gha:
         # Writing to GITHUB_OUTPUT if available
