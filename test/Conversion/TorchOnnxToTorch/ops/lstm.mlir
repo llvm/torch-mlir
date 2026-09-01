@@ -108,3 +108,116 @@ func.func @test_lstm_batchwise_two_outputs(%arg0: !torch.vtensor<[3,1,2],f32>, %
   %0:3 = torch.operator "onnx.LSTM"(%arg0, %arg1, %arg2, %arg3) { torch.onnx.hidden_size = 3 : si64 }: (!torch.vtensor<[?,?,?],f32>, !torch.vtensor<[1,12,4],f32>, !torch.vtensor<[1,12,3],f32>, !torch.vtensor<[1,24],f32>)-> (!torch.vtensor<[?,1,?,3],f32>, !torch.vtensor<[1,?,3],f32>, !torch.vtensor<[1,?,3],f32>)
   return %0#0, %0#1, %0#2 : !torch.vtensor<[?,1,?,3],f32>, !torch.vtensor<[1,?,3],f32>, !torch.vtensor<[1,?,3],f32>
 }
+
+// -----
+
+// When initial_h / initial_c are provided with a dynamic hidden dim (e.g. from
+// an onnx.Tile broadcasting the initial state to a dynamic batch dim), the
+// expander must recover the static hidden_size from the attribute so the loop
+// body carries the static hidden dim instead of propagating an unknown size
+// that leaves an unresolvable materialization against the static result type.
+
+// CHECK-LABEL:   func.func @test_lstm_dynamic_initial_state(
+// CHECK-SAME:                               %[[X:.*]]: !torch.vtensor<[?,?,4],f32>,
+// CHECK-SAME:                               %[[W:.*]]: !torch.vtensor<[1,12,4],f32>,
+// CHECK-SAME:                               %[[R:.*]]: !torch.vtensor<[1,12,3],f32>,
+// CHECK-SAME:                               %[[B:.*]]: !torch.vtensor<[1,24],f32>,
+// CHECK-SAME:                               %[[INITIAL_H:.*]]: !torch.vtensor<[?,?,?],f32>,
+// CHECK-SAME:                               %[[INITIAL_C:.*]]: !torch.vtensor<[?,?,?],f32>)
+// CHECK:           %[[H0:.*]] = torch.tensor_static_info_cast %[[INITIAL_H]] : !torch.vtensor<[?,?,?],f32> to !torch.vtensor<[?,?,3],f32>
+// CHECK:           %[[C0:.*]] = torch.tensor_static_info_cast %[[INITIAL_C]] : !torch.vtensor<[?,?,?],f32> to !torch.vtensor<[?,?,3],f32>
+// CHECK:           %[[H0_FWD:.*]] = torch.aten.select.int %[[H0]], %{{.*}}, %{{.*}} : !torch.vtensor<[?,?,3],f32>, !torch.int, !torch.int -> !torch.vtensor<[?,3],f32>
+// CHECK:           %[[C0_FWD:.*]] = torch.aten.select.int %[[C0]], %{{.*}}, %{{.*}} : !torch.vtensor<[?,?,3],f32>, !torch.int, !torch.int -> !torch.vtensor<[?,3],f32>
+// CHECK:           torch.prim.Loop %{{.*}}, %{{.*}}, init(%{{.*}}, %[[H0_FWD]], %[[C0_FWD]]) {
+// CHECK:           ^bb0(%{{.*}}: !torch.int, %{{.*}}: !torch.vtensor<[?,?,3],f32>, %{{.*}}: !torch.vtensor<[?,3],f32>, %{{.*}}: !torch.vtensor<[?,3],f32>):
+// CHECK:           }
+
+func.func @test_lstm_dynamic_initial_state(%arg0: !torch.vtensor<[?,?,4],f32>, %arg1: !torch.vtensor<[1,12,4],f32>, %arg2: !torch.vtensor<[1,12,3],f32>, %arg3: !torch.vtensor<[1,24],f32>, %arg4: !torch.vtensor<[?,?,?],f32>, %arg5: !torch.vtensor<[?,?,?],f32>) -> (!torch.vtensor<[?,1,?,3],f32>, !torch.vtensor<[1,?,3],f32>, !torch.vtensor<[1,?,3],f32>) attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64} {
+  %none = torch.constant.none
+  %0:3 = torch.operator "onnx.LSTM"(%arg0, %arg1, %arg2, %arg3, %none, %arg4, %arg5) { torch.onnx.hidden_size = 3 : si64 }: (!torch.vtensor<[?,?,4],f32>, !torch.vtensor<[1,12,4],f32>, !torch.vtensor<[1,12,3],f32>, !torch.vtensor<[1,24],f32>, !torch.none, !torch.vtensor<[?,?,?],f32>, !torch.vtensor<[?,?,?],f32>)-> (!torch.vtensor<[?,1,?,3],f32>, !torch.vtensor<[1,?,3],f32>, !torch.vtensor<[1,?,3],f32>)
+  return %0#0, %0#1, %0#2 : !torch.vtensor<[?,1,?,3],f32>, !torch.vtensor<[1,?,3],f32>, !torch.vtensor<[1,?,3],f32>
+}
+
+// -----
+
+// When initial_h / initial_c already carry a static hidden dim, no refinement
+// cast is emitted: the dim is only refined when it is dynamic. This also guards
+// against emitting a verifier-invalid cast for a statically-mismatched dim.
+
+// CHECK-LABEL:   func.func @test_lstm_static_initial_state(
+// CHECK-SAME:                               %[[INITIAL_H:.*]]: !torch.vtensor<[1,?,3],f32>,
+// CHECK-SAME:                               %[[INITIAL_C:.*]]: !torch.vtensor<[1,?,3],f32>)
+// CHECK-NOT:       torch.tensor_static_info_cast %[[INITIAL_H]]
+// CHECK-NOT:       torch.tensor_static_info_cast %[[INITIAL_C]]
+
+func.func @test_lstm_static_initial_state(%arg0: !torch.vtensor<[?,?,4],f32>, %arg1: !torch.vtensor<[1,12,4],f32>, %arg2: !torch.vtensor<[1,12,3],f32>, %arg3: !torch.vtensor<[1,24],f32>, %arg4: !torch.vtensor<[1,?,3],f32>, %arg5: !torch.vtensor<[1,?,3],f32>) -> (!torch.vtensor<[?,1,?,3],f32>, !torch.vtensor<[1,?,3],f32>, !torch.vtensor<[1,?,3],f32>) attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64} {
+  %none = torch.constant.none
+  %0:3 = torch.operator "onnx.LSTM"(%arg0, %arg1, %arg2, %arg3, %none, %arg4, %arg5) { torch.onnx.hidden_size = 3 : si64 }: (!torch.vtensor<[?,?,4],f32>, !torch.vtensor<[1,12,4],f32>, !torch.vtensor<[1,12,3],f32>, !torch.vtensor<[1,24],f32>, !torch.none, !torch.vtensor<[1,?,3],f32>, !torch.vtensor<[1,?,3],f32>)-> (!torch.vtensor<[?,1,?,3],f32>, !torch.vtensor<[1,?,3],f32>, !torch.vtensor<[1,?,3],f32>)
+  return %0#0, %0#1, %0#2 : !torch.vtensor<[?,1,?,3],f32>, !torch.vtensor<[1,?,3],f32>, !torch.vtensor<[1,?,3],f32>
+}
+
+// -----
+
+// layout=1 with a dynamic initial state: the layout transpose runs before the
+// refinement, so the hidden dim (still the trailing dim after the transpose) is
+// pinned to the static hidden_size on the transposed value.
+
+// CHECK-LABEL:   func.func @test_lstm_layout1_dynamic_initial_state(
+// CHECK:           %[[TH:.*]] = torch.aten.transpose.int %arg4, %{{.*}}, %{{.*}} : !torch.vtensor<[?,?,?],f32>, !torch.int, !torch.int -> !torch.vtensor<[?,?,?],f32>
+// CHECK:           %[[H0:.*]] = torch.tensor_static_info_cast %[[TH]] : !torch.vtensor<[?,?,?],f32> to !torch.vtensor<[?,?,3],f32>
+// CHECK:           %[[TC:.*]] = torch.aten.transpose.int %arg5, %{{.*}}, %{{.*}} : !torch.vtensor<[?,?,?],f32>, !torch.int, !torch.int -> !torch.vtensor<[?,?,?],f32>
+// CHECK:           %[[C0:.*]] = torch.tensor_static_info_cast %[[TC]] : !torch.vtensor<[?,?,?],f32> to !torch.vtensor<[?,?,3],f32>
+// CHECK:           %[[H0_FWD:.*]] = torch.aten.select.int %[[H0]], %{{.*}}, %{{.*}} : !torch.vtensor<[?,?,3],f32>, !torch.int, !torch.int -> !torch.vtensor<[?,3],f32>
+// CHECK:           %[[C0_FWD:.*]] = torch.aten.select.int %[[C0]], %{{.*}}, %{{.*}} : !torch.vtensor<[?,?,3],f32>, !torch.int, !torch.int -> !torch.vtensor<[?,3],f32>
+// CHECK:           torch.prim.Loop %{{.*}}, %{{.*}}, init(%{{.*}}, %[[H0_FWD]], %[[C0_FWD]])
+
+func.func @test_lstm_layout1_dynamic_initial_state(%arg0: !torch.vtensor<[?,?,4],f32>, %arg1: !torch.vtensor<[1,12,4],f32>, %arg2: !torch.vtensor<[1,12,3],f32>, %arg3: !torch.vtensor<[1,24],f32>, %arg4: !torch.vtensor<[?,?,?],f32>, %arg5: !torch.vtensor<[?,?,?],f32>) -> (!torch.vtensor<[?,?,1,3],f32>, !torch.vtensor<[?,1,3],f32>, !torch.vtensor<[?,1,3],f32>) attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64} {
+  %none = torch.constant.none
+  %0:3 = torch.operator "onnx.LSTM"(%arg0, %arg1, %arg2, %arg3, %none, %arg4, %arg5) { torch.onnx.hidden_size = 3 : si64, torch.onnx.layout = 1 : si64 }: (!torch.vtensor<[?,?,4],f32>, !torch.vtensor<[1,12,4],f32>, !torch.vtensor<[1,12,3],f32>, !torch.vtensor<[1,24],f32>, !torch.none, !torch.vtensor<[?,?,?],f32>, !torch.vtensor<[?,?,?],f32>)-> (!torch.vtensor<[?,?,1,3],f32>, !torch.vtensor<[?,1,3],f32>, !torch.vtensor<[?,1,3],f32>)
+  return %0#0, %0#1, %0#2 : !torch.vtensor<[?,?,1,3],f32>, !torch.vtensor<[?,1,3],f32>, !torch.vtensor<[?,1,3],f32>
+}
+
+// -----
+
+// bidirectional with a dynamic initial state: the refinement runs once on the
+// combined [num_directions, batch, hidden] operand before the forward/reverse
+// split, pinning the hidden dim to the static hidden_size.
+
+// CHECK-LABEL:   func.func @test_lstm_bidirectional_dynamic_initial_state(
+// CHECK:           %[[H0:.*]] = torch.tensor_static_info_cast %arg4 : !torch.vtensor<[?,?,?],f32> to !torch.vtensor<[?,?,3],f32>
+// CHECK:           %[[C0:.*]] = torch.tensor_static_info_cast %arg5 : !torch.vtensor<[?,?,?],f32> to !torch.vtensor<[?,?,3],f32>
+// CHECK:           %[[H0_FWD:.*]] = torch.aten.select.int %[[H0]], %{{.*}}, %{{.*}} : !torch.vtensor<[?,?,3],f32>, !torch.int, !torch.int -> !torch.vtensor<[?,3],f32>
+// CHECK:           %[[C0_FWD:.*]] = torch.aten.select.int %[[C0]], %{{.*}}, %{{.*}} : !torch.vtensor<[?,?,3],f32>, !torch.int, !torch.int -> !torch.vtensor<[?,3],f32>
+// CHECK:           %[[H0_REV:.*]] = torch.aten.select.int %[[H0]], %{{.*}}, %{{.*}} : !torch.vtensor<[?,?,3],f32>, !torch.int, !torch.int -> !torch.vtensor<[?,3],f32>
+// CHECK:           %[[C0_REV:.*]] = torch.aten.select.int %[[C0]], %{{.*}}, %{{.*}} : !torch.vtensor<[?,?,3],f32>, !torch.int, !torch.int -> !torch.vtensor<[?,3],f32>
+// CHECK:           torch.prim.Loop %{{.*}}, %{{.*}}, init(%{{.*}}, %[[H0_FWD]], %[[C0_FWD]])
+// CHECK:           torch.prim.Loop %{{.*}}, %{{.*}}, init(%{{.*}}, %[[H0_REV]], %[[C0_REV]])
+
+func.func @test_lstm_bidirectional_dynamic_initial_state(%arg0: !torch.vtensor<[?,?,4],f32>, %arg1: !torch.vtensor<[2,12,4],f32>, %arg2: !torch.vtensor<[2,12,3],f32>, %arg3: !torch.vtensor<[2,24],f32>, %arg4: !torch.vtensor<[?,?,?],f32>, %arg5: !torch.vtensor<[?,?,?],f32>) -> (!torch.vtensor<[?,2,?,3],f32>, !torch.vtensor<[2,?,3],f32>, !torch.vtensor<[2,?,3],f32>) attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64} {
+  %none = torch.constant.none
+  %0:3 = torch.operator "onnx.LSTM"(%arg0, %arg1, %arg2, %arg3, %none, %arg4, %arg5) { torch.onnx.hidden_size = 3 : si64, torch.onnx.direction = "bidirectional" }: (!torch.vtensor<[?,?,4],f32>, !torch.vtensor<[2,12,4],f32>, !torch.vtensor<[2,12,3],f32>, !torch.vtensor<[2,24],f32>, !torch.none, !torch.vtensor<[?,?,?],f32>, !torch.vtensor<[?,?,?],f32>)-> (!torch.vtensor<[?,2,?,3],f32>, !torch.vtensor<[2,?,3],f32>, !torch.vtensor<[2,?,3],f32>)
+  return %0#0, %0#1, %0#2 : !torch.vtensor<[?,2,?,3],f32>, !torch.vtensor<[2,?,3],f32>, !torch.vtensor<[2,?,3],f32>
+}
+
+// -----
+
+// A statically-batched initial_h/initial_c (batch=1, as emitted by common ONNX
+// exporters) combined with a dynamic X batch must not bake the loop-carried
+// hidden/cell state to batch 1: the state batch tracks X's batch. The provided
+// states are cast to the dynamic-batch state type before the loop, and each
+// gate matmul against the dynamic-batch Xt stays dynamic ([?,3], not [1,3]).
+
+// CHECK-LABEL:   func.func @test_lstm_static_batch_dynamic_x(
+// CHECK:           %[[H0_DIR:.*]] = torch.aten.select.int %arg4, %{{.*}}, %{{.*}} : !torch.vtensor<[1,1,3],f32>, !torch.int, !torch.int -> !torch.vtensor<[1,3],f32>
+// CHECK:           %[[C0_DIR:.*]] = torch.aten.select.int %arg5, %{{.*}}, %{{.*}} : !torch.vtensor<[1,1,3],f32>, !torch.int, !torch.int -> !torch.vtensor<[1,3],f32>
+// CHECK:           %[[H0:.*]] = torch.tensor_static_info_cast %[[H0_DIR]] : !torch.vtensor<[1,3],f32> to !torch.vtensor<[?,3],f32>
+// CHECK:           %[[C0:.*]] = torch.tensor_static_info_cast %[[C0_DIR]] : !torch.vtensor<[1,3],f32> to !torch.vtensor<[?,3],f32>
+// CHECK:           torch.prim.Loop %{{.*}}, %{{.*}}, init(%{{.*}}, %[[H0]], %[[C0]])
+// CHECK:           torch.aten.linear %{{.*}} : !torch.vtensor<[?,4],f32>, !torch.vtensor<[3,4],f32>, !torch.vtensor<[3],f32> -> !torch.vtensor<[?,3],f32>
+// CHECK-NOT:       -> !torch.vtensor<[1,3],f32>
+
+func.func @test_lstm_static_batch_dynamic_x(%arg0: !torch.vtensor<[?,?,4],f32>, %arg1: !torch.vtensor<[1,12,4],f32>, %arg2: !torch.vtensor<[1,12,3],f32>, %arg3: !torch.vtensor<[1,24],f32>, %arg4: !torch.vtensor<[1,1,3],f32>, %arg5: !torch.vtensor<[1,1,3],f32>) -> (!torch.vtensor<[?,1,?,3],f32>, !torch.vtensor<[1,?,3],f32>, !torch.vtensor<[1,?,3],f32>) attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64} {
+  %none = torch.constant.none
+  %0:3 = torch.operator "onnx.LSTM"(%arg0, %arg1, %arg2, %arg3, %none, %arg4, %arg5) { torch.onnx.hidden_size = 3 : si64 }: (!torch.vtensor<[?,?,4],f32>, !torch.vtensor<[1,12,4],f32>, !torch.vtensor<[1,12,3],f32>, !torch.vtensor<[1,24],f32>, !torch.none, !torch.vtensor<[1,1,3],f32>, !torch.vtensor<[1,1,3],f32>)-> (!torch.vtensor<[?,1,?,3],f32>, !torch.vtensor<[1,?,3],f32>, !torch.vtensor<[1,?,3],f32>)
+  return %0#0, %0#1, %0#2 : !torch.vtensor<[?,1,?,3],f32>, !torch.vtensor<[1,?,3],f32>, !torch.vtensor<[1,?,3],f32>
+}
