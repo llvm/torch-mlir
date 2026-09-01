@@ -35,7 +35,11 @@ def get_package_name():
 
 
 def get_github_dev_versions(repo, package_name):
-    """Fetch versions of dev wheels from GitHub dev-wheels release."""
+    """Fetch versions of dev wheels from GitHub dev-wheels release.
+
+    Fails closed (raises RuntimeError) if the GitHub API query fails with any status
+    code other than 404 (release tag does not exist yet) or if a network error occurs.
+    """
     url = f"https://api.github.com/repos/{repo}/releases/tags/dev-wheels"
     headers = {}
     token = os.environ.get("GITHUB_TOKEN")
@@ -43,28 +47,37 @@ def get_github_dev_versions(repo, package_name):
         headers["Authorization"] = f"token {token}"
     try:
         response = requests.get(url, headers=headers, timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            versions = []
-            # PEP 427: distribution name is escaped by replacing runs of
-            # non-alphanumeric characters with a single underscore.
-            escaped_package = re.sub(r"[^a-zA-Z0-9]+", "_", package_name).lower()
-
-            for asset in data.get("assets", []):
-                name = asset.get("name", "")
-                if not name.endswith(".whl"):
-                    continue
-                # Split by '-' to get distribution name and version
-                parts = name.split("-")
-                if len(parts) >= 2:
-                    dist_name = re.sub(r"[^a-zA-Z0-9]+", "_", parts[0]).lower()
-                    if dist_name == escaped_package:
-                        version = parts[1]
-                        versions.append(version)
-            return versions
     except Exception as e:
-        print(f"Error fetching from GitHub: {e}", file=sys.stderr)
-    return []
+        raise RuntimeError(
+            f"Failed to query GitHub dev-wheels release for '{repo}': {e}"
+        ) from e
+
+    if response.status_code == 404:
+        return []
+    if response.status_code != 200:
+        raise RuntimeError(
+            f"GitHub API returned HTTP {response.status_code} when fetching dev releases "
+            f"for '{repo}': {response.text}"
+        )
+
+    data = response.json()
+    versions = []
+    # PEP 427: distribution name is escaped by replacing runs of
+    # non-alphanumeric characters with a single underscore.
+    escaped_package = re.sub(r"[^a-zA-Z0-9]+", "_", package_name).lower()
+
+    for asset in data.get("assets", []):
+        name = asset.get("name", "")
+        if not name.endswith(".whl"):
+            continue
+        # Split by '-' to get distribution name and version
+        parts = name.split("-")
+        if len(parts) >= 2:
+            dist_name = re.sub(r"[^a-zA-Z0-9]+", "_", parts[0]).lower()
+            if dist_name == escaped_package:
+                version = parts[1]
+                versions.append(version)
+    return versions
 
 
 def get_pypi_versions(package_name):
