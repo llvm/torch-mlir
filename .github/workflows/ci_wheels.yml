@@ -8,10 +8,9 @@ on:
     # without re-applying the label; `labeled` covers adding the label to an
     # existing PR.
     types: [labeled, synchronize]
-  workflow_dispatch:
 
 concurrency:
-  group: ci-wheels-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ci-wheels-${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 permissions:
@@ -20,9 +19,8 @@ permissions:
 jobs:
   build_wheels:
     name: Build wheels
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      contains(github.event.pull_request.labels.*.name, 'ci:wheels')
+    if: contains(github.event.pull_request.labels.*.name, 'ci:wheels')
     uses: ./.github/workflows/_build_wheels.yml
     with:
+      ref: ${{ github.event.pull_request.head.ref }}
       version: '0.0.0'

@@ -29,11 +29,14 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.get-version.outputs.version }}
+      ref: ${{ steps.get-version.outputs.ref }}
       should_publish_gh: ${{ steps.get-version.outputs.should_publish_gh }}
       should_publish_pypi: ${{ steps.get-version.outputs.should_publish_pypi }}
     steps:
       - name: Check out repo
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ (inputs.tag_name != '' && (startsWith(inputs.tag_name, 'refs/tags/') && inputs.tag_name || format('refs/tags/{0}', inputs.tag_name))) || 'refs/heads/main' }}
 
       - name: Install Python 3.12
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -61,7 +64,7 @@ jobs:
     needs: [setup-version]
     uses: ./.github/workflows/_build_wheels.yml
     with:
-      ref: ${{ inputs.tag_name || '' }}
+      ref: ${{ needs.setup-version.outputs.ref }}
       version: ${{ needs.setup-version.outputs.version }}
 
   perform_release:
