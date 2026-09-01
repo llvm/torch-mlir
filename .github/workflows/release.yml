@@ -84,6 +84,7 @@ jobs:
       - name: Extract and rename torch-mlir-opt binaries
         shell: bash
         run: |
+          set -euo pipefail
           mkdir -p extracted
           for whl in dist/*.whl; do
             filename=$(basename "$whl")
@@ -92,14 +93,16 @@ jobs:
             platform=$(echo "$filename" | rev | cut -d- -f1 | rev | cut -d. -f1)
             echo "Processing $whl for platform $platform"
             # -j strips the archive path so the binary lands directly in tmp.
-            unzip -j "$whl" "torch_mlir/_mlir_libs/torch-mlir-opt" -d tmp_extract || true
-            if [ -f tmp_extract/torch-mlir-opt ]; then
-              mv tmp_extract/torch-mlir-opt "extracted/torch-mlir-opt-$platform"
+            unzip -j "$whl" "torch_mlir/_mlir_libs/torch-mlir-opt" -d tmp_extract
+            if [ ! -f tmp_extract/torch-mlir-opt ]; then
+              echo "Error: torch-mlir-opt not found in $whl" >&2
+              exit 1
             fi
+            mv tmp_extract/torch-mlir-opt "extracted/torch-mlir-opt-$platform"
             rm -rf tmp_extract
           done
           echo "Extracted files:"
-          ls -alh extracted/ || true
+          ls -alh extracted/
 
       - name: Determine tag name
         id: tag
