@@ -1666,3 +1666,46 @@ func.func @torch.aten.linalg_vector_norm$zero_dim_keepdim(%arg0: !torch.vtensor<
   %0 = torch.aten.linalg_vector_norm %arg0, %ord, %dim, %keepdim, %dtype : !torch.vtensor<[3,4],f32>, !torch.float, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[3,1],f32>
   return %0 : !torch.vtensor<[3,1],f32>
 }
+
+// -----
+
+// logaddexp is decomposed to the numerically stable form
+//   max(a, b) + log1p(exp(-|a - b|))
+// rather than the naive log(exp(a) + exp(b)) (which overflows to +inf in fp32
+// once a or b exceeds ~88). Only ever exponentiating -|a - b| <= 0 avoids this.
+// CHECK-LABEL: func.func @torch.aten.logaddexp(
+// CHECK-SAME:      %[[A:.*]]: !torch.vtensor<[3,4],f32>, %[[B:.*]]: !torch.vtensor<[3,4],f32>
+// CHECK:         %[[SUB:.*]] = torch.aten.sub.Tensor %[[A]], %[[B]]
+// CHECK:         %[[ABS:.*]] = torch.aten.abs %[[SUB]]
+// CHECK:         %[[NEG:.*]] = torch.aten.neg %[[ABS]]
+// CHECK:         %[[MAX:.*]] = torch.aten.maximum %[[A]], %[[B]]
+// CHECK:         %[[EXP:.*]] = torch.aten.exp %[[NEG]]
+// CHECK:         %[[LOG1P:.*]] = torch.aten.log1p %[[EXP]]
+// CHECK:         %[[RES:.*]] = torch.aten.add.Tensor %[[MAX]], %[[LOG1P]]
+// CHECK-NOT:     torch.aten.logaddexp
+// CHECK:         return %[[RES]]
+func.func @torch.aten.logaddexp(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32> {
+  %0 = torch.aten.logaddexp %arg0, %arg1 : !torch.vtensor<[3,4],f32>, !torch.vtensor<[3,4],f32> -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
+// logaddexp2 uses the base-2 analogue of the stable form:
+//   max(a, b) + log2(1 + 2^(-|a - b|)).
+// CHECK-LABEL: func.func @torch.aten.logaddexp2(
+// CHECK-SAME:      %[[A:.*]]: !torch.vtensor<[3,4],f32>, %[[B:.*]]: !torch.vtensor<[3,4],f32>
+// CHECK:         %[[SUB:.*]] = torch.aten.sub.Tensor %[[A]], %[[B]]
+// CHECK:         %[[ABS:.*]] = torch.aten.abs %[[SUB]]
+// CHECK:         %[[NEG:.*]] = torch.aten.neg %[[ABS]]
+// CHECK:         %[[MAX:.*]] = torch.aten.maximum %[[A]], %[[B]]
+// CHECK:         %[[POW:.*]] = torch.aten.pow.Scalar %{{.*}}, %[[NEG]]
+// CHECK:         %[[ADD1:.*]] = torch.aten.add.Scalar %[[POW]]
+// CHECK:         %[[LOG2:.*]] = torch.aten.log2 %[[ADD1]]
+// CHECK:         %[[RES:.*]] = torch.aten.add.Tensor %[[MAX]], %[[LOG2]]
+// CHECK-NOT:     torch.aten.logaddexp2
+// CHECK:         return %[[RES]]
+func.func @torch.aten.logaddexp2(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32> {
+  %0 = torch.aten.logaddexp2 %arg0, %arg1 : !torch.vtensor<[3,4],f32>, !torch.vtensor<[3,4],f32> -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}

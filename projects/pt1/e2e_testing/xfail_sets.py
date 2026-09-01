@@ -2974,6 +2974,12 @@ ONNX_XFAIL_SET = {
     "LinalgNormKeepDimComplexModule_basic",
     "LinalgVectorNormComplexModule_basic",
     "LinalgVectorNormRank0Module_basic",
+    # The ONNX exporter expands logaddexp/logaddexp2 into a form that
+    # overflows fp32 on these large-magnitude inputs before torch-mlir sees
+    # the op; the mismatch is inherent to the exported graph, not the
+    # torch-mlir decomposition.
+    "ElementwiseLogAddExpLargeMagnitudeModule_basic",
+    "ElementwiseLogAddExp2LargeMagnitudeModule_basic",
     "MaxPool1dWithIndicesModule_basic",
     "MaxPool1dCeilModeTrueModule_basic",
     "MaxPool1dModule_basic",

@@ -3241,25 +3241,59 @@ public:
 };
 } // namespace
 
+// Numerically stable decomposition of logaddexp / logaddexp2.
+//   logaddexp(a, b)  = log (exp (a) + exp (b))  = m + log1p(exp (-|a - b|))
+//   logaddexp2(a, b) = log2(exp2(a) + exp2(b))  = m + log2(1 + exp2(-|a - b|))
+// where m = max(a, b). Carrying `m` outside the exponential and only ever
+// exponentiating the non-positive value -|a - b| avoids the +inf overflow of
+// the naive `log(exp(a) + exp(b))` form when a or b exceeds ~88 in float32.
+// `useBase2` selects the base-2 variant (exp2/log2); base-e uses log1p
+// directly.
+template <typename OpTy>
+static LogicalResult decomposeLogAddExp(OpTy op, PatternRewriter &rewriter,
+                                        bool useBase2) {
+  Location loc = op.getLoc();
+  Value self = op.getSelf();
+  Value other = op.getOther();
+  auto outTy = cast<BaseTensorType>(op.getType());
+
+  // diff = a - b; |diff|; -|diff|  (broadcast to the result type).
+  Value diff = createTensorSub(rewriter, loc, outTy, self, other);
+  Value absDiff = AtenAbsOp::create(rewriter, loc, outTy, diff);
+  Value negAbsDiff = AtenNegOp::create(rewriter, loc, outTy, absDiff);
+
+  // m = max(a, b).
+  Value maxAB = AtenMaximumOp::create(rewriter, loc, outTy, self, other);
+
+  Value logTerm;
+  if (useBase2) {
+    // log2(1 + exp2(-|a - b|)) -- no log2p1 op, so form 1 + ... explicitly.
+    Value expTerm = AtenExp2Op::create(rewriter, loc, outTy, negAbsDiff);
+    Value one =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
+    Value onePlus = AtenAddScalarOp::create(rewriter, loc, outTy, expTerm,
+                                            /*other=*/one, /*alpha=*/one);
+    logTerm = AtenLog2Op::create(rewriter, loc, outTy, onePlus);
+  } else {
+    // log1p(exp(-|a - b|)).
+    Value expTerm = AtenExpOp::create(rewriter, loc, outTy, negAbsDiff);
+    logTerm = AtenLog1pOp::create(rewriter, loc, outTy, expTerm);
+  }
+
+  Value alpha =
+      ConstantFloatOp::create(rewriter, loc, rewriter.getF64FloatAttr(1));
+  rewriter.replaceOpWithNewOp<AtenAddTensorOp>(op, outTy, maxAB, logTerm,
+                                               alpha);
+  return success();
+}
+
 namespace {
 class DecomposeAtenLogAddExpOp : public OpRewritePattern<AtenLogaddexpOp> {
 public:
   using OpRewritePattern<AtenLogaddexpOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenLogaddexpOp op,
                                 PatternRewriter &rewriter) const override {
-    Location loc = op.getLoc();
-    Value self = op.getSelf();
-    Value other = op.getOther();
-    auto outTy = op.getType();
-
-    Value constantOne =
-        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
-    Value expSelf = AtenExpOp::create(rewriter, loc, self.getType(), self);
-    Value expOther = AtenExpOp::create(rewriter, loc, other.getType(), other);
-    Value addValue = AtenAddTensorOp::create(rewriter, loc, outTy, expSelf,
-                                             expOther, constantOne);
-    rewriter.replaceOpWithNewOp<AtenLogOp>(op, outTy, addValue);
-    return success();
+    return decomposeLogAddExp(op, rewriter, /*useBase2=*/false);
   }
 };
 } // namespace
@@ -3270,19 +3304,7 @@ public:
   using OpRewritePattern<AtenLogaddexp2Op>::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenLogaddexp2Op op,
                                 PatternRewriter &rewriter) const override {
-    Location loc = op.getLoc();
-    Value self = op.getSelf();
-    Value other = op.getOther();
-    auto outTy = op.getType();
-
-    Value constantOne =
-        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
-    Value expSelf = AtenExp2Op::create(rewriter, loc, self.getType(), self);
-    Value expOther = AtenExp2Op::create(rewriter, loc, other.getType(), other);
-    Value addValue = AtenAddTensorOp::create(rewriter, loc, outTy, expSelf,
-                                             expOther, constantOne);
-    rewriter.replaceOpWithNewOp<AtenLog2Op>(op, outTy, addValue);
-    return success();
+    return decomposeLogAddExp(op, rewriter, /*useBase2=*/true);
   }
 };
 } // namespace
