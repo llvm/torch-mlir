@@ -1,0 +1,28 @@
+# yamllint disable rule:line-length
+name: CI - Wheels
+
+on:
+  pull_request:
+    # Dry-run the wheel build on any PR that carries the "ci:wheels" label.
+    # `synchronize` re-runs the build on every push so fixes are exercised
+    # without re-applying the label; `labeled` covers adding the label to an
+    # existing PR.
+    types: [labeled, synchronize]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-wheels-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build_wheels:
+    name: Build wheels
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.pull_request.labels.*.name, 'ci:wheels')
+    uses: ./.github/workflows/_build_wheels.yml
+    with:
+      version: '0.0.0'
