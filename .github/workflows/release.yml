@@ -44,7 +44,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install requests packaging
+        run: pip install requests==2.32.3 packaging==24.2
 
       - name: Get version
         id: get-version
