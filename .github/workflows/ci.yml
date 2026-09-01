@@ -57,6 +57,9 @@ jobs:
           cd $GITHUB_WORKSPACE
           ./build_tools/ci/install_python_deps.sh ${{ matrix.torch-version }}
 
+      - name: Run script unit tests
+        run: python -m unittest discover -s scripts -p "*_test.py"
+
       - name: Build project
         run: |
           export cache_dir="${{ env.CACHE_DIR }}"
