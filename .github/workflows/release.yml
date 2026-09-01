@@ -147,11 +147,37 @@ jobs:
     permissions:
       id-token: write
     steps:
+      - name: Check out repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.setup-version.outputs.ref }}
+
+      - name: Install Python 3.12
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install requests==2.32.3 packaging==24.2
+
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           path: dist
           pattern: dist-*
           merge-multiple: true
-      - uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # release/v1.13
+
+      - name: Preflight PyPI Release Validation
+        id: preflight
+        run: |
+          python scripts/prepare_pypi_publish.py \
+            --dist-dir dist \
+            --package "torch-mlir" \
+            --version "${{ needs.setup-version.outputs.version }}" \
+            --gha
+
+      - name: Publish wheels to PyPI
+        if: steps.preflight.outputs.should_upload == 'true'
+        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # release/v1.13
         with:
+          packages-dir: dist
           verbose: true
