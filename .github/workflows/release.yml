@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Tag to build/publish (e.g. v2026.06.24). Leave empty for a dev build off main.'
+        description: 'Tag to build/publish (e.g. v20260624). Leave empty for a dev build off main.'
         required: false
         default: ''
   schedule:
@@ -41,7 +41,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install dependencies
-        run: pip install requests
+        run: pip install requests packaging
 
       - name: Get version
         id: get-version
