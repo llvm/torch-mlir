@@ -8,20 +8,14 @@ on:
         description: 'Tag to build/publish (e.g. v2026.06.24). Leave empty for a dev build off main.'
         required: false
         default: ''
-  pull_request:
-    # Dry-run the release (build wheels, never publish) on any PR that carries
-    # the "ci:wheels" label. `synchronize` re-runs the build on every push so
-    # fixes are exercised without re-applying the label; `labeled` covers adding
-    # the label to an existing PR.
-    types: [labeled, synchronize]
   schedule:
     # Daily build (dev wheels daily, proper release monthly on 1st)
     - cron: '0 11 * * *'
 
-# Cancel superseded PR dry-runs, but never cancel a real release/publish run.
+# Never cancel a real release/publish run.
 concurrency:
   group: release-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -31,8 +25,7 @@ jobs:
     name: Setup version and publication status
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'schedule' && github.repository_owner == 'llvm') ||
-      contains(github.event.pull_request.labels.*.name, 'ci:wheels')
+      (github.event_name == 'schedule' && github.repository_owner == 'llvm')
     runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.get-version.outputs.version }}
@@ -64,73 +57,12 @@ jobs:
             --gha
 
   build_wheels:
-    name: Build wheels on ${{ matrix.name }}
+    name: Build wheels
     needs: [setup-version]
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'schedule' && github.repository_owner == 'llvm') ||
-      contains(github.event.pull_request.labels.*.name, 'ci:wheels')
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: linux-x86_64
-            runner: ubuntu-24.04
-          - name: linux-aarch64
-            runner: ubuntu-24.04-arm
-          - name: macos-arm64
-            runner: macos-15
-
-    steps:
-      - name: Check out torch-mlir
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          ref: ${{ inputs.tag_name || 'main' }}
-          # The externals/llvm-project submodule must be present: cibuildwheel
-          # copies this checkout into the manylinux container to build from.
-          # Shallow (default depth 1) on purpose — the build only needs the
-          # source tree at the pinned commit, not LLVM's full git history.
-          submodules: 'recursive'
-
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        name: Install Python 3.12
-        with:
-          python-version: "3.12"
-      - run: pip install --upgrade pip uv
-
-      - name: Compute LLVM submodule SHA (for ccache key)
-        id: llvm
-        shell: bash
-        run: echo "sha=$(git rev-parse HEAD:externals/llvm-project)" >> "$GITHUB_OUTPUT"
-
-      - name: Restore ccache
-        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
-        with:
-          # On Linux this dir is bind-mounted into the manylinux container as
-          # /project/.ccache (see [tool.cibuildwheel.linux] CCACHE_DIR). On macOS
-          # the build runs natively and reads CCACHE_DIR from the step env below.
-          path: ${{ github.workspace }}/.ccache
-          key: ccache-${{ matrix.name }}-${{ steps.llvm.outputs.sha }}-${{ github.sha }}
-          restore-keys: |
-            ccache-${{ matrix.name }}-${{ steps.llvm.outputs.sha }}-
-            ccache-${{ matrix.name }}-
-
-      - name: Build wheels with cibuildwheel
-        uses: pypa/cibuildwheel@294735312765b09d24a2fbec22660ce817587d55 # v4.1.0
-        env:
-          # Injected into setup.py via the env var it already reads.
-          TORCH_MLIR_PYTHON_PACKAGE_VERSION: ${{ needs.setup-version.outputs.version }}
-          # macOS builds run natively and inherit this; Linux uses the in-container
-          # CCACHE_DIR from pyproject.toml instead.
-          CCACHE_DIR: ${{ github.workspace }}/.ccache
-
-      - name: Upload ${{ matrix.name }} wheels
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: dist-${{ matrix.name }}
-          path: wheelhouse/*.whl
+    uses: ./.github/workflows/_build_wheels.yml
+    with:
+      ref: ${{ inputs.tag_name || '' }}
+      version: ${{ needs.setup-version.outputs.version }}
 
   perform_release:
     name: Create GitHub Release and Upload Assets
