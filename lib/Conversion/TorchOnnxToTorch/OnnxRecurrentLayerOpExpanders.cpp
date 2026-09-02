@@ -532,8 +532,6 @@ LstmLayerOutput lstm_layer(ConversionPatternRewriter &rewriter, Location &loc,
   Value input_size = getTensorDimSize(rewriter, X, 2);
   int64_t hidden_size = hTy.getSizes()[1];
 
-  auto cTy = hTy;
-
   auto intType = b.getType<IntType>();
 
   Value cstNone = ConstantNoneOp::create(b);
@@ -541,6 +539,19 @@ LstmLayerOutput lstm_layer(ConversionPatternRewriter &rewriter, Location &loc,
   Value cstOne = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(1));
   Value cstHiddenSize =
       ConstantIntOp::create(b, intType, b.getI64IntegerAttr(hidden_size));
+
+  // Derive state type from X's batch, not initial_h: ONNX exporters often emit
+  // initial_h with a static batch-1, while X's batch is dynamic.
+  auto targetStateTy =
+      getTensorTypeFromShapeValues({batch_size, cstHiddenSize}, hTy.getDtype());
+  // If targetStateTy != hTy, at least one batch dim is dynamic (a valid ONNX
+  // model won't have differing static batches between X and
+  // initial_h/initial_c) and the cast is valid.
+  if (targetStateTy != hTy) {
+    initial_h = TensorStaticInfoCastOp::create(b, targetStateTy, initial_h);
+    initial_c = TensorStaticInfoCastOp::create(b, targetStateTy, initial_c);
+    hTy = targetStateTy;
+  }
 
   auto yTy = getTensorTypeFromShapeValues({seq_len, batch_size, cstHiddenSize},
                                           hTy.getDtype());
@@ -557,6 +568,7 @@ LstmLayerOutput lstm_layer(ConversionPatternRewriter &rewriter, Location &loc,
                                         cstNone, cstNone, cstNone);
 
   // Create a for-like PrimLoopOp.
+  auto cTy = hTy; // cell state has the same shape/dtype as hidden state
   Value maxTripCount = seq_len;
   Value loopConditionTrue = ConstantBoolOp::create(b, true);
 
@@ -833,6 +845,20 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
 
   Value cstDtype = getDtypeIntValueForType(rewriter, loc, xTy.getDtype());
 
+  // Refine a dynamic hidden dim on initial_h/initial_c to the static
+  // hidden_size known from the attribute; only acts when the dim is dynamic.
+  auto refineInitialStateHiddenDim = [&](Value initialState) -> Value {
+    auto stateTy = dyn_cast<ValueTensorType>(initialState.getType());
+    if (!stateTy || !stateTy.hasSizes() ||
+        stateTy.getSizes().back() != Torch::kUnknownSize)
+      return initialState;
+    SmallVector<int64_t> refinedShape(stateTy.getSizes());
+    refinedShape.back() = hidden_size;
+    auto refinedTy =
+        b.getType<ValueTensorType>(refinedShape, stateTy.getDtype());
+    return TensorStaticInfoCastOp::create(b, refinedTy, initialState);
+  };
+
   Value initial_h;
   if (binder.tensorOperandAtIndex(initial_h, 5)) {
     // default created for layout 0
@@ -841,6 +867,7 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   } else {
     if (layout == 1)
       initial_h = StaticTranspose(b, initial_h, 0, 1);
+    initial_h = refineInitialStateHiddenDim(initial_h);
   }
 
   Value initial_c;
@@ -851,6 +878,7 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   } else {
     if (layout == 1)
       initial_c = StaticTranspose(b, initial_c, 0, 1);
+    initial_c = refineInitialStateHiddenDim(initial_c);
   }
 
   // convert X from layout 1 to layout 0
