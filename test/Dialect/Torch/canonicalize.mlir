@@ -2537,8 +2537,8 @@ func.func @torch.aten.sort.int$reverse_true() -> !torch.list<int> {
 }
 
 // CHECK-LABEL: @torch.aten.sort$unary_element
-// CHECK: %[[SORT:.*]]:2 = torch.aten.sort %arg
-// CHECK: return %[[SORT]]#0, %[[SORT]]#1
+// CHECK: %[[VALUES:.*]], %[[INDICES:.*]] = torch.aten.sort %arg
+// CHECK: return %[[VALUES]], %[[INDICES]]
 func.func @torch.aten.sort$unary_element(%arg0 : !torch.vtensor<[1],si64>, %arg1 : !torch.int, %arg2 : !torch.bool) -> (!torch.vtensor<[1],si64>, !torch.vtensor<[1],si64>) {
   %0, %1 = torch.aten.sort %arg0, %arg1, %arg2 : !torch.vtensor<[1],si64>, !torch.int, !torch.bool -> !torch.vtensor<[1],si64>, !torch.vtensor<[1],si64>
   return %0, %1 : !torch.vtensor<[1],si64>, !torch.vtensor<[1],si64>
