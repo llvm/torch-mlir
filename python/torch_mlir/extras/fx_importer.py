@@ -960,12 +960,19 @@ class FxImporter:
                     ) from e
                 arg_replacements[input_name] = state_value
 
-        # Always lift buffers.
+        # Always lift buffers. A buffer registered with `persistent=False` is
+        # recorded in `prog.constants` rather than in `prog.state_dict`, but is
+        # still listed in `inputs_to_buffers`, so both have to be consulted.
+        buffer_constants = getattr(prog, "constants", None) or {}
         for input_name, state_name in sig.inputs_to_buffers.items():
-            try:
+            if state_name in state_dict:
                 state_value = state_dict[state_name]
-            except KeyError as e:
-                raise AssertionError("Could not find state mapping for buffer") from e
+            elif state_name in buffer_constants:
+                state_value = buffer_constants[state_name]
+            else:
+                raise AssertionError(
+                    f"Could not find state mapping for buffer '{state_name}'"
+                )
             arg_replacements[input_name] = state_value
 
         # Lift parameters.
