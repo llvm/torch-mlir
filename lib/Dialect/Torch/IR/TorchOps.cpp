@@ -2849,10 +2849,17 @@ OpFoldResult AtenSelectIntOp::fold(FoldAdaptor adaptor) {
   if (!dimAttr || !indexAttr || bty.getNumElements() != 1)
     return nullptr;
 
-  auto dim = dimAttr.getInt();
-  auto index = indexAttr.getInt();
+  int64_t rank = selfTy.getRank();
+  int64_t dim = toPositiveDim(dimAttr.getInt(), rank);
+  if (!isValidDim(dim, rank))
+    return nullptr;
 
-  for (int i = 0, s = selfTy.getRank(); i < s; ++i) {
+  int64_t dimSize = selfTy.getDimSize(dim);
+  int64_t index = toPositiveDim(indexAttr.getInt(), dimSize);
+  if (!isValidDim(index, dimSize))
+    return nullptr;
+
+  for (int i = 0, s = rank; i < s; ++i) {
     if (i != dim && selfTy.getDimSize(i) != 1)
       return nullptr;
   }
