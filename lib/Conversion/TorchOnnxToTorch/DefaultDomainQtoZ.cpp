@@ -3999,31 +3999,52 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         flipShape[timeAxis] = Torch::kUnknownSize;
         auto flipType =
             rewriter.getType<Torch::ValueTensorType>(flipShape, dtype);
-        auto scalarTensorType = rewriter.getType<Torch::ValueTensorType>(
-            ArrayRef<int64_t>{1}, rewriter.getIntegerType(64, /*signed*/ 1));
+        // iterate over the batch dimension at runtime
+        Value batchSize = Torch::AtenSizeIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            input, batchAxisVal);
 
-        for (int i = 0; i < inputShape[batchAxis]; i++) {
-          // slice i iterating on batch axis
-          Value k = Torch::ConstantIntOp::create(rewriter, binder.getLoc(),
-                                                 rewriter.getI64IntegerAttr(i));
+        Value loopConditionTrue = Torch::ConstantBoolOp::create(
+            rewriter, binder.getLoc(), rewriter.getBoolAttr(true));
+        Type loopIndexType = rewriter.getType<Torch::IntType>();
+        auto sequenceLensTy =
+            cast<Torch::ValueTensorType>(sequenceLens.getType());
+        auto sequenceLengthTensorType =
+            rewriter.getType<Torch::ValueTensorType>(ArrayRef<int64_t>{},
+                                                     sequenceLensTy.getDtype());
+
+        auto loop = Torch::PrimLoopOp::create(
+            rewriter, binder.getLoc(), TypeRange({resultType}), batchSize,
+            loopConditionTrue, ValueRange({input}));
+        {
+          PatternRewriter::InsertionGuard guard(rewriter);
+          Block *loopBody =
+              rewriter.createBlock(&loop.getRegion(), loop.getRegion().begin(),
+                                   TypeRange({loopIndexType, resultType}),
+                                   {binder.getLoc(), binder.getLoc()});
+
+          Value k = loopBody->getArgument(0);
+          Value currInput = loopBody->getArgument(1);
+
+          // slice k iterating on batch axis
           Value end =
               Torch::AtenAddIntOp::create(rewriter, binder.getLoc(), k, cstOne);
+
           Value sliceBatch = Torch::AtenSliceTensorOp::create(
-              rewriter, binder.getLoc(), sliceType, input, batchAxisVal, k, end,
-              cstOne);
+              rewriter, binder.getLoc(), sliceType, currInput, batchAxisVal, k,
+              end, cstOne);
 
           // get sequence length and slice the reversing part
-          Value kTensor = Torch::PrimNumToTensorScalarOp::create(
-              rewriter, binder.getLoc(), scalarTensorType, k);
-          Value sel = Torch::AtenIndexSelectOp::create(
-              rewriter, binder.getLoc(), scalarTensorType, sequenceLens,
-              cstZero, kTensor);
+          Value sel = Torch::AtenSelectIntOp::create(rewriter, binder.getLoc(),
+                                                     sequenceLengthTensorType,
+                                                     sequenceLens, cstZero, k);
           Value len = Torch::AtenItemOp::create(
               rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
               sel);
           Value sliceTime = Torch::AtenSliceTensorOp::create(
               rewriter, binder.getLoc(), flipType, sliceBatch, timeAxisVal,
               cstZero, len, cstOne);
+
           // flip the sliced reversing tensor
           Value dims = Torch::PrimListConstructOp::create(
               rewriter, binder.getLoc(),
@@ -4036,15 +4057,17 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           // embeds the reversed tensor to the input
           Value embedTime = Torch::AtenSliceScatterOp::create(
               rewriter, binder.getLoc(), sliceType, sliceBatch, flip,
-              timeAxisVal,
-              /*start=*/cstZero, /*end=*/len, /*step=*/cstOne);
-          input = Torch::AtenSliceScatterOp::create(
-              rewriter, binder.getLoc(), resultType, input, embedTime,
-              batchAxisVal,
-              /*start=*/k, /*end=*/end, /*step=*/cstOne);
+              timeAxisVal, /*start=*/cstZero, /*end=*/len, /*step=*/cstOne);
+          Value updatedInput = Torch::AtenSliceScatterOp::create(
+              rewriter, binder.getLoc(), resultType, currInput, embedTime,
+              batchAxisVal, /*start=*/k, /*end=*/end, /*step=*/cstOne);
+
+          Torch::PrimLoopConditionOp::create(rewriter, binder.getLoc(),
+                                             loopConditionTrue,
+                                             ValueRange({updatedInput}));
         }
 
-        rewriter.replaceOp(binder.op, input);
+        rewriter.replaceOp(binder.op, loop.getResult(0));
         return success();
       });
   patterns.onOp(
