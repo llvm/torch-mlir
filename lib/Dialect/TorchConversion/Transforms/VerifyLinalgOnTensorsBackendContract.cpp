@@ -56,6 +56,12 @@ class VerifyLinalgOnTensorsBackendContractPass
     }
 
     auto opHasLegalTypes = [&](Operation *op) { return converter.isLegal(op); };
+    // `converter.isLegal(op)` inspects only operands/results; a `func.func`'s
+    // signature is in its `FunctionType` attribute and would otherwise go
+    // unchecked (e.g. an unused non-shaped arg like `!torch.optional`).
+    auto funcHasLegalTypes = [&](func::FuncOp func) {
+      return converter.isSignatureLegal(func.getFunctionType());
+    };
     auto isLegalScalarOp = [&](Operation *op) {
       // We recognize basic scalar ops by them having the trait "Elementwise",
       // even though we don't expect them to operate on tensors.
@@ -66,8 +72,9 @@ class VerifyLinalgOnTensorsBackendContractPass
     ConversionTarget target(*context);
 
     // Structural operations.
-    target.addDynamicallyLegalOp<ModuleOp, func::FuncOp, func::ReturnOp>(
-        opHasLegalTypes);
+    target.addDynamicallyLegalOp<func::FuncOp>(funcHasLegalTypes);
+    target.addDynamicallyLegalOp<func::ReturnOp>(opHasLegalTypes);
+    target.addLegalOp<ModuleOp>();
 
     target.addDynamicallyLegalOp<GetNextSeedOp>(opHasLegalTypes);
 
