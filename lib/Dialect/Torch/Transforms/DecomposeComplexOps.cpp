@@ -3216,12 +3216,136 @@ public:
     if (!isValidDim(dim, inputRank))
       return rewriter.notifyMatchFailure(op, "invalid dim.");
 
-    Value dtypeVal =
-        getDtypeIntValueForType(rewriter, loc, inputType.getDtype());
-    Value expInput = AtenExpOp::create(rewriter, loc, resultType, input);
-    Value cumsum = AtenCumsumOp::create(rewriter, loc, resultType, expInput,
-                                        op.getDim(), dtypeVal);
-    rewriter.replaceOpWithNewOp<AtenLogOp>(op, resultType, cumsum);
+    // logcumsumexp(x)[j] = log(sum_{i<=j} exp(x[i])) is an inclusive prefix
+    // scan whose combiner is logaddexp (associative, commutative, with identity
+    // -inf):
+    //   out[j] = logaddexp_{i<=j} x[i],   out[j] = logaddexp(out[j-1], x[j]).
+    // Each per-step logaddexp is emitted as aten.logaddexp and stabilized by
+    // DecomposeAtenLogAddExpOp to max(a,b) + log1p(exp(-|a-b|)) in this same
+    // pass, so the only exp taken is exp(-|a-b|) in [0,1] -- the shift is
+    // prefix-local, never a single global max over the whole scan. That
+    // locality avoids both the +inf overflow of naive log(cumsum(exp(x))) and
+    // the -inf underflow of a global-max shift M + log(cumsum(exp(x - M)))
+    // when a large value sits late in the scan.
+    Value dimValue =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(dim));
+    Value cstOne =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
+    Value cstNone = ConstantNoneOp::create(rewriter, loc);
+
+    ArrayRef<int64_t> inSizes = inputType.getSizes();
+    int64_t staticDimSize = inSizes[dim];
+
+    // Static scan length: emit a compile-time-unrolled Hillis-Steele inclusive
+    // scan (ceil(log2(L)) doubling steps). Each step shifts the running result
+    // right by `offset` along `dim` -- padding the low side with the -inf
+    // identity via aten.constant_pad_nd, then slicing back to length L -- and
+    // folds it in with an elementwise aten.logaddexp:
+    //   running[k] = logaddexp(running[k], running[k - offset]).
+    // This uses only pad/slice/logaddexp, which legalize to linalg, TOSA and
+    // StableHLO alike (matching how aten.cumsum is lowered on those backends,
+    // which likewise require a static scan dim). logaddexp(a, -inf) == a, so
+    // the padded low end is inert.
+    if (staticDimSize != kUnknownSize) {
+      Value running = AtenCloneOp::create(rewriter, loc, resultType, input,
+                                          /*memory_format=*/cstNone);
+      Value negInf = ConstantFloatOp::create(
+          rewriter, loc,
+          rewriter.getF64FloatAttr(-std::numeric_limits<double>::infinity()));
+      Value cstZero =
+          ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
+      Value cstDimSize = ConstantIntOp::create(
+          rewriter, loc, rewriter.getI64IntegerAttr(staticDimSize));
+      Type intListType =
+          Torch::ListType::get(Torch::IntType::get(op.getContext()));
+
+      for (int64_t offset = 1; offset < staticDimSize; offset <<= 1) {
+        // aten.constant_pad_nd pad list is ordered last-dim-first as
+        // [lastdim_lo, lastdim_hi, ...]; pad `offset` on the low side of `dim`.
+        SmallVector<int64_t> padAmts(2 * inputRank, 0);
+        padAmts[2 * (inputRank - 1 - dim)] = offset;
+        SmallVector<Value> padVals;
+        for (int64_t p : padAmts)
+          padVals.push_back(ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(p)));
+        Value padList =
+            PrimListConstructOp::create(rewriter, loc, intListType, padVals);
+
+        SmallVector<int64_t> paddedSizes(inSizes.begin(), inSizes.end());
+        paddedSizes[dim] = staticDimSize + offset;
+        Type paddedType = inputType.getWithSizesAndDtype(
+            paddedSizes, inputType.getOptionalDtype());
+        Value padded = AtenConstantPadNdOp::create(rewriter, loc, paddedType,
+                                                   running, padList, negInf);
+
+        // shifted = padded[..., 0:L, ...] -- `running` shifted right by
+        // `offset` along `dim`, low end filled with the -inf identity.
+        Value shifted = AtenSliceTensorOp::create(
+            rewriter, loc, resultType, padded, dimValue, /*start=*/cstZero,
+            /*end=*/cstDimSize, /*step=*/cstOne);
+
+        running = AtenLogaddexpOp::create(rewriter, loc, resultType, running,
+                                          shifted);
+      }
+      rewriter.replaceOp(op, running);
+      return success();
+    }
+
+    // Dynamic scan length: the doubling count is not known at compile time, so
+    // materialize the recurrence as a data-dependent torch.prim.Loop (lowers to
+    // scf; linalg only -- TOSA/StableHLO cannot express a dynamic-shape scan,
+    // same as aten.cumsum).
+    //   out[0] = x[0];  out[j] = logaddexp(out[j-1], x[j]) for j >= 1.
+    Value loopCondTrue = ConstantBoolOp::create(rewriter, loc, true);
+
+    // Size-1 slice type along `dim` (dynamic, since indices are runtime ints).
+    SmallVector<int64_t> sliceSizes(inputType.getSizes());
+    sliceSizes[dim] = kUnknownSize;
+    Type sliceType = inputType.getWithSizesAndDtype(
+        sliceSizes, inputType.getOptionalDtype());
+
+    // dimSize = x.size(dim); iterate j = 1 .. dimSize-1  (trip = dimSize - 1).
+    Value dimSize = AtenSizeIntOp::create(rewriter, loc, input, dimValue);
+    Value trip = AtenSubIntOp::create(rewriter, loc, dimSize, cstOne);
+
+    // Seed out = clone(x): out[...,0] already equals logcumsumexp(x)[...,0].
+    Value initOut = AtenCloneOp::create(rewriter, loc, resultType, input,
+                                        /*memory_format=*/cstNone);
+
+    auto scanLoop =
+        PrimLoopOp::create(rewriter, loc, TypeRange({resultType}), trip,
+                           loopCondTrue, ValueRange({initOut}));
+    {
+      PatternRewriter::InsertionGuard guard(rewriter);
+      Type loopIndexType = rewriter.getType<IntType>();
+      Block *body = rewriter.createBlock(
+          &scanLoop.getRegion(), scanLoop.getRegion().begin(),
+          TypeRange({loopIndexType, resultType}), {loc, loc});
+      Value iv = body->getArgument(0);  // 0 .. dimSize-2
+      Value acc = body->getArgument(1); // running output
+      Value j =
+          AtenAddIntOp::create(rewriter, loc, iv, cstOne); // current index
+      Value jp1 = AtenAddIntOp::create(rewriter, loc, j, cstOne);
+
+      // prev = acc[..., j-1] = acc[..., iv];  cur = x[..., j].
+      Value prev = AtenSliceTensorOp::create(rewriter, loc, sliceType, acc,
+                                             dimValue, /*start=*/iv,
+                                             /*end=*/j, /*step=*/cstOne);
+      Value cur = AtenSliceTensorOp::create(rewriter, loc, sliceType, input,
+                                            dimValue, /*start=*/j,
+                                            /*end=*/jp1, /*step=*/cstOne);
+
+      // val = logaddexp(prev, cur)  (stabilized by DecomposeAtenLogAddExpOp).
+      Value val = AtenLogaddexpOp::create(rewriter, loc, sliceType, prev, cur);
+
+      // acc[..., j] = val.
+      Value acc2 = AtenSliceScatterOp::create(rewriter, loc, resultType, acc,
+                                              val, dimValue, /*start=*/j,
+                                              /*end=*/jp1, /*step=*/cstOne);
+      PrimLoopConditionOp::create(rewriter, loc, loopCondTrue,
+                                  ValueRange({acc2}));
+    }
+    rewriter.replaceOp(op, scanLoop.getResults());
     return success();
   }
 };

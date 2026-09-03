@@ -2980,6 +2980,11 @@ ONNX_XFAIL_SET = {
     # torch-mlir decomposition.
     "ElementwiseLogAddExpLargeMagnitudeModule_basic",
     "ElementwiseLogAddExp2LargeMagnitudeModule_basic",
+    # The ONNX exporter decomposes logcumsumexp into a global-max shift
+    # (M + log(cumsum(exp(x - M)))), which underflows fp32 to -inf on a large
+    # late value before torch-mlir sees the op; the mismatch is inherent to the
+    # exported graph.
+    "LogCumsumExpLargeMagnitudeModule_basic",
     "MaxPool1dWithIndicesModule_basic",
     "MaxPool1dCeilModeTrueModule_basic",
     "MaxPool1dModule_basic",
