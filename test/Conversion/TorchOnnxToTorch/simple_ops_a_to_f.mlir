@@ -966,11 +966,87 @@ func.func @test_averagepool_1d_default(%arg0: !torch.vtensor<[1,3,32],f32>) -> !
 
 // -----
 
+// ceil_mode with count_include_pad == 0: the pad-excluding divisor and ONNX's
+// ceil split are resolved by a ones-mask ratio -- pad the input and a ones mask
+// with the ONNX split pads, pool both (count_include_pad, floor mode), then
+// divide. The full-kernel divisor cancels, leaving the valid-element average.
 // CHECK-LABEL: @test_averagepool_2d_ceil
+// CHECK:         %[[PAD_IN:.*]] = torch.aten.constant_pad_nd %arg0, %{{.*}}, %{{.*}} : !torch.vtensor<[1,1,4,4],f32>, !torch.list<int>, !torch.float -> !torch.vtensor<[1,1,?,?],f32>
+// CHECK:         %[[ONES:.*]] = torch.aten.ones_like %arg0
+// CHECK:         %[[PAD_ONES:.*]] = torch.aten.constant_pad_nd %[[ONES]], %{{.*}}, %{{.*}}
+// CHECK:         %[[NUM:.*]] = torch.aten.avg_pool2d %[[PAD_IN]], %{{.*}}, %{{.*}}, %{{.*}}, %false, %true, %none
+// CHECK:         %[[DEN:.*]] = torch.aten.avg_pool2d %[[PAD_ONES]], %{{.*}}, %{{.*}}, %{{.*}}, %false, %true, %none
+// CHECK:         torch.aten.div.Tensor %[[NUM]], %[[DEN]]
 func.func @test_averagepool_2d_ceil(%arg0: !torch.vtensor<[1,1,4,4],f32>) -> !torch.vtensor<[1,1,2,2],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 19 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
-  // CHECK: torch.aten.avg_pool2d %arg0, %0, %2, %1, %true, %false, %none : !torch.vtensor<[1,1,4,4],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1,2,2],f32>
   %0 = torch.operator "onnx.AveragePool"(%arg0) {torch.onnx.ceil_mode = 1 : si64, torch.onnx.kernel_shape = [3 : si64, 3 : si64], torch.onnx.strides = [2 : si64, 2 : si64]} : (!torch.vtensor<[1,1,4,4],f32>) -> !torch.vtensor<[1,1,2,2],f32>
   return %0 : !torch.vtensor<[1,1,2,2],f32>
+}
+
+// -----
+
+// ONNX ceil_mode grows the output by splitting the extra extent between the
+// leading and trailing edges, which differs from PyTorch's trailing-only ceil.
+// With count_include_pad set, the divisor is the full kernel area, so the ONNX
+// ceil padding is resolved into explicit (asymmetric) pads and the op is lowered
+// as a plain floor-mode pool -- ceil_mode becomes false and the pad list carries
+// the ONNX split (here H: begin 1, end 2; W: begin/end 1).
+// CHECK-LABEL: @test_averagepool_2d_ceil_count_include_pad
+// CHECK:         %[[PAD:.*]] = torch.prim.ListConstruct %int1, %int1{{.*}}, %int2, %int1{{.*}} : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:         %[[CEIL:.*]] = torch.constant.bool false
+// CHECK:         %[[CIP:.*]] = torch.constant.bool true
+// CHECK:         torch.aten.avg_pool2d %arg0, %{{.*}}, %{{.*}}, %[[PAD]], %[[CEIL]], %[[CIP]], %none
+func.func @test_averagepool_2d_ceil_count_include_pad(%arg0: !torch.vtensor<[1,2,10,11],f32>) -> !torch.vtensor<[1,2,6,6],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 19 : si64} {
+  %0 = torch.operator "onnx.AveragePool"(%arg0) {torch.onnx.ceil_mode = 1 : si64, torch.onnx.count_include_pad = 1 : si64, torch.onnx.kernel_shape = [3 : si64, 3 : si64], torch.onnx.pads = [1 : si64, 1 : si64, 1 : si64, 1 : si64], torch.onnx.strides = [2 : si64, 2 : si64]} : (!torch.vtensor<[1,2,10,11],f32>) -> !torch.vtensor<[1,2,6,6],f32>
+  return %0 : !torch.vtensor<[1,2,6,6],f32>
+}
+
+// -----
+
+// Same as above but with a dynamic spatial dim: the ONNX ceil split depends on
+// the runtime extent, so it is materialized as a runtime `constant_pad_nd` in
+// front of a zero-padded, floor-mode pool (count_include_pad keeps the injected
+// zeros in the divisor, reproducing ONNX). The pool itself has zero padding and
+// ceil_mode false.
+// CHECK-LABEL: @test_averagepool_2d_ceil_count_include_pad_dynamic
+// The split pads are derived from the runtime extent, including ONNX's
+// trailing-window drop (ge -> Int.bool -> sub) that a plain ceil-div misses.
+// CHECK:         %[[DIM:.*]] = torch.aten.size.int %arg0
+// CHECK:         %[[DROP:.*]] = torch.aten.ge.int %{{.*}}, %{{.*}} : !torch.int, !torch.int -> !torch.bool
+// CHECK:         %[[DROPI:.*]] = torch.aten.Int.bool %[[DROP]]
+// CHECK:         torch.aten.sub.int %{{.*}}, %[[DROPI]]
+// CHECK:         %[[PADLIST:.*]] = torch.prim.ListConstruct %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:         %[[PADVAL:.*]] = torch.constant.float 0.000000e+00
+// CHECK:         %[[PADDED:.*]] = torch.aten.constant_pad_nd %arg0, %[[PADLIST]], %[[PADVAL]]
+// CHECK:         %[[ZEROPAD:.*]] = torch.prim.ListConstruct %int0{{.*}}, %int0{{.*}} : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:         %[[CEIL:.*]] = torch.constant.bool false
+// CHECK:         %[[CIP:.*]] = torch.constant.bool true
+// CHECK:         torch.aten.avg_pool2d %[[PADDED]], %{{.*}}, %{{.*}}, %[[ZEROPAD]], %[[CEIL]], %[[CIP]], %none
+func.func @test_averagepool_2d_ceil_count_include_pad_dynamic(%arg0: !torch.vtensor<[1,2,?,?],f32>) -> !torch.vtensor<[1,2,?,?],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 19 : si64} {
+  %0 = torch.operator "onnx.AveragePool"(%arg0) {torch.onnx.ceil_mode = 1 : si64, torch.onnx.count_include_pad = 1 : si64, torch.onnx.kernel_shape = [3 : si64, 3 : si64], torch.onnx.pads = [1 : si64, 1 : si64, 1 : si64, 1 : si64], torch.onnx.strides = [2 : si64, 2 : si64]} : (!torch.vtensor<[1,2,?,?],f32>) -> !torch.vtensor<[1,2,?,?],f32>
+  return %0 : !torch.vtensor<[1,2,?,?],f32>
+}
+
+// -----
+
+// count_include_pad == 0 with a dynamic spatial dim: same ones-mask ratio, but
+// the ONNX split pads are computed with runtime integer arithmetic from the
+// input extent before feeding the two pooled branches.
+// CHECK-LABEL: @test_averagepool_2d_ceil_no_count_include_pad_dynamic
+// The split pads are derived from the runtime extent, including ONNX's
+// trailing-window drop (ge -> Int.bool -> sub) that a plain ceil-div misses.
+// CHECK:         %[[DIM:.*]] = torch.aten.size.int %arg0
+// CHECK:         %[[DROP:.*]] = torch.aten.ge.int %{{.*}}, %{{.*}} : !torch.int, !torch.int -> !torch.bool
+// CHECK:         %[[DROPI:.*]] = torch.aten.Int.bool %[[DROP]]
+// CHECK:         torch.aten.sub.int %{{.*}}, %[[DROPI]]
+// CHECK:         %[[PAD_IN:.*]] = torch.aten.constant_pad_nd %arg0
+// CHECK:         %[[ONES:.*]] = torch.aten.ones_like %arg0
+// CHECK:         %[[PAD_ONES:.*]] = torch.aten.constant_pad_nd %[[ONES]]
+// CHECK:         %[[NUM:.*]] = torch.aten.avg_pool2d %[[PAD_IN]], %{{.*}}, %{{.*}}, %{{.*}}, %false, %true, %none
+// CHECK:         %[[DEN:.*]] = torch.aten.avg_pool2d %[[PAD_ONES]], %{{.*}}, %{{.*}}, %{{.*}}, %false, %true, %none
+// CHECK:         torch.aten.div.Tensor %[[NUM]], %[[DEN]]
+func.func @test_averagepool_2d_ceil_no_count_include_pad_dynamic(%arg0: !torch.vtensor<[1,2,?,?],f32>) -> !torch.vtensor<[1,2,?,?],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 19 : si64} {
+  %0 = torch.operator "onnx.AveragePool"(%arg0) {torch.onnx.ceil_mode = 1 : si64, torch.onnx.count_include_pad = 0 : si64, torch.onnx.kernel_shape = [3 : si64, 3 : si64], torch.onnx.pads = [1 : si64, 1 : si64, 1 : si64, 1 : si64], torch.onnx.strides = [2 : si64, 2 : si64]} : (!torch.vtensor<[1,2,?,?],f32>) -> !torch.vtensor<[1,2,?,?],f32>
+  return %0 : !torch.vtensor<[1,2,?,?],f32>
 }
 
 // -----

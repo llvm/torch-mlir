@@ -547,6 +547,239 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           }
         }
 
+        // ONNX ceil_mode splits the ceil slack between the leading and trailing
+        // edges; PyTorch (aten.avg_pool) appends it to the trailing edge only,
+        // so passing ceil_mode through is ONNX-wrong when ceil grows the
+        // output. Resolve the split into explicit padding + floor mode instead.
+        ArrayRef<int64_t> spatialShape =
+            inputTensorType.getSizes().drop_front(2);
+        auto isDynamicDim = [](int64_t d) { return d == Torch::kUnknownSize; };
+        bool anyDynamicSpatial = llvm::any_of(spatialShape, isDynamicDim);
+        // In ceil mode ONNX drops any trailing window that would begin entirely
+        // inside the padding. The result type reflects that drop (shape
+        // inference applied it), so use it as the output extent -- the injected
+        // padding below is sized to reproduce it.
+        ArrayRef<int64_t> resultSpatialShape =
+            resultType.getSizes().drop_front(2);
+
+        // Expand a collapsed one-value-per-dim padding (used when the input
+        // pads are symmetric) into the explicit per-dim begin/end form the ceil
+        // split needs: padding[i] = begin, padding[i + spatialRank] = end.
+        auto toBeginEndPadding = [spatialRank](SmallVector<int64_t> &pads) {
+          if (pads.size() != static_cast<size_t>(spatialRank))
+            return;
+          pads.resize_for_overwrite(2 * spatialRank);
+          for (int i = spatialRank - 1; i >= 0; --i)
+            pads[i + spatialRank] = pads[i];
+        };
+
+        // Build the aten.constant_pad_nd pad list for the ONNX ceil split
+        // (begin = p + extra/2, end = p + extra - extra/2), emitted as runtime
+        // arithmetic for dynamic dims and constants otherwise. Order is
+        // innermost spatial dim first.
+        auto buildSplitPadList = [&]() -> Value {
+          Location loc = binder.getLoc();
+          SmallVector<int64_t> normPad(padding);
+          toBeginEndPadding(normPad);
+          // Per spatial dim, outermost first: [beginPad, endPad].
+          SmallVector<Value> padPairsFront;
+          for (int i = 0; i < spatialRank; ++i) {
+            int64_t dilatedKernel = dilations[i] * (kernel[i] - 1) + 1;
+            int64_t stride = strides[i];
+            int64_t pBeginI = normPad[i];
+            int64_t pEndI = normPad[i + spatialRank];
+            if (!isDynamicDim(spatialShape[i]) &&
+                !isDynamicDim(resultSpatialShape[i])) {
+              int64_t inDim = spatialShape[i];
+              int64_t outDim = resultSpatialShape[i];
+              int64_t actualPadded = (outDim - 1) * stride + dilatedKernel;
+              int64_t extra = actualPadded - inDim - pBeginI - pEndI;
+              if (extra > 0) {
+                pBeginI += extra / 2;
+                pEndI += extra - extra / 2;
+              }
+              padPairsFront.push_back(Torch::ConstantIntOp::create(
+                  rewriter, loc, rewriter.getI64IntegerAttr(pBeginI)));
+              padPairsFront.push_back(Torch::ConstantIntOp::create(
+                  rewriter, loc, rewriter.getI64IntegerAttr(pEndI)));
+            } else {
+              // Dynamic dim: emit the split as runtime int arithmetic.
+              Value cstZeroInt = Torch::ConstantIntOp::create(
+                  rewriter, loc, rewriter.getI64IntegerAttr(0));
+              Value cstTwoInt = Torch::ConstantIntOp::create(
+                  rewriter, loc, rewriter.getI64IntegerAttr(2));
+              Value cstStride = Torch::ConstantIntOp::create(
+                  rewriter, loc, rewriter.getI64IntegerAttr(stride));
+              Value cstDilatedKernel = Torch::ConstantIntOp::create(
+                  rewriter, loc, rewriter.getI64IntegerAttr(dilatedKernel));
+              Value cstStaticPad = Torch::ConstantIntOp::create(
+                  rewriter, loc, rewriter.getI64IntegerAttr(pBeginI + pEndI));
+              Value pBegin = Torch::ConstantIntOp::create(
+                  rewriter, loc, rewriter.getI64IntegerAttr(pBeginI));
+              Value pEnd = Torch::ConstantIntOp::create(
+                  rewriter, loc, rewriter.getI64IntegerAttr(pEndI));
+              Value inDim = Torch::getTensorDimSize(rewriter, operand, i + 2);
+              Value padded = Torch::AtenAddIntOp::create(rewriter, loc, inDim,
+                                                         cstStaticPad);
+              Value numer = Torch::AtenSubIntOp::create(rewriter, loc, padded,
+                                                        cstDilatedKernel);
+              // outDimMinusOne = ceildiv(numer, stride) = (numer+stride-1) /
+              // stride
+              Value strideMinusOne = Torch::AtenSubIntOp::create(
+                  rewriter, loc, cstStride,
+                  Torch::ConstantIntOp::create(rewriter, loc,
+                                               rewriter.getI64IntegerAttr(1)));
+              Value ceilNumer = Torch::AtenAddIntOp::create(
+                  rewriter, loc, numer, strideMinusOne);
+              Value outDimMinusOne = Torch::AtenFloordivIntOp::create(
+                  rewriter, loc, ceilNumer, cstStride);
+              // Drop the trailing ceil window when it starts in the padding:
+              // outDimMinusOne -= (outDimMinusOne*stride >= inDim + pBegin).
+              Value startLast = Torch::AtenMulIntOp::create(
+                  rewriter, loc, outDimMinusOne, cstStride);
+              Value inDimPlusPBegin =
+                  Torch::AtenAddIntOp::create(rewriter, loc, inDim, pBegin);
+              Value dropCond = Torch::AtenGeIntOp::create(
+                  rewriter, loc, startLast, inDimPlusPBegin);
+              Value dropInt =
+                  Torch::AtenIntBoolOp::create(rewriter, loc, dropCond);
+              outDimMinusOne = Torch::AtenSubIntOp::create(
+                  rewriter, loc, outDimMinusOne, dropInt);
+              Value actualPadded = Torch::AtenMulIntOp::create(
+                  rewriter, loc, outDimMinusOne, cstStride);
+              actualPadded = Torch::AtenAddIntOp::create(
+                  rewriter, loc, actualPadded, cstDilatedKernel);
+              Value extra = Torch::AtenSubIntOp::create(rewriter, loc,
+                                                        actualPadded, padded);
+              extra =
+                  Torch::PrimMaxIntOp::create(rewriter, loc, extra, cstZeroInt);
+              Value half = Torch::AtenFloordivIntOp::create(rewriter, loc,
+                                                            extra, cstTwoInt);
+              Value newBegin =
+                  Torch::AtenAddIntOp::create(rewriter, loc, pBegin, half);
+              Value otherHalf =
+                  Torch::AtenSubIntOp::create(rewriter, loc, extra, half);
+              Value newEnd =
+                  Torch::AtenAddIntOp::create(rewriter, loc, pEnd, otherHalf);
+              padPairsFront.push_back(newBegin);
+              padPairsFront.push_back(newEnd);
+            }
+          }
+          // Reverse dim order for constant_pad_nd (innermost first).
+          SmallVector<Value> padListVals;
+          for (int i = spatialRank - 1; i >= 0; --i) {
+            padListVals.push_back(padPairsFront[2 * i]);
+            padListVals.push_back(padPairsFront[2 * i + 1]);
+          }
+          Type intListType = Torch::ListType::get(
+              Torch::IntType::get(binder.op->getContext()));
+          return Torch::PrimListConstructOp::create(rewriter, loc, intListType,
+                                                    padListVals);
+        };
+
+        // The ceil-resolution branches below emit rank-specific pools; bail
+        // before creating any IR if the rank is unsupported.
+        if (ceilMode && rank != 3 && rank != 4 && rank != 5)
+          return rewriter.notifyMatchFailure(
+              binder.op, "unsupported rank for AveragePool");
+
+        if (ceilMode && countIncludePad && anyDynamicSpatial) {
+          // Dynamic dim: the split depends on the runtime extent, so
+          // materialize it as an aten.constant_pad_nd (runtime pad amounts) in
+          // front of a floor-mode zero-padded pool. count_include_pad=1 counts
+          // the injected zeros in the divisor, matching ONNX.
+          Location loc = binder.getLoc();
+          Value padList = buildSplitPadList();
+          Value cstZeroFloat = Torch::ConstantFloatOp::create(
+              rewriter, loc, rewriter.getF64FloatAttr(0.0));
+          SmallVector<int64_t> paddedSizes(inputTensorType.getSizes());
+          for (unsigned i = 0; i < spatialRank; ++i)
+            paddedSizes[i + 2] = Torch::kUnknownSize;
+          Type paddedType = inputTensorType.getWithSizesAndDtype(
+              paddedSizes, inputTensorType.getOptionalDtype());
+          operand = Torch::AtenConstantPadNdOp::create(
+              rewriter, loc, paddedType, operand, padList, cstZeroFloat);
+          padding.assign(spatialRank, 0);
+          ceilMode = false;
+        } else if (ceilMode && countIncludePad) {
+          // Static dim: bake the ONNX split into the pool's asymmetric padding
+          // attr, then emit floor mode.
+          toBeginEndPadding(padding);
+          for (int i = 0; i < spatialRank; ++i) {
+            int64_t inDim = spatialShape[i];
+            int64_t dilatedKernel = dilations[i] * (kernel[i] - 1) + 1;
+            int64_t &pBegin = padding[i];
+            int64_t &pEnd = padding[i + spatialRank];
+            int64_t outDim = resultSpatialShape[i];
+            int64_t actualPadded = (outDim - 1) * strides[i] + dilatedKernel;
+            int64_t extra = actualPadded - inDim - pBegin - pEnd;
+            if (extra > 0) {
+              pBegin += extra / 2;
+              pEnd += extra - extra / 2;
+            }
+          }
+          ceilMode = false;
+        } else if (ceilMode && !countIncludePad) {
+          // count_include_pad=0: the divisor is the valid (non-pad) element
+          // count, which
+          // explicit padding cannot express. Decompose into a ones-mask ratio
+          //   avg_pool(pad(input), count_include_pad=1)
+          //     / avg_pool(pad(ones_like), count_include_pad=1)
+          // so the full-kernel divisor cancels, leaving sum_valid/count_valid
+          // (all-pad windows give 0/0 = NaN, matching ONNX).
+          Location loc = binder.getLoc();
+          Value padList = buildSplitPadList();
+          Value cstZeroFloat = Torch::ConstantFloatOp::create(
+              rewriter, loc, rewriter.getF64FloatAttr(0.0));
+          Value cstNoneV = Torch::ConstantNoneOp::create(rewriter, loc);
+          Value cstFalse = Torch::ConstantBoolOp::create(rewriter, loc, false);
+          Value cstTrue = Torch::ConstantBoolOp::create(rewriter, loc, true);
+
+          SmallVector<int64_t> paddedSizes(inputTensorType.getSizes());
+          for (unsigned i = 0; i < spatialRank; ++i)
+            paddedSizes[i + 2] = Torch::kUnknownSize;
+          Type paddedType = inputTensorType.getWithSizesAndDtype(
+              paddedSizes, inputTensorType.getOptionalDtype());
+
+          Value paddedInput = Torch::AtenConstantPadNdOp::create(
+              rewriter, loc, paddedType, operand, padList, cstZeroFloat);
+          Value ones = Torch::AtenOnesLikeOp::create(
+              rewriter, loc, inputTensorType, operand, cstNoneV, cstNoneV,
+              cstNoneV, cstNoneV, cstNoneV);
+          Value paddedOnes = Torch::AtenConstantPadNdOp::create(
+              rewriter, loc, paddedType, ones, padList, cstZeroFloat);
+
+          SmallVector<int64_t> stridesDilations = strides;
+          stridesDilations.append(dilations);
+          Value kernelSizeList =
+              createConstantIntList(binder, rewriter, kernel);
+          Value stridesDilationsList =
+              createConstantIntList(binder, rewriter, stridesDilations);
+          SmallVector<int64_t> zeroPad(spatialRank, 0);
+          Value zeroPadList = createConstantIntList(binder, rewriter, zeroPad);
+
+          auto emitPool = [&](Value in) -> Value {
+            if (rank == 3)
+              return Torch::AtenAvgPool1dOp::create(
+                  rewriter, loc, resultType, in, kernelSizeList,
+                  stridesDilationsList, zeroPadList, cstFalse, cstTrue);
+            if (rank == 4)
+              return Torch::AtenAvgPool2dOp::create(
+                  rewriter, loc, resultType, in, kernelSizeList,
+                  stridesDilationsList, zeroPadList, cstFalse, cstTrue,
+                  /*divisor_override=*/cstNoneV);
+            return Torch::AtenAvgPool3dOp::create(
+                rewriter, loc, resultType, in, kernelSizeList,
+                stridesDilationsList, zeroPadList, cstFalse, cstTrue,
+                /*divisor_override=*/cstNoneV);
+          };
+          Value num = emitPool(paddedInput);
+          Value den = emitPool(paddedOnes);
+          rewriter.replaceOpWithNewOp<Torch::AtenDivTensorOp>(
+              binder.op, resultType, num, den);
+          return success();
+        }
+
         // If the padding is symmetric then we don't need seperate low/high
         // padding values.
         if (padding.size() == static_cast<size_t>(2 * spatialRank)) {
