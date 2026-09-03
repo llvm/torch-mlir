@@ -1002,6 +1002,31 @@ func.func @test_averagepool_2d_ceil_count_include_pad(%arg0: !torch.vtensor<[1,2
 
 // -----
 
+// Static input but a dynamic result extent: the static "bake the split into the
+// pad attr" path cannot size the split (it would read an unknown result dim), so
+// this must fall through to the runtime `constant_pad_nd` + zero-padded,
+// floor-mode pool path -- the same one used when the input is dynamic. The ONNX
+// split pads are still derived at runtime (size.int / ge / Int.bool / sub), and
+// the pool itself carries zero padding, so the original [1,1] pads must NOT
+// appear as the pool's padding arg on %arg0.
+// The input extent is a compile-time constant here (static input), so the split
+// is derived from constant ints -- but still through the runtime drop logic
+// (ge -> Int.bool -> sub), not the static bake-into-attr path.
+// CHECK-LABEL: @test_averagepool_2d_ceil_count_include_pad_static_in_dynamic_out
+// CHECK:         %[[DROP:.*]] = torch.aten.ge.int %{{.*}}, %{{.*}} : !torch.int, !torch.int -> !torch.bool
+// CHECK:         %[[DROPI:.*]] = torch.aten.Int.bool %[[DROP]]
+// CHECK:         %[[PADDED:.*]] = torch.aten.constant_pad_nd %arg0
+// CHECK:         %[[ZEROPAD:.*]] = torch.prim.ListConstruct %int0{{.*}}, %int0{{.*}} : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:         %[[CEIL:.*]] = torch.constant.bool false
+// CHECK:         %[[CIP:.*]] = torch.constant.bool true
+// CHECK:         torch.aten.avg_pool2d %[[PADDED]], %{{.*}}, %{{.*}}, %[[ZEROPAD]], %[[CEIL]], %[[CIP]], %none
+func.func @test_averagepool_2d_ceil_count_include_pad_static_in_dynamic_out(%arg0: !torch.vtensor<[1,2,10,11],f32>) -> !torch.vtensor<[1,2,?,?],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 19 : si64} {
+  %0 = torch.operator "onnx.AveragePool"(%arg0) {torch.onnx.ceil_mode = 1 : si64, torch.onnx.count_include_pad = 1 : si64, torch.onnx.kernel_shape = [3 : si64, 3 : si64], torch.onnx.pads = [1 : si64, 1 : si64, 1 : si64, 1 : si64], torch.onnx.strides = [2 : si64, 2 : si64]} : (!torch.vtensor<[1,2,10,11],f32>) -> !torch.vtensor<[1,2,?,?],f32>
+  return %0 : !torch.vtensor<[1,2,?,?],f32>
+}
+
+// -----
+
 // Same as above but with a dynamic spatial dim: the ONNX ceil split depends on
 // the runtime extent, so it is materialized as a runtime `constant_pad_nd` in
 // front of a zero-padded, floor-mode pool (count_include_pad keeps the injected

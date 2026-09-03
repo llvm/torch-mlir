@@ -554,13 +554,18 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         ArrayRef<int64_t> spatialShape =
             inputTensorType.getSizes().drop_front(2);
         auto isDynamicDim = [](int64_t d) { return d == Torch::kUnknownSize; };
-        bool anyDynamicSpatial = llvm::any_of(spatialShape, isDynamicDim);
         // In ceil mode ONNX drops any trailing window that would begin entirely
         // inside the padding. The result type reflects that drop (shape
         // inference applied it), so use it as the output extent -- the injected
         // padding below is sized to reproduce it.
         ArrayRef<int64_t> resultSpatialShape =
             resultType.getSizes().drop_front(2);
+        // The static "bake the split into the pad attr" branch below needs both
+        // the input and the result extent of every spatial dim; if either is
+        // unknown, take the runtime `constant_pad_nd` path (buildSplitPadList
+        // handles the mixed case per dim).
+        bool anyDynamicSpatial = llvm::any_of(spatialShape, isDynamicDim) ||
+                                 llvm::any_of(resultSpatialShape, isDynamicDim);
 
         // Expand a collapsed one-value-per-dim padding (used when the input
         // pads are symmetric) into the explicit per-dim begin/end form the ceil
@@ -571,6 +576,23 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           pads.resize_for_overwrite(2 * spatialRank);
           for (int i = spatialRank - 1; i >= 0; --i)
             pads[i + spatialRank] = pads[i];
+        };
+
+        // Resolve the ONNX ceil split for one static spatial dim: the extra
+        // ceil extent (actualPadded - inDim - pBegin - pEnd) is halved onto the
+        // leading edge and the remainder onto the trailing edge. Updates pBegin
+        // / pEnd in place. Kept as the single source of the static split so the
+        // two static call sites below cannot drift (an earlier divergence
+        // between them was a bug). Requires inDim and outDim to be static.
+        auto staticSplitPad = [](int64_t inDim, int64_t outDim, int64_t stride,
+                                 int64_t dilatedKernel, int64_t &pBegin,
+                                 int64_t &pEnd) {
+          int64_t actualPadded = (outDim - 1) * stride + dilatedKernel;
+          int64_t extra = actualPadded - inDim - pBegin - pEnd;
+          if (extra > 0) {
+            pBegin += extra / 2;
+            pEnd += extra - extra / 2;
+          }
         };
 
         // Build the aten.constant_pad_nd pad list for the ONNX ceil split
@@ -590,14 +612,8 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             int64_t pEndI = normPad[i + spatialRank];
             if (!isDynamicDim(spatialShape[i]) &&
                 !isDynamicDim(resultSpatialShape[i])) {
-              int64_t inDim = spatialShape[i];
-              int64_t outDim = resultSpatialShape[i];
-              int64_t actualPadded = (outDim - 1) * stride + dilatedKernel;
-              int64_t extra = actualPadded - inDim - pBeginI - pEndI;
-              if (extra > 0) {
-                pBeginI += extra / 2;
-                pEndI += extra - extra / 2;
-              }
+              staticSplitPad(spatialShape[i], resultSpatialShape[i], stride,
+                             dilatedKernel, pBeginI, pEndI);
               padPairsFront.push_back(Torch::ConstantIntOp::create(
                   rewriter, loc, rewriter.getI64IntegerAttr(pBeginI)));
               padPairsFront.push_back(Torch::ConstantIntOp::create(
@@ -706,17 +722,9 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           // attr, then emit floor mode.
           toBeginEndPadding(padding);
           for (int i = 0; i < spatialRank; ++i) {
-            int64_t inDim = spatialShape[i];
             int64_t dilatedKernel = dilations[i] * (kernel[i] - 1) + 1;
-            int64_t &pBegin = padding[i];
-            int64_t &pEnd = padding[i + spatialRank];
-            int64_t outDim = resultSpatialShape[i];
-            int64_t actualPadded = (outDim - 1) * strides[i] + dilatedKernel;
-            int64_t extra = actualPadded - inDim - pBegin - pEnd;
-            if (extra > 0) {
-              pBegin += extra / 2;
-              pEnd += extra - extra / 2;
-            }
+            staticSplitPad(spatialShape[i], resultSpatialShape[i], strides[i],
+                           dilatedKernel, padding[i], padding[i + spatialRank]);
           }
           ceilMode = false;
         } else if (ceilMode && !countIncludePad) {
