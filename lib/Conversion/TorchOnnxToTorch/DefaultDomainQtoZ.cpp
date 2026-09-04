@@ -2618,11 +2618,26 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             binder.tensorResultType(resultType)) {
           return failure();
         }
-        // out = ln(exp(x) + 1)
-        Value exp = Torch::AtenExpOp::create(rewriter, binder.getLoc(),
-                                             resultType, input);
-        rewriter.replaceOpWithNewOp<Torch::AtenLog1pOp>(binder.op, resultType,
-                                                        exp);
+        Location loc = binder.getLoc();
+        // Softplus(x) = ln(exp(x) + 1), computed in the numerically stable form
+        //   max(x, 0) + log1p(exp(-|x|))
+        // to avoid overflowing exp(x) to +inf (in fp32, exp overflows once
+        // x exceeds ~88). The naive ln(exp(x) + 1) poisons every downstream
+        // value with +inf for large activations; factoring out max(x, 0) keeps
+        // the exponent's argument <= 0, so exp(-|x|) stays in (0, 1].
+        Value absX = Torch::AtenAbsOp::create(rewriter, loc, resultType, input);
+        Value negAbsX =
+            Torch::AtenNegOp::create(rewriter, loc, resultType, absX);
+        Value expNegAbsX =
+            Torch::AtenExpOp::create(rewriter, loc, resultType, negAbsX);
+        Value log1p =
+            Torch::AtenLog1pOp::create(rewriter, loc, resultType, expNegAbsX);
+        Value reluX =
+            Torch::AtenReluOp::create(rewriter, loc, resultType, input);
+        Value one = Torch::ConstantIntOp::create(rewriter, loc,
+                                                 rewriter.getI64IntegerAttr(1));
+        rewriter.replaceOpWithNewOp<Torch::AtenAddTensorOp>(
+            binder.op, resultType, reluX, log1p, one);
         return success();
       });
   patterns.onOp(

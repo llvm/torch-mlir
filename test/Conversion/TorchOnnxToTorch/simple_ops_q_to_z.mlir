@@ -2258,8 +2258,13 @@ func.func @test_size(%arg0: !torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[],si
 
 // CHECK-LABEL: func.func @test_softplus
 func.func @test_softplus(%arg0: !torch.vtensor<[3],f32>) -> !torch.vtensor<[3],f32> attributes {torch.onnx_meta.ir_version = 3 : si64, torch.onnx_meta.opset_version = 1 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
-  // CHECK: %[[EXP:.*]] = torch.aten.exp %arg0 : !torch.vtensor<[3],f32> -> !torch.vtensor<[3],f32>
-  // CHECK: torch.aten.log1p %[[EXP]] : !torch.vtensor<[3],f32> -> !torch.vtensor<[3],f32>
+  // CHECK: %[[ABS:.*]] = torch.aten.abs %arg0 : !torch.vtensor<[3],f32> -> !torch.vtensor<[3],f32>
+  // CHECK: %[[NEG:.*]] = torch.aten.neg %[[ABS]] : !torch.vtensor<[3],f32> -> !torch.vtensor<[3],f32>
+  // CHECK: %[[EXP:.*]] = torch.aten.exp %[[NEG]] : !torch.vtensor<[3],f32> -> !torch.vtensor<[3],f32>
+  // CHECK: %[[LOG1P:.*]] = torch.aten.log1p %[[EXP]] : !torch.vtensor<[3],f32> -> !torch.vtensor<[3],f32>
+  // CHECK: %[[RELU:.*]] = torch.aten.relu %arg0 : !torch.vtensor<[3],f32> -> !torch.vtensor<[3],f32>
+  // CHECK: %[[ONE:.*]] = torch.constant.int 1
+  // CHECK: torch.aten.add.Tensor %[[RELU]], %[[LOG1P]], %[[ONE]] : !torch.vtensor<[3],f32>, !torch.vtensor<[3],f32>, !torch.int -> !torch.vtensor<[3],f32>
   %0 = torch.operator "onnx.Softplus"(%arg0) : (!torch.vtensor<[3],f32>) -> !torch.vtensor<[3],f32>
   return %0 : !torch.vtensor<[3],f32>
 }
