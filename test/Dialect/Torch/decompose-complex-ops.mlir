@@ -1666,3 +1666,125 @@ func.func @torch.aten.linalg_vector_norm$zero_dim_keepdim(%arg0: !torch.vtensor<
   %0 = torch.aten.linalg_vector_norm %arg0, %ord, %dim, %keepdim, %dtype : !torch.vtensor<[3,4],f32>, !torch.float, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[3,1],f32>
   return %0 : !torch.vtensor<[3,1],f32>
 }
+
+// -----
+
+// logaddexp is decomposed to the numerically stable form
+//   max(a, b) + log1p(exp(-|a - b|))
+// rather than the naive log(exp(a) + exp(b)) (which overflows to +inf in fp32
+// once a or b exceeds ~88). Only ever exponentiating -|a - b| <= 0 avoids this.
+// CHECK-LABEL: func.func @torch.aten.logaddexp(
+// CHECK-SAME:      %[[A:.*]]: !torch.vtensor<[3,4],f32>, %[[B:.*]]: !torch.vtensor<[3,4],f32>
+// CHECK:         %[[SUB:.*]] = torch.aten.sub.Tensor %[[A]], %[[B]]
+// CHECK:         %[[ABS:.*]] = torch.aten.abs %[[SUB]]
+// CHECK:         %[[NEG:.*]] = torch.aten.neg %[[ABS]]
+// CHECK:         %[[MAX:.*]] = torch.aten.maximum %[[A]], %[[B]]
+// CHECK:         %[[EXP:.*]] = torch.aten.exp %[[NEG]]
+// CHECK:         %[[LOG1P:.*]] = torch.aten.log1p %[[EXP]]
+// CHECK:         %[[RES:.*]] = torch.aten.add.Tensor %[[MAX]], %[[LOG1P]]
+// CHECK-NOT:     torch.aten.logaddexp
+// CHECK:         return %[[RES]]
+func.func @torch.aten.logaddexp(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32> {
+  %0 = torch.aten.logaddexp %arg0, %arg1 : !torch.vtensor<[3,4],f32>, !torch.vtensor<[3,4],f32> -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
+// logaddexp2 uses the base-2 analogue of the stable form:
+//   max(a, b) + log2(1 + 2^(-|a - b|)).
+// CHECK-LABEL: func.func @torch.aten.logaddexp2(
+// CHECK-SAME:      %[[A:.*]]: !torch.vtensor<[3,4],f32>, %[[B:.*]]: !torch.vtensor<[3,4],f32>
+// CHECK:         %[[SUB:.*]] = torch.aten.sub.Tensor %[[A]], %[[B]]
+// CHECK:         %[[ABS:.*]] = torch.aten.abs %[[SUB]]
+// CHECK:         %[[NEG:.*]] = torch.aten.neg %[[ABS]]
+// CHECK:         %[[MAX:.*]] = torch.aten.maximum %[[A]], %[[B]]
+// CHECK:         %[[POW:.*]] = torch.aten.pow.Scalar %{{.*}}, %[[NEG]]
+// CHECK:         %[[ADD1:.*]] = torch.aten.add.Scalar %[[POW]]
+// CHECK:         %[[LOG2:.*]] = torch.aten.log2 %[[ADD1]]
+// CHECK:         %[[RES:.*]] = torch.aten.add.Tensor %[[MAX]], %[[LOG2]]
+// CHECK-NOT:     torch.aten.logaddexp2
+// CHECK:         return %[[RES]]
+func.func @torch.aten.logaddexp2(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32> {
+  %0 = torch.aten.logaddexp2 %arg0, %arg1 : !torch.vtensor<[3,4],f32>, !torch.vtensor<[3,4],f32> -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
+// logcumsumexp is an inclusive prefix scan with a logaddexp combiner. For a
+// STATIC scan dim it is emitted as a compile-time-unrolled Hillis-Steele scan:
+// ceil(log2(L)) doubling steps, each shifting the running result right by
+// `offset` along `dim` (constant_pad_nd with the -inf identity, then slice back
+// to length L) and folding it in with an elementwise logaddexp (lowered to the
+// stabilized sub/abs/neg/maximum/exp/log1p/add body). No torch.prim.Loop, no
+// global-max shift (aten.amax) and no fused cumsum -- so it lowers to linalg,
+// TOSA and StableHLO alike. Scan dim L=3 -> offsets 1, 2 (two steps).
+// CHECK-LABEL: func.func @torch.aten.logcumsumexp$static(
+// CHECK-SAME:      %[[X:.*]]: !torch.vtensor<[2,3],f32>
+// CHECK-DAG:     %[[ONE:.*]] = torch.constant.int 1
+// CHECK-DAG:     %[[NINF:.*]] = torch.constant.float 0xFFF0000000000000
+// CHECK-DAG:     %[[ZERO:.*]] = torch.constant.int 0
+// CHECK-DAG:     %[[THREE:.*]] = torch.constant.int 3
+// step offset = 1
+// CHECK:         %[[PAD1LIST:.*]] = torch.prim.ListConstruct %[[ONE]], %[[ZERO]], %[[ZERO]], %[[ZERO]]
+// CHECK:         %[[PAD1:.*]] = torch.aten.constant_pad_nd %[[X]], %[[PAD1LIST]], %[[NINF]]
+// CHECK:         %[[SH1:.*]] = torch.aten.slice.Tensor %[[PAD1]], %[[ONE]], %[[ZERO]], %[[THREE]], %[[ONE]]
+// CHECK:           torch.aten.sub.Tensor %[[X]], %[[SH1]]
+// CHECK:           torch.aten.abs
+// CHECK:           torch.aten.neg
+// CHECK:           torch.aten.maximum %[[X]], %[[SH1]]
+// CHECK:           torch.aten.exp
+// CHECK:           torch.aten.log1p
+// CHECK:         %[[R1:.*]] = torch.aten.add.Tensor
+// step offset = 2
+// CHECK:         %[[PAD2LIST:.*]] = torch.prim.ListConstruct %{{.*}}, %[[ZERO]], %[[ZERO]], %[[ZERO]]
+// CHECK:         %[[PAD2:.*]] = torch.aten.constant_pad_nd %[[R1]], %[[PAD2LIST]], %[[NINF]]
+// CHECK:         %[[SH2:.*]] = torch.aten.slice.Tensor %[[PAD2]], %[[ONE]], %[[ZERO]], %[[THREE]], %[[ONE]]
+// CHECK:           torch.aten.maximum %[[R1]], %[[SH2]]
+// CHECK:           torch.aten.log1p
+// CHECK:         %[[R2:.*]] = torch.aten.add.Tensor
+// CHECK-NOT:     torch.prim.Loop
+// CHECK-NOT:     torch.aten.amax
+// CHECK-NOT:     torch.aten.cumsum
+// CHECK-NOT:     torch.aten.logcumsumexp
+// CHECK:         return %[[R2]]
+func.func @torch.aten.logcumsumexp$static(%arg0: !torch.vtensor<[2,3],f32>) -> !torch.vtensor<[2,3],f32> {
+  %dim = torch.constant.int 1
+  %0 = torch.aten.logcumsumexp %arg0, %dim : !torch.vtensor<[2,3],f32>, !torch.int -> !torch.vtensor<[2,3],f32>
+  return %0 : !torch.vtensor<[2,3],f32>
+}
+
+// -----
+
+// For a DYNAMIC scan dim the doubling count is unknown at compile time, so the
+// recurrence out[j] = logaddexp(out[j-1], x[j]) is materialized as a
+// data-dependent torch.prim.Loop (trip = dimSize - 1) whose body slices the
+// running prefix and current element, combines them with the stabilized
+// logaddexp body, and scatters the result back. Lowers to scf (linalg).
+// CHECK-LABEL: func.func @torch.aten.logcumsumexp$dynamic(
+// CHECK-SAME:      %[[X:.*]]: !torch.vtensor<[2,?],f32>
+// CHECK-DAG:     %[[ONE:.*]] = torch.constant.int 1
+// CHECK-DAG:     %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:         %[[DIMSZ:.*]] = torch.aten.size.int %[[X]], %[[ONE]]
+// CHECK:         %[[TRIP:.*]] = torch.aten.sub.int %[[DIMSZ]], %[[ONE]]
+// CHECK:         %[[LOOP:.*]] = torch.prim.Loop %[[TRIP]], %[[TRUE]], init(%[[X]])
+// CHECK:         ^bb0(%[[IV:.*]]: !torch.int, %[[ACC:.*]]: !torch.vtensor<[2,?],f32>):
+// CHECK:           %[[J:.*]] = torch.aten.add.int %[[IV]], %[[ONE]]
+// CHECK:           %[[JP1:.*]] = torch.aten.add.int %[[J]], %[[ONE]]
+// CHECK:           %[[PREV:.*]] = torch.aten.slice.Tensor %[[ACC]], %[[ONE]], %[[IV]], %[[J]], %[[ONE]]
+// CHECK:           %[[CUR:.*]] = torch.aten.slice.Tensor %[[X]], %[[ONE]], %[[J]], %[[JP1]], %[[ONE]]
+// CHECK:           torch.aten.maximum %[[PREV]], %[[CUR]]
+// CHECK:           torch.aten.log1p
+// CHECK:           %[[VAL:.*]] = torch.aten.add.Tensor
+// CHECK:           %[[SCAT:.*]] = torch.aten.slice_scatter %[[ACC]], %[[VAL]], %[[ONE]], %[[J]], %[[JP1]], %[[ONE]]
+// CHECK:           torch.prim.Loop.condition %[[TRUE]], iter(%[[SCAT]]
+// CHECK-NOT:     torch.aten.amax
+// CHECK-NOT:     torch.aten.cumsum
+// CHECK-NOT:     torch.aten.logcumsumexp
+// CHECK:         return %[[LOOP]]
+func.func @torch.aten.logcumsumexp$dynamic(%arg0: !torch.vtensor<[2,?],f32>) -> !torch.vtensor<[2,?],f32> {
+  %dim = torch.constant.int 1
+  %0 = torch.aten.logcumsumexp %arg0, %dim : !torch.vtensor<[2,?],f32>, !torch.int -> !torch.vtensor<[2,?],f32>
+  return %0 : !torch.vtensor<[2,?],f32>
+}
