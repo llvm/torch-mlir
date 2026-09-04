@@ -3335,16 +3335,17 @@ LogicalResult AtenSortOp::fold(FoldAdaptor adaptor,
   if (!indicesType || !indicesType.hasStaticShape())
     return failure();
 
-  bool unaryDim = false;
   IntegerAttr dimAttribute = dyn_cast_if_present<IntegerAttr>(adaptor.getDim());
   if (!dimAttribute)
     return failure();
-  int64_t dimInt = dimAttribute.getValue().getSExtValue();
-  if (dimInt < 0)
-    dimInt += operandType.getSizes().size();
-  if (dimAttribute) {
-    unaryDim = operandType.getSizes()[dimInt] == 1;
-  }
+  int64_t dim = dimAttribute.getValue().getSExtValue();
+  int64_t rank = operandType.getSizes().size();
+  int64_t effectiveRank = std::max<int64_t>(rank, 1);
+  int64_t normalizedDim = toPositiveDim(dim, effectiveRank);
+  if (!isValidDim(normalizedDim, effectiveRank))
+    return failure();
+
+  bool unaryDim = rank == 0 || operandType.getSizes()[normalizedDim] == 1;
 
   OpBuilder builder(getContext());
   if (unaryDim || llvm::all_of(operandType.getSizes(),

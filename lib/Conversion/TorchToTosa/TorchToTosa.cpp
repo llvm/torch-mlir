@@ -34,6 +34,7 @@
 #include <array>
 #include <cassert>
 #include <cmath>
+#include <limits>
 #include <numeric>
 #include <optional>
 #include <random>
@@ -2153,6 +2154,484 @@ LogicalResult ConvertAtenOp<AtenArgmaxOp>::matchAndRewriteImpl(
     return castToInt64(buildArgmax(reduceDim, self));
   }
 
+  return success();
+}
+
+struct SortSelectionResult {
+  Value values;
+  Value indices;
+};
+
+// Lower sort/top-k with repeated selection. selectionCount is k for the
+// recognized top-k prefix slices and dimSize for a full sort:
+// 1. Transpose dim to the last axis and reshape to
+//    [outerSize, dimSize, 1], where outerSize is the product of the other
+//    dimensions.
+// 2. Build the NaN/non-NaN masks once and carry a selected-position mask
+//    across iterations.
+// 3. On each iteration, use argmax over unselected numeric candidates
+//    (negated for ascending order). Select NaNs before numeric values for
+//    descending order and after them for ascending order, gather the chosen
+//    value from the original input, and mark its index selected.
+// 4. Concatenate the selected values and indices, reshape them, and transpose
+//    them back to the original dimension order.
+// Example: [2, 3, 4], dim = 1, k = 2 becomes [2, 4, 3], then [8, 3, 1].
+// Two iterations produce [8, 2, 1], which is reshaped to [2, 4, 2] and
+// transposed back to [2, 2, 4]. Runtime is
+// O(outerSize * dimSize * selectionCount), and generated IR size is
+// O(selectionCount).
+// Preconditions are validated by the conversion pattern before any TOSA IR is
+// emitted: self has a static ranked floating-point type, dim is valid, and
+// selectionCount is in [1, dimSize].
+static FailureOr<SortSelectionResult> createSortByRepeatedSelection(
+    AtenSortOp op, Value self, RankedTensorType valuesResultTy,
+    RankedTensorType indicesResultTy, int64_t dim, int64_t selectionCount,
+    bool descending, ConversionPatternRewriter &rewriter) {
+  Location loc = op.getLoc();
+  auto selfTy = cast<RankedTensorType>(self.getType());
+  int64_t rank = selfTy.getRank();
+  assert(rank > 0 && selfTy.hasStaticShape() &&
+         "repeated selection requires a non-scalar static shape");
+  assert(isValidDim(dim, rank) && "repeated selection requires a valid dim");
+
+  Type elementTy = selfTy.getElementType();
+  SmallVector<int64_t> inputShape = makeShapeTorchCompatible(selfTy.getShape());
+  int64_t dimSize = inputShape[dim];
+  assert(selectionCount > 0 && selectionCount <= dimSize &&
+         "selectionCount must be in [1, dimSize]");
+
+  SmallVector<int32_t> toSelectionOrder;
+  toSelectionOrder.reserve(rank);
+  for (int64_t i = 0; i < rank; ++i) {
+    if (i != dim)
+      toSelectionOrder.push_back(i);
+  }
+  toSelectionOrder.push_back(dim);
+
+  SmallVector<int32_t> toOriginalOrder(rank);
+  for (auto permutation : llvm::enumerate(toSelectionOrder))
+    toOriginalOrder[permutation.value()] = permutation.index();
+
+  SmallVector<int64_t> selectionOrderShape =
+      permuteShape(inputShape, toSelectionOrder);
+  Value orderedSelf = self;
+  if (dim != rank - 1) {
+    auto orderedTy = RankedTensorType::get(
+        makeShapeLLVMCompatible(selectionOrderShape), elementTy);
+    orderedSelf = tosa::TransposeOp::create(
+        rewriter, loc, orderedTy, self,
+        rewriter.getDenseI32ArrayAttr(toSelectionOrder));
+  }
+
+  int64_t outerSize = 1;
+  for (int64_t i = 0; i < rank - 1; ++i)
+    outerSize *= selectionOrderShape[i];
+  SmallVector<int64_t> nkcShape = {outerSize, dimSize, 1};
+  auto nkcTy =
+      RankedTensorType::get(makeShapeLLVMCompatible(nkcShape), elementTy);
+  Value originalReshaped =
+      tosa::ReshapeOp::create(rewriter, loc, nkcTy, orderedSelf,
+                              tosa::getTosaConstShape(rewriter, loc, nkcShape));
+
+  SmallVector<int64_t> gatheredShape = {outerSize, 1, 1};
+  auto gatheredTy =
+      RankedTensorType::get(makeShapeLLVMCompatible(gatheredShape), elementTy);
+  auto selectedIndexTy = RankedTensorType::get(
+      makeShapeLLVMCompatible(SmallVector<int64_t>{outerSize, 1}),
+      rewriter.getI32Type());
+  auto reshapedIndexTy = RankedTensorType::get(
+      makeShapeLLVMCompatible(gatheredShape), rewriter.getI32Type());
+  auto selectedMaskTy = RankedTensorType::get(makeShapeLLVMCompatible(nkcShape),
+                                              rewriter.getI8Type());
+  auto selectedMaskI32Ty = RankedTensorType::get(
+      makeShapeLLVMCompatible(nkcShape), rewriter.getI32Type());
+  auto gatheredMaskTy = RankedTensorType::get(
+      makeShapeLLVMCompatible(gatheredShape), rewriter.getI8Type());
+  auto selectedIndexMaskTy = RankedTensorType::get(
+      makeShapeLLVMCompatible(SmallVector<int64_t>{outerSize, 1}),
+      rewriter.getI8Type());
+  auto selectedIndexMaskI32Ty = RankedTensorType::get(
+      makeShapeLLVMCompatible(SmallVector<int64_t>{outerSize, 1}),
+      rewriter.getI32Type());
+  auto selectedMaskBoolTy = RankedTensorType::get(
+      makeShapeLLVMCompatible(nkcShape), rewriter.getI1Type());
+  auto selectedIndexBoolTy = RankedTensorType::get(
+      makeShapeLLVMCompatible(SmallVector<int64_t>{outerSize, 1}),
+      rewriter.getI1Type());
+
+  APFloat sentinelValue =
+      APFloat::getInf(cast<FloatType>(elementTy).getFloatSemantics(),
+                      /*negative=*/descending);
+  auto sentinelFullAttr =
+      DenseElementsAttr::get(nkcTy, FloatAttr::get(elementTy, sentinelValue));
+  Value sentinelFull =
+      tosa::ConstOp::create(rewriter, loc, nkcTy, sentinelFullAttr);
+
+  auto getI8Splat = [&](RankedTensorType type, int8_t value) -> Value {
+    return tosa::ConstOp::create(
+        rewriter, loc, type,
+        DenseElementsAttr::get(
+            type, rewriter.getIntegerAttr(rewriter.getI8Type(), value)));
+  };
+  auto getI32Splat = [&](RankedTensorType type, int32_t value) -> Value {
+    return tosa::ConstOp::create(
+        rewriter, loc, type,
+        DenseElementsAttr::get(
+            type, rewriter.getIntegerAttr(rewriter.getI32Type(), value)));
+  };
+
+  Value zeroMask = getI8Splat(selectedMaskTy, 0);
+  Value oneMask = getI8Splat(selectedMaskTy, 1);
+  Value oneGatheredMask = getI8Splat(gatheredMaskTy, 1);
+  Value zeroMaskI32 = getI32Splat(selectedMaskI32Ty, 0);
+  Value oneIndexMaskI32 = getI32Splat(selectedIndexMaskI32Ty, 1);
+  Value selectedMask = zeroMask;
+
+  Value nonNan = tosa::EqualOp::create(rewriter, loc, selectedMaskBoolTy,
+                                       originalReshaped, originalReshaped);
+  Value nanMask =
+      tosa::LogicalNotOp::create(rewriter, loc, selectedMaskBoolTy, nonNan);
+
+  auto gatherScoreIsOne = [&](Value score, Value index) -> FailureOr<Value> {
+    auto gatheredScore =
+        tosa::createGatherOp(rewriter, loc, gatheredMaskTy, score, index);
+    if (!gatheredScore)
+      return rewriter.notifyMatchFailure(
+          op, "expected ranked tensor score for gather");
+    Value gatheredScoreReshaped = tosa::ReshapeOp::create(
+        rewriter, loc, selectedIndexMaskTy, *gatheredScore,
+        tosa::getTosaConstShape(rewriter, loc,
+                                SmallVector<int64_t>{outerSize, 1}));
+    Value gatheredScoreI32 = tosa::CastOp::create(
+        rewriter, loc, selectedIndexMaskI32Ty, gatheredScoreReshaped);
+    return tosa::EqualOp::create(rewriter, loc, selectedIndexBoolTy,
+                                 gatheredScoreI32, oneIndexMaskI32)
+        .getResult();
+  };
+
+  SmallVector<Value> selectedValues;
+  SmallVector<Value> selectedIndices;
+  selectedValues.reserve(selectionCount);
+  selectedIndices.reserve(selectionCount);
+
+  for (int64_t i = 0; i < selectionCount; ++i) {
+    Value selectedMaskI32 =
+        tosa::CastOp::create(rewriter, loc, selectedMaskI32Ty, selectedMask);
+    Value unselected = tosa::EqualOp::create(rewriter, loc, selectedMaskBoolTy,
+                                             selectedMaskI32, zeroMaskI32);
+    Value unselectedNumeric = tosa::LogicalAndOp::create(
+        rewriter, loc, selectedMaskBoolTy, unselected, nonNan);
+    Value unselectedNan = tosa::LogicalAndOp::create(
+        rewriter, loc, selectedMaskBoolTy, unselected, nanMask);
+
+    Value numericScore = tosa::SelectOp::create(
+        rewriter, loc, selectedMaskTy, unselectedNumeric, oneMask, zeroMask);
+    Value numericFallbackIndex =
+        tosa::ArgMaxOp::create(
+            rewriter, loc, selectedIndexTy, numericScore,
+            rewriter.getI32IntegerAttr(1),
+            tosa::NanPropagationModeAttr::get(
+                rewriter.getContext(), tosa::NanPropagationMode::PROPAGATE))
+            .getResult();
+    auto hasUnselectedNumeric =
+        gatherScoreIsOne(numericScore, numericFallbackIndex);
+    if (failed(hasUnselectedNumeric))
+      return failure();
+
+    Value nanScore = tosa::SelectOp::create(rewriter, loc, selectedMaskTy,
+                                            unselectedNan, oneMask, zeroMask);
+    Value nanIndex =
+        tosa::ArgMaxOp::create(
+            rewriter, loc, selectedIndexTy, nanScore,
+            rewriter.getI32IntegerAttr(1),
+            tosa::NanPropagationModeAttr::get(
+                rewriter.getContext(), tosa::NanPropagationMode::PROPAGATE))
+            .getResult();
+    auto hasUnselectedNan = gatherScoreIsOne(nanScore, nanIndex);
+    if (failed(hasUnselectedNan))
+      return failure();
+
+    Value argmaxInput =
+        tosa::SelectOp::create(rewriter, loc, nkcTy, unselectedNumeric,
+                               originalReshaped, sentinelFull);
+    if (!descending)
+      argmaxInput = tosa::NegateOp::create(rewriter, loc, nkcTy, argmaxInput);
+    argmaxInput = tosa::legalizeArgMaxInputType(rewriter, op, argmaxInput);
+
+    Value numericIndex =
+        tosa::ArgMaxOp::create(
+            rewriter, loc, selectedIndexTy, argmaxInput,
+            rewriter.getI32IntegerAttr(1),
+            tosa::NanPropagationModeAttr::get(
+                rewriter.getContext(), tosa::NanPropagationMode::PROPAGATE))
+            .getResult();
+    auto numericIndexIsValid = gatherScoreIsOne(numericScore, numericIndex);
+    if (failed(numericIndexIsValid))
+      return failure();
+    Value selectedNumericIndex = tosa::SelectOp::create(
+        rewriter, loc, selectedIndexTy, *numericIndexIsValid, numericIndex,
+        numericFallbackIndex);
+    Value selectedIndex =
+        descending ? tosa::SelectOp::create(rewriter, loc, selectedIndexTy,
+                                            *hasUnselectedNan, nanIndex,
+                                            selectedNumericIndex)
+                   : tosa::SelectOp::create(rewriter, loc, selectedIndexTy,
+                                            *hasUnselectedNumeric,
+                                            selectedNumericIndex, nanIndex);
+    auto selectedValue = tosa::createGatherOp(rewriter, loc, gatheredTy,
+                                              originalReshaped, selectedIndex);
+    if (!selectedValue)
+      return rewriter.notifyMatchFailure(
+          op, "expected ranked tensor input for gather");
+    selectedValues.push_back(*selectedValue);
+    selectedIndices.push_back(tosa::ReshapeOp::create(
+        rewriter, loc, reshapedIndexTy, selectedIndex,
+        tosa::getTosaConstShape(rewriter, loc, gatheredShape)));
+
+    if (i + 1 < selectionCount) {
+      selectedMask =
+          tosa::ScatterOp::create(rewriter, loc, selectedMaskTy, selectedMask,
+                                  selectedIndex, oneGatheredMask);
+    }
+  }
+
+  auto concatValuesTy =
+      RankedTensorType::get(makeShapeLLVMCompatible(SmallVector<int64_t>{
+                                outerSize, selectionCount, 1}),
+                            elementTy);
+  auto concatIndicesTy =
+      RankedTensorType::get(makeShapeLLVMCompatible(SmallVector<int64_t>{
+                                outerSize, selectionCount, 1}),
+                            rewriter.getI32Type());
+  Value concatValues = selectionCount == 1
+                           ? selectedValues.front()
+                           : tosa::ConcatOp::create(
+                                 rewriter, loc, concatValuesTy, selectedValues,
+                                 rewriter.getI32IntegerAttr(1));
+  Value concatIndices =
+      selectionCount == 1
+          ? selectedIndices.front()
+          : tosa::ConcatOp::create(rewriter, loc, concatIndicesTy,
+                                   selectedIndices,
+                                   rewriter.getI32IntegerAttr(1));
+
+  SmallVector<int64_t> selectionOrderOutShape = selectionOrderShape;
+  selectionOrderOutShape.back() = selectionCount;
+  auto orderedValuesTy = RankedTensorType::get(
+      makeShapeLLVMCompatible(selectionOrderOutShape), elementTy);
+  auto orderedIndicesI32Ty = RankedTensorType::get(
+      makeShapeLLVMCompatible(selectionOrderOutShape), rewriter.getI32Type());
+  Value orderedValues = tosa::ReshapeOp::create(
+      rewriter, loc, orderedValuesTy, concatValues,
+      tosa::getTosaConstShape(rewriter, loc, selectionOrderOutShape));
+  Value orderedIndices = tosa::ReshapeOp::create(
+      rewriter, loc, orderedIndicesI32Ty, concatIndices,
+      tosa::getTosaConstShape(rewriter, loc, selectionOrderOutShape));
+
+  SmallVector<int64_t> outputShape = inputShape;
+  outputShape[dim] = selectionCount;
+  auto valuesOutTy =
+      RankedTensorType::get(makeShapeLLVMCompatible(outputShape), elementTy);
+  auto indicesI32OutTy = RankedTensorType::get(
+      makeShapeLLVMCompatible(outputShape), rewriter.getI32Type());
+  Value values = orderedValues;
+  Value indices = orderedIndices;
+  if (dim != rank - 1) {
+    values = tosa::TransposeOp::create(
+        rewriter, loc, valuesOutTy, orderedValues,
+        rewriter.getDenseI32ArrayAttr(toOriginalOrder));
+    indices = tosa::TransposeOp::create(
+        rewriter, loc, indicesI32OutTy, orderedIndices,
+        rewriter.getDenseI32ArrayAttr(toOriginalOrder));
+  }
+
+  if (values.getType() != valuesResultTy)
+    values = tensor::CastOp::create(rewriter, loc, valuesResultTy, values);
+
+  if (indicesResultTy.getElementType().isInteger(64))
+    indices = tosa::CastOp::create(rewriter, loc, indicesResultTy, indices);
+  else if (indices.getType() != indicesResultTy)
+    indices = tensor::CastOp::create(rewriter, loc, indicesResultTy, indices);
+
+  return SortSelectionResult{values, indices};
+}
+
+template <>
+LogicalResult ConvertAtenOp<AtenSortOp>::matchAndRewriteImpl(
+    AtenSortOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Location loc = op.getLoc();
+  Value self = adaptor.getSelf();
+  auto selfTy = dyn_cast<RankedTensorType>(self.getType());
+  if (!selfTy || !selfTy.hasStaticShape())
+    return rewriter.notifyMatchFailure(
+        op, "only ranked tensor types with static shape are supported");
+
+  int64_t dim;
+  if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: only constant dim value is supported");
+
+  auto sortValuesResultTy = dyn_cast<RankedTensorType>(
+      getTypeConverter()->convertType(op.getResult(0).getType()));
+  auto sortIndicesResultTy = dyn_cast<RankedTensorType>(
+      getTypeConverter()->convertType(op.getResult(1).getType()));
+  if (!sortValuesResultTy || !sortIndicesResultTy)
+    return rewriter.notifyMatchFailure(op,
+                                       "expected ranked tensor result types");
+
+  int64_t rank = selfTy.getRank();
+  if (rank == 0) {
+    if (dim != 0 && dim != -1)
+      return rewriter.notifyMatchFailure(op, "scalar sort dim is invalid");
+
+    Value values = self;
+    if (values.getType() != sortValuesResultTy)
+      values =
+          tensor::CastOp::create(rewriter, loc, sortValuesResultTy, values);
+
+    Value indices = tosa::getConstTensor<int32_t>(rewriter, op, 0, {}).value();
+    if (sortIndicesResultTy.getElementType().isInteger(64))
+      indices =
+          tosa::CastOp::create(rewriter, loc, sortIndicesResultTy, indices);
+    else if (indices.getType() != sortIndicesResultTy)
+      indices =
+          tensor::CastOp::create(rewriter, loc, sortIndicesResultTy, indices);
+    rewriter.replaceOp(op, {values, indices});
+    return success();
+  }
+
+  Type elementTy = selfTy.getElementType();
+  if (!elementTy.isF32() && !elementTy.isF16() && !elementTy.isBF16())
+    return rewriter.notifyMatchFailure(
+        op, "only f32, f16, and bf16 element types are supported");
+
+  bool descending;
+  if (!matchPattern(op.getDescending(), m_TorchConstantBool(&descending)))
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: only constant descending value is supported");
+
+  dim = toPositiveDim(dim, rank);
+  if (!isValidDim(dim, rank))
+    return rewriter.notifyMatchFailure(op, "dim is statically invalid");
+
+  SmallVector<int64_t> inputShape = makeShapeTorchCompatible(selfTy.getShape());
+  int64_t dimSize = inputShape[dim];
+  if (dimSize <= 0)
+    return rewriter.notifyMatchFailure(
+        op, "TOSA sort/topk lowering requires a statically non-empty "
+            "dimension");
+  if (dimSize > std::numeric_limits<int32_t>::max())
+    return rewriter.notifyMatchFailure(
+        op, "sort/topk dimension must fit in i32 indices");
+
+  // This lowering emits one full-dimension selection step per result element.
+  // Cap the count to bound both generated IR size and runtime work.
+  constexpr int64_t kMaxTosaSortSelectionCount = 128;
+
+  struct PrefixSliceUsers {
+    AtenSliceTensorOp valuesSlice;
+    AtenSliceTensorOp indicesSlice;
+    int64_t k;
+  };
+
+  // Recognize the canonical aten.topk decomposition:
+  //   values, indices = aten.sort(self, dim, descending)
+  //   topValues = aten.slice.Tensor(values, dim, start=0, end=k, step=1)
+  //   topIndices = aten.slice.Tensor(indices, dim, start=0, end=k, step=1)
+  // After sorting, top-k is the first k elements along dim. Both sort results
+  // must therefore have exactly one slice user with the same constant k.
+  // Matching this pattern emits only k selections instead of a full sort.
+  auto getPrefixSliceUsers = [&]() -> std::optional<PrefixSliceUsers> {
+    if (!op.getResult(0).hasOneUse() || !op.getResult(1).hasOneUse())
+      return std::nullopt;
+    auto valuesSlice =
+        dyn_cast<AtenSliceTensorOp>(*op.getResult(0).user_begin());
+    auto indicesSlice =
+        dyn_cast<AtenSliceTensorOp>(*op.getResult(1).user_begin());
+    if (!valuesSlice || !indicesSlice)
+      return std::nullopt;
+
+    auto parsePrefixSlice = [&](AtenSliceTensorOp slice,
+                                int64_t &sliceK) -> bool {
+      int64_t sliceDim;
+      if (!matchPattern(slice.getDim(), m_TorchConstantInt(&sliceDim)))
+        return false;
+      sliceDim = toPositiveDim(sliceDim, rank);
+      if (sliceDim != dim)
+        return false;
+      int64_t start;
+      if (!matchPattern(slice.getStart(), m_TorchConstantInt(&start)) ||
+          start != 0)
+        return false;
+      int64_t step;
+      if (!matchPattern(slice.getStep(), m_TorchConstantInt(&step)) ||
+          step != 1)
+        return false;
+      if (!matchPattern(slice.getEnd(), m_TorchConstantInt(&sliceK)))
+        return false;
+      return sliceK >= 0 && sliceK <= dimSize;
+    };
+
+    int64_t valuesK;
+    int64_t indicesK;
+    if (!parsePrefixSlice(valuesSlice, valuesK) ||
+        !parsePrefixSlice(indicesSlice, indicesK) || valuesK != indicesK)
+      return std::nullopt;
+    return PrefixSliceUsers{valuesSlice, indicesSlice, valuesK};
+  };
+
+  std::optional<PrefixSliceUsers> topkPrefixSlices = getPrefixSliceUsers();
+  int64_t selectionCount = topkPrefixSlices ? topkPrefixSlices->k : dimSize;
+  if (selectionCount > kMaxTosaSortSelectionCount)
+    return rewriter.notifyMatchFailure(op, [&](Diagnostic &diag) {
+      diag << "TOSA sort/topk lowering supports at most "
+           << kMaxTosaSortSelectionCount << " selected elements";
+    });
+
+  RankedTensorType valuesResultTy = sortValuesResultTy;
+  RankedTensorType indicesResultTy = sortIndicesResultTy;
+  if (topkPrefixSlices) {
+    valuesResultTy = dyn_cast<RankedTensorType>(getTypeConverter()->convertType(
+        topkPrefixSlices->valuesSlice.getType()));
+    indicesResultTy =
+        dyn_cast<RankedTensorType>(getTypeConverter()->convertType(
+            topkPrefixSlices->indicesSlice.getType()));
+    if (!valuesResultTy || !indicesResultTy)
+      return rewriter.notifyMatchFailure(
+          op, "expected ranked tensor types for topk slice results");
+  }
+
+  if (topkPrefixSlices && selectionCount == 0) {
+    if (!valuesResultTy.hasStaticShape() || !indicesResultTy.hasStaticShape())
+      return rewriter.notifyMatchFailure(
+          op, "topk with k=0 requires statically shaped slice results");
+    Value emptyValues =
+        tensor::EmptyOp::create(rewriter, loc, valuesResultTy.getShape(),
+                                valuesResultTy.getElementType());
+    Value emptyIndices =
+        tensor::EmptyOp::create(rewriter, loc, indicesResultTy.getShape(),
+                                indicesResultTy.getElementType());
+    rewriter.replaceOp(topkPrefixSlices->valuesSlice, emptyValues);
+    rewriter.replaceOp(topkPrefixSlices->indicesSlice, emptyIndices);
+    rewriter.eraseOp(op);
+    return success();
+  }
+
+  auto selection =
+      createSortByRepeatedSelection(op, self, valuesResultTy, indicesResultTy,
+                                    dim, selectionCount, descending, rewriter);
+  if (failed(selection))
+    return failure();
+
+  if (topkPrefixSlices) {
+    rewriter.replaceOp(topkPrefixSlices->valuesSlice, selection->values);
+    rewriter.replaceOp(topkPrefixSlices->indicesSlice, selection->indices);
+    rewriter.eraseOp(op);
+    return success();
+  }
+
+  rewriter.replaceOp(op, {selection->values, selection->indices});
   return success();
 }
 
@@ -12119,6 +12598,7 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
   INSERT_ATENOP_PATTERN(AtenReluOp);
   INSERT_ATENOP_PATTERN(AtenLeakyReluOp);
   INSERT_ATENOP_PATTERN(AtenArgmaxOp);
+  INSERT_ATENOP_PATTERN(AtenSortOp);
   INSERT_ATENOP_PATTERN(AtenRsubScalarOp);
   INSERT_ATENOP_PATTERN(AtenConvolutionOp);
   INSERT_ATENOP_PATTERN(ValueTensorLiteralOp);
