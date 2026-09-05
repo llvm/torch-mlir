@@ -820,6 +820,9 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
     const TypeConverter *typeConverter = this->getTypeConverter();
+    if (failed(checkZeroDimLegality(op, adaptor, typeConverter, rewriter)))
+      return failure();
+
     bool canHandleZeroDimInputOperands =
         canHandleZeroDimInputs(op, adaptor, typeConverter);
 
@@ -852,6 +855,13 @@ public:
   }
 
 protected:
+  virtual LogicalResult
+  checkZeroDimLegality(AtenOpT op, OpAdaptor adaptor,
+                       const TypeConverter *typeConverter,
+                       ConversionPatternRewriter &rewriter) const {
+    return success();
+  }
+
   virtual bool
   canHandleZeroDimInputs(AtenOpT op, OpAdaptor adaptor,
                          const TypeConverter *typeConverter) const {
@@ -2820,6 +2830,26 @@ public:
   }
 };
 
+static bool hasStaticZeroExtentTensorType(Type type) {
+  if (auto rankedTy = dyn_cast<RankedTensorType>(type)) {
+    for (int64_t dim : rankedTy.getShape()) {
+      if (dim == 0)
+        return true;
+    }
+    return false;
+  }
+
+  auto baseTensorTy = dyn_cast<BaseTensorType>(type);
+  if (!baseTensorTy || !baseTensorTy.hasSizes())
+    return false;
+
+  for (int64_t dim : baseTensorTy.getSizes()) {
+    if (dim == 0)
+      return true;
+  }
+  return false;
+}
+
 // Perform the basic n-dim matmul operation encompassing the handling of
 // broadcasting and dynamic shape propagation.
 // All PyTorch ops that leverage matrix multiplication will derive this and
@@ -2841,6 +2871,17 @@ public:
     return rewriter.notifyMatchFailure(
         op,
         "Unimplemented matrix multiplication variant input parsing function");
+  }
+
+  LogicalResult
+  checkZeroDimLegality(AtenOpT op, OpAdaptor, const TypeConverter *,
+                       ConversionPatternRewriter &) const override {
+    for (Type resultType : op->getResultTypes())
+      if (hasStaticZeroExtentTensorType(resultType))
+        return op.emitError(
+            "TOSA lowering does not support matmul-like ops with zero-sized "
+            "output tensors");
+    return success();
   }
 
   bool
