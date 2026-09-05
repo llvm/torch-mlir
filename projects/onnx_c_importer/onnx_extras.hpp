@@ -14,6 +14,11 @@
 
 #include "Status.hpp"
 
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/Support/SHA1.h"
+#include "llvm/Support/SHA256.h"
+
+#include <algorithm>
 #include <optional>
 
 namespace fs = std::filesystem;
@@ -91,6 +96,47 @@ Status loadExternalDataForTensor(onnx::TensorProto &tp,
   // NOTE: could be optimizated using c++23's std::string::resize_and_overwrite
   strPtr->resize(length); // unfortunately default-inizializes bytes to '/0'
   inputStream.read(strPtr->data(), length);
+
+  // Verify checksum if provided (ONNX spec: "algorithm:hex", e.g. "sha1:abc123")
+  if (edi.checksum.has_value()) {
+    const std::string &checksumSpec = *edi.checksum;
+    auto colonPos = checksumSpec.find(':');
+    if (colonPos == std::string::npos) {
+      std::cerr << "Invalid checksum format (expected 'algorithm:hex'): "
+                << checksumSpec << "\n";
+      return failure;
+    }
+    std::string algorithm = checksumSpec.substr(0, colonPos);
+    std::string expectedHex = checksumSpec.substr(colonPos + 1);
+    // Normalize algorithm name to lowercase
+    std::transform(algorithm.begin(), algorithm.end(), algorithm.begin(),
+                   ::tolower);
+
+    std::string computedHex;
+    llvm::StringRef dataRef(*strPtr);
+    if (algorithm == "sha1") {
+      auto hash = llvm::SHA1::hash(llvm::arrayRefFromStringRef(dataRef));
+      computedHex = llvm::toHex(hash, /*LowerCase=*/true);
+    } else if (algorithm == "sha256") {
+      auto hash = llvm::SHA256::hash(llvm::arrayRefFromStringRef(dataRef));
+      computedHex = llvm::toHex(hash, /*LowerCase=*/true);
+    } else {
+      std::cerr << "Unsupported checksum algorithm: " << algorithm << "\n";
+      return failure;
+    }
+
+    // Case-insensitive comparison
+    std::string expectedLower = expectedHex;
+    std::transform(expectedLower.begin(), expectedLower.end(),
+                   expectedLower.begin(), ::tolower);
+    if (computedHex != expectedLower) {
+      std::cerr << "Checksum mismatch for external data file: "
+                << externalDataFilePath << "\n"
+                << "  Expected: " << expectedHex << "\n"
+                << "  Computed: " << computedHex << "\n";
+      return failure;
+    }
+  }
 
   return success;
 }
