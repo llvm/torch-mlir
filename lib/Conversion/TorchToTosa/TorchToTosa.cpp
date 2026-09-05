@@ -53,6 +53,40 @@ namespace mlir::torch {
 
 namespace {
 
+static bool isRankedI8Tensor(Type type) {
+  auto tensorTy = dyn_cast<RankedTensorType>(type);
+  return tensorTy && tensorTy.getElementType().isInteger(8);
+}
+
+static void legalizeI8EqualOpsForReferenceModel(func::FuncOp func) {
+  SmallVector<tosa::EqualOp> equalOps;
+  func.walk([&](tosa::EqualOp equalOp) {
+    if (isRankedI8Tensor(equalOp.getInput1().getType()) &&
+        isRankedI8Tensor(equalOp.getInput2().getType()))
+      equalOps.push_back(equalOp);
+  });
+
+  for (tosa::EqualOp equalOp : equalOps) {
+    OpBuilder builder(equalOp);
+    Location loc = equalOp.getLoc();
+    auto lhsTy = cast<RankedTensorType>(equalOp.getInput1().getType());
+    auto rhsTy = cast<RankedTensorType>(equalOp.getInput2().getType());
+    Type i32Ty = builder.getIntegerType(32);
+    Value lhs = tosa::CastOp::create(
+        builder, loc, RankedTensorType::get(lhsTy.getShape(), i32Ty),
+        equalOp.getInput1());
+    Value rhs = tosa::CastOp::create(
+        builder, loc, RankedTensorType::get(rhsTy.getShape(), i32Ty),
+        equalOp.getInput2());
+    Value replacement =
+        tosa::EqualOp::create(builder, loc, equalOp.getResult().getType(), lhs,
+                              rhs)
+            .getResult();
+    equalOp.getResult().replaceAllUsesWith(replacement);
+    equalOp.erase();
+  }
+}
+
 // Runs an in-place inclusive prefix sum along the middle dimension (K) of
 // `running` using a binary lifting scheme. The input must have shape [N, K, C].
 // After the loop, `running` holds the cumsum result with respect to axis=1.
@@ -1341,6 +1375,24 @@ public:
         } else {
           lhs = tosa::tosaCastTensorToType(rewriter, lhs, rhsTensorTy).value();
         }
+      }
+    }
+
+    if constexpr (std::is_same<TosaOpT, tosa::EqualOp>()) {
+      auto lhsRankedTy = dyn_cast<RankedTensorType>(lhs.getType());
+      auto rhsRankedTy = dyn_cast<RankedTensorType>(rhsTensor.getType());
+      if (lhsRankedTy && rhsRankedTy &&
+          lhsRankedTy.getElementType().isInteger(8) &&
+          rhsRankedTy.getElementType().isInteger(8)) {
+        auto i32Ty = rewriter.getIntegerType(32);
+        lhs = tosa::tosaCastTensorToType(
+                  rewriter, lhs,
+                  RankedTensorType::get(lhsRankedTy.getShape(), i32Ty))
+                  .value();
+        rhsTensor = tosa::tosaCastTensorToType(
+                        rewriter, rhsTensor,
+                        RankedTensorType::get(rhsRankedTy.getShape(), i32Ty))
+                        .value();
       }
     }
 
@@ -12282,6 +12334,8 @@ public:
     if (failed(applyPartialConversion(getOperation(), target,
                                       std::move(frozenPatterns))))
       return signalPassFailure();
+
+    legalizeI8EqualOpsForReferenceModel(getOperation());
   }
 };
 } // namespace
