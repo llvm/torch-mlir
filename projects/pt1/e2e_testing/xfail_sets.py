@@ -85,6 +85,8 @@ LINALG_CRASHING_SET = {
     # unimplemented: for conversion to byte or char type dstOriginalDtype has to be passed to convertScalarToDtype
     "AtenMmInt8Types_basic",
     "AtenMmInt8ZeroK_basic",
+    # Runtime verification aborts on zero-extent memref casts.
+    "RMSNormZeroExtentModule_basic",
     # Hanging tests:
     "ConvolutionBackwardModule2DDilated_basic",
     "ConvolutionBackwardModule2DStridedPaddedDilatedGrouped_basic",
@@ -1451,6 +1453,7 @@ STABLEHLO_PASS_SET = {
     "Rot90NegativeEvenRotationsModule_basic",
     "Rot90NegativeOddRotationsModule_basic",
     "RMSNormModule_basic",
+    "RMSNormZeroExtentModule_basic",
     "RMSNormWithoutEpsModule_basic",
     "RMSNormWithoutWeightModule_basic",
     "RMSNormAllNormalizeModule_basic",
@@ -1725,6 +1728,8 @@ FX_IMPORTER_TOSA_CRASHING_SET = {
     "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
     "ScatterSrcModule_basic",
     "ScatterSrcStaticModule_basic",
+    # TOSA runtime verification aborts on zero-extent memref casts.
+    "RMSNormZeroExtentModule_basic",
     # 1D inputs cause generated tosa.negate ops to crash downstream
     "NllLossModule_1D_basic",
     # BertModule is not crashing, but is timing out due to TosaLayerwiseConstantFoldPass:
@@ -4704,6 +4709,7 @@ ONNX_TOSA_XFAIL_SET = {
     "ReshapeDynamicModule_basic",
     "ReshapeExpandModule_basic",
     "RMSNormModule_basic",
+    "RMSNormZeroExtentModule_basic",
     "RMSNormWithoutEpsModule_basic",
     "RMSNormWithoutWeightModule_basic",
     "RMSNormAllNormalizeModule_basic",

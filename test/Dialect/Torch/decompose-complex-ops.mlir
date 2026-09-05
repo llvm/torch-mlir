@@ -1,5 +1,59 @@
 // RUN: torch-mlir-opt -torch-decompose-complex-ops -split-input-file %s | FileCheck %s
 
+// CHECK-LABEL:   func.func @rms_norm_zero_extent
+// CHECK-NOT:       torch.aten.square
+// CHECK-NOT:       torch.aten.pow.Tensor_Scalar
+// CHECK-NOT:       torch.aten.mul.Tensor
+// CHECK:           return %arg0
+func.func @rms_norm_zero_extent(%arg0: !torch.vtensor<[0,1],f32>, %arg1: !torch.vtensor<[1],f32>) -> !torch.vtensor<[0,1],f32> {
+  %int1 = torch.constant.int 1
+  %shape = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %none = torch.constant.none
+  %0 = torch.aten.rms_norm %arg0, %shape, %arg1, %none : !torch.vtensor<[0,1],f32>, !torch.list<int>, !torch.vtensor<[1],f32>, !torch.none -> !torch.vtensor<[0,1],f32>
+  return %0 : !torch.vtensor<[0,1],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @rms_norm_zero_extent_bad_normalized_shape
+// CHECK:           %[[RMS:.*]] = torch.aten.rms_norm
+// CHECK:           return %[[RMS]]
+func.func @rms_norm_zero_extent_bad_normalized_shape(%arg0: !torch.vtensor<[0,2],f32>, %arg1: !torch.vtensor<[1],f32>) -> !torch.vtensor<[0,2],f32> {
+  %int1 = torch.constant.int 1
+  %shape = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %none = torch.constant.none
+  %0 = torch.aten.rms_norm %arg0, %shape, %arg1, %none : !torch.vtensor<[0,2],f32>, !torch.list<int>, !torch.vtensor<[1],f32>, !torch.none -> !torch.vtensor<[0,2],f32>
+  return %0 : !torch.vtensor<[0,2],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @rms_norm_zero_extent_unknown_weight_shape
+// CHECK:           %[[RMS:.*]] = torch.aten.rms_norm
+// CHECK:           return %[[RMS]]
+func.func @rms_norm_zero_extent_unknown_weight_shape(%arg0: !torch.vtensor<[0,1],f32>, %arg1: !torch.vtensor<*,f32>) -> !torch.vtensor<[0,1],f32> {
+  %int1 = torch.constant.int 1
+  %shape = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %none = torch.constant.none
+  %0 = torch.aten.rms_norm %arg0, %shape, %arg1, %none : !torch.vtensor<[0,1],f32>, !torch.list<int>, !torch.vtensor<*,f32>, !torch.none -> !torch.vtensor<[0,1],f32>
+  return %0 : !torch.vtensor<[0,1],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @rms_norm_zero_extent_unsupported_dtype
+// CHECK:           %[[RMS:.*]] = torch.aten.rms_norm
+// CHECK:           return %[[RMS]]
+func.func @rms_norm_zero_extent_unsupported_dtype(%arg0: !torch.vtensor<[0,1],si64>, %arg1: !torch.vtensor<[1],si64>) -> !torch.vtensor<[0,1],si64> {
+  %int1 = torch.constant.int 1
+  %shape = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %none = torch.constant.none
+  %0 = torch.aten.rms_norm %arg0, %shape, %arg1, %none : !torch.vtensor<[0,1],si64>, !torch.list<int>, !torch.vtensor<[1],si64>, !torch.none -> !torch.vtensor<[0,1],si64>
+  return %0 : !torch.vtensor<[0,1],si64>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @repeat_interleave_tensor
 // CHECK:         %[[REPEATS:.*]] = torch.aten.to.dtype %arg0{{.*}} -> !torch.vtensor<[2],si64>
 // CHECK:         %[[CUMSUM:.*]] = torch.aten.cumsum %[[REPEATS]]
