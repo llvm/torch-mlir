@@ -533,15 +533,13 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     }
     return payloadArgs[0];
   }
-  if (auto bitwiseAndTensor = dyn_cast<AtenBitwiseAndTensorOp>(op)) {
-    if (isa<mlir::FloatType>(
-            cast<ValueTensorType>(bitwiseAndTensor.getType()).getDtype())) {
-      bitwiseAndTensor.emitError(
-          "Bitwise_And does not support floating point dtype");
+  if (isa<AtenBitwiseAndTensorOp, Aten__And__TensorOp>(op)) {
+    Type resultType = op->getResult(0).getType();
+    if (isa<mlir::FloatType>(cast<ValueTensorType>(resultType).getDtype())) {
+      op->emitError("Bitwise_And does not support floating point dtype");
       return nullptr;
     }
-    Type dtype = cast<RankedTensorType>(
-                     converter->convertType(bitwiseAndTensor.getType()))
+    Type dtype = cast<RankedTensorType>(converter->convertType(resultType))
                      .getElementType();
     Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
     Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
@@ -1979,7 +1977,8 @@ public:
              AtenLog10Op, AtenLog1pOp, AtenRsqrtOp, AtenDivScalarOp,
              AtenRemainderScalarOp, AtenRemainderTensorOp, AtenAbsOp,
              AtenComplexOp, AtenReciprocalOp, AtenBitwiseAndTensorOp,
-             AtenBitwiseAndScalarOp, AtenBitwiseOrTensorOp,
+             Aten__And__TensorOp, AtenBitwiseAndScalarOp,
+             AtenBitwiseOrTensorOp,
              AtenBitwiseXorTensorOp, AtenBitwiseLeftShiftTensorOp,
              AtenBitwiseRightShiftTensorOp, Aten__Lshift__ScalarOp,
              Aten__Rshift__ScalarOp, AtenGtScalarOp, AtenGeScalarOp,
@@ -4290,7 +4289,8 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenFloorOp, AtenCeilOp, AtenPreluOp, AtenPowScalarOp,
       AtenPowTensorScalarOp, AtenPowTensorTensorOp, AtenLog2Op, AtenLog10Op,
       AtenLog1pOp, AtenRsqrtOp, AtenAbsOp, AtenComplexOp, AtenReciprocalOp,
-      AtenBitwiseAndTensorOp, AtenBitwiseAndScalarOp, AtenBitwiseOrTensorOp,
+      AtenBitwiseAndTensorOp, Aten__And__TensorOp, AtenBitwiseAndScalarOp,
+      AtenBitwiseOrTensorOp,
       AtenBitwiseXorTensorOp, AtenBitwiseLeftShiftTensorOp,
       AtenBitwiseRightShiftTensorOp, Aten__Lshift__ScalarOp,
       Aten__Rshift__ScalarOp, AtenGtScalarOp, AtenGeScalarOp, AtenEqScalarOp,
