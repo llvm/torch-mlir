@@ -3395,8 +3395,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "Aten_TrilinearModuleZerodDimBug_basic",
     "AtenNonzero1DDynamicModule_basic",
     "MaxPool3dLargeDatadModule_basic",
-    "MaxPool3dModuleRandomSimple_basic",
-    "MaxPool3dModule_basic",
     "ViewDtypeStaticModule_basic",
     "Unfold_Module_Rank_Zero_Size_Zero_basic",
     "ArangeZeroElementOutputModule_basic",
