@@ -43,11 +43,11 @@ func.func @torch.aten.assert_tensor_metadata() {
 // CHECK-LABEL:   func.func @torch.aten.assert_tensor_metadata$uint32
 // CHECK-NEXT:      return
 func.func @torch.aten.assert_tensor_metadata$uint32() {
-  %int30 = torch.constant.int 30
+  %int28 = torch.constant.int 28
   %none = torch.constant.none
   %0 = tensor.empty() : tensor<1x1x128x128xui32>
   %1 = torch_c.from_builtin_tensor %0 : tensor<1x1x128x128xui32> -> !torch.vtensor<[1,1,128,128],ui32>
-  torch.aten._assert_tensor_metadata %1, %none, %none, %int30, %none, %none : !torch.vtensor<[1,1,128,128],ui32>, !torch.none, !torch.none, !torch.int, !torch.none, !torch.none
+  torch.aten._assert_tensor_metadata %1, %none, %none, %int28, %none, %none : !torch.vtensor<[1,1,128,128],ui32>, !torch.none, !torch.none, !torch.int, !torch.none, !torch.none
   return
 }
 
@@ -1377,7 +1377,7 @@ func.func @torch.prim.dtype$bfloat16(%t : !torch.tensor<*,bf16>) -> !torch.int {
 
 // CHECK-LABEL:   func.func @torch.prim.dtype$uint32(
 // CHECK-SAME:             %[[T:.*]]: !torch.tensor<*,ui32>) -> !torch.int {
-// CHECK:           %[[CST:.*]] = torch.constant.int 30
+// CHECK:           %[[CST:.*]] = torch.constant.int 28
 // CHECK:           return %[[CST]] : !torch.int
 func.func @torch.prim.dtype$uint32(%t : !torch.tensor<*,ui32>) -> !torch.int {
     %ret = torch.prim.dtype %t: !torch.tensor<*,ui32> -> !torch.int

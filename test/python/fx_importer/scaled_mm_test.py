@@ -262,7 +262,7 @@ def test_import_scaled_mm_v2_out_dtype_none_fp4():
 # CHECK: %[[SWIZZLE_B_VALUE:.*]] = torch.constant.int 0
 # CHECK: %[[SWIZZLE_B:.*]] = torch.prim.ListConstruct %[[SWIZZLE_B_VALUE]]
 # CHECK: %[[BIAS_NONE:.*]] = torch.constant.none
-# CHECK: %[[OUT_DTYPE:.*]] = torch.constant.int 29
+# CHECK: %[[OUT_DTYPE:.*]] = torch.constant.int 45
 # CHECK: %[[CONTRACTION:.*]] = torch.prim.ListConstruct
 # CHECK: %[[FALSE:.*]] = torch.constant.bool false
 # CHECK: %[[MM:.*]] = torch.aten._scaled_mm_v2 %arg0, %arg1, %[[SCALE_A]], %[[RECIPE_A]], %[[SWIZZLE_A]], %[[SCALE_B]], %[[RECIPE_B]], %[[SWIZZLE_B]], %[[BIAS_NONE]], %[[OUT_DTYPE]], %[[CONTRACTION]], %[[FALSE]]

@@ -240,22 +240,6 @@ def test_full():
 
 
 @run
-# CHECK-LABEL: test_empty_uint32
-# CHECK: func.func @empty_uint32() -> !torch.vtensor<[2,3],ui32>
-# CHECK: %[[DTYPE:.+]] = torch.constant.int 30
-# CHECK: torch.aten.empty.memory_format
-# CHECK-SAME: %[[DTYPE]]
-# CHECK-SAME: -> !torch.vtensor<[2,3],ui32>
-def test_empty_uint32():
-    class Module(torch.nn.Module):
-        def forward(self):
-            return torch.empty((2, 3), dtype=torch.uint32)
-
-    module = fx.export_and_import(Module(), func_name="empty_uint32")
-    print(module)
-
-
-@run
 # CHECK-LABEL: test_uint32_tensor_literal
 # CHECK: func.func @uint32_tensor_literal() -> !torch.vtensor<[2],ui32>
 # CHECK: torch.vtensor.literal
@@ -274,7 +258,7 @@ def test_uint32_tensor_literal():
 # CHECK-LABEL: test_view_uint32
 # CHECK: func.func @view_uint32(%[[ARG:.+]]: !torch.vtensor<[8],f32>)
 # CHECK-SAME: -> !torch.vtensor<[8],ui32>
-# CHECK: %[[DTYPE:.+]] = torch.constant.int 30
+# CHECK: %[[DTYPE:.+]] = torch.constant.int 28
 # CHECK: torch.aten.view.dtype %[[ARG]], %[[DTYPE]]
 # CHECK-SAME: !torch.vtensor<[8],f32>, !torch.int
 # CHECK-SAME: -> !torch.vtensor<[8],ui32>

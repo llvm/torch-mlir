@@ -255,7 +255,7 @@ TORCH_DTYPE_TO_INT = {
     # torch.quint8: 13,
     # torch.qint32 14
     torch.bfloat16: 15,
-    torch.uint32: 30,
+    torch.uint32: 28,
 }
 # Type entries added only in torch with higher version
 OPTIONAL_TORCH_DTYPE_TO_INT = {
@@ -263,8 +263,8 @@ OPTIONAL_TORCH_DTYPE_TO_INT = {
     "float8_e4m3fn": 24,
     "float8_e5m2fnuz": 25,
     "float8_e4m3fnuz": 26,
-    "float8_e8m0fnu": 28,
-    "float4_e2m1fn_x2": 29,
+    "float8_e8m0fnu": 44,
+    "float4_e2m1fn_x2": 45,
 }
 for dtype_str, dtype_int in OPTIONAL_TORCH_DTYPE_TO_INT.items():
     if hasattr(torch, dtype_str):

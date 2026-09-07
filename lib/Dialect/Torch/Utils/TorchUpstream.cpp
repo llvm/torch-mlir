@@ -53,6 +53,12 @@ static inline ScalarType promoteTypes(ScalarType a, ScalarType b) {
     return a;
   }
 
+  // Private dtypes have no promotion rule.
+  // Never use their negative encodings to index the upstream lookup table.
+  if (static_cast<int>(a) < 0 || static_cast<int>(b) < 0) {
+    return ScalarType::Undefined;
+  }
+
   if (isQIntType(a) || isQIntType(b)) {
     assert(false && "promoteTypes with quantized numbers is not handled yet; "
                     "figure out what the correct rules should be");
