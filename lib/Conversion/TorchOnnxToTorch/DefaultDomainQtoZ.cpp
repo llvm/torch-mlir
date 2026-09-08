@@ -4490,28 +4490,12 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value trueVal =
             Torch::ConstantBoolOp::create(rewriter, binder.getLoc(), true);
 
-        // `aten.unique_dim` always returns three values
-        // (output, inverse_indices, counts), so for any unrequested ONNX
-        // result we synthesize a sensible type. The synthesized dtype is
-        // signed-int64 to match what `aten.unique_dim` produces for
-        // inverse_indices/counts.
-        auto outputTy = cast<Torch::ValueTensorType>(resultTypes[0]);
-        Type i64Dtype =
-            IntegerType::get(rewriter.getContext(), 64, IntegerType::Signed);
-        Torch::ValueTensorType indicesTy =
-            numResults > 1
-                ? cast<Torch::ValueTensorType>(resultTypes[1])
-                : rewriter.getType<Torch::ValueTensorType>(
-                      ArrayRef<int64_t>{outputTy.getSizes()[0]}, i64Dtype);
-        Torch::ValueTensorType inverseTy =
-            numResults > 2 ? cast<Torch::ValueTensorType>(resultTypes[2])
-                           : rewriter.getType<Torch::ValueTensorType>(
-                                 inputShape, i64Dtype);
-        Torch::ValueTensorType countsTy =
-            numResults > 3
-                ? cast<Torch::ValueTensorType>(resultTypes[3])
-                : rewriter.getType<Torch::ValueTensorType>(
-                      ArrayRef<int64_t>{outputTy.getSizes()[0]}, i64Dtype);
+        // ONNX flattens the input when `axis` is absent, so the trailing
+        // outputs are always indexed along a single dimension. Record which
+        // dimension that is, and how long the input is along it, so that the
+        // type of any output the model did not request can be synthesized.
+        int64_t axisDim = axisWasNone ? 0 : (axis < 0 ? axis + inputDim : axis);
+        int64_t axisSize = inputShape[axisDim];
 
         if (axisWasNone) {
           int64_t inputNumel = 1;
@@ -4530,7 +4514,33 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           input = Torch::AtenFlattenUsingIntsOp::create(
               rewriter, binder.getLoc(), flattenResultTy, input, zero,
               negativeOne);
+          axisSize = inputNumel;
         }
+
+        auto outputTy = cast<Torch::ValueTensorType>(resultTypes[0]);
+        if (!outputTy.hasSizes() ||
+            static_cast<int64_t>(outputTy.getSizes().size()) <= axisDim)
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected first result type to have sizes for axis");
+
+        // `aten.unique_dim` always returns three values (output,
+        // inverse_indices, counts), so the type of any output the model did
+        // not request has to be synthesized. All three optional ONNX outputs
+        // are 1-D si64: `indices` and `counts` are as long as the number of
+        // unique entries, which is the extent of the output along `axis`,
+        // while `inverse_indices` is as long as the input along `axis`.
+        Type i64Dtype =
+            IntegerType::get(rewriter.getContext(), 64, IntegerType::Signed);
+        Torch::ValueTensorType inverseTy =
+            numResults > 2 ? cast<Torch::ValueTensorType>(resultTypes[2])
+                           : rewriter.getType<Torch::ValueTensorType>(
+                                 ArrayRef<int64_t>{axisSize}, i64Dtype);
+        Torch::ValueTensorType countsTy =
+            numResults > 3
+                ? cast<Torch::ValueTensorType>(resultTypes[3])
+                : rewriter.getType<Torch::ValueTensorType>(
+                      ArrayRef<int64_t>{outputTy.getSizes()[axisDim]},
+                      i64Dtype);
 
         Torch::AtenUniqueDimOp intermResults = Torch::AtenUniqueDimOp::create(
             rewriter, binder.getLoc(), outputTy, inverseTy, countsTy, input,
@@ -4542,6 +4552,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         finalResults.push_back(uniqueResults[0]);
 
         if (numResults > 1) {
+          auto indicesTy = cast<Torch::ValueTensorType>(resultTypes[1]);
+
           // Calculate the indices where each of the unique elements first
           // appeared in the original input tensor. Also, the counts tensor
           // and the indices tensor have the same Dtype, int64, so reuse

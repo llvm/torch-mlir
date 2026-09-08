@@ -3740,6 +3740,27 @@ func.func @test_unique_three_outputs(%arg0: !torch.vtensor<[7],f32>) -> (!torch.
 
 // -----
 
+// Regression test: ONNX Unique with a single output on a rank > 1 input with
+// an explicit axis. The types of the unrequested outputs are synthesized, and
+// they must follow the axis: inverse_indices is as long as the input along
+// `axis` (4), and counts is as long as the number of unique entries, i.e. the
+// output's extent along `axis` (3). Deriving either from dimension 0 or from
+// the full input shape produces a mistyped `torch.aten.unique_dim`.
+
+// CHECK-LABEL: func.func @test_unique_one_output_with_axis
+func.func @test_unique_one_output_with_axis(%arg0: !torch.vtensor<[2,4,2],f32>) -> !torch.vtensor<[2,3,2],f32> attributes {torch.onnx_meta.ir_version = 6 : si64, torch.onnx_meta.opset_version = 11 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[INT1:.*]] = torch.constant.int 1
+  // CHECK: %[[TRUEVAL_0:.*]] = torch.constant.bool true
+  // CHECK: %[[TRUEVAL_1:.*]] = torch.constant.bool true
+  // CHECK: %[[UNIQUEOUTPUT:.*]], %[[INVERSEINDEX:.*]], %[[COUNTS:.*]] = torch.aten.unique_dim %arg0, %[[INT1]], %[[TRUEVAL_0]], %[[TRUEVAL_1]], %[[TRUEVAL_1]] : !torch.vtensor<[2,4,2],f32>, !torch.int, !torch.bool, !torch.bool, !torch.bool -> !torch.vtensor<[2,3,2],f32>, !torch.vtensor<[4],si64>, !torch.vtensor<[3],si64>
+  // CHECK-NOT: torch.aten.scatter.src
+  // CHECK: return %[[UNIQUEOUTPUT]] : !torch.vtensor<[2,3,2],f32>
+  %0 = torch.operator "onnx.Unique"(%arg0) {torch.onnx.axis = 1 : si64, torch.onnx.sorted = 1 : si64} : (!torch.vtensor<[2,4,2],f32>) -> !torch.vtensor<[2,3,2],f32>
+  return %0 : !torch.vtensor<[2,3,2],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @test_scan_sum(
 // CHECK-SAME:                             %[[VAL_0:.*]]: !torch.vtensor<[2],f32>,
 // CHECK-SAME:                             %[[VAL_1:.*]]: !torch.vtensor<[3,2],f32>) -> (!torch.vtensor<[2],f32>, !torch.vtensor<[3,2],f32>) attributes {torch.onnx_meta.ir_version = 4 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
