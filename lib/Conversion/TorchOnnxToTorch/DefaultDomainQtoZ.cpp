@@ -4470,6 +4470,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         }
         auto inputShape = inputTy.getSizes();
         int64_t inputDim = static_cast<int64_t>(inputShape.size());
+        if (inputDim < 1)
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected input to have a rank of at least one");
 
         Value axisVal;
         bool axisWasNone;
