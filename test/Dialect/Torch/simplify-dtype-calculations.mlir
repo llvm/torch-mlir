@@ -24,6 +24,22 @@ func.func @basic(%arg0: !torch.vtensor<*,f32>) -> !torch.vtensor {
 
 // -----
 
+// Same-type promotion must preserve UInt32.
+// CHECK-LABEL: func.func @promote_dtypes$tensor_tensor_uint32
+// CHECK: %[[DTYPE:.*]] = torch.constant.int 28
+// CHECK: return %[[DTYPE]] : !torch.int
+func.func @promote_dtypes$tensor_tensor_uint32(%arg0: !torch.vtensor<[4],ui32>, %arg1: !torch.vtensor<[4],ui32>) -> !torch.int {
+  %rank = torch.constant.int 1
+  %dtype0 = torch.prim.dtype %arg0 : !torch.vtensor<[4],ui32> -> !torch.int
+  %dtype1 = torch.prim.dtype %arg1 : !torch.vtensor<[4],ui32> -> !torch.int
+  %ranks = torch.prim.ListConstruct %rank, %rank : (!torch.int, !torch.int) -> !torch.list<optional<int>>
+  %dtypes = torch.prim.ListConstruct %dtype0, %dtype1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %result = torch.promote_dtypes %ranks, %dtypes : (!torch.list<optional<int>>, !torch.list<int>) -> !torch.int
+  return %result : !torch.int
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @promote_dtypes$tensor_tensor_same_category_different_width(
 // CHECK:             {{.*}} = torch.aten.add.Tensor {{.*}} -> !torch.vtensor<[1],f64>
 func.func @promote_dtypes$tensor_tensor_same_category_different_width(%arg0: !torch.vtensor<[1],f32>, %arg1: !torch.vtensor<[1],f64>, %arg2: !torch.float) {

@@ -53,6 +53,11 @@ static inline ScalarType promoteTypes(ScalarType a, ScalarType b) {
     return a;
   }
 
+  // Preserve UInt32 on exact match, it has no entry in the promotion table.
+  if (a == ScalarType::UInt32 && b == ScalarType::UInt32) {
+    return a;
+  }
+
   // Private dtypes have no promotion rule.
   // Never use their negative encodings to index the upstream lookup table.
   if (static_cast<int>(a) < 0 || static_cast<int>(b) < 0) {
