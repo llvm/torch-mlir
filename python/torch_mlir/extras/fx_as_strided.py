@@ -87,9 +87,8 @@ def _rewrite(g: fx.Graph, node: fx.Node) -> fx.Node:
     with g.inserting_before(node):
         replacement = g.call_function(_INDEX, args=(base, index_nodes))
     replacement.meta.update(node.meta)
-    replacement.meta["val"] = torch.empty(
-        tuple(size), dtype=_tensor(node, "result").dtype
-    )
+    result_value = _tensor(node, "result")
+    replacement.meta["val"] = result_value.new_empty(tuple(size))
     return replacement
 
 
