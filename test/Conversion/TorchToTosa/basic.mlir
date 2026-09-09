@@ -1230,6 +1230,98 @@ func.func @torch.aten.avg_pool2d$basic(%arg0: !torch.vtensor<[1,512,7,7],f32> ) 
 
 // -----
 
+// A 4-element padding list encodes ONNX-style asymmetric padding
+// [beginH, beginW, endH, endW]. The trailing (end) padding must be honored so
+// the pooled output matches the declared shape; it must not be dropped or
+// turned into an input crop.
+// CHECK-LABEL:   func.func @torch.aten.avg_pool2d$asymmetric_pad(
+// CHECK:           %[[POOL:.*]] = tosa.avg_pool2d %{{.*}} {acc_type = f32, kernel = array<i64: 3, 5>, pad = array<i64: 0, 1, 0, 1>, stride = array<i64: 2, 2>} : (tensor<?x1024x512x3xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<?x512x255x3xf32>
+// CHECK:           %[[TP:.*]] = tosa.transpose %[[POOL]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<?x512x255x3xf32>) -> tensor<?x3x512x255xf32>
+// CHECK:           tensor.cast %[[TP]] : tensor<?x3x512x255xf32> to tensor<?x3x512x255xf32>
+func.func @torch.aten.avg_pool2d$asymmetric_pad(%arg0: !torch.vtensor<[?,3,1024,512],f32>) -> !torch.vtensor<[?,3,512,255],f32> {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %int5 = torch.constant.int 5
+  %kernel = torch.prim.ListConstruct %int3, %int5 : (!torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int0, %int0, %int1, %int1 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.avg_pool2d %arg0, %kernel, %stride, %padding, %false, %false, %none : !torch.vtensor<[?,3,1024,512],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[?,3,512,255],f32>
+  return %0 : !torch.vtensor<[?,3,512,255],f32>
+}
+
+// -----
+
+// count_include_pad=true forces the padding to be materialized as an explicit
+// NHWC tosa.pad so the pool divisor covers the full kernel. The asymmetric
+// extents must survive that detour: the pad grows H and W by only their end
+// padding (8 -> 9 each) and the pool itself is left with pad = 0.
+// CHECK-LABEL:   func.func @torch.aten.avg_pool2d$asymmetric_pad_count_include_pad(
+// CHECK:           %[[PADSHAPE:.*]] = tosa.const_shape  {values = dense<[0, 0, 0, 1, 0, 1, 0, 0]> : tensor<8xindex>} : () -> !tosa.shape<8>
+// CHECK:           %[[PAD:.*]] = tosa.pad %{{.*}}, %[[PADSHAPE]], %{{.*}} : (tensor<?x8x8x3xf32>, !tosa.shape<8>, tensor<1xf32>) -> tensor<?x9x9x3xf32>
+// CHECK:           %[[POOL:.*]] = tosa.avg_pool2d %[[PAD]], %{{.*}}, %{{.*}} {acc_type = f32, kernel = array<i64: 3, 3>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 2, 2>} : (tensor<?x9x9x3xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<?x4x4x3xf32>
+// CHECK:           %[[TP:.*]] = tosa.transpose %[[POOL]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<?x4x4x3xf32>) -> tensor<?x3x4x4xf32>
+// CHECK:           tensor.cast %[[TP]] : tensor<?x3x4x4xf32> to tensor<?x3x4x4xf32>
+func.func @torch.aten.avg_pool2d$asymmetric_pad_count_include_pad(%arg0: !torch.vtensor<[?,3,8,8],f32>) -> !torch.vtensor<[?,3,4,4],f32> {
+  %none = torch.constant.none
+  %true = torch.constant.bool true
+  %false = torch.constant.bool false
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %kernel = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int0, %int0, %int1, %int1 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.avg_pool2d %arg0, %kernel, %stride, %padding, %false, %true, %none : !torch.vtensor<[?,3,8,8],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[?,3,4,4],f32>
+  return %0 : !torch.vtensor<[?,3,4,4],f32>
+}
+
+// -----
+
+// The asymmetric form carries a (begin, end) pair per spatial dim, so for a 1D
+// pool it is a 2-element list -- not a 4-element one. Padding only the end of
+// the single spatial axis must land on that axis's pad_after; the synthetic
+// trailing axis added by the 1D->2D expansion stays unpadded.
+// CHECK-LABEL:   func.func @torch.aten.avg_pool1d$asymmetric_pad(
+// CHECK:           tosa.avg_pool2d %{{.*}} {acc_type = f32, kernel = array<i64: 3, 1>, pad = array<i64: 0, 1, 0, 0>, stride = array<i64: 2, 1>} : (tensor<1x10x1x3xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x5x1x3xf32>
+func.func @torch.aten.avg_pool1d$asymmetric_pad(%arg0: !torch.vtensor<[1,3,10],f32>) -> !torch.vtensor<[1,3,5],f32> {
+  %false = torch.constant.bool false
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %kernel = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int2 : (!torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int0, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.avg_pool1d %arg0, %kernel, %stride, %padding, %false, %false : !torch.vtensor<[1,3,10],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool -> !torch.vtensor<[1,3,5],f32>
+  return %0 : !torch.vtensor<[1,3,5],f32>
+}
+
+// -----
+
+// A padding list that is neither one extent per spatial dim nor a (begin, end)
+// pair per spatial dim cannot be interpreted, so the lowering must bail rather
+// than silently read the first two entries as the symmetric H/W extents.
+func.func @torch.aten.avg_pool2d$unsupported_pad_arity(%arg0: !torch.vtensor<[1,3,8,8],f32>) -> !torch.vtensor<[1,3,4,4],f32> {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %kernel = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int1, %int1, %int1 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.avg_pool2d'}}
+  %0 = torch.aten.avg_pool2d %arg0, %kernel, %stride, %padding, %false, %false, %none : !torch.vtensor<[1,3,8,8],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,3,4,4],f32>
+  return %0 : !torch.vtensor<[1,3,4,4],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.max.dim$basic(
 // CHECK-SAME:                                        %[[VAL_0:.*]]: tensor<3x2x3xf32>) -> tensor<3x2x1xf32> {
 // CHECK:           %[[VAL_1:.*]] = torch_c.from_builtin_tensor %[[VAL_0]] : tensor<3x2x3xf32> -> !torch.vtensor<[3,2,3],f32>
@@ -5306,6 +5398,67 @@ func.func @torch.aten.max_pool2d$full_dim_indivisible_by_stride_with_sliced_inpu
   %false = torch.constant.bool false
   %4 = torch.aten.max_pool2d %arg0, %0, %1, %2, %3, %false : !torch.vtensor<[1,1,75,75],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,1,25,25],f32>
   return %4 : !torch.vtensor<[1,1,25,25],f32>
+}
+
+// -----
+
+// A 4-element padding list encodes ONNX-style asymmetric padding
+// [beginH, beginW, endH, endW]. The trailing (end) padding must be honored so
+// the pooled output matches the declared shape; it must not be dropped or
+// turned into an input crop.
+//
+// No importer currently feeds max_pool an asymmetric list -- the ONNX MaxPool
+// legalization materializes those pads as an `aten.constant_pad_nd` and zeroes
+// the padding arg. This covers the shared pad-vector construction so the two
+// pooling families cannot drift.
+// CHECK-LABEL:   func.func @torch.aten.max_pool2d$asymmetric_pad(
+// CHECK:           %[[POOL:.*]] = tosa.max_pool2d %{{.*}} {kernel = array<i64: 3, 5>, pad = array<i64: 0, 1, 0, 1>, stride = array<i64: 2, 2>} : (tensor<?x1024x512x3xf32>) -> tensor<?x512x255x3xf32>
+// CHECK:           %[[TP:.*]] = tosa.transpose %[[POOL]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<?x512x255x3xf32>) -> tensor<?x3x512x255xf32>
+// CHECK:           tensor.cast %[[TP]] : tensor<?x3x512x255xf32> to tensor<?x3x512x255xf32>
+func.func @torch.aten.max_pool2d$asymmetric_pad(%arg0: !torch.vtensor<[?,3,1024,512],f32>) -> !torch.vtensor<[?,3,512,255],f32> {
+  %false = torch.constant.bool false
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %int5 = torch.constant.int 5
+  %kernel = torch.prim.ListConstruct %int3, %int5 : (!torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int0, %int0, %int1, %int1 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.max_pool2d %arg0, %kernel, %stride, %padding, %dilation, %false : !torch.vtensor<[?,3,1024,512],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[?,3,512,255],f32>
+  return %0 : !torch.vtensor<[?,3,512,255],f32>
+}
+
+// -----
+
+// Asymmetric padding on both spatial dims where one dim (H) additionally needs
+// its trailing region sliced off. H arrives with a non-zero pad_after (1, 2) and
+// a tail that is indivisible by the stride, so the slice crops H (27 -> 26) and
+// consumes H's pad_after entirely, leaving (pad_before=1, pad_after=0) -- still
+// asymmetric, and pad_before must survive untouched. W is asymmetric but
+// stride-aligned, so it keeps its (0, 1) pad and is not cropped.
+// CHECK-LABEL:   func.func @torch.aten.avg_pool2d$asymmetric_pad_with_sliced_input(
+// CHECK-DAG:       %[[SLICE_START:.*]] = tosa.const_shape  {values = dense<0> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK-DAG:       %[[SLICE_SHAPE:.*]] = tosa.const_shape  {values = dense<[-1, 26, 512, 3]> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK:           %[[SLICE:.*]] = tosa.slice %{{.*}}, %[[SLICE_START]], %[[SLICE_SHAPE]] : (tensor<?x27x512x3xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<?x26x512x3xf32>
+// CHECK:           %[[POOL:.*]] = tosa.avg_pool2d %[[SLICE]], %{{.*}}, %{{.*}} {acc_type = f32, kernel = array<i64: 3, 5>, pad = array<i64: 1, 0, 0, 1>, stride = array<i64: 4, 2>} : (tensor<?x26x512x3xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<?x7x255x3xf32>
+// CHECK:           %[[TP:.*]] = tosa.transpose %[[POOL]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<?x7x255x3xf32>) -> tensor<?x3x7x255xf32>
+// CHECK:           tensor.cast %[[TP]] : tensor<?x3x7x255xf32> to tensor<?x3x7x255xf32>
+func.func @torch.aten.avg_pool2d$asymmetric_pad_with_sliced_input(%arg0: !torch.vtensor<[?,3,27,512],f32>) -> !torch.vtensor<[?,3,7,255],f32> {
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %int4 = torch.constant.int 4
+  %int5 = torch.constant.int 5
+  %kernel = torch.prim.ListConstruct %int3, %int5 : (!torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int4, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int1, %int0, %int2, %int1 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.avg_pool2d %arg0, %kernel, %stride, %padding, %false, %false, %none : !torch.vtensor<[?,3,27,512],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[?,3,7,255],f32>
+  return %0 : !torch.vtensor<[?,3,7,255],f32>
 }
 
 // -----

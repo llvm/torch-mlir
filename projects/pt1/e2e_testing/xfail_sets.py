@@ -2894,10 +2894,24 @@ ONNX_XFAIL_SET = {
     "AtenTopKSmallestModule_basic",
     "Aten_EmbeddingBagExample_basic",
     "AvgPool2dCHWModule_basic",
+    # PyTorch's ONNX exporter emits standard ONNX `ceil_mode`, whose spec
+    # semantics (extra ceil extent split across leading/trailing edges) differ
+    # from PyTorch's own ceil+count_include_pad. The importer is now ONNX-spec
+    # correct (matches onnx.reference), so these round-trip tests -- whose golden
+    # is PyTorch eager -- can no longer pass. The divergence is genuine; see the
+    # AveragePool ceil_mode handling in TorchOnnxToTorch/DefaultDomainAtoF.cpp.
+    "AvgPool2dCeilNoPadStridedIncludePadding_basic",
+    "AvgPool2dCeilPaddingStridedIncludePadding_basic",
     "AvgPool2dSingleIntTupleParamsIncludePadModule_basic",
     "AvgPool2dSingleIntTupleParamsModule_basic",
     "AvgPool2dWithoutPadModule_basic",
     "AvgPool3dSingleIntTupleStrideModule_basic",
+    # For count_include_pad=0 + ceil_mode, ONNX and PyTorch place the ceil
+    # slack differently: for these configs the output shape matches but the
+    # values differ, so the ONNX-correct import cannot match the PyTorch-eager
+    # golden these tests compare against.
+    "AvgPool3dDiffKernelsStridesNoPadCeilPadNotIncluded_basic",
+    "AvgPool3dDiffKernelsStridesPadCeilPadNotIncluded_basic",
     "BatchMlpLayerModule_basic",
     "BincountMinlengthModule_basic",
     "BincountModule_basic",

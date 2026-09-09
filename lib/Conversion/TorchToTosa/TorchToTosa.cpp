@@ -8718,7 +8718,10 @@ static LogicalResult getOutputTypeAndPoolingParameters(
     return rewriter.notifyMatchFailure(
         op, "NCHW->NHWC transpose requires 3D or 4D tensor");
 
-  SmallVector<int64_t, 2> kernelSizeInts, strideInts, paddingInts;
+  SmallVector<int64_t, 2> kernelSizeInts, strideInts;
+  // Sized for the asymmetric padding form below, which holds two extents per
+  // spatial dim.
+  SmallVector<int64_t, 4> paddingInts;
   if (!matchPattern(op.getKernelSize(),
                     m_TorchListOfConstantInts(kernelSizeInts)))
     return rewriter.notifyMatchFailure(
@@ -8760,23 +8763,52 @@ static LogicalResult getOutputTypeAndPoolingParameters(
   if (!matchPattern(op.getPadding(), m_TorchListOfConstantInts(paddingInts)))
     return rewriter.notifyMatchFailure(
         op, "Non-const padding factor for pooling op unsupported");
-  expandPoolParams(op, paddingInts, 0);
+
+  // Torch pooling ops carry one symmetric padding extent per spatial dim. The
+  // ONNX importer additionally uses a `2 * spatialRank` form
+  // [begin..., end...] to express asymmetric pads, which the aten schema cannot
+  // represent (see the `AveragePool` legalization in DefaultDomainAtoF.cpp).
+  // Resolve both forms into explicit before/after extents so the rest of this
+  // function is arity-agnostic.
+  constexpr size_t spatialRank = (std::is_same<AtenOpT, AtenMaxPool1dOp>() ||
+                                  std::is_same<AtenOpT, AtenAvgPool1dOp>())
+                                     ? 1
+                                     : 2;
+  SmallVector<int64_t, 2> padBefore, padAfter;
+  if (paddingInts.size() == spatialRank) {
+    padBefore.assign(paddingInts.begin(), paddingInts.end());
+    padAfter.assign(paddingInts.begin(), paddingInts.end());
+  } else if (paddingInts.size() == 2 * spatialRank) {
+    padBefore.assign(paddingInts.begin(), paddingInts.begin() + spatialRank);
+    padAfter.assign(paddingInts.begin() + spatialRank, paddingInts.end());
+  } else {
+    return rewriter.notifyMatchFailure(
+        op, "padding for pooling op must hold one extent per spatial dim, or a "
+            "(begin, end) pair per spatial dim");
+  }
+  // For 1D ops the trailing spatial dim is synthetic, so it takes no padding.
+  expandPoolParams(op, padBefore, 0);
+  expandPoolParams(op, padAfter, 0);
 
   if constexpr (std::is_same<AtenOpT, AtenAvgPool1dOp>() ||
                 std::is_same<AtenOpT, AtenAvgPool2dOp>()) {
+    // Height is at index 0 and width at index 1 of the resolved extents.
+    int64_t padHBefore = padBefore[0], padWBefore = padBefore[1];
+    int64_t padHAfter = padAfter[0], padWAfter = padAfter[1];
+
     // When count_include_pad=true with non-zero padding, we will materialize an
     // explicit pad after transposing to NHWC. Track the padding extents and
     // zero out the TOSA op padding so the divisor matches the full kernel size.
     bool countIncludePad;
-    if ((paddingInts[0] != 0 || paddingInts[1] != 0) &&
+    if ((padHBefore != 0 || padWBefore != 0 || padHAfter != 0 ||
+         padWAfter != 0) &&
         (!matchPattern(op.getCountIncludePad(),
                        m_TorchConstantBool(&countIncludePad)) ||
 
          countIncludePad)) {
       // Remember the spatial padding so we can emit an NHWC tosa.pad right
       // after the transpose.
-      explicitNHWCPad.assign(
-          {paddingInts[0], paddingInts[0], paddingInts[1], paddingInts[1]});
+      explicitNHWCPad.assign({padHBefore, padHAfter, padWBefore, padWAfter});
 
       auto addPad = [](int64_t dim, int64_t before, int64_t after) -> int64_t {
         if (ShapedType::isDynamic(dim))
@@ -8791,19 +8823,20 @@ static LogicalResult getOutputTypeAndPoolingParameters(
       // Height stored at rank-2 and width at rank-1 while the tensor is still
       // in NCHW order; the NHWC transpose happens later.
       paddedShape[inputRank - 2] =
-          addPad(paddedShape[inputRank - 2], paddingInts[0], paddingInts[0]);
+          addPad(paddedShape[inputRank - 2], padHBefore, padHAfter);
       paddedShape[inputRank - 1] =
-          addPad(paddedShape[inputRank - 1], paddingInts[1], paddingInts[1]);
+          addPad(paddedShape[inputRank - 1], padWBefore, padWAfter);
       inputTy = RankedTensorType::get(paddedShape, inputTy.getElementType());
 
       // The TOSA op pad will be zero when we emit explicit NHWC pad.
-      paddingInts.assign(/*Count=*/2, /*Value=*/0);
+      padBefore.assign(/*Count=*/2, /*Value=*/0);
+      padAfter.assign(/*Count=*/2, /*Value=*/0);
     }
   }
 
   // Build the base TOSA pad vector (TOSA expects {top,bottom,left,right}).
-  SmallVector<int64_t, 4> padArr = {paddingInts[0], paddingInts[0],
-                                    paddingInts[1], paddingInts[1]};
+  SmallVector<int64_t, 4> padArr = {padBefore[0], padAfter[0], padBefore[1],
+                                    padAfter[1]};
   kernel = rewriter.getDenseI64ArrayAttr(kernelSizeInts);
   stride = rewriter.getDenseI64ArrayAttr(strideInts);
 
