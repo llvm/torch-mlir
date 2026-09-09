@@ -24,6 +24,11 @@ static inline bool isQIntType(ScalarType t) {
          t == ScalarType::QUInt2x4 || t == ScalarType::QInt16;
 }
 
+static inline bool isFloatingType(ScalarType t) {
+  return (t == ScalarType::Double || t == ScalarType::Float ||
+          t == ScalarType::Half || t == ScalarType::BFloat16);
+}
+
 //===----------------------------------------------------------------------===//
 // Type promotion related code are copied from
 // aten/src/ATen/native/TypeProperties.*.
@@ -56,6 +61,15 @@ static inline ScalarType promoteTypes(ScalarType a, ScalarType b) {
   // Preserve UInt32 on exact match, it has no entry in the promotion table.
   if (a == ScalarType::UInt32 && b == ScalarType::UInt32) {
     return a;
+  }
+
+  // Mixed UInt32 promotion is supported only with floating-point types.
+  if (a == ScalarType::UInt32 || b == ScalarType::UInt32) {
+    if (isFloatingType(a))
+      return a;
+    if (isFloatingType(b))
+      return b;
+    return ScalarType::Undefined;
   }
 
   // Private dtypes have no promotion rule.
@@ -93,11 +107,6 @@ static inline ScalarType promoteTypes(ScalarType a, ScalarType b) {
       /* bf */ {bf, bf, bf, bf, bf, f4, f4, f8, ud, c4, c8, bf, ud, ud, ud, bf},
   };
   return _promoteTypesLookup[static_cast<int>(a)][static_cast<int>(b)];
-}
-
-static inline bool isFloatingType(ScalarType t) {
-  return (t == ScalarType::Double || t == ScalarType::Float ||
-          t == ScalarType::Half || t == ScalarType::BFloat16);
 }
 
 static inline bool isComplexType(ScalarType t) {
