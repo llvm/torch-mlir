@@ -2,6 +2,8 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
+#
+# Modifications Copyright 2026 NXP
 
 # This file describes the sets of tests expected to fail for each config.
 # This information is deliberately kept in a side table, rather than
@@ -813,6 +815,9 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "QuantizedDecomposedDequantizePerChannelUnsignedSymmetric_basic",
     "QuantizedDecomposedDequantizePerChannel_basic",
     "QuantizedDecomposedQuantizePerChannel_basic",
+    "QuantizedDecomposedDequantizePerChannelGroup_basic",
+    "QuantizedDecomposedDequantizePerChannelGroupUnsignedSymmetric_basic",
+    "QuantizedDecomposedQuantizePerChannelGroup_basic",
     "QuantizedMLP_basic",
     "QuantizedNoLayer_basic",
     "QuantizedSingleLayer_basic",
@@ -3063,6 +3068,9 @@ ONNX_XFAIL_SET = {
     "PrimsViewOfZeroRankModule_basic",
     "QuantizedDecomposedDequantizePerChannelUnsignedSymmetric_basic",
     "QuantizedDecomposedQuantizePerChannel_basic",
+    "QuantizedDecomposedDequantizePerChannelGroup_basic",
+    "QuantizedDecomposedDequantizePerChannelGroupUnsignedSymmetric_basic",
+    "QuantizedDecomposedQuantizePerChannelGroup_basic",
     "QuantizedReluInt8_basic",
     "QuantizedReluInt32_basic",
     "QuantizedReluUint8_basic",
@@ -3656,6 +3664,9 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "QuantizedDecomposedDequantizePerChannelUnsignedSymmetric_basic",
     "QuantizedDecomposedDequantizePerChannel_basic",
     "QuantizedDecomposedQuantizePerChannel_basic",
+    "QuantizedDecomposedDequantizePerChannelGroup_basic",
+    "QuantizedDecomposedDequantizePerChannelGroupUnsignedSymmetric_basic",
+    "QuantizedDecomposedQuantizePerChannelGroup_basic",
     "QuantizedMLP_basic",
     "QuantizedNoLayer_basic",
     "QuantizedReluInt32_basic",

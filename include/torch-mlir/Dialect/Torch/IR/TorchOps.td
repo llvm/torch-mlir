@@ -5,6 +5,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // Also available under a BSD-style license. See LICENSE.
 //
+// Modifications Copyright 2026 NXP
+//
 //===----------------------------------------------------------------------===//
 
 #ifndef TORCH_OPS
@@ -1669,6 +1671,79 @@ def Torch_QuantizedDecomposedDequantizePerChannelOp : Torch_Op<
         qualified(type($zero_points)) `,` qualified(type($axis)) `,`
         qualified(type($quant_min)) `,` qualified(type($quant_max)) `,`
         qualified(type($dtype)) `,` qualified(type($out_dtype))
+    `->` qualified(type($result))
+  }];
+}
+
+def Torch_QuantizedDecomposedQuantizePerChannelGroupOp : Torch_Op<
+    "quantized_decomposed.quantize_per_channel_group", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly,
+  ]> {
+  let summary = "PT2E quantize_per_channel_group";
+  let description = [{
+    Quantizes a floating-point tensor with per-channel-group affine
+    quantization.
+
+    The input tensor is quantized in groups along the last dimension.
+    `scales` and `zero_points` have shape `[num_channels, num_groups]`
+    where `num_groups = input.shape[-1] / group_size`.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchTensorType:$scales,
+    AnyTorchTensorType:$zero_points,
+    Torch_IntType:$quant_min,
+    Torch_IntType:$quant_max,
+    Torch_IntType:$dtype,
+    Torch_IntType:$group_size
+  );
+  let results = (outs AnyTorchTensorType:$result);
+  let assemblyFormat = [{
+    $input `,` $scales `,` $zero_points `,` $quant_min `,`
+        $quant_max `,` $dtype `,` $group_size attr-dict
+    `:` qualified(type($input)) `,` qualified(type($scales)) `,`
+        qualified(type($zero_points)) `,` qualified(type($quant_min)) `,`
+        qualified(type($quant_max)) `,` qualified(type($dtype)) `,`
+        qualified(type($group_size))
+    `->` qualified(type($result))
+  }];
+}
+
+def Torch_QuantizedDecomposedDequantizePerChannelGroupOp : Torch_Op<
+    "quantized_decomposed.dequantize_per_channel_group", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly,
+  ]> {
+  let summary = "PT2E dequantize_per_channel_group";
+  let description = [{
+    Dequantizes an integer tensor with per-channel-group affine quantization.
+
+    The input tensor is dequantized in groups along the last dimension.
+    `scales` has shape `[num_channels, num_groups]` where
+    `num_groups = input.shape[-1] / group_size`. `zero_points` may be None
+    for symmetric quantization.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchTensorType:$scales,
+    AnyTorchOptionalTensorType:$zero_points,
+    Torch_IntType:$quant_min,
+    Torch_IntType:$quant_max,
+    Torch_IntType:$dtype,
+    Torch_IntType:$group_size,
+    Torch_IntType:$out_dtype
+  );
+  let results = (outs AnyTorchTensorType:$result);
+  let assemblyFormat = [{
+    $input `,` $scales `,` $zero_points `,` $quant_min `,`
+        $quant_max `,` $dtype `,` $group_size `,` $out_dtype attr-dict
+    `:` qualified(type($input)) `,` qualified(type($scales)) `,`
+        qualified(type($zero_points)) `,` qualified(type($quant_min)) `,`
+        qualified(type($quant_max)) `,` qualified(type($dtype)) `,`
+        qualified(type($group_size)) `,` qualified(type($out_dtype))
     `->` qualified(type($result))
   }];
 }

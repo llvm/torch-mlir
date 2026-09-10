@@ -2,6 +2,8 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
+#
+# Modifications Copyright 2026 NXP
 
 # RUN: %PYTHON %s | FileCheck %s
 
@@ -135,5 +137,47 @@ def test_dequantize_per_channel():
         torch.rand(4),
         torch.zeros(4, dtype=torch.int64),
         func_name="test_dequantize_per_channel",
+    )
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_quantize_per_channel_group
+# CHECK: torch.quantized_decomposed.quantize_per_channel_group
+# CHECK-NOT: torch.operator
+def test_quantize_per_channel_group():
+    class QuantizePerChannelGroup(nn.Module):
+        def forward(self, x, scales, zero_points):
+            return torch.ops.quantized_decomposed.quantize_per_channel_group.default(
+                x, scales, zero_points, -128, 127, torch.int8, 4
+            )
+
+    m = fx.export_and_import(
+        QuantizePerChannelGroup(),
+        torch.randn(4, 16),
+        torch.rand(4, 4),
+        torch.zeros(4, 4, dtype=torch.int64),
+        func_name="test_quantize_per_channel_group",
+    )
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_dequantize_per_channel_group
+# CHECK: torch.quantized_decomposed.dequantize_per_channel_group
+# CHECK-NOT: torch.operator
+def test_dequantize_per_channel_group():
+    class DequantizePerChannelGroup(nn.Module):
+        def forward(self, x, scales, zero_points):
+            return torch.ops.quantized_decomposed.dequantize_per_channel_group.default(
+                x, scales, zero_points, -128, 127, torch.int8, 4, torch.float32
+            )
+
+    m = fx.export_and_import(
+        DequantizePerChannelGroup(),
+        torch.zeros(4, 16, dtype=torch.int8),
+        torch.rand(4, 4),
+        torch.zeros(4, 4, dtype=torch.int64),
+        func_name="test_dequantize_per_channel_group",
     )
     print(m)

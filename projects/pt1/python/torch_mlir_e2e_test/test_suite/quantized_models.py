@@ -2,6 +2,8 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
+#
+# Modifications Copyright 2026 NXP
 
 import torch
 from torch import nn
@@ -366,4 +368,92 @@ def QuantizedDecomposedQuantizePerChannel_basic(module, tu: TestUtils):
         10 * tu.rand(4, 8) - 5,
         tu.rand(8) + 0.01,
         tu.randint(8, low=-128, high=127).to(torch.int64),
+    )
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedDequantizePerChannelGroup(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 16], torch.int8, True),
+            ([4, 4], torch.float32, True),
+            ([4, 4], torch.int64, True),
+        ]
+    )
+    def forward(self, x, scales, zero_points):
+        return torch.ops.quantized_decomposed.dequantize_per_channel_group.default(
+            x, scales, zero_points, -128, 127, torch.int8, 4, torch.float32
+        )
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedDequantizePerChannelGroup()
+)
+def QuantizedDecomposedDequantizePerChannelGroup_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(4, 16, low=-128, high=127).to(torch.int8),
+        tu.rand(4, 4) + 0.01,
+        tu.randint(4, 4, low=-128, high=127).to(torch.int64),
+    )
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedDequantizePerChannelGroupUnsignedSymmetric(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([8, 32], torch.uint8, True),
+            ([8, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x, scales):
+        return torch.ops.quantized_decomposed.dequantize_per_channel_group.default(
+            x, scales, None, 0, 255, torch.uint8, 8, torch.float32
+        )
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedDequantizePerChannelGroupUnsignedSymmetric()
+)
+def QuantizedDecomposedDequantizePerChannelGroupUnsignedSymmetric_basic(
+    module, tu: TestUtils
+):
+    module.forward(
+        tu.randint(8, 32, low=128, high=255).to(torch.uint8),
+        tu.rand(8, 4) + 0.01,
+    )
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedQuantizePerChannelGroup(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 16], torch.float32, True),
+            ([4, 4], torch.float32, True),
+            ([4, 4], torch.int8, True),
+        ]
+    )
+    def forward(self, x, scales, zero_points):
+        return torch.ops.quantized_decomposed.quantize_per_channel_group.default(
+            x, scales, zero_points, -128, 127, torch.int8, 4
+        )
+
+
+@register_test_case(module_factory=lambda: QuantizedDecomposedQuantizePerChannelGroup())
+def QuantizedDecomposedQuantizePerChannelGroup_basic(module, tu: TestUtils):
+    module.forward(
+        10 * tu.rand(4, 16) - 5,
+        tu.rand(4, 4) + 0.01,
+        tu.randint(4, 4, low=-128, high=127).to(torch.int8),
     )
