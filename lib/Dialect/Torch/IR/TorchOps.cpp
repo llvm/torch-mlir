@@ -7197,8 +7197,8 @@ verifyScaledMmV2MatrixShapes(Aten_ScaledMmV2Op op) {
       mat2Type.hasDtype() && isa<Float4E2M1FNType>(mat2Type.getDtype());
   // `k` is the statically visible storage dimension. For FP4, the
   // float4_e2m1fn_x2 representation packs two logical FP4 values into each
-  // storage element. PyTorch _scaled_mm_v2 applies that packed-K multiplier
-  // only when both matrix operands are FP4.
+  // storage element. PyTorch _scaled_mm_v2 requires both FP4 matrix operands
+  // to use this packed representation.
   info.logicalK = info.k;
   int64_t mat2LogicalK = mat2K;
   if (selfIsFp4 && mat2IsFp4) {
@@ -7276,7 +7276,6 @@ verifyScaledMmV2ScaleNumel(Aten_ScaledMmV2Op op,
     return success();
 
   int64_t m = matrixInfo.m;
-  int64_t k = matrixInfo.k;
   int64_t n = matrixInfo.n;
   int64_t logicalK = matrixInfo.logicalK;
   ScaledMmV2RecipeMode mode = recipeInfo.mode;
@@ -7353,7 +7352,9 @@ verifyScaledMmV2ScaleNumel(Aten_ScaledMmV2Op op,
 
   int64_t blockSizeMN = 128;
   int64_t blockSizeK = 32;
-  int64_t numKBlocks = llvm::divideCeil(k, blockSizeK);
+  // MX blockwise scales are defined over the logical contracting dimension.
+  // For packed FP4 this is twice the visible storage K.
+  int64_t numKBlocks = llvm::divideCeil(logicalK, blockSizeK);
   int64_t paddedNumKBlocks = llvm::divideCeil(numKBlocks, int64_t{4}) * 4;
   int64_t expectedScaleANumel =
       blockSizeMN * llvm::divideCeil(m, blockSizeMN) * paddedNumKBlocks;
