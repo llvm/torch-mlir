@@ -1,0 +1,84 @@
+# yamllint disable rule:line-length
+name: Build Wheels
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: 'Tag or ref to checkout. Leave empty to checkout default/triggering ref.'
+        required: false
+        type: string
+        default: ''
+      version:
+        description: 'Version string to pass to cibuildwheel via TORCH_MLIR_PYTHON_PACKAGE_VERSION'
+        required: false
+        type: string
+        default: '0.0.0'
+
+permissions:
+  contents: read
+
+jobs:
+  build_wheels:
+    name: Build wheels on ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            runner: ubuntu-24.04
+          - name: linux-aarch64
+            runner: ubuntu-24.04-arm
+          - name: macos-arm64
+            runner: macos-15
+
+    steps:
+      - name: Check out torch-mlir
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.ref }}
+          # The externals/llvm-project submodule must be present: cibuildwheel
+          # copies this checkout into the manylinux container to build from.
+          # Shallow (default depth 1) on purpose — the build only needs the
+          # source tree at the pinned commit, not LLVM's full git history.
+          submodules: 'recursive'
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        name: Install Python 3.12
+        with:
+          python-version: "3.12"
+      - run: pip install --upgrade pip uv
+
+      - name: Compute LLVM submodule SHA (for ccache key)
+        id: llvm
+        shell: bash
+        run: echo "sha=$(git rev-parse HEAD:externals/llvm-project)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore ccache
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          # On Linux this dir is bind-mounted into the manylinux container as
+          # /project/.ccache (see [tool.cibuildwheel.linux] CCACHE_DIR). On macOS
+          # the build runs natively and reads CCACHE_DIR from the step env below.
+          path: ${{ github.workspace }}/.ccache
+          key: ccache-${{ matrix.name }}-${{ steps.llvm.outputs.sha }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ matrix.name }}-${{ steps.llvm.outputs.sha }}-
+            ccache-${{ matrix.name }}-
+
+      - name: Build wheels with cibuildwheel
+        uses: pypa/cibuildwheel@294735312765b09d24a2fbec22660ce817587d55 # v4.1.0
+        env:
+          # Injected into setup.py via the env var it already reads.
+          TORCH_MLIR_PYTHON_PACKAGE_VERSION: ${{ inputs.version }}
+          # macOS builds run natively and inherit this; Linux uses the in-container
+          # CCACHE_DIR from pyproject.toml instead.
+          CCACHE_DIR: ${{ github.workspace }}/.ccache
+
+      - name: Upload ${{ matrix.name }} wheels
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dist-${{ matrix.name }}
+          path: wheelhouse/*.whl
