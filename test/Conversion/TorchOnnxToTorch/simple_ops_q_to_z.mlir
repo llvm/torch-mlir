@@ -91,7 +91,7 @@ func.func @test_quantizelinear_per_channel_ui8(%arg0: !torch.vtensor<[4,3,7,7],f
 
 // CHECK-LABEL: @test_quantizelinear_per_channel_si16
 func.func @test_quantizelinear_per_channel_si16(%arg0: !torch.vtensor<[4,3,7,7],f32>, %arg1: !torch.vtensor<[4],f32>, %arg2: !torch.vtensor<[4],si16>) -> !torch.vtensor<[4,3,7,7],si16> attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 19 : si64} {
-  // CHECK: %[[DTYPE:.+]] = torch.constant.int 27
+  // CHECK: %[[DTYPE:.+]] = torch.constant.int -1
   // CHECK: %[[AXIS:.+]] = torch.constant.int 1
   // CHECK: %[[QUANT:.+]] = torch.aten.quantize_per_channel %arg0, %arg1, %arg2, %[[AXIS]], %[[DTYPE]]
   // CHECK: %[[REPR:.+]] = torch.aten.int_repr %[[QUANT]]
