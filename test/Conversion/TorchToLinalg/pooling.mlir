@@ -393,3 +393,50 @@ func.func @forward_avgpool_2d_exclude_pad_dilated_edge(%arg0: !torch.vtensor<[1,
   %3 = torch.aten.avg_pool2d %arg0, %0, %2, %1, %false, %false_1, %none : !torch.vtensor<[1,1,11,11],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1,1,1],f32>
   return %3 : !torch.vtensor<[1,1,1,1],f32>
 }
+
+// -----
+
+// All four padding entries differ, so confusing begin with end, or height with
+// width, cannot pass. effective_kernel = (3-1)*2+1 = 5, so the output is
+// floor((6+1+2-5)/2)+1 = 3 by floor((6+0+1-5)/2)+1 = 2. Height pads begin 1,
+// end 2: its trailing window spans [3, 8) with taps at 3, 5 and 7, so
+// count_include_pad divides by 3; the old clamp to 6+1 kept 2. Width pads
+// begin 0, end 1 and clamps to 7.
+// CHECK-LABEL: func @forward_avgpool_2d_count_include_pad_asymmetric
+// CHECK: linalg.pooling_nchw_sum {dilations = dense<2> : vector<2xi64>, strides = dense<2> : vector<2xi64>}
+// CHECK: linalg.generic
+// Height: the start subtracts the begin pad, the limit adds the end pad.
+// CHECK: linalg.index 2
+// CHECK: %[[H_BEGIN:.*]] = arith.constant 1 : i64
+// CHECK: %[[H_STRIDED:.*]] = arith.muli
+// CHECK: %[[H_START:.*]] = arith.subi %[[H_STRIDED]], %[[H_BEGIN]] : i64
+// CHECK: %[[H_KERNEL:.*]] = arith.constant 5 : i64
+// CHECK: %[[H_END:.*]] = arith.addi %[[H_START]], %[[H_KERNEL]] : i64
+// CHECK: %[[H_LIMIT:.*]] = arith.constant 8 : i64
+// CHECK: arith.minsi %[[H_END]], %[[H_LIMIT]] : i64
+// Width: a begin pad of 0 folds out of the start, and the limit is 6 + 1.
+// CHECK: linalg.index 3
+// CHECK: %[[W_STRIDED:.*]] = arith.muli
+// CHECK: %[[W_KERNEL:.*]] = arith.constant 5 : i64
+// CHECK: %[[W_END:.*]] = arith.addi %[[W_STRIDED]], %[[W_KERNEL]] : i64
+// CHECK: %[[W_LIMIT:.*]] = arith.constant 7 : i64
+// CHECK: arith.minsi %[[W_END]], %[[W_LIMIT]] : i64
+// CHECK: arith.divf
+// CHECK: linalg.yield
+func.func @forward_avgpool_2d_count_include_pad_asymmetric(%arg0: !torch.vtensor<[1,1,6,6],f32>) -> !torch.vtensor<[1,1,3,2],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %kernel = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  // padding = [begin_h, begin_w, end_h, end_w]
+  %padding = torch.prim.ListConstruct %int1, %int0, %int2, %int1 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // avg_pool has no dilation operand; an over-long stride list carries it as
+  // [stride_h, stride_w, dilation_h, dilation_w].
+  %stride = torch.prim.ListConstruct %int2, %int2, %int2, %int2 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %false = torch.constant.bool false
+  %true = torch.constant.bool true
+  %none = torch.constant.none
+  %0 = torch.aten.avg_pool2d %arg0, %kernel, %stride, %padding, %false, %true, %none : !torch.vtensor<[1,1,6,6],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1,3,2],f32>
+  return %0 : !torch.vtensor<[1,1,3,2],f32>
+}
