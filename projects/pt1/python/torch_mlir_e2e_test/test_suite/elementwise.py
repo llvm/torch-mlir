@@ -3321,6 +3321,38 @@ def ElementwiseLogAddExpLargeMagnitudeModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseLogAddExpInfModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.logaddexp(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseLogAddExpInfModule())
+def ElementwiseLogAddExpInfModule_basic(module, tu: TestUtils):
+    # When both inputs are the same infinity, a - b is NaN. The inf-mask guard
+    # in DecomposeAtenLogAddExpOp selects the shared infinity so the result
+    # matches eager (+inf / -inf) instead of degenerating to NaN. The remaining
+    # columns cover mixed and finite cases where the mask must stay inactive.
+    inf = float("inf")
+    module.forward(
+        torch.tensor([[inf, -inf, inf, 2.0], [inf, -inf, -inf, inf]]),
+        torch.tensor([[inf, -inf, -inf, 3.0], [1.0, 2.0, inf, -inf]]),
+    )
+
+
+# ==============================================================================
+
+
 class ElementwiseLogAddExp2Module(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -3393,6 +3425,37 @@ def ElementwiseLogAddExp2LargeMagnitudeModule_basic(module, tu: TestUtils):
     module.forward(
         torch.tensor([[130.0, 120.0, -60.0], [150.0, 127.0, 240.0]]),
         torch.tensor([[125.0, 118.0, 240.0], [149.0, 120.0, 239.0]]),
+    )
+
+
+# ==============================================================================
+
+
+class ElementwiseLogAddExp2InfModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.logaddexp2(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseLogAddExp2InfModule())
+def ElementwiseLogAddExp2InfModule_basic(module, tu: TestUtils):
+    # Base-2 analogue of the shared-infinity guard: matching +/-inf inputs must
+    # return that infinity rather than NaN, while mixed and finite columns keep
+    # the inf-mask inactive.
+    inf = float("inf")
+    module.forward(
+        torch.tensor([[inf, -inf, inf, 2.0], [inf, -inf, -inf, inf]]),
+        torch.tensor([[inf, -inf, -inf, 3.0], [1.0, 2.0, inf, -inf]]),
     )
 
 
