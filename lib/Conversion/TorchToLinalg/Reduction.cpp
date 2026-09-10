@@ -69,14 +69,21 @@ public:
     auto typec = this->getTypeConverter();
     auto valResultType =
         cast<RankedTensorType>(typec->convertType(op.getResult(0).getType()));
-    auto idxResultType =
-        cast<RankedTensorType>(typec->convertType(op.getResult(1).getType()));
-    RankedTensorType inputType = cast<RankedTensorType>(input.getType());
-    Type idxElementType =
-        getElementTypeOrSelf(typec->convertType(idxResultType));
-    if (!isa<IntegerType>(idxElementType))
-      return rewriter.notifyMatchFailure(
-          op, opName + " to linalg.* requires integer-like result type");
+    const bool needIndex = !op.getResult(1).use_empty();
+
+RankedTensorType idxResultType;
+Type idxElementType;
+if (needIndex) {
+  idxResultType =
+      cast<RankedTensorType>(typec->convertType(op.getResult(1).getType()));
+  idxElementType =
+      getElementTypeOrSelf(typec->convertType(idxResultType));
+  if (!isa<IntegerType>(idxElementType))
+    return rewriter.notifyMatchFailure(
+        op, opName + " to linalg.* requires integer-like result type");
+}
+
+RankedTensorType inputType = cast<RankedTensorType>(input.getType());
 
     bool keepDim = false;
     if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepDim)))
@@ -114,8 +121,10 @@ public:
       }
     }
     // First fill the output buffer for the index.
-    Value filledTensorIdx =
-        createZeroInitTensor(rewriter, loc, resultShape, idxElementType);
+   Value filledTensorIdx;
+   if (needIndex)
+  filledTensorIdx =
+      createZeroInitTensor(rewriter, loc, resultShape, idxElementType);
 
     // Second fill the output buffer for the running max or min.
     Value initTensorVal = tensor::EmptyOp::create(
@@ -163,24 +172,35 @@ public:
         resultExprs.push_back(rewriter.getAffineDimExpr(size.index()));
     }
 
-    auto maps = AffineMap::inferFromExprList({exprs, resultExprs, resultExprs},
-                                             rewriter.getContext());
-    auto linalgOp = linalg::GenericOp::create(
-        rewriter, loc,
-        ArrayRef<Type>({filledTensorVal.getType(), filledTensorIdx.getType()}),
-        input, ValueRange({filledTensorVal, filledTensorIdx}), maps,
+  SmallVector<Type> resultTypes{filledTensorVal.getType()};
+SmallVector<Value> initTensors{filledTensorVal};
+SmallVector<AffineMap> maps;
+
+if (needIndex) {
+  resultTypes.push_back(filledTensorIdx.getType());
+  initTensors.push_back(filledTensorIdx);
+  maps = AffineMap::inferFromExprList(
+      {exprs, resultExprs, resultExprs}, rewriter.getContext());
+} else {
+  maps = AffineMap::inferFromExprList({exprs, resultExprs},
+                                      rewriter.getContext());
+}
+
+auto linalgOp = linalg::GenericOp::create(
+    rewriter, loc, resultTypes, input, initTensors, maps,
         iteratorTypes,
         [&](OpBuilder &nestedBuilder, Location nestedLoc,
             ValueRange blockArgs) {
           Value newValue = blockArgs[0];
-          Value oldValue = blockArgs[1];
-          Value oldIndex = blockArgs[2];
-
-          Value newIndex = arith::IndexCastOp::create(
-              rewriter, nestedLoc, oldIndex.getType(),
-              linalg::IndexOp::create(rewriter, loc, dim));
-
-          Value resultVal, predicate;
+         Value oldValue = blockArgs[1];
+         Value oldIndex;
+         Value newIndex;
+         if (needIndex) {
+  oldIndex = blockArgs[2];
+  newIndex = arith::IndexCastOp::create(
+      rewriter, nestedLoc, oldIndex.getType(),
+      linalg::IndexOp::create(rewriter, loc, dim));
+}          Value resultVal, predicate;
           if (isa<mlir::FloatType>(inElementType)) {
             arith::CmpFPredicate predType;
             if (isMax) {
@@ -221,36 +241,53 @@ public:
             predicate = arith::CmpIOp::create(rewriter, nestedLoc, predType,
                                               newValue, oldValue);
           }
-          auto resultIndex = arith::SelectOp::create(
-              rewriter, nestedLoc, predicate, newIndex, oldIndex);
-          linalg::YieldOp::create(nestedBuilder, nestedLoc,
-                                  ValueRange({resultVal, resultIndex}));
-        });
-
+         if (needIndex) {
+  auto resultIndex = arith::SelectOp::create(
+      rewriter, nestedLoc, predicate, newIndex, oldIndex);
+  linalg::YieldOp::create(nestedBuilder, nestedLoc,
+                          ValueRange({resultVal, resultIndex}));
+} else {
+  linalg::YieldOp::create(nestedBuilder, nestedLoc, resultVal);
+}
     if (!keepDim) {
       Value rVal = tensor::CastOp::create(rewriter, loc, valResultType,
                                           linalgOp.getResult(0));
+
+      if (!needIndex) {
+        rewriter.replaceOp(op, {rVal, Value()});
+        return success();
+      }
+
       Value rIdx = tensor::CastOp::create(rewriter, loc, idxResultType,
                                           linalgOp.getResult(1));
       llvm::SmallVector<Value> res{rVal, rIdx};
       rewriter.replaceOp(op, res);
       return success();
     }
-
     llvm::SmallVector<int64_t> valShape(valResultType.getShape());
-    llvm::SmallVector<int64_t> idxShape(idxResultType.getShape());
-    for (int i = dim, s = valShape.size() - 1; i < s; ++i) {
+      
+    for (int i = dim, s = valShape.size() - 1; i < s; ++i)
       valShape[i] = valShape[i + 1];
-      idxShape[i] = idxShape[i + 1];
-    }
 
     valShape.resize(valShape.size() - 1);
-    idxShape.resize(idxShape.size() - 1);
 
     Value rVal = tensor::CastOp::create(
         rewriter, loc, valResultType.clone(valShape), linalgOp.getResult(0));
+
+    if (!needIndex) {
+      rewriter.replaceOp(op, {rVal, Value()});
+      return success();
+    }
+
+    llvm::SmallVector<int64_t> idxShape(idxResultType.getShape());
+    for (int i = dim, s = idxShape.size() - 1; i < s; ++i)
+      idxShape[i] = idxShape[i + 1];
+
+    idxShape.resize(idxShape.size() - 1);
+
     Value rIdx = tensor::CastOp::create(
-        rewriter, loc, idxResultType.clone(idxShape), linalgOp.getResult(1));
+        rewriter, loc, idxResultType.clone(idxShape),
+        linalgOp.getResult(1));
 
     SmallVector<ReassociationIndices> reassociation(valShape.size());
     if (reassociation.size() > 0) {
