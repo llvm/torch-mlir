@@ -1940,6 +1940,229 @@ public:
   }
 };
 
+static SmallVector<AffineMap>
+getPerChannelGroupIndexingMaps(OpBuilder &b, int64_t rank, int64_t groupSize,
+                               bool hasZeroPoints) {
+  SmallVector<AffineMap> indexingMaps;
+  AffineMap inputMap = b.getMultiDimIdentityMap(rank);
+  indexingMaps.push_back(inputMap);
+
+  SmallVector<AffineExpr> qparamsExprs;
+  qparamsExprs.push_back(b.getAffineDimExpr(rank - 2));
+  qparamsExprs.push_back(b.getAffineDimExpr(rank - 1).floorDiv(groupSize));
+  AffineMap qparamsMap = AffineMap::get(rank, 0, qparamsExprs, b.getContext());
+  indexingMaps.push_back(qparamsMap);
+  if (hasZeroPoints)
+    indexingMaps.push_back(qparamsMap);
+  indexingMaps.push_back(inputMap);
+  return indexingMaps;
+}
+
+template <typename OpTy>
+static LogicalResult checkPerChannelGroupShapes(
+    OpTy op, ConversionPatternRewriter &rewriter, int64_t inputRank,
+    ArrayRef<int64_t> inputShape, ArrayRef<int64_t> scalesShape,
+    int64_t groupSize, bool hasZeroPoints, ArrayRef<int64_t> zeroPointsShape) {
+  if (inputRank < 2)
+    return rewriter.notifyMatchFailure(op,
+                                       "input must have at least 2 dimensions");
+  if (groupSize <= 1)
+    return rewriter.notifyMatchFailure(op, "group_size must be > 1");
+
+  if (static_cast<int64_t>(scalesShape.size()) != 2)
+    return rewriter.notifyMatchFailure(op, "expected rank-2 scales");
+
+  if (hasZeroPoints && static_cast<int64_t>(zeroPointsShape.size()) != 2)
+    return rewriter.notifyMatchFailure(op, "expected rank-2 zero_points");
+
+  int64_t lastDim = inputShape[inputRank - 1];
+  if (lastDim != ShapedType::kDynamic && lastDim % groupSize != 0)
+    return rewriter.notifyMatchFailure(
+        op, "input last dimension must be divisible by group_size");
+
+  int64_t channelDim = inputShape[inputRank - 2];
+  int64_t scalesChannelDim = scalesShape[0];
+  if (channelDim != ShapedType::kDynamic &&
+      scalesChannelDim != ShapedType::kDynamic &&
+      scalesChannelDim != channelDim)
+    return rewriter.notifyMatchFailure(
+        op, "scales dim 0 must match input channel dimension (dim[-2])");
+
+  if (lastDim != ShapedType::kDynamic) {
+    int64_t expectedNumGroups = lastDim / groupSize;
+    int64_t scalesGroupDim = scalesShape[1];
+    if (scalesGroupDim != ShapedType::kDynamic &&
+        scalesGroupDim != expectedNumGroups)
+      return rewriter.notifyMatchFailure(
+          op, "scales dim 1 must equal input dim[-1] / group_size");
+  }
+
+  if (hasZeroPoints && zeroPointsShape != scalesShape)
+    return rewriter.notifyMatchFailure(
+        op, "zero_points shape must match scales shape");
+
+  return success();
+}
+
+class ConvertQuantizedDecomposedQuantizePerChannelGroupOp
+    : public OpConversionPattern<QuantizedDecomposedQuantizePerChannelGroupOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(QuantizedDecomposedQuantizePerChannelGroupOp op,
+                  OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (LogicalResult result = verifyLinalgCompatibleTypes(op, rewriter);
+        failed(result))
+      return result;
+
+    Location loc = op.getLoc();
+    Value input = adaptor.getInput();
+    Value scales = adaptor.getScales();
+    Value zeroPoints = adaptor.getZeroPoints();
+
+    auto inputType = dyn_cast<RankedTensorType>(input.getType());
+    auto scalesType = dyn_cast<RankedTensorType>(scales.getType());
+    auto zeroPointsType = dyn_cast<RankedTensorType>(zeroPoints.getType());
+    auto resultType = dyn_cast<RankedTensorType>(
+        getTypeConverter()->convertType(op.getResult().getType()));
+
+    if (!inputType || !scalesType || !zeroPointsType || !resultType)
+      return rewriter.notifyMatchFailure(op, "expected ranked input/result");
+
+    int64_t groupSize;
+    if (!matchPattern(op.getGroupSize(), m_TorchConstantInt(&groupSize)))
+      return rewriter.notifyMatchFailure(op, "group_size must be constant");
+
+    int64_t inputRank = inputType.getRank();
+    if (failed(checkPerChannelGroupShapes(
+            op, rewriter, inputRank, inputType.getShape(),
+            scalesType.getShape(), groupSize, /*hasZeroPoints=*/true,
+            zeroPointsType.getShape())))
+      return failure();
+
+    int64_t quantMin, quantMax;
+    if (!matchPattern(op.getQuantMin(), m_TorchConstantInt(&quantMin)) ||
+        !matchPattern(op.getQuantMax(), m_TorchConstantInt(&quantMax)))
+      return rewriter.notifyMatchFailure(op, "quant_min/max must be constant");
+
+    Value init = tensor::EmptyOp::create(
+        rewriter, loc, getAsOpFoldResult(getTensorSizes(rewriter, loc, input)),
+        resultType.getElementType());
+
+    SmallVector<AffineMap> indexingMaps = getPerChannelGroupIndexingMaps(
+        rewriter, inputRank, groupSize, /*hasZeroPoints=*/true);
+
+    SmallVector<utils::IteratorType> iteratorTypes(
+        inputRank, utils::IteratorType::parallel);
+
+    bool resultIsUnsigned = torch_to_linalg::isUnsignedTorchType(
+        cast<BaseTensorType>(op.getResult().getType()).getDtype());
+    Type fpType = inputType.getElementType();
+    Type outputType = resultType.getElementType();
+
+    Value result =
+        linalg::GenericOp::create(
+            rewriter, loc, resultType, ValueRange{input, scales, zeroPoints},
+            init, indexingMaps, iteratorTypes,
+            [&](OpBuilder &b, Location bodyLoc, ValueRange args) {
+              Value inputVal = args[0];
+              Value scaleVal = args[1];
+              Value zpVal = args[2];
+
+              Value qmin = arith::ConstantOp::create(
+                  b, bodyLoc,
+                  b.getFloatAttr(fpType, static_cast<double>(quantMin)));
+              Value qmax = arith::ConstantOp::create(
+                  b, bodyLoc,
+                  b.getFloatAttr(fpType, static_cast<double>(quantMax)));
+
+              Value value = createQuantizePayload(
+                  b, bodyLoc, getTypeConverter(), inputVal, scaleVal, zpVal,
+                  qmin, qmax, outputType, resultIsUnsigned);
+              linalg::YieldOp::create(b, bodyLoc, value);
+            })
+            .getResult(0);
+
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+
+class ConvertQuantizedDecomposedDequantizePerChannelGroupOp
+    : public OpConversionPattern<
+          QuantizedDecomposedDequantizePerChannelGroupOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(QuantizedDecomposedDequantizePerChannelGroupOp op,
+                  OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (LogicalResult result = verifyLinalgCompatibleTypes(op, rewriter);
+        failed(result))
+      return result;
+
+    Location loc = op.getLoc();
+    Value input = adaptor.getInput();
+    Value scales = adaptor.getScales();
+    Value zeroPoints = adaptor.getZeroPoints();
+
+    auto inputType = dyn_cast<RankedTensorType>(input.getType());
+    auto scalesType = dyn_cast<RankedTensorType>(scales.getType());
+    auto resultType = dyn_cast<RankedTensorType>(
+        getTypeConverter()->convertType(op.getResult().getType()));
+
+    if (!inputType || !scalesType || !resultType)
+      return rewriter.notifyMatchFailure(op, "expected ranked input/result");
+
+    int64_t groupSize;
+    if (!matchPattern(op.getGroupSize(), m_TorchConstantInt(&groupSize)))
+      return rewriter.notifyMatchFailure(op, "group_size must be constant");
+    bool hasZeroPoints = isa<RankedTensorType>(zeroPoints.getType());
+    ArrayRef<int64_t> zpShape =
+        hasZeroPoints ? cast<RankedTensorType>(zeroPoints.getType()).getShape()
+                      : ArrayRef<int64_t>{};
+    int64_t inputRank = inputType.getRank();
+    if (failed(checkPerChannelGroupShapes(
+            op, rewriter, inputRank, inputType.getShape(),
+            scalesType.getShape(), groupSize, hasZeroPoints, zpShape)))
+      return failure();
+
+    Value init = tensor::EmptyOp::create(
+        rewriter, loc, getAsOpFoldResult(getTensorSizes(rewriter, loc, input)),
+        resultType.getElementType());
+
+    SmallVector<AffineMap> indexingMaps = getPerChannelGroupIndexingMaps(
+        rewriter, inputRank, groupSize, hasZeroPoints);
+
+    SmallVector<utils::IteratorType> iteratorTypes(
+        inputRank, utils::IteratorType::parallel);
+
+    bool inputIsUnsigned = torch_to_linalg::isUnsignedTorchType(
+        cast<BaseTensorType>(op.getInput().getType()).getDtype());
+
+    SmallVector<Value> inputs = {input, scales};
+    if (hasZeroPoints)
+      inputs.push_back(zeroPoints);
+
+    Value result =
+        linalg::GenericOp::create(
+            rewriter, loc, resultType, inputs, init, indexingMaps,
+            iteratorTypes,
+            [&](OpBuilder &b, Location bodyLoc, ValueRange args) {
+              Value zeroPoint = hasZeroPoints ? args[2] : Value();
+              Value value = createDequantizePayload(
+                  b, bodyLoc, getTypeConverter(), args[0], args[1], zeroPoint,
+                  resultType.getElementType(), inputIsUnsigned);
+              linalg::YieldOp::create(b, bodyLoc, value);
+            })
+            .getResult(0);
+
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+
 // Converts an elementwise op.
 // This specifically includes:
 // - converting elementwise ops of any tensor arity
@@ -4306,6 +4529,11 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenQuantizePerTensorOp, AtenIscloseOp,
       QuantizedDecomposedDequantizePerTensorOp,
       QuantizedDecomposedQuantizePerTensorOp>();
+  target.addIllegalOp<QuantizedDecomposedQuantizePerChannelGroupOp,
+                      QuantizedDecomposedDequantizePerChannelGroupOp>();
+  patterns.add<ConvertQuantizedDecomposedQuantizePerChannelGroupOp,
+               ConvertQuantizedDecomposedDequantizePerChannelGroupOp>(
+      typeConverter, context);
   target.addIllegalOp<QuantizedDecomposedQuantizePerChannelOp,
                       QuantizedDecomposedDequantizePerChannelOp>();
   patterns.add<ConvertQuantizedDecomposedQuantizePerChannelOp,

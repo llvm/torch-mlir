@@ -367,3 +367,314 @@ func.func @dequantize_per_channel_negative_axis(
         !torch.int, !torch.optional<int> -> !torch.vtensor<[4,8],f32>
   return %out : !torch.vtensor<[4,8],f32>
 }
+
+// -----
+
+// Per-channel-group dequantization.
+// CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK: #[[GROUP:.*]] = affine_map<(d0, d1) -> (d0, d1 floordiv 4)>
+// CHECK-LABEL: func.func @dequantize_per_channel_group(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[4,16],si8>
+// CHECK-SAME: %[[SCALES:.*]]: !torch.vtensor<[4,4],f32>
+// CHECK-SAME: %[[ZPS:.*]]: !torch.vtensor<[4,4],si64>
+// CHECK-DAG: %[[INPUT_T:.*]] = torch_c.to_builtin_tensor %[[INPUT]]
+// CHECK-DAG: %[[SCALES_T:.*]] = torch_c.to_builtin_tensor %[[SCALES]]
+// CHECK-DAG: %[[ZPS_T:.*]] = torch_c.to_builtin_tensor %[[ZPS]]
+// CHECK: %[[EMPTY:.*]] = tensor.empty() : tensor<4x16xf32>
+// CHECK: %[[GENERIC:.*]] = linalg.generic
+// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[GROUP]], #[[GROUP]], #[[IDENTITY]]]
+// CHECK-SAME: ins(%[[INPUT_T]], %[[SCALES_T]], %[[ZPS_T]] : tensor<4x16xi8>, tensor<4x4xf32>, tensor<4x4xi64>)
+// CHECK-SAME: outs(%[[EMPTY]] : tensor<4x16xf32>)
+// CHECK: ^bb0(%[[IN:.*]]: i8, %[[SCALE:.*]]: f32, %[[ZP:.*]]: i64, %{{.*}}: f32):
+// CHECK:   %[[EXT:.*]] = arith.extsi %[[IN]] : i8 to i64
+// CHECK:   %[[SUB:.*]] = arith.subi %[[EXT]], %[[ZP]] : i64
+// CHECK:   %[[FP:.*]] = arith.sitofp %[[SUB]] : i64 to f32
+// CHECK:   %[[MUL:.*]] = arith.mulf %[[FP]], %[[SCALE]] : f32
+// CHECK:   linalg.yield %[[MUL]] : f32
+func.func @dequantize_per_channel_group(
+    %input: !torch.vtensor<[4,16],si8>,
+    %scales: !torch.vtensor<[4,4],f32>,
+    %zero_points: !torch.vtensor<[4,4],si64>)
+    -> !torch.vtensor<[4,16],f32> {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 2
+  %group_size = torch.constant.int 4
+  %out_dtype = torch.constant.int 6
+  %out = torch.quantized_decomposed.dequantize_per_channel_group
+      %input, %scales, %zero_points, %qmin, %qmax, %dtype, %group_size, %out_dtype
+      : !torch.vtensor<[4,16],si8>, !torch.vtensor<[4,4],f32>,
+        !torch.vtensor<[4,4],si64>, !torch.int, !torch.int, !torch.int,
+        !torch.int, !torch.int -> !torch.vtensor<[4,16],f32>
+  return %out : !torch.vtensor<[4,16],f32>
+}
+
+// -----
+
+// Per-channel-group symmetric dequantization (no zero points).
+// CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK: #[[GROUP:.*]] = affine_map<(d0, d1) -> (d0, d1 floordiv 8)>
+// CHECK-LABEL: func.func @dequantize_per_channel_group_symmetric(
+// CHECK: %[[GENERIC:.*]] = linalg.generic
+// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[GROUP]], #[[IDENTITY]]]
+// CHECK-SAME: ins({{.*}} : tensor<8x32xi8>, tensor<8x4xf32>)
+// CHECK: ^bb0(%[[IN:.*]]: i8, %[[SCALE:.*]]: f32, %{{.*}}: f32):
+// CHECK-NOT: arith.subi
+// CHECK:   %[[FP:.*]] = arith.sitofp %[[IN]] : i8 to f32
+// CHECK:   %[[MUL:.*]] = arith.mulf %[[FP]], %[[SCALE]] : f32
+// CHECK:   linalg.yield %[[MUL]] : f32
+func.func @dequantize_per_channel_group_symmetric(
+    %input: !torch.vtensor<[8,32],si8>,
+    %scales: !torch.vtensor<[8,4],f32>)
+    -> !torch.vtensor<[8,32],f32> {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 2
+  %group_size = torch.constant.int 8
+  %out_dtype = torch.constant.int 6
+  %none = torch.constant.none
+  %out = torch.quantized_decomposed.dequantize_per_channel_group
+      %input, %scales, %none, %qmin, %qmax, %dtype, %group_size, %out_dtype
+      : !torch.vtensor<[8,32],si8>, !torch.vtensor<[8,4],f32>,
+        !torch.none, !torch.int, !torch.int, !torch.int,
+        !torch.int, !torch.int -> !torch.vtensor<[8,32],f32>
+  return %out : !torch.vtensor<[8,32],f32>
+}
+
+// -----
+
+// Per-channel-group quantization.
+// CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK: #[[GROUP:.*]] = affine_map<(d0, d1) -> (d0, d1 floordiv 4)>
+// CHECK-LABEL: func.func @quantize_per_channel_group(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[4,16],f32>
+// CHECK-SAME: %[[SCALES:.*]]: !torch.vtensor<[4,4],f32>
+// CHECK-SAME: %[[ZPS:.*]]: !torch.vtensor<[4,4],si64>
+// CHECK-DAG: %[[INPUT_T:.*]] = torch_c.to_builtin_tensor %[[INPUT]]
+// CHECK-DAG: %[[SCALES_T:.*]] = torch_c.to_builtin_tensor %[[SCALES]]
+// CHECK-DAG: %[[ZPS_T:.*]] = torch_c.to_builtin_tensor %[[ZPS]]
+// CHECK: %[[EMPTY:.*]] = tensor.empty() : tensor<4x16xi8>
+// CHECK: %[[GENERIC:.*]] = linalg.generic
+// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[GROUP]], #[[GROUP]], #[[IDENTITY]]]
+// CHECK-SAME: ins(%[[INPUT_T]], %[[SCALES_T]], %[[ZPS_T]] : tensor<4x16xf32>, tensor<4x4xf32>, tensor<4x4xi64>)
+// CHECK-SAME: outs(%[[EMPTY]] : tensor<4x16xi8>)
+// CHECK: ^bb0(%[[IN:.*]]: f32, %[[SCALE:.*]]: f32, %[[ZP:.*]]: i64, %{{.*}}: i8):
+// CHECK:   %[[QMIN:.*]] = arith.constant -1.280000e+02 : f32
+// CHECK:   %[[QMAX:.*]] = arith.constant 1.270000e+02 : f32
+// CHECK:   %[[ZPF:.*]] = arith.sitofp %[[ZP]] : i64 to f32
+// CHECK:   %[[DIV:.*]] = arith.divf %[[IN]], %[[SCALE]] : f32
+// CHECK:   %[[ROUND:.*]] = math.roundeven %[[DIV]] : f32
+// CHECK:   %[[ADD:.*]] = arith.addf %[[ROUND]], %[[ZPF]] : f32
+// CHECK:   %[[LOW:.*]] = arith.maximumf %[[ADD]], %[[QMIN]] : f32
+// CHECK:   %[[HIGH:.*]] = arith.minimumf %[[LOW]], %[[QMAX]] : f32
+// CHECK:   %[[RESULT:.*]] = arith.fptosi %[[HIGH]] : f32 to i8
+// CHECK:   linalg.yield %[[RESULT]] : i8
+func.func @quantize_per_channel_group(
+    %input: !torch.vtensor<[4,16],f32>,
+    %scales: !torch.vtensor<[4,4],f32>,
+    %zero_points: !torch.vtensor<[4,4],si64>)
+    -> !torch.vtensor<[4,16],si8> {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 2
+  %group_size = torch.constant.int 4
+  %out = torch.quantized_decomposed.quantize_per_channel_group
+      %input, %scales, %zero_points, %qmin, %qmax, %dtype, %group_size
+      : !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,4],f32>,
+        !torch.vtensor<[4,4],si64>, !torch.int, !torch.int, !torch.int,
+        !torch.int -> !torch.vtensor<[4,16],si8>
+  return %out : !torch.vtensor<[4,16],si8>
+}
+
+// -----
+
+// Per-channel-group with same-width zero points (i8 input, i8 zero_points).
+// CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK: #[[GROUP:.*]] = affine_map<(d0, d1) -> (d0, d1 floordiv 4)>
+// CHECK-LABEL: func.func @dequantize_per_channel_group_same_width_zp(
+// CHECK: %[[GENERIC:.*]] = linalg.generic
+// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[GROUP]], #[[GROUP]], #[[IDENTITY]]]
+// CHECK-SAME: ins({{.*}} : tensor<4x16xi8>, tensor<4x4xf32>, tensor<4x4xi8>)
+// CHECK: ^bb0(%[[IN:.*]]: i8, %[[SCALE:.*]]: f32, %[[ZP:.*]]: i8, %{{.*}}: f32):
+// CHECK-DAG: %[[EXT_IN:.*]] = arith.extsi %[[IN]] : i8 to i16
+// CHECK-DAG: %[[EXT_ZP:.*]] = arith.extsi %[[ZP]] : i8 to i16
+// CHECK:   %[[SUB:.*]] = arith.subi %[[EXT_IN]], %[[EXT_ZP]] : i16
+// CHECK:   %[[FP:.*]] = arith.sitofp %[[SUB]] : i16 to f32
+// CHECK:   %[[MUL:.*]] = arith.mulf %[[FP]], %[[SCALE]] : f32
+// CHECK:   linalg.yield %[[MUL]] : f32
+func.func @dequantize_per_channel_group_same_width_zp(
+    %input: !torch.vtensor<[4,16],si8>,
+    %scales: !torch.vtensor<[4,4],f32>,
+    %zero_points: !torch.vtensor<[4,4],si8>)
+    -> !torch.vtensor<[4,16],f32> {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 2
+  %group_size = torch.constant.int 4
+  %out_dtype = torch.constant.int 6
+  %out = torch.quantized_decomposed.dequantize_per_channel_group
+      %input, %scales, %zero_points, %qmin, %qmax, %dtype, %group_size, %out_dtype
+      : !torch.vtensor<[4,16],si8>, !torch.vtensor<[4,4],f32>,
+        !torch.vtensor<[4,4],si8>, !torch.int, !torch.int, !torch.int,
+        !torch.int, !torch.int -> !torch.vtensor<[4,16],f32>
+  return %out : !torch.vtensor<[4,16],f32>
+}
+
+// -----
+
+// Per-channel-group unsigned quantization (uint8).
+// CHECK-LABEL: func.func @per_channel_group_unsigned(
+// CHECK: arith.fptoui %{{.*}} : f32 to i8
+// CHECK: arith.extui %{{.*}} : i8 to i64
+// CHECK: arith.sitofp %{{.*}} : i64 to f32
+func.func @per_channel_group_unsigned(
+    %input: !torch.vtensor<[4,16],f32>,
+    %scales: !torch.vtensor<[4,4],f32>,
+    %zero_points: !torch.vtensor<[4,4],si64>)
+    -> !torch.vtensor<[4,16],f32> {
+  %qmin = torch.constant.int 0
+  %qmax = torch.constant.int 255
+  %dtype = torch.constant.int 0
+  %group_size = torch.constant.int 4
+  %out_dtype = torch.constant.int 6
+  %quantized = torch.quantized_decomposed.quantize_per_channel_group
+      %input, %scales, %zero_points, %qmin, %qmax, %dtype, %group_size
+      : !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,4],f32>,
+        !torch.vtensor<[4,4],si64>, !torch.int, !torch.int, !torch.int,
+        !torch.int -> !torch.vtensor<[4,16],ui8>
+  %out = torch.quantized_decomposed.dequantize_per_channel_group
+      %quantized, %scales, %zero_points, %qmin, %qmax, %dtype, %group_size, %out_dtype
+      : !torch.vtensor<[4,16],ui8>, !torch.vtensor<[4,4],f32>,
+        !torch.vtensor<[4,4],si64>, !torch.int, !torch.int, !torch.int,
+        !torch.int, !torch.int -> !torch.vtensor<[4,16],f32>
+  return %out : !torch.vtensor<[4,16],f32>
+}
+
+// -----
+
+// Per-channel-group unsigned symmetric dequantization uses uitofp directly.
+// CHECK-LABEL: func.func @dequantize_per_channel_group_unsigned_symmetric(
+// CHECK-NOT: arith.extui
+// CHECK-NOT: arith.subi
+// CHECK: arith.uitofp %{{.*}} : i8 to f32
+func.func @dequantize_per_channel_group_unsigned_symmetric(
+    %input: !torch.vtensor<[4,16],ui8>,
+    %scales: !torch.vtensor<[4,4],f32>)
+    -> !torch.vtensor<[4,16],f32> {
+  %qmin = torch.constant.int 0
+  %qmax = torch.constant.int 255
+  %dtype = torch.constant.int 0
+  %group_size = torch.constant.int 4
+  %out_dtype = torch.constant.int 6
+  %none = torch.constant.none
+  %out = torch.quantized_decomposed.dequantize_per_channel_group
+      %input, %scales, %none, %qmin, %qmax, %dtype, %group_size, %out_dtype
+      : !torch.vtensor<[4,16],ui8>, !torch.vtensor<[4,4],f32>,
+        !torch.none, !torch.int, !torch.int, !torch.int,
+        !torch.int, !torch.int -> !torch.vtensor<[4,16],f32>
+  return %out : !torch.vtensor<[4,16],f32>
+}
+
+// -----
+
+// Per-channel-group with f16 scales and f32 output: multiply in f16, then extend.
+// CHECK-LABEL: func.func @dequantize_per_channel_group_scale_extension(
+// CHECK: %[[FP:.*]] = arith.sitofp %{{.*}} : i8 to f16
+// CHECK: %[[MUL:.*]] = arith.mulf %[[FP]], %{{.*}} : f16
+// CHECK: arith.extf %[[MUL]] : f16 to f32
+func.func @dequantize_per_channel_group_scale_extension(
+    %input: !torch.vtensor<[4,16],si8>,
+    %scales: !torch.vtensor<[4,4],f16>)
+    -> !torch.vtensor<[4,16],f32> {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 2
+  %group_size = torch.constant.int 4
+  %out_dtype = torch.constant.int 6
+  %none = torch.constant.none
+  %out = torch.quantized_decomposed.dequantize_per_channel_group
+      %input, %scales, %none, %qmin, %qmax, %dtype, %group_size, %out_dtype
+      : !torch.vtensor<[4,16],si8>, !torch.vtensor<[4,4],f16>,
+        !torch.none, !torch.int, !torch.int, !torch.int,
+        !torch.int, !torch.int -> !torch.vtensor<[4,16],f32>
+  return %out : !torch.vtensor<[4,16],f32>
+}
+
+// -----
+
+// Per-channel-group with f32 scales and f16 output: multiply in f32, then truncate.
+// CHECK-LABEL: func.func @dequantize_per_channel_group_scale_truncation(
+// CHECK: %[[FP:.*]] = arith.sitofp %{{.*}} : i8 to f32
+// CHECK: %[[MUL:.*]] = arith.mulf %[[FP]], %{{.*}} : f32
+// CHECK: arith.truncf %[[MUL]] : f32 to f16
+func.func @dequantize_per_channel_group_scale_truncation(
+    %input: !torch.vtensor<[4,16],si8>,
+    %scales: !torch.vtensor<[4,4],f32>)
+    -> !torch.vtensor<[4,16],f16> {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 2
+  %group_size = torch.constant.int 4
+  %out_dtype = torch.constant.int 5
+  %none = torch.constant.none
+  %out = torch.quantized_decomposed.dequantize_per_channel_group
+      %input, %scales, %none, %qmin, %qmax, %dtype, %group_size, %out_dtype
+      : !torch.vtensor<[4,16],si8>, !torch.vtensor<[4,4],f32>,
+        !torch.none, !torch.int, !torch.int, !torch.int,
+        !torch.int, !torch.int -> !torch.vtensor<[4,16],f16>
+  return %out : !torch.vtensor<[4,16],f16>
+}
+
+// -----
+
+// Per-channel-group with 4-bit quantization (int4, group_size=128 typical for GPTQ).
+// CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK: #[[GROUP:.*]] = affine_map<(d0, d1) -> (d0, d1 floordiv 128)>
+// CHECK-LABEL: func.func @dequantize_per_channel_group_int4(
+// CHECK: %[[GENERIC:.*]] = linalg.generic
+// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[GROUP]], #[[GROUP]], #[[IDENTITY]]]
+// CHECK-SAME: ins({{.*}} : tensor<4096x4096xi8>, tensor<4096x32xf16>, tensor<4096x32xi8>)
+// CHECK-SAME: outs({{.*}} : tensor<4096x4096xf16>)
+func.func @dequantize_per_channel_group_int4(
+    %input: !torch.vtensor<[4096,4096],si8>,
+    %scales: !torch.vtensor<[4096,32],f16>,
+    %zero_points: !torch.vtensor<[4096,32],si8>)
+    -> !torch.vtensor<[4096,4096],f16> {
+  %qmin = torch.constant.int -8
+  %qmax = torch.constant.int 7
+  %dtype = torch.constant.int 2
+  %group_size = torch.constant.int 128
+  %out_dtype = torch.constant.int 5
+  %out = torch.quantized_decomposed.dequantize_per_channel_group
+      %input, %scales, %zero_points, %qmin, %qmax, %dtype, %group_size, %out_dtype
+      : !torch.vtensor<[4096,4096],si8>, !torch.vtensor<[4096,32],f16>,
+        !torch.vtensor<[4096,32],si8>, !torch.int, !torch.int, !torch.int,
+        !torch.int, !torch.int -> !torch.vtensor<[4096,4096],f16>
+  return %out : !torch.vtensor<[4096,4096],f16>
+}
+
+// -----
+
+// 3D input tensor with per-channel-group quantization.
+// CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
+// CHECK: #[[GROUP:.*]] = affine_map<(d0, d1, d2) -> (d1, d2 floordiv 4)>
+// CHECK-LABEL: func.func @dequantize_per_channel_group_3d(
+// CHECK: %[[GENERIC:.*]] = linalg.generic
+// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[GROUP]], #[[IDENTITY]]]
+func.func @dequantize_per_channel_group_3d(
+    %input: !torch.vtensor<[2,4,16],si8>,
+    %scales: !torch.vtensor<[4,4],f32>)
+    -> !torch.vtensor<[2,4,16],f32> {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 2
+  %group_size = torch.constant.int 4
+  %out_dtype = torch.constant.int 6
+  %none = torch.constant.none
+  %out = torch.quantized_decomposed.dequantize_per_channel_group
+      %input, %scales, %none, %qmin, %qmax, %dtype, %group_size, %out_dtype
+      : !torch.vtensor<[2,4,16],si8>, !torch.vtensor<[4,4],f32>,
+        !torch.none, !torch.int, !torch.int, !torch.int,
+        !torch.int, !torch.int -> !torch.vtensor<[2,4,16],f32>
+  return %out : !torch.vtensor<[2,4,16],f32>
+}

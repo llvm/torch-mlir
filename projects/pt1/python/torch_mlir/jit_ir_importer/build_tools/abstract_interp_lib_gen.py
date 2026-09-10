@@ -6537,6 +6537,22 @@ def quantized_decomposed〇dequantize_per_channel〡dtype(input_rank_dtype: Tupl
         return out_dtype
     return torch.float32
 
+@not_present_in_registry
+def quantized_decomposed〇quantize_per_channel_group〡shape(input: List[int], scales: List[int], zero_points: List[int], quant_min: int, quant_max: int, dtype: int, group_size: int) -> List[int]:
+    return upstream_shape_functions.unary(input)
+
+@not_present_in_registry
+def quantized_decomposed〇quantize_per_channel_group〡dtype(input_rank_dtype: Tuple[int, int], scales_rank_dtype: Tuple[int, int], zero_points_rank_dtype: Tuple[int, int], quant_min: int, quant_max: int, dtype: int, group_size: int) -> int:
+    return dtype
+
+@not_present_in_registry
+def quantized_decomposed〇dequantize_per_channel_group〡shape(input: List[int], scales: List[int], zero_points: Optional[List[int]], quant_min: int, quant_max: int, dtype: int, group_size: int, output_dtype: int) -> List[int]:
+    return upstream_shape_functions.unary(input)
+
+@not_present_in_registry
+def quantized_decomposed〇dequantize_per_channel_group〡dtype(input_rank_dtype: Tuple[int, int], scales_rank_dtype: Tuple[int, int], zero_points_rank_dtype: Optional[Tuple[int, int]], quant_min: int, quant_max: int, dtype: int, group_size: int, output_dtype: int) -> int:
+    return output_dtype
+
 # ==============================================================================
 # Main
 # ==============================================================================
