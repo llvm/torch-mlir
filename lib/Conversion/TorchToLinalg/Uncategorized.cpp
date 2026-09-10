@@ -539,10 +539,19 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       op->emitError("Bitwise_And does not support floating point dtype");
       return nullptr;
     }
+    Type resultElementType = cast<ValueTensorType>(resultType).getDtype();
+    Type lhsOriginalDtype =
+        cast<BaseTensorType>(op->getOperand(0).getType()).getDtype();
+    Type rhsOriginalDtype =
+        cast<BaseTensorType>(op->getOperand(1).getType()).getDtype();
     Type dtype = cast<RankedTensorType>(converter->convertType(resultType))
                      .getElementType();
-    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
-    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype,
+                                     /*srcOriginalDtype=*/lhsOriginalDtype,
+                                     /*dstOriginalDtype=*/resultElementType);
+    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype,
+                                     /*srcOriginalDtype=*/rhsOriginalDtype,
+                                     /*dstOriginalDtype=*/resultElementType);
     return arith::AndIOp::create(b, loc, lhs, rhs);
   }
   if (auto bitwiseAndScalar = dyn_cast<AtenBitwiseAndScalarOp>(op)) {
@@ -571,11 +580,21 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
           "Bitwise_Or does not support floating point dtype");
       return nullptr;
     }
+    Type resultElementType =
+        cast<ValueTensorType>(bitwiseOrTensor.getType()).getDtype();
+    Type lhsOriginalDtype =
+        cast<BaseTensorType>(bitwiseOrTensor.getSelf().getType()).getDtype();
+    Type rhsOriginalDtype =
+        cast<BaseTensorType>(bitwiseOrTensor.getOther().getType()).getDtype();
     Type dtype = cast<RankedTensorType>(
                      converter->convertType(bitwiseOrTensor.getType()))
                      .getElementType();
-    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
-    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype,
+                                     /*srcOriginalDtype=*/lhsOriginalDtype,
+                                     /*dstOriginalDtype=*/resultElementType);
+    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype,
+                                     /*srcOriginalDtype=*/rhsOriginalDtype,
+                                     /*dstOriginalDtype=*/resultElementType);
     return arith::OrIOp::create(b, loc, lhs, rhs);
   }
   if (auto bitwiseXorTensor = dyn_cast<AtenBitwiseXorTensorOp>(op)) {
@@ -585,11 +604,21 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
           "Bitwise_Xor does not support floating point dtype");
       return nullptr;
     }
+    Type resultElementType =
+        cast<ValueTensorType>(bitwiseXorTensor.getType()).getDtype();
+    Type lhsOriginalDtype =
+        cast<BaseTensorType>(bitwiseXorTensor.getSelf().getType()).getDtype();
+    Type rhsOriginalDtype =
+        cast<BaseTensorType>(bitwiseXorTensor.getOther().getType()).getDtype();
     Type dtype = cast<RankedTensorType>(
                      converter->convertType(bitwiseXorTensor.getType()))
                      .getElementType();
-    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
-    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype,
+                                     /*srcOriginalDtype=*/lhsOriginalDtype,
+                                     /*dstOriginalDtype=*/resultElementType);
+    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype,
+                                     /*srcOriginalDtype=*/rhsOriginalDtype,
+                                     /*dstOriginalDtype=*/resultElementType);
     return arith::XOrIOp::create(b, loc, lhs, rhs);
   }
   if (auto bitwiseRightShiftTensor =
