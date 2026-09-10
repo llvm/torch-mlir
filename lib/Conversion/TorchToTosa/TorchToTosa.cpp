@@ -819,9 +819,6 @@ public:
   matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const final {
     const TypeConverter *typeConverter = this->getTypeConverter();
-    if (failed(checkZeroDimLegality(op, adaptor, typeConverter, rewriter)))
-      return failure();
-
     bool canHandleZeroDimInputOperands =
         canHandleZeroDimInputs(op, adaptor, typeConverter);
 
@@ -854,13 +851,6 @@ public:
   }
 
 protected:
-  virtual LogicalResult
-  checkZeroDimLegality(AtenOpT op, OpAdaptor adaptor,
-                       const TypeConverter *typeConverter,
-                       ConversionPatternRewriter &rewriter) const {
-    return success();
-  }
-
   virtual bool
   canHandleZeroDimInputs(AtenOpT op, OpAdaptor adaptor,
                          const TypeConverter *typeConverter) const {
