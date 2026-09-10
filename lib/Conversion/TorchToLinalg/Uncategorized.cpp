@@ -5,8 +5,6 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 // Also available under a BSD-style license. See LICENSE.
 //
-// Modifications Copyright 2026 NXP
-//
 //===----------------------------------------------------------------------===//
 
 #include "mlir/IR/BuiltinTypes.h"
