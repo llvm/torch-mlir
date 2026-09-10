@@ -30,8 +30,9 @@ func.func @rms_norm_zero_extent_bad_normalized_shape(%arg0: !torch.vtensor<[0,2]
 // -----
 
 // CHECK-LABEL:   func.func @rms_norm_zero_extent_unknown_weight_shape
-// CHECK:           %[[RMS:.*]] = torch.aten.rms_norm
-// CHECK:           return %[[RMS]]
+// CHECK-SAME:      (%[[ARG0:.*]]: !torch.vtensor<[0,1],f32>, {{.*}})
+// CHECK-NOT:       torch.aten.rms_norm
+// CHECK:           return %[[ARG0]]
 func.func @rms_norm_zero_extent_unknown_weight_shape(%arg0: !torch.vtensor<[0,1],f32>, %arg1: !torch.vtensor<*,f32>) -> !torch.vtensor<[0,1],f32> {
   %int1 = torch.constant.int 1
   %shape = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>

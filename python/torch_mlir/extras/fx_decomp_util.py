@@ -73,6 +73,7 @@ _EXPANDED_DECOMP_EXCLUDE = [
     torch.ops.aten.roll,
     torch.ops.aten.one_hot,
     torch.ops.aten.empty_like,
+    torch.ops.aten.rms_norm,
     torch.ops.aten.all,
     torch.ops.aten.isfinite,
     torch.ops.aten.logaddexp,

@@ -8322,6 +8322,14 @@ class DecomposeAtenRMSLayerNormOp : public OpRewritePattern<AtenRmsNormOp> {
             op, "normalized shape should match the input trailing sizes.");
     }
 
+    if (llvm::is_contained(inputTy.getSizes(), 0)) {
+      if (input.getType() != op.getType())
+        return rewriter.notifyMatchFailure(
+            op, "zero-extent input and output types should match.");
+      rewriter.replaceOp(op, input);
+      return success();
+    }
+
     Value weight = op.getWeight();
     if (!isa<Torch::NoneType>(weight.getType())) {
       auto weightTy = dyn_cast<ValueTensorType>(weight.getType());
@@ -8334,14 +8342,6 @@ class DecomposeAtenRMSLayerNormOp : public OpRewritePattern<AtenRmsNormOp> {
       if (!llvm::equal(weightTy.getSizes(), normalizedShapeSizes))
         return rewriter.notifyMatchFailure(
             op, "weight sizes should match normalized shape.");
-    }
-
-    if (llvm::is_contained(inputTy.getSizes(), 0)) {
-      if (input.getType() != op.getType())
-        return rewriter.notifyMatchFailure(
-            op, "zero-extent input and output types should match.");
-      rewriter.replaceOp(op, input);
-      return success();
     }
 
     auto reduceDimInts =
