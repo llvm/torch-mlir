@@ -7207,6 +7207,37 @@ public:
 };
 } // namespace
 
+// `aten.squeeze_copy` and `aten.squeeze_copy.dim` are the non-aliasing variants
+// of `aten.squeeze` / `aten.squeeze.dim`. By the time decompositions run the IR
+// is value semantic, so the copy is implicit and the two forms are equivalent.
+// Forward to the aliasing ops, which already have shape/dtype functions and
+// backend lowerings.
+namespace {
+class DecomposeAtenSqueezeCopyOp : public OpRewritePattern<AtenSqueezeCopyOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenSqueezeCopyOp op,
+                                PatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<AtenSqueezeOp>(op, op.getType(), op.getSelf());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenSqueezeCopyDimOp
+    : public OpRewritePattern<AtenSqueezeCopyDimOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenSqueezeCopyDimOp op,
+                                PatternRewriter &rewriter) const override {
+    rewriter.replaceOpWithNewOp<AtenSqueezeDimOp>(op, op.getType(),
+                                                  op.getSelf(), op.getDim());
+    return success();
+  }
+};
+} // namespace
+
 // Silu(x) = sigmoid(x) * x
 namespace {
 class DecomposeAtenSiluOp : public OpRewritePattern<AtenSiluOp> {
@@ -13865,6 +13896,8 @@ public:
         DecomposeAtenArgMinMaxOp<AtenArgminOp, AtenMinDimOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAminmaxOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSquareOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenSqueezeCopyOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenSqueezeCopyDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenStdOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAten_UnsafeViewOp>(patterns);

@@ -1722,3 +1722,45 @@ func.func @torch.aten.linalg_vector_norm$zero_dim_keepdim(%arg0: !torch.vtensor<
   %0 = torch.aten.linalg_vector_norm %arg0, %ord, %dim, %keepdim, %dtype : !torch.vtensor<[3,4],f32>, !torch.float, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[3,1],f32>
   return %0 : !torch.vtensor<[3,1],f32>
 }
+
+// -----
+
+// `aten.squeeze_copy` is the non-aliasing form of `aten.squeeze`; in a value
+// semantic IR the copy is implicit, so it lowers to the aliasing op.
+// CHECK-LABEL: func.func @torch.aten.squeeze_copy(
+// CHECK-SAME:      %[[SELF:.*]]: !torch.vtensor<[1,3,1,4],f32>
+// CHECK-NOT:     torch.aten.squeeze_copy
+// CHECK:         %[[SQUEEZE:.*]] = torch.aten.squeeze %[[SELF]] : !torch.vtensor<[1,3,1,4],f32> -> !torch.vtensor<[3,4],f32>
+// CHECK:         return %[[SQUEEZE]]
+func.func @torch.aten.squeeze_copy(%arg0: !torch.vtensor<[1,3,1,4],f32>) -> !torch.vtensor<[3,4],f32> {
+  %0 = torch.aten.squeeze_copy %arg0 : !torch.vtensor<[1,3,1,4],f32> -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.squeeze_copy.dim(
+// CHECK-SAME:      %[[SELF:.*]]: !torch.vtensor<[1,3,1,4],f32>
+// CHECK-NOT:     torch.aten.squeeze_copy.dim
+// CHECK:         %[[DIM:.*]] = torch.constant.int 0
+// CHECK:         %[[SQUEEZE:.*]] = torch.aten.squeeze.dim %[[SELF]], %[[DIM]] : !torch.vtensor<[1,3,1,4],f32>, !torch.int -> !torch.vtensor<[3,1,4],f32>
+// CHECK:         return %[[SQUEEZE]]
+func.func @torch.aten.squeeze_copy.dim(%arg0: !torch.vtensor<[1,3,1,4],f32>) -> !torch.vtensor<[3,1,4],f32> {
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.squeeze_copy.dim %arg0, %int0 : !torch.vtensor<[1,3,1,4],f32>, !torch.int -> !torch.vtensor<[3,1,4],f32>
+  return %0 : !torch.vtensor<[3,1,4],f32>
+}
+
+// -----
+
+// A negative dim is forwarded untouched; `aten.squeeze.dim` already handles it.
+// CHECK-LABEL: func.func @torch.aten.squeeze_copy.dim$negative(
+// CHECK-SAME:      %[[SELF:.*]]: !torch.vtensor<[1,3,1,4],f32>
+// CHECK:         %[[DIM:.*]] = torch.constant.int -2
+// CHECK:         %[[SQUEEZE:.*]] = torch.aten.squeeze.dim %[[SELF]], %[[DIM]] : !torch.vtensor<[1,3,1,4],f32>, !torch.int -> !torch.vtensor<[1,3,4],f32>
+// CHECK:         return %[[SQUEEZE]]
+func.func @torch.aten.squeeze_copy.dim$negative(%arg0: !torch.vtensor<[1,3,1,4],f32>) -> !torch.vtensor<[1,3,4],f32> {
+  %int-2 = torch.constant.int -2
+  %0 = torch.aten.squeeze_copy.dim %arg0, %int-2 : !torch.vtensor<[1,3,1,4],f32>, !torch.int -> !torch.vtensor<[1,3,4],f32>
+  return %0 : !torch.vtensor<[1,3,4],f32>
+}

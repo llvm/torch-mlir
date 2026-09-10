@@ -235,3 +235,166 @@ class PrimsSqueezeEmptyDimensionsModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: PrimsSqueezeEmptyDimensionsModule())
 def PrimsSqueezeEmptyDimensionsModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 2, 1, 4))
+
+
+# ==============================================================================
+
+
+class SqueezeCopyStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 7, 1, 3, 1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.squeeze_copy(a)
+
+
+@register_test_case(module_factory=lambda: SqueezeCopyStaticModule())
+def SqueezeCopyModule_static(module, tu: TestUtils):
+    module.forward(tu.rand(1, 7, 1, 3, 1))
+
+
+# ==============================================================================
+
+
+class SqueezeCopyAllUnitDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.squeeze_copy(a)
+
+
+@register_test_case(module_factory=lambda: SqueezeCopyAllUnitDimModule())
+def SqueezeCopyModule_allUnitDim(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1))
+
+
+# ==============================================================================
+
+
+class SqueezeCopyDimStaticModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 7], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.squeeze_copy(a, 0)
+
+
+@register_test_case(module_factory=lambda: SqueezeCopyDimStaticModule())
+def SqueezeCopyDimModule_static(module, tu: TestUtils):
+    module.forward(tu.rand(1, 7))
+
+
+# ==============================================================================
+
+
+class SqueezeCopyDimDynamicModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, 1, 384, -1, 1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.squeeze_copy(a, 4)
+
+
+@register_test_case(module_factory=lambda: SqueezeCopyDimDynamicModule())
+def SqueezeCopyDimModule_dynamic(module, tu: TestUtils):
+    module.forward(tu.rand(8, 1, 384, 12, 1))
+
+
+# ==============================================================================
+
+
+class SqueezeCopyDimNegDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, -1, 1, 384, -1, 1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.squeeze_copy(a, -6)
+
+
+@register_test_case(module_factory=lambda: SqueezeCopyDimNegDimModule())
+def SqueezeCopyDimModule_negDim(module, tu: TestUtils):
+    module.forward(tu.rand(1, 8, 1, 384, 12, 1))
+
+
+# ==============================================================================
+
+
+class SqueezeCopyDimIdentityModule(torch.nn.Module):
+    """Squeezing a dim whose extent is not 1 must be a no-op, not an error."""
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.squeeze_copy(a, 0)
+
+
+@register_test_case(module_factory=lambda: SqueezeCopyDimIdentityModule())
+def SqueezeCopyDimModule_identity(module, tu: TestUtils):
+    module.forward(tu.rand(4, 1, 3))
+
+
+# ==============================================================================
+
+
+class SqueezeCopyDimUnitDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.squeeze_copy(a, 0)
+
+
+@register_test_case(module_factory=lambda: SqueezeCopyDimUnitDimModule())
+def SqueezeCopyDimModule_unitDim(module, tu: TestUtils):
+    module.forward(tu.rand(1))
