@@ -2337,26 +2337,6 @@ public:
   }
 };
 
-static bool hasStaticZeroExtentTensorType(Type type) {
-  if (auto rankedTy = dyn_cast<RankedTensorType>(type)) {
-    for (int64_t dim : rankedTy.getShape()) {
-      if (dim == 0)
-        return true;
-    }
-    return false;
-  }
-
-  auto baseTensorTy = dyn_cast<BaseTensorType>(type);
-  if (!baseTensorTy || !baseTensorTy.hasSizes())
-    return false;
-
-  for (int64_t dim : baseTensorTy.getSizes()) {
-    if (dim == 0)
-      return true;
-  }
-  return false;
-}
-
 // Perform the basic n-dim matmul operation encompassing the handling of
 // broadcasting and dynamic shape propagation.
 // All PyTorch ops that leverage matrix multiplication will derive this and
@@ -2378,17 +2358,6 @@ public:
     return rewriter.notifyMatchFailure(
         op,
         "Unimplemented matrix multiplication variant input parsing function");
-  }
-
-  LogicalResult
-  checkZeroDimLegality(AtenOpT op, OpAdaptor, const TypeConverter *,
-                       ConversionPatternRewriter &) const override {
-    for (Type resultType : op->getResultTypes())
-      if (hasStaticZeroExtentTensorType(resultType))
-        return op.emitError(
-            "TOSA lowering does not support matmul-like ops with zero-sized "
-            "output tensors");
-    return success();
   }
 
   bool
@@ -2414,9 +2383,8 @@ public:
         return false;
       if (!resultTy.hasStaticShape())
         return false;
-      if (mlir::tosa::typeHasZeroDim(resultTy))
-        return false;
-      return hasStaticZeroContraction(lhsTy, rhsTy);
+      return mlir::tosa::typeHasZeroDim(resultTy) ||
+             hasStaticZeroContraction(lhsTy, rhsTy);
     }
   }
 
