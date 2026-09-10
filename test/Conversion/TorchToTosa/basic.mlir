@@ -5395,6 +5395,50 @@ func.func @torch.aten.max_pool3d$padded_ceil_no_batch(%arg0: !torch.vtensor<[3,6
 
 // -----
 
+// Check that ceil mode retains a final window which overlaps the input.
+// CHECK-LABEL: func.func @torch.aten.max_pool3d$ceil_overlapping_right_padding
+// CHECK: tosa.max_pool2d {{.*}}kernel = array<i64: 5, 1>
+// CHECK-SAME: pad = array<i64: 2, 3, 0, 0>
+// CHECK-SAME: stride = array<i64: 2, 1>
+// CHECK-SAME: -> tensor<1x4x1x1xf32>
+// CHECK: tosa.transpose {{.*}} -> tensor<1x1x4x1x1xf32>
+func.func @torch.aten.max_pool3d$ceil_overlapping_right_padding(%arg0: !torch.vtensor<[1,1,6,1,1],f32>) -> !torch.vtensor<[1,1,4,1,1],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int5 = torch.constant.int 5
+  %true = torch.constant.bool true
+  %kernel = torch.prim.ListConstruct %int5, %int1, %int1 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int2, %int1, %int1 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int2, %int0, %int0 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %int1, %int1, %int1 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.max_pool3d %arg0, %kernel, %stride, %padding, %dilation, %true : !torch.vtensor<[1,1,6,1,1],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,1,4,1,1],f32>
+  return %0 : !torch.vtensor<[1,1,4,1,1],f32>
+}
+
+// -----
+
+// Check that ceil mode removes a window contained in the right padding.
+// CHECK-LABEL: func.func @torch.aten.max_pool3d$ceil_ignores_right_padding
+// CHECK: tosa.max_pool2d {{.*}}kernel = array<i64: 2, 1>
+// CHECK-SAME: pad = array<i64: 1, 0, 0, 0>
+// CHECK-SAME: stride = array<i64: 2, 1>
+// CHECK-SAME: -> tensor<1x1x1x1xf32>
+func.func @torch.aten.max_pool3d$ceil_ignores_right_padding(%arg0: !torch.vtensor<[1,1,1,1,1],f32>) -> !torch.vtensor<[1,1,1,1,1],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %true = torch.constant.bool true
+  %kernel = torch.prim.ListConstruct %int2, %int1, %int1 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int2, %int1, %int1 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int1, %int0, %int0 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %int1, %int1, %int1 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.max_pool3d %arg0, %kernel, %stride, %padding, %dilation, %true : !torch.vtensor<[1,1,1,1,1],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,1,1,1,1],f32>
+  return %0 : !torch.vtensor<[1,1,1,1,1],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.avg_pool2d$zero_pad_with_sliced_input(
 // CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[1,1,56,56],f32>) -> !torch.vtensor<[1,1,27,27],f32> {
 // CHECK:           %[[TO_BUILTIN_TENSOR_0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[1,1,56,56],f32> -> tensor<1x1x56x56xf32>

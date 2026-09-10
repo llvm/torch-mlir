@@ -8281,16 +8281,16 @@ preparePoolingInput(PatternRewriter &rewriter, Location loc, Value input,
       return;
 
     if (ceilMode) {
-      // Adjust pad_after to satisfy divisibility (no slicing)
-      if (remainder < padValues[padAfterIdx]) {
-        padValues[padAfterIdx] -= remainder;
-      } else {
-        padValues[padAfterIdx] += (s - remainder);
+      int64_t lastWindowStart = llvm::divideCeilSigned(dimSize, s) * s;
+      // A window starting in the right padding is ignored by the logic below.
+      if (lastWindowStart < dim + padValues[padBeforeIdx]) {
+        // Extend trailing padding to retain the final partial window.
+        padValues[padAfterIdx] += s - remainder;
+        return;
       }
-      return;
     }
 
-    // floor-mode (default): reduce pad_after or slice tail if needed
+    // Reduce trailing padding or slice unused trailing input.
     if (remainder > padValues[padAfterIdx]) {
       // Need to slice the trailing region
       sizeSlice[axis] = dim - (remainder - padValues[padAfterIdx]);
