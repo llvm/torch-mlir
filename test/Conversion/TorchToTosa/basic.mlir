@@ -6550,6 +6550,14 @@ func.func @torch.aten.linear$f16(%arg0: !torch.vtensor<[2,4],f16>, %arg1: !torch
   return %0 : !torch.vtensor<[2,3],f16>
 }
 
+// -----
+func.func @torch.aten.linear$zero_output_rejected(%arg0: !torch.vtensor<[0,4],f32>, %arg1: !torch.vtensor<[3,4],f32>, %arg2: !torch.vtensor<[3],f32>) -> !torch.vtensor<[0,3],f32> {
+  // expected-error @below {{failed to legalize operation 'torch.aten.linear' that was explicitly marked illegal}}
+  %0 = torch.aten.linear %arg0, %arg1, %arg2 : !torch.vtensor<[0,4],f32>, !torch.vtensor<[3,4],f32>, !torch.vtensor<[3],f32> -> !torch.vtensor<[0,3],f32>
+  return %0 : !torch.vtensor<[0,3],f32>
+}
+
+// -----
 // CHECK-LABEL:   func.func @torch.aten.cumsum.basic(
 // CHECK-SAME:                                       %[[ARG:.*]]: !torch.vtensor<[2,3],f32>) -> !torch.vtensor<[2,3],f32> {
 // CHECK:           %[[IN:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[2,3],f32> -> tensor<2x3xf32>

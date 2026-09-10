@@ -2875,9 +2875,8 @@ public:
         return false;
       if (!resultTy.hasStaticShape())
         return false;
-      if (mlir::tosa::typeHasZeroDim(resultTy))
-        return false;
-      return hasStaticZeroContraction(lhsTy, rhsTy);
+      return mlir::tosa::typeHasZeroDim(resultTy) ||
+             hasStaticZeroContraction(lhsTy, rhsTy);
     }
   }
 
