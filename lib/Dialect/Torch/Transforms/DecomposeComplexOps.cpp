@@ -7393,13 +7393,25 @@ public:
     Value inputTimesBeta =
         AtenMulScalarOp::create(rewriter, loc, inputType, input, op.getBeta());
 
-    // out = log1p(exp(input * beta)) / beta
-    Value exp = AtenExpOp::create(rewriter, loc, inputType, inputTimesBeta);
-    Value log1p = AtenLog1pOp::create(rewriter, loc, inputType, exp);
-    Value out =
-        AtenDivScalarOp::create(rewriter, loc, inputType, log1p, op.getBeta());
+    // out = log1p(exp(z)) / beta, with z = input * beta, computed in the
+    // numerically stable form (max(z, 0) + log1p(exp(-|z|))) / beta. Only ever
+    // exponentiating -|z| <= 0 keeps exp in (0, 1], so the arm never overflows
+    // to +inf the way the naive log1p(exp(z)) does once z exceeds ~88 in fp32.
+    Value absZ = AtenAbsOp::create(rewriter, loc, inputType, inputTimesBeta);
+    Value negAbsZ = AtenNegOp::create(rewriter, loc, inputType, absZ);
+    Value expNegAbsZ = AtenExpOp::create(rewriter, loc, inputType, negAbsZ);
+    Value log1p = AtenLog1pOp::create(rewriter, loc, inputType, expNegAbsZ);
+    Value reluZ = AtenReluOp::create(rewriter, loc, inputType, inputTimesBeta);
+    Value one =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
+    Value stableSum = AtenAddTensorOp::create(rewriter, loc, inputType, reluZ,
+                                              log1p, /*alpha=*/one);
+    Value out = AtenDivScalarOp::create(rewriter, loc, inputType, stableSum,
+                                        op.getBeta());
 
-    // Select where x * beta > threshold
+    // Select where x * beta > threshold. The threshold arm returns x directly
+    // (matching eager); the stable arm above is finite for all inputs, so the
+    // select never has to discard a +inf.
     auto boolResType = inputType.getWithSizesAndDtype(inputType.getSizes(),
                                                       rewriter.getI1Type());
     Value condition = AtenGtScalarOp::create(rewriter, loc, boolResType,

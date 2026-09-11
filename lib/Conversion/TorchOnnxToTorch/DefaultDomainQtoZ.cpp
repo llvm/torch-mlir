@@ -2610,21 +2610,44 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                       binder.op, resultType, operand);
                   return success();
                 });
-  patterns.onOp(
-      "Softplus", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Torch::ValueTensorType resultType;
-        Value input;
-        if (binder.tensorOperand(input) ||
-            binder.tensorResultType(resultType)) {
-          return failure();
-        }
-        // out = ln(exp(x) + 1)
-        Value exp = Torch::AtenExpOp::create(rewriter, binder.getLoc(),
-                                             resultType, input);
-        rewriter.replaceOpWithNewOp<Torch::AtenLog1pOp>(binder.op, resultType,
-                                                        exp);
-        return success();
-      });
+  patterns.onOp("Softplus", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value input;
+                  if (binder.tensorOperand(input) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  Location loc = binder.getLoc();
+                  // ONNX Softplus(x) = ln(exp(x) + 1). Emit aten.softplus (beta
+                  // = 1) and let DecomposeAtenSoftplusOp expand it to the
+                  // numerically stable form max(beta*x, 0) +
+                  // log1p(exp(-|beta*x|)) rather than the overflow-prone
+                  // ln(exp(x) + 1). Routing through the shared op keeps the
+                  // ONNX, FX, and TorchScript frontends on identical numerics.
+                  //
+                  // beta = 1 matches the ONNX spec. threshold = 20 is PyTorch's
+                  // default: for beta*x > threshold aten.softplus returns x
+                  // directly instead of the full formula. That shortcut is
+                  // bit-exact against ONNX in fp32, because what it drops is
+                  // below the fp32 rounding granularity at x = 20:
+                  //   - dropped tail: ln(1 + exp(x)) - x = ln(1 + exp(-x))
+                  //     ~= exp(-x) for large x; at x = 20 that is
+                  //     exp(-20) ~= 2.06e-9.
+                  //   - fp32 ulp at 20: since 16 <= 20 < 32 the exponent is 4
+                  //     and, with 23 mantissa bits, ulp = 2^(4-23) = 2^-19
+                  //     ~= 1.9e-6.
+                  // The tail (~2.06e-9) is ~1000x smaller than ulp(20)
+                  // (~1.9e-6), so ln(1 + exp(20)) rounds to the same fp32 bits
+                  // as 20 and returning x is spec-exact.
+                  Value beta = Torch::ConstantIntOp::create(
+                      rewriter, loc, rewriter.getI64IntegerAttr(1));
+                  Value threshold = Torch::ConstantIntOp::create(
+                      rewriter, loc, rewriter.getI64IntegerAttr(20));
+                  rewriter.replaceOpWithNewOp<Torch::AtenSoftplusOp>(
+                      binder.op, resultType, input, beta, threshold);
+                  return success();
+                });
   patterns.onOp(
       "Softsign", 22, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
