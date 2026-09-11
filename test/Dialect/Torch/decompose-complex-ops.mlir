@@ -1673,8 +1673,8 @@ func.func @torch.aten.linalg_vector_norm$zero_dim_keepdim(%arg0: !torch.vtensor<
 //   max(a, b) + log1p(exp(-|a - b|))
 // rather than the naive log(exp(a) + exp(b)) (which overflows to +inf in fp32
 // once a or b exceeds ~88). Only ever exponentiating -|a - b| <= 0 avoids this.
-// When a == b == +/-inf the diff is NaN, so an inf-mask selects the shared
-// infinity (matching PyTorch) instead of returning NaN.
+// When a == b == +/-inf the diff is NaN, so an inf-mask on max(a, b) selects
+// that infinity (matching PyTorch) instead of returning NaN.
 // CHECK-LABEL: func.func @torch.aten.logaddexp(
 // CHECK-SAME:      %[[A:.*]]: !torch.vtensor<[3,4],f32>, %[[B:.*]]: !torch.vtensor<[3,4],f32>
 // CHECK:         %[[SUB:.*]] = torch.aten.sub.Tensor %[[A]], %[[B]]
@@ -1684,12 +1684,10 @@ func.func @torch.aten.linalg_vector_norm$zero_dim_keepdim(%arg0: !torch.vtensor<
 // CHECK:         %[[EXP:.*]] = torch.aten.exp %[[NEG]]
 // CHECK:         %[[LOG1P:.*]] = torch.aten.log1p %[[EXP]]
 // CHECK:         %[[STABLE:.*]] = torch.aten.add.Tensor %[[MAX]], %[[LOG1P]]
-// isinf(a) is itself decomposed within this pass to abs(a) == inf.
-// CHECK:         %[[ABSA:.*]] = torch.aten.abs %[[A]]
-// CHECK:         %[[ISINF:.*]] = torch.aten.eq.Scalar %[[ABSA]], %{{.*}}
-// CHECK:         %[[EQ:.*]] = torch.aten.eq.Tensor %[[A]], %[[B]]
-// CHECK:         %[[MASK:.*]] = torch.aten.logical_and %[[ISINF]], %[[EQ]]
-// CHECK:         %[[RES:.*]] = torch.aten.where.self %[[MASK]], %[[A]], %[[STABLE]]
+// isinf(max) is itself decomposed within this pass to abs(max) == inf.
+// CHECK:         %[[ABSMAX:.*]] = torch.aten.abs %[[MAX]]
+// CHECK:         %[[ISINF:.*]] = torch.aten.eq.Scalar %[[ABSMAX]], %{{.*}}
+// CHECK:         %[[RES:.*]] = torch.aten.where.self %[[ISINF]], %[[MAX]], %[[STABLE]]
 // CHECK-NOT:     torch.aten.logaddexp
 // CHECK:         return %[[RES]]
 func.func @torch.aten.logaddexp(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32> {
@@ -1701,7 +1699,7 @@ func.func @torch.aten.logaddexp(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.
 
 // logaddexp2 uses the base-2 analogue of the stable form:
 //   max(a, b) + log2(1 + 2^(-|a - b|)).
-// The same inf-mask guard selects a shared +/-inf input over the NaN diff.
+// The same inf-mask on max(a, b) selects a +/-inf input over the NaN diff.
 // CHECK-LABEL: func.func @torch.aten.logaddexp2(
 // CHECK-SAME:      %[[A:.*]]: !torch.vtensor<[3,4],f32>, %[[B:.*]]: !torch.vtensor<[3,4],f32>
 // CHECK:         %[[SUB:.*]] = torch.aten.sub.Tensor %[[A]], %[[B]]
@@ -1712,12 +1710,10 @@ func.func @torch.aten.logaddexp(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.
 // CHECK:         %[[ADD1:.*]] = torch.aten.add.Scalar %[[POW]]
 // CHECK:         %[[LOG2:.*]] = torch.aten.log2 %[[ADD1]]
 // CHECK:         %[[STABLE:.*]] = torch.aten.add.Tensor %[[MAX]], %[[LOG2]]
-// isinf(a) is itself decomposed within this pass to abs(a) == inf.
-// CHECK:         %[[ABSA:.*]] = torch.aten.abs %[[A]]
-// CHECK:         %[[ISINF:.*]] = torch.aten.eq.Scalar %[[ABSA]], %{{.*}}
-// CHECK:         %[[EQ:.*]] = torch.aten.eq.Tensor %[[A]], %[[B]]
-// CHECK:         %[[MASK:.*]] = torch.aten.logical_and %[[ISINF]], %[[EQ]]
-// CHECK:         %[[RES:.*]] = torch.aten.where.self %[[MASK]], %[[A]], %[[STABLE]]
+// isinf(max) is itself decomposed within this pass to abs(max) == inf.
+// CHECK:         %[[ABSMAX:.*]] = torch.aten.abs %[[MAX]]
+// CHECK:         %[[ISINF:.*]] = torch.aten.eq.Scalar %[[ABSMAX]], %{{.*}}
+// CHECK:         %[[RES:.*]] = torch.aten.where.self %[[ISINF]], %[[MAX]], %[[STABLE]]
 // CHECK-NOT:     torch.aten.logaddexp2
 // CHECK:         return %[[RES]]
 func.func @torch.aten.logaddexp2(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32> {

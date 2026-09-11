@@ -3287,20 +3287,13 @@ static LogicalResult decomposeLogAddExp(OpTy op, PatternRewriter &rewriter,
 
   // When both inputs are the same infinity (a == b == +/-inf) the diff a - b
   // is NaN, which poisons `stable` into NaN. PyTorch instead returns that
-  // shared infinity. Guard with an inf-mask that selects `self` in that case:
-  //   inf_mask = isinf(a) && (a == b)
-  //   result   = where(inf_mask, a, stable)
-  // PyTorch's `_refs.logaddexp` writes this as `!isfinite(a) && a == b`; since
-  // `a == b` is already false when either operand is NaN, `isinf(a)` is
-  // equivalent there and (unlike aten.isfinite) lowers to the linalg backend.
+  // shared infinity. Guard on the already-computed max: whenever m = max(a, b)
+  // is infinite, m is itself the correct answer, so select it over `stable`:
+  //   result = where(isinf(m), m, stable)
   Type boolTy = outTy.getWithSizesAndDtype(outTy.getOptionalSizes(),
                                            rewriter.getI1Type());
-  Value selfIsInf = AtenIsinfOp::create(rewriter, loc, boolTy, self);
-  Value selfEqOther =
-      AtenEqTensorOp::create(rewriter, loc, boolTy, self, other);
-  Value infMask =
-      AtenLogicalAndOp::create(rewriter, loc, boolTy, selfIsInf, selfEqOther);
-  rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, outTy, infMask, self,
+  Value maxIsInf = AtenIsinfOp::create(rewriter, loc, boolTy, maxAB);
+  rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, outTy, maxIsInf, maxAB,
                                                stable);
   return success();
 }
