@@ -3550,6 +3550,9 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ElementwiseAcosModule_basic",
     "ElementwiseAcoshIntModule_basic",
     "ElementwiseAcoshModule_basic",
+    # TODO: TorchToTosa has its own dtype promotion path which still
+    # sign-extends unsigned operands for bitwise ops.
+    "ElementwiseAndTensorMixedDtypeModule_basic",
     "ElementwiseAsinIntModule_basic",
     "ElementwiseAsinModule_basic",
     "ElementwiseAsinhIntModule_basic",
