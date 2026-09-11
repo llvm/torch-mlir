@@ -2389,6 +2389,35 @@ def SoftplusModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class SoftplusLargeMagnitudeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.softplus(x)
+
+
+@register_test_case(module_factory=lambda: SoftplusLargeMagnitudeModule())
+def SoftplusLargeMagnitudeModule_basic(module, tu: TestUtils):
+    # Inputs on both sides of the fp32 exp overflow threshold (~88). The stable
+    # (max(z, 0) + log1p(exp(-|z|))) / beta arm in DecomposeAtenSoftplusOp keeps
+    # these finite and matches eager, where the old naive log1p(exp(z)) arm
+    # would materialize +inf before the threshold select discards it.
+    module.forward(
+        torch.tensor([[100.0, -100.0, 90.0], [-90.0, 0.5, -0.5], [200.0, -200.0, 1.0]])
+    )
+
+
+# ==============================================================================
+
+
 class HardsigmoidModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
