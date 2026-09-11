@@ -1722,3 +1722,108 @@ func.func @torch.aten.linalg_vector_norm$zero_dim_keepdim(%arg0: !torch.vtensor<
   %0 = torch.aten.linalg_vector_norm %arg0, %ord, %dim, %keepdim, %dtype : !torch.vtensor<[3,4],f32>, !torch.float, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[3,1],f32>
   return %0 : !torch.vtensor<[3,1],f32>
 }
+
+// -----
+
+// im2col becomes two sliding-window unfolds, a permute that moves the kernel
+// dims next to the channels, and a collapse into [N, C*kH*kW, L].
+// CHECK-LABEL: func.func @torch.aten.im2col$basic(
+// CHECK-SAME:      %[[SELF:.*]]: !torch.vtensor<[1,2,4,4],f32>
+// CHECK-NOT:     torch.aten.im2col
+// CHECK-NOT:     torch.aten.constant_pad_nd
+// CHECK:         %[[H:.*]] = torch.aten.unfold %[[SELF]], %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[1,2,4,4],f32>, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[1,2,3,4,2],f32>
+// CHECK:         %[[W:.*]] = torch.aten.unfold %[[H]], %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[1,2,3,4,2],f32>, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[1,2,3,3,2,2],f32>
+// CHECK:         %[[PERM:.*]] = torch.aten.permute %[[W]], %{{.*}} : !torch.vtensor<[1,2,3,3,2,2],f32>, !torch.list<int> -> !torch.vtensor<[1,2,2,2,3,3],f32>
+// CHECK:         %[[OUT:.*]] = torch.aten.view %[[PERM]], %{{.*}} : !torch.vtensor<[1,2,2,2,3,3],f32>, !torch.list<int> -> !torch.vtensor<[1,8,9],f32>
+// CHECK:         return %[[OUT]]
+func.func @torch.aten.im2col$basic(%arg0: !torch.vtensor<[1,2,4,4],f32>) -> !torch.vtensor<[1,8,9],f32> {
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int0 = torch.constant.int 0
+  %kernel = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.im2col %arg0, %kernel, %dilation, %padding, %stride : !torch.vtensor<[1,2,4,4],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int> -> !torch.vtensor<[1,8,9],f32>
+  return %0 : !torch.vtensor<[1,8,9],f32>
+}
+
+// -----
+
+// Padding widens the input first; stride becomes the unfold step.
+// CHECK-LABEL: func.func @torch.aten.im2col$padding_stride(
+// CHECK-SAME:      %[[SELF:.*]]: !torch.vtensor<[2,3,5,5],f32>
+// CHECK:         %[[PAD:.*]] = torch.aten.constant_pad_nd %[[SELF]], %{{.*}}, %{{.*}} : !torch.vtensor<[2,3,5,5],f32>, !torch.list<int>, !torch.float -> !torch.vtensor<[2,3,7,7],f32>
+// CHECK:         %[[H:.*]] = torch.aten.unfold %[[PAD]], %{{.*}} -> !torch.vtensor<[2,3,3,7,3],f32>
+// CHECK:         %[[W:.*]] = torch.aten.unfold %[[H]], %{{.*}} -> !torch.vtensor<[2,3,3,3,3,3],f32>
+// CHECK:         torch.aten.view %{{.*}} -> !torch.vtensor<[2,27,9],f32>
+func.func @torch.aten.im2col$padding_stride(%arg0: !torch.vtensor<[2,3,5,5],f32>) -> !torch.vtensor<[2,27,9],f32> {
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %kernel = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.im2col %arg0, %kernel, %dilation, %padding, %stride : !torch.vtensor<[2,3,5,5],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int> -> !torch.vtensor<[2,27,9],f32>
+  return %0 : !torch.vtensor<[2,27,9],f32>
+}
+
+// -----
+
+// Dilation unfolds at the dilated extent (2*(2-1)+1 = 3 rows) and then strides
+// that dim down to the kernel size; the unit-dilation dim needs no slice.
+// CHECK-LABEL: func.func @torch.aten.im2col$dilation(
+// CHECK:         %[[W:.*]] = torch.aten.unfold %{{.*}} -> !torch.vtensor<[1,1,4,4,3,3],f32>
+// CHECK:         %[[SLICE:.*]] = torch.aten.slice.Tensor %[[W]], %{{.*}} : !torch.vtensor<[1,1,4,4,3,3],f32>, !torch.int, !torch.int, !torch.none, !torch.int -> !torch.vtensor<[1,1,4,4,2,3],f32>
+// CHECK:         %[[PERM:.*]] = torch.aten.permute %[[SLICE]], %{{.*}} -> !torch.vtensor<[1,1,2,3,4,4],f32>
+// CHECK:         torch.aten.view %[[PERM]], %{{.*}} -> !torch.vtensor<[1,6,16],f32>
+func.func @torch.aten.im2col$dilation(%arg0: !torch.vtensor<[1,1,6,6],f32>) -> !torch.vtensor<[1,6,16],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %kernel = torch.prim.ListConstruct %int2, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %int2, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.im2col %arg0, %kernel, %dilation, %padding, %stride : !torch.vtensor<[1,1,6,6],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int> -> !torch.vtensor<[1,6,16],f32>
+  return %0 : !torch.vtensor<[1,6,16],f32>
+}
+
+// -----
+
+// A 3-D input is batched for the duration and squeezed again at the end.
+// CHECK-LABEL: func.func @torch.aten.im2col$unbatched(
+// CHECK-SAME:      %[[SELF:.*]]: !torch.vtensor<[2,4,4],f32>
+// CHECK:         %[[UNSQ:.*]] = torch.aten.unsqueeze %[[SELF]], %{{.*}} : !torch.vtensor<[2,4,4],f32>, !torch.int -> !torch.vtensor<[1,2,4,4],f32>
+// CHECK:         %[[VIEW:.*]] = torch.aten.view %{{.*}} -> !torch.vtensor<[1,8,9],f32>
+// CHECK:         %[[OUT:.*]] = torch.aten.squeeze.dim %[[VIEW]], %{{.*}} : !torch.vtensor<[1,8,9],f32>, !torch.int -> !torch.vtensor<[8,9],f32>
+// CHECK:         return %[[OUT]]
+func.func @torch.aten.im2col$unbatched(%arg0: !torch.vtensor<[2,4,4],f32>) -> !torch.vtensor<[8,9],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %kernel = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.im2col %arg0, %kernel, %dilation, %padding, %stride : !torch.vtensor<[2,4,4],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int> -> !torch.vtensor<[8,9],f32>
+  return %0 : !torch.vtensor<[8,9],f32>
+}
+
+// -----
+
+// Non-constant parameters leave the op alone.
+// CHECK-LABEL: func.func @torch.aten.im2col$dynamic_params(
+// CHECK:         torch.aten.im2col
+func.func @torch.aten.im2col$dynamic_params(%arg0: !torch.vtensor<[1,2,4,4],f32>, %arg1: !torch.int) -> !torch.vtensor<[?,?,?],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %kernel = torch.prim.ListConstruct %arg1, %arg1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.im2col %arg0, %kernel, %dilation, %padding, %stride : !torch.vtensor<[1,2,4,4],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int> -> !torch.vtensor<[?,?,?],f32>
+  return %0 : !torch.vtensor<[?,?,?],f32>
+}

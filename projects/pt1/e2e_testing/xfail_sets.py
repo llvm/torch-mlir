@@ -1751,6 +1751,11 @@ FX_IMPORTER_TOSA_CRASHING_SET = {
 # Write the TOSA set as a "passing" set as it is very early in development
 # and very few tests work yet.
 TOSA_PASS_SET = {
+    "Im2colAllParamsModule_basic",
+    "Im2colDilationModule_basic",
+    "Im2colModule_basic",
+    "Im2colPaddingStrideModule_basic",
+    "Im2colUnbatchedModule_basic",
     "AddbmmBetaZeroNonFiniteInputModule_basic",
     "AddbmmWithAlphaBetaModule_basic",
     "AtenAsStridedAfterAliasDetachModule_basic",
@@ -2601,6 +2606,12 @@ LTC_CRASHING_SET = {
 }
 
 LTC_XFAIL_SET = {
+    # aten.im2col is not supported on the LTC path.
+    "Im2colAllParamsModule_basic",
+    "Im2colDilationModule_basic",
+    "Im2colModule_basic",
+    "Im2colPaddingStrideModule_basic",
+    "Im2colUnbatchedModule_basic",
     "TorchPrimLoopForLikeTensorArgModule_basic",
     "CollapseAllDimensionsModule_basic",
     "TorchPrimLoopWhileLikeHOPModule_basic",
@@ -2758,6 +2769,9 @@ LTC_XFAIL_SET = {
 }
 
 ONNX_XFAIL_SET = {
+    # The ONNX export of an unbatched (3-D) unfold emits an onnx.Pad that the
+    # torch-onnx-to-torch path does not handle.
+    "Im2colUnbatchedModule_basic",
     # The ONNX test configuration replaces annotated integer inputs with
     # zero-filled placeholders. Their sums do not match these tests' fixed
     # nonzero output_size values, so eager repeat_interleave rejects them
@@ -3799,6 +3813,12 @@ ONNX_TOSA_CRASHING_SET = {
 }
 
 ONNX_TOSA_XFAIL_SET = {
+    # torch.onnx.export does not round-trip aten.im2col.
+    "Im2colAllParamsModule_basic",
+    "Im2colDilationModule_basic",
+    "Im2colModule_basic",
+    "Im2colPaddingStrideModule_basic",
+    "Im2colUnbatchedModule_basic",
     # PyTorch's ONNX exporter does not support aten::addbmm.
     "AddbmmBetaZeroNonFiniteInputModule_basic",
     # PyTorch's ONNX exporter does not support aten::addbmm.
