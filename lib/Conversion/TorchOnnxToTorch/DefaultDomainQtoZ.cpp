@@ -2634,10 +2634,10 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
             Torch::AtenLog1pOp::create(rewriter, loc, resultType, expNegAbsX);
         Value reluX =
             Torch::AtenReluOp::create(rewriter, loc, resultType, input);
-        Value one = Torch::ConstantIntOp::create(rewriter, loc,
-                                                 rewriter.getI64IntegerAttr(1));
+        Value alpha = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(1));
         rewriter.replaceOpWithNewOp<Torch::AtenAddTensorOp>(
-            binder.op, resultType, reluX, log1p, one);
+            binder.op, resultType, reluX, log1p, /*alpha=*/alpha);
         return success();
       });
   patterns.onOp(
