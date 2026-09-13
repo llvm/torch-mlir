@@ -11412,8 +11412,7 @@ LogicalResult ConvertAtenOp<AtenAcoshOp>::matchAndRewriteImpl(
   // acosh formula:
   // yi = log(x + sqrt(x^2 - 1))
   // Note: This lowering might not provide as great precision as aten.acosh
-  // since TOSA doesn't have a built-in acosh op. acosh is only defined for
-  // x >= 1; outside that domain the sqrt yields NaN, matching aten.acosh.
+  // since TOSA doesn't have a built-in acosh op.
   auto self = adaptor.getSelf();
 
   auto selfType = dyn_cast<TensorType>(self.getType());
