@@ -11353,9 +11353,7 @@ LogicalResult ConvertAtenOp<AtenSinhOp>::matchAndRewriteImpl(
   // sinh formula:
   // yi = (exp(x) - exp(-x)) / 2
   // Note: This lowering might not provide as great precision as aten.sinh
-  // since TOSA doesn't have a built-in sinh op. In particular it is subject to
-  // cancellation for inputs near zero and overflows for large magnitudes
-  // earlier than a native implementation would.
+  // since TOSA doesn't have a built-in sinh op.
   auto self = adaptor.getSelf();
 
   auto selfType = dyn_cast<TensorType>(self.getType());
@@ -11384,8 +11382,8 @@ LogicalResult ConvertAtenOp<AtenSinhOp>::matchAndRewriteImpl(
 
   auto expOp = tosa::ExpOp::create(rewriter, op->getLoc(), resultType, self);
   auto negOp = tosa::NegateOp::create(rewriter, op->getLoc(), resultType, self);
-  auto expNegOp =
-      tosa::ExpOp::create(rewriter, op->getLoc(), resultType, negOp.getResult());
+  auto expNegOp = tosa::ExpOp::create(rewriter, op->getLoc(), resultType,
+                                      negOp.getResult());
 
   auto subOp = tosa::SubOp::create(rewriter, op->getLoc(), resultType,
                                    expOp.getResult(), expNegOp.getResult());
@@ -11406,8 +11404,7 @@ LogicalResult ConvertAtenOp<AtenCoshOp>::matchAndRewriteImpl(
   // cosh formula:
   // yi = (exp(x) + exp(-x)) / 2
   // Note: This lowering might not provide as great precision as aten.cosh
-  // since TOSA doesn't have a built-in cosh op. In particular it overflows for
-  // large magnitudes earlier than a native implementation would.
+  // since TOSA doesn't have a built-in cosh op.
   auto self = adaptor.getSelf();
 
   auto selfType = dyn_cast<TensorType>(self.getType());
@@ -11436,8 +11433,8 @@ LogicalResult ConvertAtenOp<AtenCoshOp>::matchAndRewriteImpl(
 
   auto expOp = tosa::ExpOp::create(rewriter, op->getLoc(), resultType, self);
   auto negOp = tosa::NegateOp::create(rewriter, op->getLoc(), resultType, self);
-  auto expNegOp =
-      tosa::ExpOp::create(rewriter, op->getLoc(), resultType, negOp.getResult());
+  auto expNegOp = tosa::ExpOp::create(rewriter, op->getLoc(), resultType,
+                                      negOp.getResult());
 
   auto addOp = tosa::AddOp::create(rewriter, op->getLoc(), resultType,
                                    expOp.getResult(), expNegOp.getResult());
