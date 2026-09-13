@@ -11345,6 +11345,125 @@ LogicalResult ConvertAtenOp<AtenExpm1Op>::matchAndRewriteImpl(
   return success();
 }
 
+// Legalization for aten.asinh
+template <>
+LogicalResult ConvertAtenOp<AtenAsinhOp>::matchAndRewriteImpl(
+    AtenAsinhOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  // asinh formula:
+  // yi = log(x + sqrt(x^2 + 1))
+  // Note: This lowering might not provide as great precision as aten.asinh
+  // since TOSA doesn't have a built-in asinh op.
+  auto self = adaptor.getSelf();
+
+  auto selfType = dyn_cast<TensorType>(self.getType());
+  if (!selfType)
+    return rewriter.notifyMatchFailure(op, "Only tensor types are supported");
+
+  auto resultType =
+      dyn_cast<TensorType>(typeConverter->convertType(op.getType()));
+  auto resultElemTy = resultType.getElementType();
+
+  if (!isa<mlir::FloatType>(resultElemTy))
+    return rewriter.notifyMatchFailure(
+        op, "Only floating-point datatype result types are supported");
+
+  // If input is not a float type then cast it to result element type
+  auto selfElemTy = selfType.getElementType();
+  if (!isa<mlir::FloatType>(selfElemTy))
+    self = tosa::tosaCastTensorToType(rewriter, self, resultType).value();
+
+  auto one =
+      tosa::getConstTensor<float>(rewriter, op, 1.0f, {}, resultElemTy).value();
+  auto oneHalf =
+      tosa::getConstTensor<float>(rewriter, op, 0.5f, {}, resultElemTy).value();
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, one).failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, oneHalf).failed())
+    return rewriter.notifyMatchFailure(
+        op, "Failed to equalize ranks among operands and result");
+
+  auto squaredOp = tosa::createMulOpAndCast(rewriter, op, resultType, self,
+                                            self, /*shift=*/0);
+
+  auto addOneOp = tosa::AddOp::create(rewriter, op->getLoc(), resultType,
+                                      squaredOp.getResult(), one);
+
+  // sqrt(x) is computed as pow(x, 0.5), matching the aten.sqrt lowering.
+  auto sqrtOp = tosa::PowOp::create(rewriter, op->getLoc(), resultType,
+                                    addOneOp.getResult(), oneHalf);
+
+  auto sumOp = tosa::AddOp::create(rewriter, op->getLoc(), resultType, self,
+                                   sqrtOp.getResult());
+
+  auto result = tosa::LogOp::create(rewriter, op->getLoc(), resultType,
+                                    sumOp.getResult());
+
+  rewriter.replaceOp(op, {result.getResult()});
+
+  return success();
+}
+
+// Legalization for aten.acosh
+template <>
+LogicalResult ConvertAtenOp<AtenAcoshOp>::matchAndRewriteImpl(
+    AtenAcoshOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  // acosh formula:
+  // yi = log(x + sqrt(x^2 - 1))
+  // Note: This lowering might not provide as great precision as aten.acosh
+  // since TOSA doesn't have a built-in acosh op. acosh is only defined for
+  // x >= 1; outside that domain the sqrt yields NaN, matching aten.acosh.
+  auto self = adaptor.getSelf();
+
+  auto selfType = dyn_cast<TensorType>(self.getType());
+  if (!selfType)
+    return rewriter.notifyMatchFailure(op, "Only tensor types are supported");
+
+  auto resultType =
+      dyn_cast<TensorType>(typeConverter->convertType(op.getType()));
+  auto resultElemTy = resultType.getElementType();
+
+  if (!isa<mlir::FloatType>(resultElemTy))
+    return rewriter.notifyMatchFailure(
+        op, "Only floating-point datatype result types are supported");
+
+  // If input is not a float type then cast it to result element type
+  auto selfElemTy = selfType.getElementType();
+  if (!isa<mlir::FloatType>(selfElemTy))
+    self = tosa::tosaCastTensorToType(rewriter, self, resultType).value();
+
+  auto one =
+      tosa::getConstTensor<float>(rewriter, op, 1.0f, {}, resultElemTy).value();
+  auto oneHalf =
+      tosa::getConstTensor<float>(rewriter, op, 0.5f, {}, resultElemTy).value();
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, one).failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, oneHalf).failed())
+    return rewriter.notifyMatchFailure(
+        op, "Failed to equalize ranks among operands and result");
+
+  auto squaredOp = tosa::createMulOpAndCast(rewriter, op, resultType, self,
+                                            self, /*shift=*/0);
+
+  auto subOneOp = tosa::SubOp::create(rewriter, op->getLoc(), resultType,
+                                      squaredOp.getResult(), one);
+
+  // sqrt(x) is computed as pow(x, 0.5), matching the aten.sqrt lowering.
+  auto sqrtOp = tosa::PowOp::create(rewriter, op->getLoc(), resultType,
+                                    subOneOp.getResult(), oneHalf);
+
+  auto sumOp = tosa::AddOp::create(rewriter, op->getLoc(), resultType, self,
+                                   sqrtOp.getResult());
+
+  auto result = tosa::LogOp::create(rewriter, op->getLoc(), resultType,
+                                    sumOp.getResult());
+
+  rewriter.replaceOp(op, {result.getResult()});
+
+  return success();
+}
+
 // Legalization for aten.atan
 // NOTE: TOSA has no native atan op, so this lowering is approximate.
 template <>
@@ -12690,6 +12809,8 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
   INSERT_ATENOP_PATTERN(AtenLog1pOp);
   INSERT_ATENOP_PATTERN(AtenLog10Op);
   INSERT_ATENOP_PATTERN(AtenExpm1Op);
+  INSERT_ATENOP_PATTERN(AtenAsinhOp);
+  INSERT_ATENOP_PATTERN(AtenAcoshOp);
   INSERT_ATENOP_PATTERN(AtenAtanOp);
   INSERT_ATENOP_PATTERN(AtenTanOp);
   INSERT_ATENOP_PATTERN(AtenUnfoldOp);
