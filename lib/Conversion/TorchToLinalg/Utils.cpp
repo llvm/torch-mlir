@@ -633,8 +633,17 @@ Value torch_to_linalg::convertTensorToElementType(OpBuilder &b, Location loc,
                                                   Type elementType) {
   auto dtypePromoteBody = [&](OpBuilder &builder, Location loc,
                               ValueRange payloadArgs) {
-    Value elem =
-        convertScalarToDtype(builder, loc, payloadArgs[0], elementType);
+    // convertScalarToDtype requires dstOriginalDtype for 8-bit ints (byte/char
+    // semantics) and otherwise errors out.
+    std::optional<Type> dstOriginalDtype = std::nullopt;
+    if (auto iTy = dyn_cast<IntegerType>(elementType);
+        iTy && iTy.getWidth() == 8)
+      dstOriginalDtype = elementType;
+
+    Value elem = convertScalarToDtype(builder, loc, payloadArgs[0], elementType,
+                                      /*srcOriginalDtype=*/std::nullopt,
+                                      /*dstOriginalDtype=*/dstOriginalDtype,
+                                      /*originalScalar=*/std::nullopt);
     linalg::YieldOp::create(builder, loc, elem);
   };
   return torch_to_linalg::createElementwiseLinalgGeneric(
