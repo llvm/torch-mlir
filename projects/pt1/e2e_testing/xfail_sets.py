@@ -76,12 +76,6 @@ LINALG_CRASHING_SET = {
     "GridSamplerBasic2_basic",
     "GridSamplerBasic3_basic",
     "GridSamplerBasic4_basic",
-    # Runtime op verification: stride mismatch in memref.cast
-    "ReduceAllDimEmpty_basic",
-    "TraceUnsignedIntModule_empty",
-    "TraceModule_empty",
-    # Crashes due to copy to a smaller destination buffer than the source buffer.
-    "SliceCopyStartGreaterThanDimSize_Module_basic",
     # unimplemented: for conversion to byte or char type dstOriginalDtype has to be passed to convertScalarToDtype
     "AtenMmInt8Types_basic",
     "AtenMmInt8ZeroK_basic",
