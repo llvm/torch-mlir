@@ -3560,8 +3560,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ElementwiseAtan2TensorFloatStaticModule_basic",
     "ElementwiseAtan2TensorIntModule_basic",
     "ElementwiseAtan2TensorIntStaticModule_basic",
-    "ElementwiseAtanhIntModule_basic",
-    "ElementwiseAtanhModule_basic",
     "ElementwiseCoshIntModule_basic",
     "ElementwiseCoshModule_basic",
     "ElementwiseDequantizePerChannelModule_basic",
