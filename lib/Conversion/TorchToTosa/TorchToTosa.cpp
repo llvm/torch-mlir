@@ -11353,9 +11353,7 @@ LogicalResult ConvertAtenOp<AtenAtanhOp>::matchAndRewriteImpl(
   // atanh formula:
   // yi = 0.5 * log((1 + x) / (1 - x))
   // Note: This lowering might not provide as great precision as aten.atanh
-  // since TOSA doesn't have a built-in atanh op. atanh is only defined for
-  // |x| < 1; at |x| == 1 the division yields +/-inf and beyond it the log of a
-  // negative value yields NaN, both matching aten.atanh.
+  // since TOSA doesn't have a built-in atanh op.
   auto self = adaptor.getSelf();
 
   auto selfType = dyn_cast<TensorType>(self.getType());
