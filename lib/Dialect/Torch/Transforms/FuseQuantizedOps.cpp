@@ -51,6 +51,12 @@ bool isQCommutingOp(mlir::Operation *op) {
 struct QuantizedChain {
   std::stack<mlir::Operation *> commutingOpStack;
   Value dequantOpd, MPTQTOpd, scale, zeroPoint;
+  Value axis; // Set only for per-channel chains (weights): scale/zeroPoint are
+              // tensors.
+  bool onlyTransposeCommuting = true; // Per-channel chains may only replay
+                                      // transposes (a reshape/view could
+                                      // split or merge the channel axis),
+                                      // true while every commuting op is one.
 };
 
 // The following conversion takes patterns of the form [op0 -> MPTQT -> dequant
@@ -91,6 +97,7 @@ public:
         // Case 1 : currOp is a q commuting op (continue loop)
         if (isQCommutingOp(currOp)) {
           chain.commutingOpStack.push(currOp);
+          chain.onlyTransposeCommuting &= llvm::isa<AtenTransposeIntOp>(currOp);
           // set operand to currOp for next k-iteration
           operand = currOp->getOperand(0);
           continue;
@@ -98,18 +105,30 @@ public:
         // Case 2 : currOp is a dequant op (end loop)
         if (llvm::isa<AtenDequantizeSelfOp, AtenDequantizeTensorOp>(currOp)) {
           chain.dequantOpd = currOp->getOperand(0);
-          // Bail out if any operand is per-channel quantized, which would
-          // require more complex fusion logic.
-          if (llvm::isa<Aten_MakePerChannelQuantizedTensorOp>(
-                  chain.dequantOpd.getDefiningOp()))
-            break;
-
-          auto MPTQTOp =
-              chain.dequantOpd
-                  .getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>();
-          chain.MPTQTOpd = MPTQTOp.getOperand(0);
-          chain.scale = MPTQTOp.getOperand(1);
-          chain.zeroPoint = MPTQTOp.getOperand(2);
+          if (auto MPCQTOp =
+                  chain.dequantOpd
+                      .getDefiningOp<Aten_MakePerChannelQuantizedTensorOp>()) {
+            // Per-channel is only supported on the weight operand, and only
+            // past transposes (the axis swap is replayed below).
+            if (i != 1 || !chain.onlyTransposeCommuting)
+              break;
+            // Only a constant all-zero (symmetric) per-channel weight
+            // zero-point can be fused, anything else falls back to QDQ.
+            DenseElementsAttr zpAttr;
+            if (!matchPattern(MPCQTOp.getZeroPoint(), m_Constant(&zpAttr)) ||
+                !llvm::all_of(zpAttr.getValues<APInt>(),
+                              [](const APInt &v) { return v.isZero(); }))
+              break;
+            chain.MPTQTOpd = MPCQTOp.getSelf();
+            chain.scale = MPCQTOp.getScale();
+            chain.zeroPoint = MPCQTOp.getZeroPoint();
+            chain.axis = MPCQTOp.getAxis();
+          } else if (auto MPTQTOp = chain.dequantOpd.getDefiningOp<
+                                    Aten_MakePerTensorQuantizedTensorOp>()) {
+            chain.MPTQTOpd = MPTQTOp.getOperand(0);
+            chain.scale = MPTQTOp.getOperand(1);
+            chain.zeroPoint = MPTQTOp.getOperand(2);
+          }
         }
         // either a dequant was found or chain broken, so break loop
         break;
@@ -188,6 +207,23 @@ public:
           // quantPadValue is a float, but will get converted/truncated
           currOperands.back() = quantPadValue;
         }
+        if (chain.axis) {
+          auto transposeOp = cast<AtenTransposeIntOp>(currOp);
+          int64_t dim0, dim1, axis;
+          if (matchPattern(transposeOp.getDim0(), m_TorchConstantInt(&dim0)) &&
+              matchPattern(transposeOp.getDim1(), m_TorchConstantInt(&dim1)) &&
+              matchPattern(chain.axis, m_TorchConstantInt(&axis))) {
+            int64_t rank =
+                cast<ValueTensorType>(transposeOp.getType()).getSizes().size();
+            dim0 = toPositiveDim(dim0, rank);
+            dim1 = toPositiveDim(dim1, rank);
+            axis = toPositiveDim(axis, rank);
+            if (axis == dim0 || axis == dim1) {
+              chain.axis = Torch::ConstantIntOp::create(
+                  rewriter, loc, axis == dim0 ? dim1 : dim0);
+            }
+          }
+        }
         // get new result type
         auto oldType = cast<ValueTensorType>(currOp->getResultTypes()[0]);
         auto intType =
@@ -203,14 +239,18 @@ public:
       // stack is empty, so oldOpd is now the corrected verion of the
       // SrcOp's original operand
       // convert operand -> SrcOp to oldOpd -> newMPTQTOp -> SrcOp
-      auto MPTQTOperands = chain.dequantOpd.getDefiningOp()->getOperands();
       auto qTorchType =
           cast<ValueTensorType>(chain.dequantOpd.getType()).getOptionalDtype();
       auto newMPTQTType = rewriter.getType<ValueTensorType>(
           cast<ValueTensorType>(operands[i].getType()).getSizes(), qTorchType);
-      operands[i] = Aten_MakePerTensorQuantizedTensorOp::create(
-          rewriter, loc, newMPTQTType, oldOpd, MPTQTOperands[1],
-          MPTQTOperands[2]);
+      if (chain.axis) {
+        operands[i] = Aten_MakePerChannelQuantizedTensorOp::create(
+            rewriter, loc, newMPTQTType, oldOpd, chain.scale, chain.zeroPoint,
+            chain.axis);
+      } else {
+        operands[i] = Aten_MakePerTensorQuantizedTensorOp::create(
+            rewriter, loc, newMPTQTType, oldOpd, chain.scale, chain.zeroPoint);
+      }
     }
 
     rewriter.replaceOpWithNewOp<SrcOp>(op, op.getType(), operands);
@@ -238,7 +278,18 @@ public:
             operands[1].getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>())
       rhsScale = qRhs.getScale();
 
-    if (!rhsScale || !lhsScale)
+    Value rhsScaleTensor, rhsZpTensor;
+    if (auto qRhs =
+            operands[1].getDefiningOp<Aten_MakePerChannelQuantizedTensorOp>()) {
+      int64_t axisInt;
+      if (matchPattern(qRhs.getAxis(), m_TorchConstantInt(&axisInt)) &&
+          axisInt == 0) {
+        rhsScaleTensor = qRhs.getScale();
+        rhsZpTensor = qRhs.getZeroPoint();
+      }
+    }
+
+    if (!(rhsScale || rhsScaleTensor) || !lhsScale)
       return failure();
 
     auto resultTy = cast<ValueTensorType>(op.getType());
@@ -252,6 +303,45 @@ public:
       auto biasETy = biasTy.getOptionalDtype();
       if (!biasETy || !isa<mlir::FloatType>(biasETy))
         return failure();
+    }
+
+    if (rhsScaleTensor) {
+      auto loc = op.getLoc();
+      auto scaleTy = cast<ValueTensorType>(rhsScaleTensor.getType());
+      Value biasScaleT = AtenMulScalarOp::create(rewriter, loc, scaleTy,
+                                                 rhsScaleTensor, lhsScale);
+      auto si32Dtype = rewriter.getIntegerType(32, /*isSigned=*/true);
+      if (biasTy) {
+        Value biasDiv =
+            AtenDivTensorOp::create(rewriter, loc, biasTy, bias, biasScaleT);
+        Value biasRound = AtenRoundOp::create(rewriter, loc, biasTy, biasDiv);
+        auto biasIntTy = rewriter.getType<ValueTensorType>(
+            biasTy.getOptionalSizes(), si32Dtype);
+        Value dtypeVal = getDtypeIntValueForType(rewriter, loc, si32Dtype);
+        Value cstFalse = Torch::ConstantBoolOp::create(rewriter, loc, false);
+        Value none = Torch::ConstantNoneOp::create(rewriter, loc);
+        bias = AtenToDtypeOp::create(rewriter, loc, biasIntTy, biasRound,
+                                     dtypeVal, /*non_blocking=*/cstFalse,
+                                     /*copy=*/cstFalse,
+                                     /*memory_format=*/none);
+        operands[2] = bias;
+      }
+
+      auto qi32Ty = rewriter.getType<QInt32Type>();
+      auto convTy = rewriter.getType<ValueTensorType>(
+          resultTy.getOptionalSizes(), si32Dtype);
+      auto conv = SrcOp::create(rewriter, loc, convTy, operands);
+
+      Value axisOut = Torch::ConstantIntOp::create(
+          rewriter, loc, rewriter.getType<Torch::IntType>(),
+          rewriter.getIntegerAttr(rewriter.getIntegerType(64), 1));
+      auto convQTy = rewriter.getType<ValueTensorType>(
+          resultTy.getOptionalSizes(), qi32Ty);
+      auto makeOut = Aten_MakePerChannelQuantizedTensorOp::create(
+          rewriter, loc, convQTy, conv, biasScaleT, rhsZpTensor, axisOut);
+      rewriter.replaceOpWithNewOp<AtenDequantizeSelfOp>(op, op.getType(),
+                                                        makeOut);
+      return success();
     }
 
     Value biasScale = AtenMulFloatOp::create(
@@ -322,6 +412,44 @@ public:
     if (auto defining =
             rhs.template getDefiningOp<Aten_MakePerTensorQuantizedTensorOp>()) {
       rhsScale = defining.getScale();
+    }
+
+    if (!rhsScale) {
+      auto qRhs =
+          rhs.template getDefiningOp<Aten_MakePerChannelQuantizedTensorOp>();
+      auto rhsTy =
+          qRhs ? dyn_cast<ValueTensorType>(rhs.getType()) : ValueTensorType();
+      int64_t rhsChannelAxis;
+      if (qRhs && lhsScale && rhsTy && rhsTy.hasSizes() &&
+          matchPattern(qRhs.getAxis(), m_TorchConstantInt(&rhsChannelAxis)) &&
+          toPositiveDim(rhsChannelAxis,
+                        static_cast<int64_t>(rhsTy.getSizes().size())) ==
+              static_cast<int64_t>(rhsTy.getSizes().size()) - 1) {
+        auto loc = op.getLoc();
+        Value rhsScaleTensor = qRhs.getScale();
+        Value rhsZpTensor = qRhs.getZeroPoint();
+        auto scaleTy = cast<ValueTensorType>(rhsScaleTensor.getType());
+        Value accScale = AtenMulScalarOp::create(rewriter, loc, scaleTy,
+                                                 rhsScaleTensor, lhsScale);
+        auto si32Dtype = rewriter.getIntegerType(32, /*isSigned=*/true);
+        auto newResultTy = rewriter.getType<ValueTensorType>(
+            resultTy.getOptionalSizes(), si32Dtype);
+        llvm::SmallVector<Value> operands(op.getOperands());
+        auto mm = SrcOp::create(rewriter, loc, newResultTy, operands);
+        int64_t resultRank = cast<ValueTensorType>(resultTy).getSizes().size();
+        Value axisOut = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getType<Torch::IntType>(),
+            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
+                                    resultRank - 1));
+        auto qi32Ty = rewriter.getType<QInt32Type>();
+        auto mmQTy = rewriter.getType<ValueTensorType>(
+            resultTy.getOptionalSizes(), qi32Ty);
+        auto makeOut = Aten_MakePerChannelQuantizedTensorOp::create(
+            rewriter, loc, mmQTy, mm, accScale, rhsZpTensor, axisOut);
+        rewriter.replaceOpWithNewOp<AtenDequantizeSelfOp>(op, op.getType(),
+                                                          makeOut);
+        return success();
+      }
     }
 
     if (!lhsScale || !rhsScale)
@@ -453,6 +581,7 @@ public:
         RemoveUnused<AtenDequantizeTensorOp>,
         RemoveUnused<AtenQuantizePerTensorOp>,
         RemoveUnused<Aten_MakePerTensorQuantizedTensorOp>,
+        RemoveUnused<Aten_MakePerChannelQuantizedTensorOp>,
         RemoveUnused<AtenTransposeIntOp>, RemoveUnused<AtenSliceTensorOp>,
         RemoveUnused<AtenReshapeOp>, RemoveUnused<PrimsCollapseOp>,
         RemoveUnused<AtenViewOp>, RemoveUnused<AtenPadOp>,
