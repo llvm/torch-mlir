@@ -8233,12 +8233,17 @@ public:
   }
 };
 
+struct PoolingInputResult {
+  Value input;
+  SmallVector<int64_t, 2> outputShape;
+};
+
 // Handle input slicing when needed for pooling operations
-Value applyPoolingInputSlice(PatternRewriter &rewriter, Location loc,
-                             Value input, DenseI64ArrayAttr kernelSize,
-                             DenseI64ArrayAttr strideArray,
-                             DenseI64ArrayAttr &padArray,
-                             ArrayRef<int64_t> dilationValues, bool ceilMode) {
+PoolingInputResult
+preparePoolingInput(PatternRewriter &rewriter, Location loc, Value input,
+                    DenseI64ArrayAttr kernelSize, DenseI64ArrayAttr strideArray,
+                    DenseI64ArrayAttr &padArray,
+                    ArrayRef<int64_t> dilationValues, bool ceilMode) {
 
   auto inputTy = cast<RankedTensorType>(input.getType());
 
@@ -8254,6 +8259,7 @@ Value applyPoolingInputSlice(PatternRewriter &rewriter, Location loc,
   bool needSlice = false;
   SmallVector<int64_t> startSlice(inputRank, 0);
   SmallVector<int64_t> sizeSlice(inputShape);
+  SmallVector<int64_t, 2> outputShape(2, kUnknownSize);
 
   // This function should be applied after transposing input from xCHW (PyTorch
   // format) to xHWC (TOSA format)
@@ -8274,16 +8280,16 @@ Value applyPoolingInputSlice(PatternRewriter &rewriter, Location loc,
       return;
 
     if (ceilMode) {
-      // Adjust pad_after to satisfy divisibility (no slicing)
-      if (remainder < padValues[padAfterIdx]) {
-        padValues[padAfterIdx] -= remainder;
-      } else {
-        padValues[padAfterIdx] += (s - remainder);
+      int64_t lastWindowStart = llvm::divideCeilSigned(dimSize, s) * s;
+      // A window starting in the right padding is ignored by the logic below.
+      if (lastWindowStart < dim + padValues[padBeforeIdx]) {
+        // Extend trailing padding to retain the final partial window.
+        padValues[padAfterIdx] += s - remainder;
+        return;
       }
-      return;
     }
 
-    // floor-mode (default): reduce pad_after or slice tail if needed
+    // Reduce trailing padding or slice unused trailing input.
     if (remainder > padValues[padAfterIdx]) {
       // Need to slice the trailing region
       sizeSlice[axis] = dim - (remainder - padValues[padAfterIdx]);
@@ -8301,6 +8307,18 @@ Value applyPoolingInputSlice(PatternRewriter &rewriter, Location loc,
   handleAxis(widthDim, kernelValues[1], strideValues[1], dilationValues[1],
              /*padBeforeIdx=*/2, /*padAfterIdx=*/3);
 
+  // Calculate the output shape from the adjusted input size and padding.
+  if (inputShape[heightDim] != kUnknownSize)
+    outputShape[0] = (sizeSlice[heightDim] + padValues[0] + padValues[1] -
+                      dilationValues[0] * (kernelValues[0] - 1) - 1) /
+                         strideValues[0] +
+                     1;
+  if (inputShape[widthDim] != kUnknownSize)
+    outputShape[1] = (sizeSlice[widthDim] + padValues[2] + padValues[3] -
+                      dilationValues[1] * (kernelValues[1] - 1) - 1) /
+                         strideValues[1] +
+                     1;
+
   if (needSlice) {
     input = tosa::SliceOp::create(
         rewriter, loc, RankedTensorType::get(sizeSlice, inputElemTy), input,
@@ -8309,7 +8327,17 @@ Value applyPoolingInputSlice(PatternRewriter &rewriter, Location loc,
   }
 
   padArray = rewriter.getDenseI64ArrayAttr(padValues);
-  return input;
+  return {input, outputShape};
+}
+
+Value applyPoolingInputSlice(PatternRewriter &rewriter, Location loc,
+                             Value input, DenseI64ArrayAttr kernelSize,
+                             DenseI64ArrayAttr strideArray,
+                             DenseI64ArrayAttr &padArray,
+                             ArrayRef<int64_t> dilationValues, bool ceilMode) {
+  return preparePoolingInput(rewriter, loc, input, kernelSize, strideArray,
+                             padArray, dilationValues, ceilMode)
+      .input;
 }
 
 template <typename AtenOpT, typename TosaOpT>
@@ -8974,6 +9002,169 @@ public:
                                    stride, pad, dilationArray, ceilMode);
 
     return success();
+  }
+};
+
+// Legalization for aten.max_pool3d.
+//
+// Lowering flow:
+// 1. Validate the input and pooling parameters.
+// 2. Normalize to NCDHW and pool HxW with N and D folded together.
+// 3. Pool D as Dx1 with N, OH, and OW folded together.
+// 4. Restore the original NCDHW or CDHW layout.
+//
+// Steps 2 and 3 use tosa.max_pool2d. Taking the maximum over HxW and then D
+// equals taking the maximum over the original DxHxW window. Folding dimensions
+// requires static input shapes, and TOSA pooling requires unit dilation.
+class ConvertAtenMaxPool3dOp
+    : public TorchToTosaOpConversionPattern<AtenMaxPool3dOp> {
+public:
+  using TorchToTosaOpConversionPattern<
+      AtenMaxPool3dOp>::TorchToTosaOpConversionPattern;
+  using OpAdaptor = AtenMaxPool3dOp::Adaptor;
+
+  LogicalResult
+  matchAndRewriteImpl(AtenMaxPool3dOp op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    // 1. Validate the input and pooling parameters.
+    Value input = adaptor.getSelf();
+    auto inputTy = dyn_cast<RankedTensorType>(input.getType());
+    if (!inputTy || (inputTy.getRank() != 4 && inputTy.getRank() != 5))
+      return rewriter.notifyMatchFailure(
+          op, "MaxPool3d requires a rank 4 or rank 5 tensor input");
+    if (!inputTy.hasStaticShape())
+      return rewriter.notifyMatchFailure(
+          op, "MaxPool3d currently requires a statically shaped input");
+
+    SmallVector<int64_t, 3> kernel, stride, padding, dilation;
+    if (!matchPattern(op.getKernelSize(), m_TorchListOfConstantInts(kernel)) ||
+        !matchPattern(op.getStride(), m_TorchListOfConstantInts(stride)) ||
+        !matchPattern(op.getPadding(), m_TorchListOfConstantInts(padding)) ||
+        !matchPattern(op.getDilation(), m_TorchListOfConstantInts(dilation)))
+      return rewriter.notifyMatchFailure(
+          op, "MaxPool3d requires constant pooling parameters");
+
+    auto expandTo3d = [](SmallVectorImpl<int64_t> &values) {
+      if (values.size() == 1)
+        values.resize(3, values.front());
+    };
+    expandTo3d(kernel);
+    expandTo3d(padding);
+    expandTo3d(dilation);
+
+    if (stride.empty())
+      stride.assign(kernel.begin(), kernel.end());
+    else
+      expandTo3d(stride);
+
+    if (kernel.size() != 3 || stride.size() != 3 || padding.size() != 3 ||
+        dilation.size() != 3)
+      return rewriter.notifyMatchFailure(
+          op, "MaxPool3d pooling parameters must have one or three values");
+    if (!llvm::all_of(dilation, [](int64_t value) { return value == 1; }))
+      return rewriter.notifyMatchFailure(
+          op, "TOSA pooling only supports unit dilation");
+
+    bool ceilMode;
+    if (!matchPattern(op.getCeilMode(), m_TorchConstantBool(&ceilMode)))
+      return rewriter.notifyMatchFailure(
+          op, "MaxPool3d requires constant ceil_mode");
+
+    SmallVector<int64_t> inputShape(inputTy.getShape());
+    const bool hasBatch = inputTy.getRank() == 5;
+    Type elementTy = inputTy.getElementType();
+
+    // 2. Normalize to NCDHW, then pool HxW independently for every depth plane
+    // by folding N and D together.
+    if (!hasBatch) {
+      inputShape.insert(inputShape.begin(), 1);
+      input = reshapeTensor(input, inputShape, elementTy, rewriter, loc);
+    }
+
+    const int64_t n = inputShape[0];
+    const int64_t c = inputShape[1];
+    const int64_t d = inputShape[2];
+    const int64_t h = inputShape[3];
+    const int64_t w = inputShape[4];
+
+    input = transposeTensor(input, {n, c, d, h, w}, elementTy, {0, 2, 3, 4, 1},
+                            this->getTypeConverter(), rewriter, loc);
+    input = reshapeTensor(input, {n * d, h, w, c}, elementTy, rewriter, loc);
+
+    auto hwPooled =
+        createMaxPool2d(input, {kernel[1], kernel[2]}, {stride[1], stride[2]},
+                        {padding[1], padding[2]}, ceilMode, rewriter, loc);
+
+    // 3. Pool D as Dx1 by folding N and the already-pooled OH and OW
+    // dimensions together.
+    Value depthInput = reshapeTensor(hwPooled.value,
+                                     {n, d, hwPooled.height, hwPooled.width, c},
+                                     elementTy, rewriter, loc);
+    depthInput = transposeTensor(
+        depthInput, {n, d, hwPooled.height, hwPooled.width, c}, elementTy,
+        {0, 2, 3, 1, 4}, this->getTypeConverter(), rewriter, loc);
+    int64_t depthBatch = n * hwPooled.height * hwPooled.width;
+    depthInput = reshapeTensor(depthInput, {depthBatch, d, 1, c}, elementTy,
+                               rewriter, loc);
+
+    auto depthPooled =
+        createMaxPool2d(depthInput, {kernel[0], 1}, {stride[0], 1},
+                        {padding[0], 0}, ceilMode, rewriter, loc);
+
+    // 4. Restore NCDHW and remove the synthetic batch for a CDHW input.
+    Value result = reshapeTensor(
+        depthPooled.value,
+        {n, hwPooled.height, hwPooled.width, depthPooled.height, c}, elementTy,
+        rewriter, loc);
+    result = transposeTensor(
+        result, {n, hwPooled.height, hwPooled.width, depthPooled.height, c},
+        elementTy, {0, 4, 3, 1, 2}, this->getTypeConverter(), rewriter, loc);
+    if (!hasBatch)
+      result = reshapeTensor(
+          result, {c, depthPooled.height, hwPooled.height, hwPooled.width},
+          elementTy, rewriter, loc);
+    auto expectedResultTy = dyn_cast<TensorType>(
+        this->getTypeConverter()->convertType(op.getType()));
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, expectedResultTy, result);
+    return success();
+  }
+
+private:
+  struct Pool2dResult {
+    Value value;
+    int64_t height;
+    int64_t width;
+  };
+
+  // Emits one separable pooling stage. The input is NHWC; kernel, stride, and
+  // padding are ordered HW.
+  static Pool2dResult createMaxPool2d(Value input, ArrayRef<int64_t> kernel,
+                                      ArrayRef<int64_t> stride,
+                                      ArrayRef<int64_t> padding, bool ceilMode,
+                                      ConversionPatternRewriter &rewriter,
+                                      Location loc) {
+    auto inputTy = cast<RankedTensorType>(input.getType());
+    ArrayRef<int64_t> inputShape = inputTy.getShape();
+    Type elementTy = inputTy.getElementType();
+
+    auto kernelAttr = rewriter.getDenseI64ArrayAttr(kernel);
+    auto strideAttr = rewriter.getDenseI64ArrayAttr(stride);
+    auto padAttr = rewriter.getDenseI64ArrayAttr(
+        {padding[0], padding[0], padding[1], padding[1]});
+    auto prepared = preparePoolingInput(rewriter, loc, input, kernelAttr,
+                                        strideAttr, padAttr, {1, 1}, ceilMode);
+
+    auto outputTy =
+        RankedTensorType::get({inputShape[0], prepared.outputShape[0],
+                               prepared.outputShape[1], inputShape[3]},
+                              elementTy);
+    Value result = tosa::MaxPool2dOp::create(
+        rewriter, loc, outputTy, prepared.input, kernelAttr, strideAttr,
+        padAttr,
+        tosa::NanPropagationModeAttr::get(rewriter.getContext(),
+                                          tosa::NanPropagationMode::PROPAGATE));
+    return {result, prepared.outputShape[0], prepared.outputShape[1]};
   }
 };
 
@@ -12553,6 +12744,10 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
   illegalOps.insert(AtenMaxPool1dOp::getOperationName());
   patterns.addWithLabel<ConvertAtenMaxPool1dOp>(
       AtenMaxPool1dOp::getOperationName(), typeConverter, context);
+
+  illegalOps.insert(AtenMaxPool3dOp::getOperationName());
+  patterns.addWithLabel<ConvertAtenMaxPool3dOp>(
+      AtenMaxPool3dOp::getOperationName(), typeConverter, context);
 
   illegalOps.insert(AtenAvgPool2dOp::getOperationName());
   patterns.addWithLabel<ConvertAtenAvgPool2dOp>(
