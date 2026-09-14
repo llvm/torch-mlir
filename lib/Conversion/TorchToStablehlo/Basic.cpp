@@ -1058,6 +1058,56 @@ LogicalResult ConvertAtenOp<AtenReluOp>::matchAndRewrite(
   return success();
 }
 
+// AtenPolarOp
+// Polar(abs, angle) = abs * cos(angle) + abs * sin(angle) * j
+template <>
+LogicalResult ConvertAtenOp<AtenPolarOp>::matchAndRewrite(
+    AtenPolarOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Location loc = op.getLoc();
+
+  Value abs = adaptor.getAbs();
+  Value angle = adaptor.getAngle();
+  auto absTy = dyn_cast<RankedTensorType>(abs.getType());
+  auto angleTy = dyn_cast<RankedTensorType>(angle.getType());
+  if (!absTy || !angleTy)
+    return op.emitError("only ranked tensor type is supported in polar op");
+
+  auto outType =
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  auto complexTy = dyn_cast<mlir::ComplexType>(outType.getElementType());
+  if (!complexTy)
+    return op.emitError("expected polar to produce a complex tensor");
+
+  // stablehlo.complex only takes f32/f64 operands, which lines up with
+  // aten.polar requiring abs and angle to be float or double.
+  Type elemTy = complexTy.getElementType();
+  if (!elemTy.isF32() && !elemTy.isF64())
+    return op.emitError("only complex<f32> and complex<f64> results are "
+                        "supported in polar op");
+
+  // aten.polar's shape function is unary(abs), so abs, angle and the result
+  // all share a shape. Multiplying with chlo.broadcast_multiply instead would
+  // emit a shape.assuming + stablehlo.dynamic_broadcast_in_dim pair that the
+  // stablehlo-to-linalg conversion leaves behind, failing bufferization.
+  if (absTy.getShape() != outType.getShape() ||
+      angleTy.getShape() != outType.getShape())
+    return op.emitError(
+        "expected abs, angle and the result to have the same shape");
+
+  abs = hlo::promoteType(rewriter, loc, abs, elemTy);
+  angle = hlo::promoteType(rewriter, loc, angle, elemTy);
+
+  auto partTy = RankedTensorType::get(outType.getShape(), elemTy);
+  Value cos = stablehlo::CosineOp::create(rewriter, loc, partTy, angle);
+  Value sin = stablehlo::SineOp::create(rewriter, loc, partTy, angle);
+  Value real = stablehlo::MulOp::create(rewriter, loc, partTy, abs, cos);
+  Value imag = stablehlo::MulOp::create(rewriter, loc, partTy, abs, sin);
+
+  rewriter.replaceOpWithNewOp<stablehlo::ComplexOp>(op, outType, real, imag);
+  return success();
+}
+
 // Convert a Aten::GELU to HLO
 // Gelu(x, "none") = x * 0.5 * (1 + erf(x/(sqrt(2))))
 // Gelu(x, "tanh") = x * 0.5 * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
@@ -2472,6 +2522,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenReflectionPad1dOp);
 
   INSERT_ATENOP_PATTERN(AtenReluOp);
+  INSERT_ATENOP_PATTERN(AtenPolarOp);
   INSERT_ATENOP_PATTERN(AtenGeluOp);
   INSERT_ATENOP_PATTERN(AtenLog2Op);
   INSERT_ATENOP_PATTERN(AtenLog10Op);

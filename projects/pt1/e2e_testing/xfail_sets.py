@@ -539,8 +539,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenKthvalueFloat64Module_basic",
     "AtenKthvalueKeepDimModule_basic",
     "AtenKthvalueModule_basic",
-    "AtenPolarDoubleModule_basic",
-    "AtenPolarFloatModule_basic",
     "DiagonalWithStaticShapeModule_basic",
     "EinsumStaticDiagonalDimensionModule_basic",
     # StableHLO does not support non-default embedding forward flags.
@@ -1047,6 +1045,8 @@ STABLEHLO_PASS_SET = {
     "AtenMmFloatTypes_basic",
     "AtenMmIntTypes_basic",
     "AtenIntMM_basic",
+    "AtenPolarDoubleModule_basic",
+    "AtenPolarFloatModule_basic",
     "AtenRoundFloatHalfToEvenModule_basic",
     "AtenRoundFloatModule_basic",
     "AtenRoundIntModule_basic",
