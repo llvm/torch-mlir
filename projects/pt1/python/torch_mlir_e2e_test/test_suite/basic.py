@@ -2418,6 +2418,35 @@ def SoftplusLargeMagnitudeModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class SoftplusHighThresholdModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.softplus(x, 1, 100)
+
+
+@register_test_case(module_factory=lambda: SoftplusHighThresholdModule())
+def SoftplusHighThresholdModule_basic(module, tu: TestUtils):
+    # threshold = 100 keeps the ONNX export's outer threshold select (x > 100)
+    # from short-circuiting these inputs. The ONNX binder emits aten.softplus
+    # with the default threshold = 20, so inputs in (20, ~88) take the
+    # decomposition's inner threshold branch (x > 20 -> return x). They stay
+    # below the fp32 exp overflow point (~88.7) so eager softplus (which uses
+    # the naive log1p(exp(x)) inner formula) stays finite and matches.
+    module.forward(torch.tensor([[25.0, 50.0, 80.0], [21.0, 60.0, 42.0]]))
+
+
+# ==============================================================================
+
+
 class HardsigmoidModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
