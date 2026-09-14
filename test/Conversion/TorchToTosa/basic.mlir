@@ -5940,7 +5940,9 @@ func.func @torch.aten.addmm$zero_k(%bias: !torch.vtensor<[4],f32>, %mat1: !torch
   %one = torch.constant.int 1
   %0 = torch.aten.addmm %bias, %mat1, %mat2, %one, %one : !torch.vtensor<[4],f32>, !torch.vtensor<[6,0],f32>, !torch.vtensor<[0,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[6,4],f32>
   return %0 : !torch.vtensor<[6,4],f32>
+}
 
+// -----
 // CHECK-LABEL:   func.func @test_tosa_matmul_user_attrs(
 // CHECK:           tosa.matmul
 // CHECK-SAME:        {mlir.user.tag = "attn_proj"}
@@ -7296,6 +7298,10 @@ func.func @torch.aten.linalg_vector_norm$zero_int(%arg0: !torch.vtensor<[5],f32>
   // expected-error @+1 {{failed to legalize operation 'torch.aten.linalg_vector_norm'}}
   %0 = torch.aten.linalg_vector_norm %arg0, %ord, %dim, %keepdim, %dtype : !torch.vtensor<[5],f32>, !torch.int, !torch.none, !torch.bool, !torch.none -> !torch.vtensor<[],f32>
   return %0 : !torch.vtensor<[],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @test_unsqueeze_user_attrs(
 // CHECK:           tosa.reshape
 // CHECK-SAME:        {mlir.user.tag = "unsqueeze_tag"}
