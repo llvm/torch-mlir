@@ -7394,8 +7394,8 @@ public:
 
     // out = log1p(exp(z)) / beta, with z = input * beta, computed in the
     // numerically stable form (max(z, 0) + log1p(exp(-|z|))) / beta. Only ever
-    // exponentiating -|z| <= 0 keeps exp in (0, 1], so the arm never overflows
-    // to +inf the way the naive log1p(exp(z)) does once z exceeds ~88 in fp32.
+    // exponentiating -|z| <= 0 keeps exp in (0, 1], so the arm stays finite for
+    // all inputs.
     Value absZ = AtenAbsOp::create(rewriter, loc, inputType, inputTimesBeta);
     Value negAbsZ = AtenNegOp::create(rewriter, loc, inputType, absZ);
     Value expNegAbsZ = AtenExpOp::create(rewriter, loc, inputType, negAbsZ);
@@ -7409,8 +7409,7 @@ public:
                                         op.getBeta());
 
     // Select where x * beta > threshold. The threshold arm returns x directly
-    // (matching eager); the stable arm above is finite for all inputs, so the
-    // select never has to discard a +inf.
+    // (matching eager); the stable arm above is finite for all inputs.
     auto boolResType = inputType.getWithSizesAndDtype(inputType.getSizes(),
                                                       rewriter.getI1Type());
     Value condition = AtenGtScalarOp::create(rewriter, loc, boolResType,
