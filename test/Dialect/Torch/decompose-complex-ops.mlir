@@ -1785,9 +1785,8 @@ func.func @torch.aten.logaddexp2(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch
 
 // softplus(x, beta, threshold) uses the numerically stable inner arm
 //   (max(z, 0) + log1p(exp(-|z|))) / beta,  z = x * beta
-// rather than the naive log1p(exp(z)) / beta (which overflows to +inf in fp32
-// once z exceeds ~88). Only ever exponentiating -|z| <= 0 avoids that; the
-// threshold select is kept so the op still honors its `threshold` argument.
+// which only ever exponentiates -|z| <= 0. The threshold select is kept so
+// the op still honors its `threshold` argument.
 // CHECK-LABEL: func.func @torch.aten.softplus(
 // CHECK-SAME:      %[[X:.*]]: !torch.vtensor<[3,4],f32>
 // CHECK:         %[[Z:.*]] = torch.aten.mul.Scalar %[[X]], %{{.*}}
