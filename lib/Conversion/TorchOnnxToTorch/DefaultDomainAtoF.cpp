@@ -2128,25 +2128,41 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             rewriter, binder.getLoc(), c, cstBlockSizeSquare);
         cDivBlockSizeSquare = Torch::AtenIntFloatOp::create(
             rewriter, binder.getLoc(), cDivBlockSizeSquare);
-        Value reshapeSizesList = Torch::PrimListConstructOp::create(
-            rewriter, binder.getLoc(),
-            Torch::ListType::get(Torch::IntType::get(input.getContext())),
-            llvm::SmallVector<Value>{b, cstBlockSize, cstBlockSize,
-                                     cDivBlockSizeSquare, h, w});
+
         int64_t cDivBlockSizeSquareInt =
             inputSizes[1] == Torch::kUnknownSize
                 ? Torch::kUnknownSize
                 : inputSizes[1] / (blockSize * blockSize);
-        SmallVector<int64_t, 6> reshapeSizesInt{
-            inputSizes[0],          blockSize,     blockSize,
-            cDivBlockSizeSquareInt, inputSizes[2], inputSizes[3]};
+
+        Value reshapeSizesList;
+        SmallVector<int64_t, 6> reshapeSizesInt;
+        if (mode == "DCR") {
+          reshapeSizesList = Torch::PrimListConstructOp::create(
+              rewriter, binder.getLoc(),
+              Torch::ListType::get(Torch::IntType::get(input.getContext())),
+              llvm::SmallVector<Value>{b, cstBlockSize, cstBlockSize,
+                               cDivBlockSizeSquare, h, w});
+          reshapeSizesInt = {inputSizes[0], blockSize,     blockSize,
+                     cDivBlockSizeSquareInt, inputSizes[2], inputSizes[3]};
+        } else {
+          // CRD
+          reshapeSizesList = Torch::PrimListConstructOp::create(
+              rewriter, binder.getLoc(),
+              Torch::ListType::get(Torch::IntType::get(input.getContext())),
+              llvm::SmallVector<Value>{b, cDivBlockSizeSquare, cstBlockSize,
+                               cstBlockSize, h, w});
+          reshapeSizesInt = {inputSizes[0], cDivBlockSizeSquareInt,
+                     blockSize,     blockSize,
+                     inputSizes[2], inputSizes[3]};
+        }
+
         Value reshapedInput = Torch::AtenReshapeOp::create(
             rewriter, binder.getLoc(),
             inputTy.getWithSizesAndDtype(reshapeSizesInt,
                                          inputTy.getOptionalDtype()),
             input, reshapeSizesList);
 
-        Value transposedInput;
+        Value transposedInput = reshapedInput;
         if (mode == "DCR") {
           if (failed(createTorchTransposeOp(
                   rewriter, binder.getLoc(), reshapedInput,
