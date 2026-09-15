@@ -2904,13 +2904,17 @@ public:
       return rewriter.notifyMatchFailure(op,
                                          "Matmul: input datatypes mismatched");
 
+    Type inputElemTy{lhsElemTy};
+    auto accElemTy = getDefaultAccType(rewriter, inputElemTy);
+
     auto resultTy = dyn_cast<RankedTensorType>(
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
             op.getType()));
     if (resultTy && resultTy.hasStaticShape() &&
         !mlir::tosa::typeHasZeroDim(resultTy) &&
         hasStaticZeroContraction(lhsTy, rhsTy)) {
-      auto zeroOutput = tosa::getZerosLikeTensor(rewriter, op, resultTy);
+      auto zeroOutput =
+          tosa::getZerosLikeTensor(rewriter, op, resultTy.clone(accElemTy));
       if (!zeroOutput)
         return rewriter.notifyMatchFailure(
             op, "failed to materialize zero-contraction matmul result");
@@ -3316,8 +3320,6 @@ public:
     SmallVector<int64_t> matmulOutputShape(
         {matmulLhsShape[0], matmulLhsShape[1], matmulRhsShape[2]});
 
-    Type inputElemTy{lhsElemTy};
-    auto accElemTy = getDefaultAccType(rewriter, inputElemTy);
     auto mmOutputTy = RankedTensorType::get(
         makeShapeLLVMCompatible(matmulOutputShape), accElemTy);
 
@@ -3677,11 +3679,6 @@ public:
       return rewriter.notifyMatchFailure(op, "failed to lower addmm matmul");
     }
 
-    auto matmulTy = cast<RankedTensorType>(matmul.getType());
-    matmul = tosa::tosaCastTensorToType(
-                 rewriter, matmul, matmulTy.clone(resultTy.getElementType()))
-                 .value();
-
     FailureOr<Value> scaledMatmul =
         scaleTensor(op, matmul, op.getAlpha(), *alpha, rewriter);
     if (failed(scaledMatmul)) {
@@ -3690,6 +3687,12 @@ public:
 
     Value result = *scaledMatmul;
     if (*beta != 0.0) {
+      Type accElemTy =
+          cast<RankedTensorType>(matmul.getType()).getElementType();
+      bias = tosa::tosaCastTensorToType(
+                 rewriter, bias,
+                 cast<RankedTensorType>(bias.getType()).clone(accElemTy))
+                 .value();
       FailureOr<Value> scaledBias =
           scaleTensor(op, bias, op.getBeta(), *beta, rewriter);
       if (failed(scaledBias)) {
@@ -3705,6 +3708,11 @@ public:
                                    result, bias)
                    .getResult();
     }
+
+    result = tosa::tosaCastTensorToType(rewriter, result,
+                                        cast<RankedTensorType>(result.getType())
+                                            .clone(resultTy.getElementType()))
+                 .value();
 
     rewriter.replaceOpWithNewOp<tosa::ReshapeOp>(
         op, resultTy, result,
