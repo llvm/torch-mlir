@@ -3477,6 +3477,53 @@ def ElementwiseErfModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseErfcModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.erfc(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseErfcModule())
+def ElementwiseErfcModule_basic(module, tu: TestUtils):
+    # Spans both sides of zero: erfc goes from 2 to 0 across the range.
+    module.forward(tu.rand(3, 4, low=-3.0, high=3.0))
+
+
+# ==============================================================================
+
+
+class ElementwiseErfcIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.erfc(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseErfcIntModule())
+def ElementwiseErfcIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-3, high=3).to(torch.int32))
+
+
+# ==============================================================================
+
+
 class ElementwiseErfIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
