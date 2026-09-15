@@ -246,6 +246,137 @@ public:
     return success();
   }
 };
+
+// Lowers `aten._scaled_mm` for the tensorwise-scale case only: `scale_a` and
+// `scale_b` are each required to have exactly one element ([] or [1]),
+// broadcast to the whole matmul result. Per-row/per-column and block-scaled
+// variants are not implemented -- mirrors the initial TorchToTosa lowering
+// (#4559), which took the same tensorwise-only slice of the op first.
+class ConvertAtenScaledMmOp : public OpConversionPattern<Aten_ScaledMmOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(Aten_ScaledMmOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
+      return failure();
+
+    if (!isa<Torch::NoneType>(op.getScaleResult().getType()))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: scale_result is not supported");
+
+    Value lhs = adaptor.getSelf();
+    Value rhs = adaptor.getMat2();
+    Value scaleA = adaptor.getScaleA();
+    Value scaleB = adaptor.getScaleB();
+
+    auto lhsType = cast<RankedTensorType>(lhs.getType());
+    auto rhsType = cast<RankedTensorType>(rhs.getType());
+    if (lhsType.getRank() != 2 || rhsType.getRank() != 2)
+      return rewriter.notifyMatchFailure(
+          op, "expected both operands to aten._scaled_mm to be rank 2");
+
+    auto scaleAType = cast<RankedTensorType>(scaleA.getType());
+    auto scaleBType = cast<RankedTensorType>(scaleB.getType());
+    if (!scaleAType.hasStaticShape() || !scaleBType.hasStaticShape() ||
+        scaleAType.getNumElements() != 1 || scaleBType.getNumElements() != 1)
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: only statically-shaped tensorwise "
+              "(single-element) scale_a and scale_b are supported, got "
+              "row/column/block scales");
+
+    // use_fast_accum only hints at reduced-precision accumulation on
+    // hardware that supports it; it does not change the result value, so it
+    // is intentionally ignored here.
+
+    Value lhsDim0 = tensor::DimOp::create(rewriter, loc, lhs, 0);
+    Value rhsDim1 = tensor::DimOp::create(rewriter, loc, rhs, 1);
+    if (!isAssumingStrictSymbolicShapes(rewriter)) {
+      Value lhsDim1 = tensor::DimOp::create(rewriter, loc, lhs, 1);
+      Value rhsDim0 = tensor::DimOp::create(rewriter, loc, rhs, 0);
+      Value contractingDimEqual = arith::CmpIOp::create(
+          rewriter, loc, arith::CmpIPredicate::eq, lhsDim1, rhsDim0);
+      cf::AssertOp::create(
+          rewriter, loc, contractingDimEqual,
+          rewriter.getStringAttr(
+              "mismatching contracting dimension for torch.aten._scaled_mm"));
+    }
+
+    // PyTorch computes the fp8 GEMM by accumulating in f32 regardless of
+    // out_dtype, then applies the scales and casts down.
+    Type accType = rewriter.getF32Type();
+    Value lhsF32 = torch_to_linalg::convertTensorToElementType(rewriter, loc,
+                                                               lhs, accType);
+    Value rhsF32 = torch_to_linalg::convertTensorToElementType(rewriter, loc,
+                                                               rhs, accType);
+
+    Value zeroFill = createZeroInitTensor(
+        rewriter, loc, ValueRange{lhsDim0, rhsDim1}, accType);
+    Value matmul =
+        linalg::MatmulOp::create(rewriter, loc, zeroFill.getType(),
+                                 ValueRange{lhsF32, rhsF32}, zeroFill)
+            .getResult(0);
+
+    auto extractSoleElement = [&](Value tensor, RankedTensorType type) {
+      SmallVector<Value> indices(
+          type.getRank(), arith::ConstantIndexOp::create(rewriter, loc, 0));
+      return tensor::ExtractOp::create(rewriter, loc, tensor, indices)
+          .getResult();
+    };
+    Value scaleAScalar = extractSoleElement(scaleA, scaleAType);
+    Value scaleBScalar = extractSoleElement(scaleB, scaleBType);
+
+    Value bias;
+    if (!isa<Torch::NoneType>(op.getBias().getType()))
+      bias = torch_to_linalg::convertTensorToElementType(
+          rewriter, loc, adaptor.getBias(), accType);
+
+    TensorType resultType =
+        cast<TensorType>(getTypeConverter()->convertType(op.getType()));
+    Type resultElemType = resultType.getElementType();
+
+    MLIRContext *context = op.getContext();
+    AffineExpr d0, d1;
+    bindDims(context, d0, d1);
+    AffineMap identity2D = AffineMap::get(2, 0, {d0, d1}, context);
+    AffineMap biasMap = AffineMap::get(2, 0, {d1}, context);
+    SmallVector<AffineMap> indexingMaps = {identity2D};
+    if (bias)
+      indexingMaps.push_back(biasMap);
+    indexingMaps.push_back(identity2D);
+    SmallVector<utils::IteratorType> iteratorTypes = {
+        utils::IteratorType::parallel, utils::IteratorType::parallel};
+
+    SmallVector<Value> resultDynDims;
+    if (ShapedType::isDynamic(resultType.getShape()[0]))
+      resultDynDims.push_back(lhsDim0);
+    if (ShapedType::isDynamic(resultType.getShape()[1]))
+      resultDynDims.push_back(rhsDim1);
+    Value resultInit = tensor::EmptyOp::create(
+        rewriter, loc, resultType.getShape(), resultElemType, resultDynDims);
+    SmallVector<Value> inputs = {matmul};
+    if (bias)
+      inputs.push_back(bias);
+    Value scaled =
+        linalg::GenericOp::create(
+            rewriter, loc, resultInit.getType(), inputs, resultInit,
+            indexingMaps, iteratorTypes,
+            [&](OpBuilder &b, Location loc, ValueRange args) {
+              Value acc = arith::MulFOp::create(
+                  b, loc, arith::MulFOp::create(b, loc, args[0], scaleAScalar),
+                  scaleBScalar);
+              if (bias)
+                acc = arith::AddFOp::create(b, loc, acc, args[1]);
+              Value cast = convertScalarToDtype(b, loc, acc, resultElemType);
+              linalg::YieldOp::create(b, loc, cast);
+            })
+            .getResult(0);
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, scaled);
+    return success();
+  }
+};
 } // namespace
 
 namespace {
@@ -2658,6 +2789,8 @@ void mlir::torch::torch_to_linalg::populateLinearPatternsAndLegality(
   MLIRContext *context = patterns.getContext();
   target.addIllegalOp<AtenMmOp>();
   patterns.add<ConvertAtenMmOp>(typeConverter, context);
+  target.addIllegalOp<Aten_ScaledMmOp>();
+  patterns.add<ConvertAtenScaledMmOp>(typeConverter, context);
   target.addIllegalOp<AtenFlipOp>();
   patterns.add<ConvertAtenFlipOp>(typeConverter, context);
   target.addIllegalOp<AtenMatmulOp>();
