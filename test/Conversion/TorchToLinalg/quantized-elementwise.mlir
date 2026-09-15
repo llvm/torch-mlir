@@ -906,3 +906,292 @@ func.func @quantize_per_channel_group_unsigned_zero_point(
         !torch.int -> !torch.vtensor<[4,16],ui8>
   return %out : !torch.vtensor<[4,16],ui8>
 }
+
+
+// -----
+
+// Per-token quantization: scales/ZP shape matches input with last dim = 1.
+// CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK: #[[TOKEN:.*]] = affine_map<(d0, d1) -> (d0, 0)>
+// CHECK-LABEL: func.func @quantize_per_token(
+// CHECK: %[[GENERIC:.*]] = linalg.generic
+// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[TOKEN]], #[[TOKEN]], #[[IDENTITY]]]
+func.func @quantize_per_token(
+    %input: !torch.vtensor<[4,16],f32>,
+    %scales: !torch.vtensor<[4,1],f32>,
+    %zero_points: !torch.vtensor<[4,1],si64>)
+    -> !torch.vtensor<[4,16],si8> {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 2
+  %out = torch.quantized_decomposed.quantize_per_token
+      %input, %scales, %zero_points, %qmin, %qmax, %dtype
+      : !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,1],f32>,
+        !torch.vtensor<[4,1],si64>, !torch.int, !torch.int, !torch.int
+      -> !torch.vtensor<[4,16],si8>
+  return %out : !torch.vtensor<[4,16],si8>
+}
+
+// -----
+
+// Per-token dequantization.
+// CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK: #[[TOKEN:.*]] = affine_map<(d0, d1) -> (d0, 0)>
+// CHECK-LABEL: func.func @dequantize_per_token(
+// CHECK: %[[GENERIC:.*]] = linalg.generic
+// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[TOKEN]], #[[TOKEN]], #[[IDENTITY]]]
+func.func @dequantize_per_token(
+    %input: !torch.vtensor<[4,16],si8>,
+    %scales: !torch.vtensor<[4,1],f32>,
+    %zero_points: !torch.vtensor<[4,1],si64>)
+    -> !torch.vtensor<[4,16],f32> {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 2
+  %out_dtype = torch.constant.int 6
+  %out = torch.quantized_decomposed.dequantize_per_token
+      %input, %scales, %zero_points, %qmin, %qmax, %dtype, %out_dtype
+      : !torch.vtensor<[4,16],si8>, !torch.vtensor<[4,1],f32>,
+        !torch.vtensor<[4,1],si64>, !torch.int, !torch.int, !torch.int,
+        !torch.int -> !torch.vtensor<[4,16],f32>
+  return %out : !torch.vtensor<[4,16],f32>
+}
+
+// -----
+
+// 3D per-token quantization.
+// CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
+// CHECK: #[[TOKEN:.*]] = affine_map<(d0, d1, d2) -> (d0, d1, 0)>
+// CHECK-LABEL: func.func @quantize_per_token_3d(
+// CHECK: %[[GENERIC:.*]] = linalg.generic
+// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[TOKEN]], #[[TOKEN]], #[[IDENTITY]]]
+func.func @quantize_per_token_3d(
+    %input: !torch.vtensor<[2,4,16],f32>,
+    %scales: !torch.vtensor<[2,4,1],f32>,
+    %zero_points: !torch.vtensor<[2,4,1],si64>)
+    -> !torch.vtensor<[2,4,16],si8> {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 2
+  %out = torch.quantized_decomposed.quantize_per_token
+      %input, %scales, %zero_points, %qmin, %qmax, %dtype
+      : !torch.vtensor<[2,4,16],f32>, !torch.vtensor<[2,4,1],f32>,
+        !torch.vtensor<[2,4,1],si64>, !torch.int, !torch.int, !torch.int
+      -> !torch.vtensor<[2,4,16],si8>
+  return %out : !torch.vtensor<[2,4,16],si8>
+}
+
+// -----
+
+// choose_qparams_per_token_asymmetric
+// CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK: #[[TOKEN:.*]] = affine_map<(d0, d1) -> (d0, 0)>
+// CHECK-LABEL: func.func @choose_qparams_per_token_asymmetric(
+// CHECK-SAME:    %[[ARG0:.*]]: !torch.vtensor<[4,16],f32>
+//
+// init fills with +inf for min-reduction, -inf for max-reduction
+// CHECK-DAG:   %[[INF:.*]] = arith.constant 0x7F800000 : f32
+// CHECK-DAG:   %[[NEGINF:.*]] = arith.constant 0xFF800000 : f32
+// CHECK-DAG:   %[[FILL_MIN:.*]] = linalg.fill ins(%[[INF]] : f32)
+// CHECK-DAG:   %[[FILL_MAX:.*]] = linalg.fill ins(%[[NEGINF]] : f32)
+//
+// first generic: reduce each token to per-token-min and per-token-max
+// CHECK:       %[[RED:.*]]:2 = linalg.generic
+// CHECK-SAME:    indexing_maps = [#[[IDENTITY]], #[[TOKEN]], #[[TOKEN]]]
+// CHECK-SAME:    ins(%{{.*}} : tensor<4x16xf32>)
+// CHECK:       ^bb0(%[[IN:.*]]: f32, %[[OUT_MIN:.*]]: f32, %[[OUT_MAX:.*]]: f32):
+// CHECK:         %[[TMIN:.*]] = arith.minimumf %[[IN]], %[[OUT_MIN]] : f32
+// CHECK:         %[[TMAX:.*]] = arith.maximumf %[[IN]], %[[OUT_MAX]] : f32
+// CHECK:         linalg.yield %[[TMIN]], %[[TMAX]] : f32, f32
+//
+// Second generic: compute scale and zero-point
+// CHECK:       %[[QP:.*]]:2 = linalg.generic
+// CHECK-SAME:    indexing_maps = [#[[IDENTITY]], #[[IDENTITY]], #[[IDENTITY]], #[[IDENTITY]]]
+// CHECK-SAME:    ins(%[[RED]]#0, %[[RED]]#1 : tensor<4x1xf32>, tensor<4x1xf32>)
+// CHECK:       ^bb0(%[[PMIN:.*]]: f32, %[[PMAX:.*]]: f32, %{{.*}}: f32, %{{.*}}: i32):
+// CHECK:         %[[C255:.*]]   = arith.constant 2.550000e+02 : f32
+// CHECK:         %[[EPS:.*]]    = arith.constant 1.1920929E-7 : f32
+// CHECK:         %[[QMIN_F:.*]] = arith.constant -1.280000e+02 : f32
+// CHECK:         %[[QMAX_F:.*]] = arith.constant 1.270000e+02 : f32
+// CHECK:         %[[ZERO:.*]]   = arith.constant 0.000000e+00 : f32
+// clamp min to <= 0, max to >= 0
+// CHECK:         %[[CMIN:.*]] = arith.minimumf %[[PMIN]], %[[ZERO]] : f32
+// CHECK:         %[[CMAX:.*]] = arith.maximumf %[[PMAX]], %[[ZERO]] : f32
+// range = max - min
+// CHECK:         %[[RANGE:.*]] = arith.subf %[[CMAX]], %[[CMIN]] : f32
+// CHECK:         %[[S0:.*]]    = arith.divf %[[RANGE]], %[[C255]] : f32
+// clamp scale away from zero
+// CHECK:         %[[SCALE:.*]] = arith.maximumf %[[S0]], %[[EPS]] : f32
+// zero-point candidates from both sides: zp_min = min/scale, zp_max = max/scale
+// CHECK:         %[[ZP_MIN:.*]] = arith.divf %[[CMIN]], %[[SCALE]] : f32
+// CHECK:         %[[ZP_MAX:.*]] = arith.divf %[[CMAX]], %[[SCALE]] : f32
+// CHECK:         %[[A:.*]]   = arith.addf %[[QMIN_F]], %[[ZP_MIN]] : f32
+// CHECK:         %[[B:.*]]   = arith.addf %[[QMAX_F]], %[[ZP_MAX]] : f32
+// CHECK:         %[[SUM:.*]] = arith.addf %[[A]], %[[B]] : f32
+// pick the candidate direction based on sign of sum
+// CHECK:         %[[PRED:.*]]  = arith.cmpf ogt, %[[SUM]], %[[ZERO]] : f32
+// CHECK:         %[[CND0:.*]]  = arith.subf %[[QMIN_F]], %[[ZP_MIN]] : f32
+// CHECK:         %[[CND1:.*]]  = arith.subf %[[QMAX_F]], %[[ZP_MAX]] : f32
+// CHECK:         %[[SEL:.*]]   = arith.select %[[PRED]], %[[CND0]], %[[CND1]] : f32
+// clamp zero-point to [qmin, qmax]
+// CHECK:         %[[CLO:.*]]   = arith.maximumf %[[SEL]], %[[QMIN_F]] : f32
+// CHECK:         %[[CHI:.*]]   = arith.minimumf %[[CLO]], %[[QMAX_F]] : f32
+// CHECK:         %[[RND:.*]]   = math.roundeven %[[CHI]] : f32
+// CHECK:         %[[ZP_I32:.*]] = arith.fptosi %[[RND]] : f32 to i32
+// scale is yielded first, zero-point second
+// CHECK:         linalg.yield %[[SCALE]], %[[ZP_I32]] : f32, i32
+func.func @choose_qparams_per_token_asymmetric(
+    %input: !torch.vtensor<[4,16],f32>)
+    -> (!torch.vtensor<[4,1],f32>, !torch.vtensor<[4,1],si32>) {
+  %dtype = torch.constant.int 1
+  %scale, %zp = torch.quantized_decomposed.choose_qparams_per_token_asymmetric
+      %input, %dtype
+      : !torch.vtensor<[4,16],f32>, !torch.int
+      -> !torch.vtensor<[4,1],f32>, !torch.vtensor<[4,1],si32>
+  return %scale, %zp : !torch.vtensor<[4,1],f32>, !torch.vtensor<[4,1],si32>
+}
+
+// -----
+
+// choose_qparams_per_token
+// CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK: #[[TOKEN:.*]] = affine_map<(d0, d1) -> (d0, 0)>
+// CHECK-LABEL: func.func @choose_qparams_per_token(
+// CHECK-SAME:    %[[ARG0:.*]]: !torch.vtensor<[4,16],f32>
+//
+// CHECK:       %[[ZERO_CST:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK:       %[[AMAX_INIT:.*]] = linalg.fill ins(%[[ZERO_CST]] : f32)
+//
+// First generic: compute per-token absolute maximum.
+// CHECK:       %[[AMAX:.*]] = linalg.generic
+// CHECK-SAME:    indexing_maps = [#[[IDENTITY]], #[[TOKEN]]]
+// CHECK-SAME:    ins(%{{.*}} : tensor<4x16xf32>)
+// CHECK:       ^bb0(%[[IN:.*]]: f32, %[[OUT:.*]]: f32):
+// abs(input) then running max with accumulator.
+// CHECK:         %[[ABS:.*]] = math.absf %[[IN]] : f32
+// CHECK:         %[[MAX:.*]] = arith.maximumf %[[ABS]], %[[OUT]] : f32
+// CHECK:         linalg.yield %[[MAX]] : f32
+//
+// CHECK:       %[[CAST:.*]] = tensor.cast %[[AMAX]] : tensor<?x1xf32> to tensor<4x1xf32>
+// Second generic: scale = max(amax, eps) / qmax; zero-point is always 0.
+// CHECK:       %[[QP:.*]]:2 = linalg.generic
+// CHECK-SAME:    indexing_maps = [#[[IDENTITY]], #[[IDENTITY]], #[[IDENTITY]]]
+// CHECK-SAME:    ins(%[[CAST]] : tensor<4x1xf32>)
+// CHECK:       ^bb0(%[[IN2:.*]]: f32, %{{.*}}: f32, %{{.*}}: i32):
+// CHECK:         %[[QMAX_F:.*]] = arith.constant 1.270000e+02 : f32
+// CHECK:         %[[EPS:.*]]    = arith.constant 9.99999974E-6 : f32
+// CHECK:         %[[ZP_C:.*]]   = arith.constant 0 : i32
+// CHECK:         %[[CLAMPED:.*]] = arith.maximumf %[[IN2]], %[[EPS]] : f32
+// scale = clamped_amax / qmax
+// CHECK:         %[[SCALE:.*]]  = arith.divf %[[CLAMPED]], %[[QMAX_F]] : f32
+// CHECK:         linalg.yield %[[SCALE]], %[[ZP_C]] : f32, i32
+func.func @choose_qparams_per_token(
+  %input: !torch.vtensor<[4,16],f32>)
+    -> (!torch.vtensor<[4,1],f32>, !torch.vtensor<[4,1],si32>) {
+  %dtype = torch.constant.int 1
+  %scale, %zp = torch.quantized_decomposed.choose_qparams_per_token
+      %input, %dtype
+      : !torch.vtensor<[4,16],f32>, !torch.int
+      -> !torch.vtensor<[4,1],f32>, !torch.vtensor<[4,1],si32>
+  return %scale, %zp : !torch.vtensor<[4,1],f32>, !torch.vtensor<[4,1],si32>
+}
+
+// -----
+
+// Dynamic per token symmetric quant flow: verifies affine maps and tensor shapes for
+// dynamic dimensions.
+// CHECK: #[[IDENTITY2:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK: #[[TOKEN2:.*]] = affine_map<(d0, d1) -> (d0, 0)>
+// CHECK-LABEL: func.func @dynamic_per_token_symmetric_choose_quant_roundtrip(
+// CHECK-SAME:    %[[ARG0:.*]]: !torch.vtensor<[?,?],f32>
+// abs-max reduction: identity input mapped to token output
+// CHECK:       linalg.fill
+// CHECK:       linalg.generic
+// CHECK-SAME:    indexing_maps = [#[[IDENTITY2]], #[[TOKEN2]]]
+// CHECK-SAME:    ins(%{{.*}} : tensor<?x?xf32>) outs(%{{.*}} : tensor<?x1xf32>)
+// scale derivation: token-shaped input, token-shaped outputs
+// CHECK:       linalg.generic
+// CHECK-SAME:    indexing_maps = [#[[IDENTITY2]], #[[IDENTITY2]], #[[IDENTITY2]]]
+// CHECK-SAME:    ins(%{{.*}} : tensor<?x1xf32>) outs(%{{.*}} : tensor<?x1xf32>, tensor<?x1xi32>)
+// quantize: identity input, token scale+zp, identity output
+// CHECK:       linalg.generic
+// CHECK-SAME:    indexing_maps = [#[[IDENTITY2]], #[[TOKEN2]], #[[TOKEN2]], #[[IDENTITY2]]]
+// CHECK-SAME:    ins(%{{.*}} : tensor<?x?xf32>, tensor<?x1xf32>, tensor<?x1xi32>) outs(%{{.*}} : tensor<?x?xi8>)
+// dequantize: identity input, token scale+zp, identity output
+// CHECK:       linalg.generic
+// CHECK-SAME:    indexing_maps = [#[[IDENTITY2]], #[[TOKEN2]], #[[TOKEN2]], #[[IDENTITY2]]]
+// CHECK-SAME:    ins(%{{.*}} : tensor<?x?xi8>, tensor<?x1xf32>, tensor<?x1xi32>) outs(%{{.*}} : tensor<?x?xf32>)
+func.func @dynamic_per_token_symmetric_choose_quant_roundtrip(
+    %input: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+  %dtype = torch.constant.int 1
+  %qmin  = torch.constant.int -128
+  %qmax  = torch.constant.int 127
+  %qdtype = torch.constant.int 2
+  %out_dtype = torch.constant.int 6
+  %scale, %zp = torch.quantized_decomposed.choose_qparams_per_token
+      %input, %dtype
+      : !torch.vtensor<[?,?],f32>, !torch.int
+      -> !torch.vtensor<[?,1],f32>, !torch.vtensor<[?,1],si32>
+  %quantized = torch.quantized_decomposed.quantize_per_token
+      %input, %scale, %zp, %qmin, %qmax, %qdtype
+      : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,1],f32>,
+        !torch.vtensor<[?,1],si32>, !torch.int, !torch.int, !torch.int
+      -> !torch.vtensor<[?,?],si8>
+  %out = torch.quantized_decomposed.dequantize_per_token
+      %quantized, %scale, %zp, %qmin, %qmax, %qdtype, %out_dtype
+      : !torch.vtensor<[?,?],si8>, !torch.vtensor<[?,1],f32>,
+        !torch.vtensor<[?,1],si32>, !torch.int, !torch.int, !torch.int,
+        !torch.int -> !torch.vtensor<[?,?],f32>
+  return %out : !torch.vtensor<[?,?],f32>
+}
+
+// -----
+
+// Dynamic per token asymmetric quant flow: verifies affine maps and tensor shapes for
+// dynamic dimensions.
+// CHECK: #[[IDENTITY3:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK: #[[TOKEN3:.*]] = affine_map<(d0, d1) -> (d0, 0)>
+// CHECK-LABEL: func.func @dynamic_per_token_asymmetric_choose_quant_roundtrip(
+// CHECK-SAME:    %[[ARG0:.*]]: !torch.vtensor<[?,?],f32>
+// min/max reduction fills: +inf init for min, -inf init for max
+// CHECK-DAG:   linalg.fill
+// CHECK-DAG:   linalg.fill
+// min/max reduction: identity input, two token outputs
+// CHECK:       linalg.generic
+// CHECK-SAME:    indexing_maps = [#[[IDENTITY3]], #[[TOKEN3]], #[[TOKEN3]]]
+// CHECK-SAME:    ins(%{{.*}} : tensor<?x?xf32>) outs(%{{.*}} : tensor<?x1xf32>, tensor<?x1xf32>)
+// scale/zp derivation: two token inputs, two token outputs
+// CHECK:       linalg.generic
+// CHECK-SAME:    indexing_maps = [#[[IDENTITY3]], #[[IDENTITY3]], #[[IDENTITY3]], #[[IDENTITY3]]]
+// CHECK-SAME:    ins(%{{.*}} : tensor<?x1xf32>, tensor<?x1xf32>) outs(%{{.*}} : tensor<?x1xf32>, tensor<?x1xi32>)
+// quantize: identity input, token scale+zp, identity output
+// CHECK:       linalg.generic
+// CHECK-SAME:    indexing_maps = [#[[IDENTITY3]], #[[TOKEN3]], #[[TOKEN3]], #[[IDENTITY3]]]
+// CHECK-SAME:    ins(%{{.*}} : tensor<?x?xf32>, tensor<?x1xf32>, tensor<?x1xi32>) outs(%{{.*}} : tensor<?x?xi8>)
+// dequantize: identity input, token scale+zp, identity output
+// CHECK:       linalg.generic
+// CHECK-SAME:    indexing_maps = [#[[IDENTITY3]], #[[TOKEN3]], #[[TOKEN3]], #[[IDENTITY3]]]
+// CHECK-SAME:    ins(%{{.*}} : tensor<?x?xi8>, tensor<?x1xf32>, tensor<?x1xi32>) outs(%{{.*}} : tensor<?x?xf32>)
+func.func @dynamic_per_token_asymmetric_choose_quant_roundtrip(
+    %input: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+  %dtype = torch.constant.int 1
+  %qmin  = torch.constant.int -128
+  %qmax  = torch.constant.int 127
+  %qdtype = torch.constant.int 2
+  %out_dtype = torch.constant.int 6
+  %scale, %zp = torch.quantized_decomposed.choose_qparams_per_token_asymmetric
+      %input, %dtype
+      : !torch.vtensor<[?,?],f32>, !torch.int
+      -> !torch.vtensor<[?,1],f32>, !torch.vtensor<[?,1],si32>
+  %quantized = torch.quantized_decomposed.quantize_per_token
+      %input, %scale, %zp, %qmin, %qmax, %qdtype
+      : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,1],f32>,
+        !torch.vtensor<[?,1],si32>, !torch.int, !torch.int, !torch.int
+      -> !torch.vtensor<[?,?],si8>
+  %out = torch.quantized_decomposed.dequantize_per_token
+      %quantized, %scale, %zp, %qmin, %qmax, %qdtype, %out_dtype
+      : !torch.vtensor<[?,?],si8>, !torch.vtensor<[?,1],f32>,
+        !torch.vtensor<[?,1],si32>, !torch.int, !torch.int, !torch.int,
+        !torch.int -> !torch.vtensor<[?,?],f32>
+  return %out : !torch.vtensor<[?,?],f32>
+}
