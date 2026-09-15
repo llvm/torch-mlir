@@ -235,6 +235,42 @@ torch.global_slot.module_initializer {
 
 // -----
 
+// A non-symbol-ref element in slotSymNames must not crash the verifier
+// casting it to FlatSymbolRefAttr (see #4411).
+
+torch.global_slot @slot0 : !torch.int
+
+"torch.global_slot.module_initializer"() ({
+  %0 = torch.constant.int 1
+  // expected-error @+1 {{expected each element of slotSymNames to be a symbol reference, got 159 : i64}}
+  "torch.initialize.global_slots"(%0) <{slotSymNames = [159]}> : (!torch.int) -> ()
+}) : () -> ()
+
+// -----
+
+// A module initializer with no terminator must not crash the verifier
+// unconditionally casting the block terminator (see #4413).
+
+// expected-error @+1 {{expected body to be terminated by 'torch.initialize.global_slots'}}
+"torch.global_slot.module_initializer"() ({
+  "torch.constant.int"() <{value = 1 : i64}> : () -> !torch.int
+}) : () -> ()
+
+// -----
+
+// A module initializer terminated by the wrong op must not crash the
+// verifier unconditionally casting the block terminator (see #4414).
+
+torch.global_slot @slot0 : !torch.int
+
+// expected-error @+1 {{expected body to be terminated by 'torch.initialize.global_slots'}}
+"torch.global_slot.module_initializer"() ({
+^bb0(%arg0: !torch.int):
+  "func.return"(%arg0) : (!torch.int) -> ()
+}) : () -> ()
+
+// -----
+
 // Subtyping checks.
 
 torch.global_slot @tensor : !torch.tensor
