@@ -233,8 +233,12 @@ public:
     }
 
     if (accumulatorDType != resultType.getElementType()) {
-      matmul = torch_to_linalg::convertTensorToElementType(
-          rewriter, loc, matmul, resultType.getElementType());
+      FailureOr<Value> matmulConverted =
+          torch_to_linalg::convertTensorToElementType(
+              rewriter, loc, matmul, resultType.getElementType());
+      if (failed(matmulConverted))
+        return failure();
+      matmul = *matmulConverted;
     }
     // When constructed with just dynamic sizes, EmptyOp will have a result
     // type which has all `?`'s for dimensions, which might not be the result
@@ -419,8 +423,12 @@ public:
                                             ValueRange{lhs, rhs}, zeroTensor)
                           .getResult(0);
       if (accumulatorDType != resultElementType) {
-        dotProd = torch_to_linalg::convertTensorToElementType(
-            rewriter, loc, dotProd, resultElementType);
+        FailureOr<Value> dotProdConverted =
+            torch_to_linalg::convertTensorToElementType(rewriter, loc, dotProd,
+                                                        resultElementType);
+        if (failed(dotProdConverted))
+          return failure();
+        dotProd = *dotProdConverted;
       }
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, dotProd);
       return success();
@@ -440,8 +448,12 @@ public:
                                    ValueRange{lhs, rhs}, zeroTensor)
               .getResult(0);
       if (accumulatorDType != resultElementType) {
-        matmul = torch_to_linalg::convertTensorToElementType(
-            rewriter, loc, matmul, resultElementType);
+        FailureOr<Value> matmulConverted =
+            torch_to_linalg::convertTensorToElementType(rewriter, loc, matmul,
+                                                        resultElementType);
+        if (failed(matmulConverted))
+          return failure();
+        matmul = *matmulConverted;
       }
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, matmul);
       return success();
@@ -461,8 +473,12 @@ public:
                                    ValueRange{lhs, rhs}, zeroTensor)
               .getResult(0);
       if (accumulatorDType != resultElementType) {
-        matmul = torch_to_linalg::convertTensorToElementType(
-            rewriter, loc, matmul, resultElementType);
+        FailureOr<Value> matmulConverted =
+            torch_to_linalg::convertTensorToElementType(rewriter, loc, matmul,
+                                                        resultElementType);
+        if (failed(matmulConverted))
+          return failure();
+        matmul = *matmulConverted;
       }
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, matmul);
       return success();
@@ -491,8 +507,12 @@ public:
                      .getResult(0);
       }
       if (accumulatorDType != resultElementType) {
-        matmul = torch_to_linalg::convertTensorToElementType(
-            rewriter, loc, matmul, resultElementType);
+        FailureOr<Value> matmulConverted =
+            torch_to_linalg::convertTensorToElementType(rewriter, loc, matmul,
+                                                        resultElementType);
+        if (failed(matmulConverted))
+          return failure();
+        matmul = *matmulConverted;
       }
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, matmul);
       return success();
@@ -599,8 +619,12 @@ public:
                      ValueRange{broadcastedLhs, broadcastedRhs}, zeroTensor)
                      .getResult(0);
         if (accumulatorDType != resultElementType) {
-          matmul = torch_to_linalg::convertTensorToElementType(
-              rewriter, loc, matmul, resultElementType);
+          FailureOr<Value> matmulConverted =
+              torch_to_linalg::convertTensorToElementType(rewriter, loc, matmul,
+                                                          resultElementType);
+          if (failed(matmulConverted))
+            return failure();
+          matmul = *matmulConverted;
         }
         rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, matmul);
         return success();
@@ -666,8 +690,12 @@ public:
                             .getResult(0);
         }
         if (accumulatorDType != resultElementType) {
-          batchMatMul = torch_to_linalg::convertTensorToElementType(
-              rewriter, loc, batchMatMul, resultElementType);
+          FailureOr<Value> batchMatMulConverted =
+              torch_to_linalg::convertTensorToElementType(rewriter, loc, batchMatMul,
+                                                          resultElementType);
+          if (failed(batchMatMulConverted))
+            return failure();
+          batchMatMul = *batchMatMulConverted;
         }
         Value expandResult = tensor::ExpandShapeOp::create(
             rewriter, loc, resultType, batchMatMul, reassociation);
@@ -723,8 +751,12 @@ public:
               .getResult(0);
 
       if (accumulatorDType != resultElementType) {
-        finalRes = torch_to_linalg::convertTensorToElementType(
-            rewriter, loc, finalRes, resultElementType);
+        FailureOr<Value> finalResConverted =
+            torch_to_linalg::convertTensorToElementType(rewriter, loc, finalRes,
+                                                        resultElementType);
+        if (failed(finalResConverted))
+          return failure();
+        finalRes = *finalResConverted;
       }
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, finalRes);
       return success();
@@ -764,14 +796,22 @@ public:
       if (lhsElementType != resultElementType) {
         // True if the lhs element type is not equal to the result' element
         // type.
-        lhs = torch_to_linalg::convertTensorToElementType(rewriter, loc, lhs,
-                                                          resultElementType);
+        FailureOr<Value> lhsConverted =
+            torch_to_linalg::convertTensorToElementType(rewriter, loc, lhs,
+                                                        resultElementType);
+        if (failed(lhsConverted))
+          return failure();
+        lhs = *lhsConverted;
         lhsElementType = resultElementType;
       } else {
         // True if the rhs element type is not equal to the result' element
         // type.
-        rhs = torch_to_linalg::convertTensorToElementType(rewriter, loc, rhs,
-                                                          resultElementType);
+        FailureOr<Value> rhsConverted =
+            torch_to_linalg::convertTensorToElementType(rewriter, loc, rhs,
+                                                        resultElementType);
+        if (failed(rhsConverted))
+          return failure();
+        rhs = *rhsConverted;
         rhsElementType = resultElementType;
       }
     }
@@ -799,8 +839,12 @@ public:
             .getResult(0);
 
     if (accumulatorDType != resultElementType) {
-      bmm = torch_to_linalg::convertTensorToElementType(rewriter, loc, bmm,
-                                                        resultElementType);
+      FailureOr<Value> bmmConverted =
+          torch_to_linalg::convertTensorToElementType(rewriter, loc, bmm,
+                                                      resultElementType);
+      if (failed(bmmConverted))
+        return failure();
+      bmm = *bmmConverted;
     }
 
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, bmm);
@@ -1175,9 +1219,15 @@ public:
         rewriter, loc, getAsOpFoldResult(outDims), accumulatorDType);
 
     Value outputTensor;
-    if (accumulatorDType != resultDTy && !isa<Torch::NoneType>(bias.getType()))
-      bias = torch_to_linalg::convertTensorToElementType(rewriter, loc, bias,
-                                                         accumulatorDType);
+    if (accumulatorDType != resultDTy &&
+        !isa<Torch::NoneType>(bias.getType())) {
+      FailureOr<Value> biasConverted =
+          torch_to_linalg::convertTensorToElementType(rewriter, loc, bias,
+                                                      accumulatorDType);
+      if (failed(biasConverted))
+        return failure();
+      bias = *biasConverted;
+    }
     if (isa<Torch::NoneType>(bias.getType())) {
       Value c0;
       if (isa<mlir::FloatType>(accumulatorDType)) {
@@ -1268,8 +1318,12 @@ public:
       if (accumulatorDType != resultDTy) {
         Type resultElementType =
             cast<RankedTensorType>(newResultType).getElementType();
-        conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
-                                                           resultElementType);
+        FailureOr<Value> convConverted =
+            torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
+                                                        resultElementType);
+        if (failed(convConverted))
+          return failure();
+        conv = *convConverted;
       }
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
       return success();
@@ -1329,8 +1383,12 @@ public:
       if (accumulatorDType != resultDTy) {
         Type resultElementType =
             cast<RankedTensorType>(newResultType).getElementType();
-        conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
-                                                           resultElementType);
+        FailureOr<Value> convConverted =
+            torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
+                                                        resultElementType);
+        if (failed(convConverted))
+          return failure();
+        conv = *convConverted;
       }
       rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, conv);
       return success();
@@ -1421,8 +1479,12 @@ public:
       if (accumulatorDType != resultDTy) {
         Type resultElementType =
             cast<RankedTensorType>(newResultType).getElementType();
-        conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
-                                                           resultElementType);
+        FailureOr<Value> convConverted =
+            torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
+                                                        resultElementType);
+        if (failed(convConverted))
+          return failure();
+        conv = *convConverted;
       }
 
       if (is1DGroupConv) {
@@ -1584,8 +1646,12 @@ public:
     if (accumulatorDType != resultDTy) {
       Type resultElementType =
           cast<RankedTensorType>(newResultType).getElementType();
-      conv = torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
-                                                         resultElementType);
+      FailureOr<Value> convConverted =
+          torch_to_linalg::convertTensorToElementType(rewriter, loc, conv,
+                                                      resultElementType);
+      if (failed(convConverted))
+        return failure();
+      conv = *convConverted;
     }
 
     if (is1DGroupConv) {
@@ -1921,7 +1987,8 @@ public:
           return createZeroInitTensor(rewriter, loc, expandedSizes, type);
         };
 
-    auto convertFloatAccDtype = [&](Value accumulator, Type targetDTy) {
+    auto convertFloatAccDtype = [&](Value accumulator,
+                                    Type targetDTy) -> FailureOr<Value> {
       auto accDTy =
           cast<RankedTensorType>(accumulator.getType()).getElementType();
       auto floatAccDTy = dyn_cast<mlir::FloatType>(accDTy);
@@ -2065,7 +2132,11 @@ public:
       auto returnTensorTy = cast<RankedTensorType>(
           getTypeConverter()->convertType(op->getResult(0).getType()));
       auto returnDTy = returnTensorTy.getElementType();
-      convRes = convertFloatAccDtype(convRes, returnDTy);
+      FailureOr<Value> convResConverted =
+          convertFloatAccDtype(convRes, returnDTy);
+      if (failed(convResConverted))
+        return failure();
+      convRes = *convResConverted;
 
       // Collapse [N, G, C/G, D] to [N, C, D] the result of the conv
       // if it is grouped.
@@ -2123,7 +2194,11 @@ public:
       auto returnTensorTy = cast<RankedTensorType>(
           getTypeConverter()->convertType(op->getResult(1).getType()));
       auto returnDTy = returnTensorTy.getElementType();
-      convResult = convertFloatAccDtype(convResult, returnDTy);
+      FailureOr<Value> convResultConverted =
+          convertFloatAccDtype(convResult, returnDTy);
+      if (failed(convResultConverted))
+        return failure();
+      convResult = *convResultConverted;
 
       // Collapse [G, F/G, C/G, D] to [F, C/G, D] the result of the conv
       // if it is grouped.
@@ -2170,7 +2245,11 @@ public:
       auto resultType = cast<RankedTensorType>(
           getTypeConverter()->convertType(op->getResult(2).getType()));
       auto resultDTy = resultType.getElementType();
-      gradBias = convertFloatAccDtype(gradBias, resultDTy);
+      FailureOr<Value> gradBiasConverted =
+          convertFloatAccDtype(gradBias, resultDTy);
+      if (failed(gradBiasConverted))
+        return failure();
+      gradBias = *gradBiasConverted;
 
       newResults[2] = tensor::CastOp::create(rewriter, loc,
                                              getTypeConverter()->convertType(
@@ -2589,13 +2668,23 @@ public:
       return rewriter.notifyMatchFailure(
           op, "expected both operands to aten.outer to be rank 1");
 
-    if (lhsElementType != resultElementType)
-      lhs = torch_to_linalg::convertTensorToElementType(rewriter, loc, lhs,
-                                                        resultElementType);
+    if (lhsElementType != resultElementType) {
+      FailureOr<Value> lhsConverted =
+          torch_to_linalg::convertTensorToElementType(rewriter, loc, lhs,
+                                                      resultElementType);
+      if (failed(lhsConverted))
+        return failure();
+      lhs = *lhsConverted;
+    }
 
-    if (rhsElementType != resultElementType)
-      rhs = torch_to_linalg::convertTensorToElementType(rewriter, loc, rhs,
-                                                        resultElementType);
+    if (rhsElementType != resultElementType) {
+      FailureOr<Value> rhsConverted =
+          torch_to_linalg::convertTensorToElementType(rewriter, loc, rhs,
+                                                      resultElementType);
+      if (failed(rhsConverted))
+        return failure();
+      rhs = *rhsConverted;
+    }
 
     Value lhsDim = getDimOp(rewriter, loc, lhs, 0);
     Value rhsDim = getDimOp(rewriter, loc, rhs, 0);
