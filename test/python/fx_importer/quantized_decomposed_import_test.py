@@ -137,3 +137,87 @@ def test_dequantize_per_channel():
         func_name="test_dequantize_per_channel",
     )
     print(m)
+
+
+@run
+# CHECK-LABEL: test_quantize_per_token
+# CHECK: torch.quantized_decomposed.quantize_per_token
+# CHECK-NOT: torch.operator
+def test_quantize_per_token():
+    class QuantizePerToken(nn.Module):
+        def forward(self, x, scales, zero_points):
+            return torch.ops.quantized_decomposed.quantize_per_token.default(
+                x, scales, zero_points, -128, 127, torch.int8
+            )
+
+    m = fx.export_and_import(
+        QuantizePerToken(),
+        torch.randn(4, 16),
+        torch.rand(4, 1),
+        torch.zeros(4, 1, dtype=torch.int64),
+        func_name="test_quantize_per_token",
+    )
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_dequantize_per_token
+# CHECK: torch.quantized_decomposed.dequantize_per_token
+# CHECK-NOT: torch.operator
+def test_dequantize_per_token():
+    class DequantizePerToken(nn.Module):
+        def forward(self, x, scales, zero_points):
+            return torch.ops.quantized_decomposed.dequantize_per_token.default(
+                x, scales, zero_points, -128, 127, torch.int8, torch.float32
+            )
+
+    m = fx.export_and_import(
+        DequantizePerToken(),
+        torch.zeros(4, 16, dtype=torch.int8),
+        torch.rand(4, 1),
+        torch.zeros(4, 1, dtype=torch.int64),
+        func_name="test_dequantize_per_token",
+    )
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_choose_qparams_per_token_asymmetric
+# CHECK: torch.quantized_decomposed.choose_qparams_per_token_asymmetric
+# CHECK-NOT: torch.operator
+def test_choose_qparams_per_token_asymmetric():
+    class ChooseQparamsPerTokenAsymmetric(nn.Module):
+        def forward(self, x):
+            scale, zp = (
+                torch.ops.quantized_decomposed.choose_qparams_per_token_asymmetric.default(
+                    x, torch.int8
+                )
+            )
+            return scale, zp
+
+    m = fx.export_and_import(
+        ChooseQparamsPerTokenAsymmetric(),
+        torch.randn(4, 16),
+        func_name="test_choose_qparams_per_token_asymmetric",
+    )
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_choose_qparams_per_token_symmetric
+# CHECK: torch.quantized_decomposed.choose_qparams_per_token
+# CHECK-NOT: torch.operator
+def test_choose_qparams_per_token_symmetric():
+    class ChooseQparamsPerToken(nn.Module):
+        def forward(self, x):
+            scale, zp = torch.ops.quantized_decomposed.choose_qparams_per_token.default(
+                x, torch.int8
+            )
+            return scale, zp
+
+    m = fx.export_and_import(
+        ChooseQparamsPerToken(),
+        torch.randn(4, 16),
+        func_name="test_choose_qparams_per_token_symmetric",
+    )
+    print(m)
