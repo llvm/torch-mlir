@@ -3,11 +3,9 @@ name: CI - Wheels
 
 on:
   pull_request:
-    # Dry-run the wheel build on any PR that carries the "ci:wheels" label.
-    # `synchronize` re-runs the build on every push so fixes are exercised
-    # without re-applying the label; `labeled` covers adding the label to an
-    # existing PR.
-    types: [labeled, synchronize]
+    # Run automatically when wheel/release infrastructure files are modified,
+    # or on any PR carrying the "ci:wheels" label.
+    types: [opened, synchronize, reopened, labeled]
 
 concurrency:
   group: ci-wheels-${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -17,10 +15,55 @@ permissions:
   contents: read
 
 jobs:
+  check_trigger:
+    name: Check if wheel build is required
+    runs-on: ubuntu-24.04
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+    steps:
+      - name: Check label first
+        id: check_label
+        if: contains(github.event.pull_request.labels.*.name, 'ci:wheels')
+        run: echo "has_label=true" >> "$GITHUB_OUTPUT"
+
+      - name: Check out repo for path diff
+        if: steps.check_label.outputs.has_label != 'true'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Determine if wheel build should run
+        id: check
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ steps.check_label.outputs.has_label }}" == "true" ]]; then
+            echo "Triggered by 'ci:wheels' label."
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          BASE_REF="origin/${{ github.event.pull_request.base.ref }}"
+          CHANGED_FILES=$(git diff --name-only "$BASE_REF...HEAD")
+          SHOULD_BUILD="false"
+          while IFS= read -r file; do
+            case "$file" in
+              .github/workflows/*wheel* | \
+              .github/workflows/release.yml | \
+              pyproject.toml | \
+              setup.py | \
+              scripts/* )
+                SHOULD_BUILD="true"
+                break
+                ;;
+            esac
+          done <<< "$CHANGED_FILES"
+          echo "should_build=$SHOULD_BUILD" >> "$GITHUB_OUTPUT"
+
   build_wheels:
     name: Build wheels
-    if: contains(github.event.pull_request.labels.*.name, 'ci:wheels')
+    needs: [check_trigger]
+    if: needs.check_trigger.outputs.should_build == 'true'
     uses: ./.github/workflows/_build_wheels.yml
     with:
-      ref: ${{ github.event.pull_request.head.ref }}
       version: '0.0.0'
