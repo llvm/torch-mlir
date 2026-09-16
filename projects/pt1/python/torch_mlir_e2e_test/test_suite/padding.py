@@ -377,3 +377,95 @@ class ReflectionPad3dModuleBack(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReflectionPad3dModuleBack())
 def ReflectionPad3dModuleBack_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 20, 20, 12))
+
+
+# ==============================================================================
+
+
+class CircularPad1dModule_3DInput(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.nn.functional.pad(x, [3, 5], mode="circular")
+
+
+@register_test_case(module_factory=lambda: CircularPad1dModule_3DInput())
+def CircularPad1dModule_3DInput_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 15, 20, low=-1))
+
+
+# ==============================================================================
+
+
+class CircularPad1dModule_2DInput(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.nn.functional.pad(x, [2, 3], mode="circular")
+
+
+@register_test_case(module_factory=lambda: CircularPad1dModule_2DInput())
+def CircularPad1dModule_2DInput_basic(module, tu: TestUtils):
+    module.forward(tu.rand(7, 12, low=-1))
+
+
+# ==============================================================================
+
+
+class CircularPad2dModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 20, 20], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.nn.functional.pad(x, (10, 10, 10, 10), mode="circular")
+
+
+@register_test_case(module_factory=lambda: CircularPad2dModule())
+def CircularPad2dModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 20, 20, low=-1))
+
+
+# ==============================================================================
+
+
+class CircularPad3dModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 20, 20, 20, 20], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.nn.functional.pad(x, (10, 10, 10, 10, 10, 10), mode="circular")
+
+
+@register_test_case(module_factory=lambda: CircularPad3dModule())
+def CircularPad3dModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 20, 20, 20, 20, low=-1))
