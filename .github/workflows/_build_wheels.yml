@@ -32,6 +32,8 @@ jobs:
             runner: ubuntu-24.04-arm
           - name: macos-arm64
             runner: macos-15
+          - name: windows-x86_64
+            runner: windows-latest
 
     steps:
       - name: Check out torch-mlir
