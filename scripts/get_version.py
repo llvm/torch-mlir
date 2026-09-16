@@ -41,7 +41,7 @@ def validate_and_parse_tag(tag: str) -> tuple[str, bool]:
     """Validate a case-sensitive refs/tags/vYYYYMMDD or vYYYYMMDD(.devN) tag.
 
     Rejects branch/tag ambiguity, duplicate leading 'v's, wrong capitalization,
-    and invalid formats. Parses with packaging.version.Version and returns
+    invalid calendar dates, and invalid formats. Parses with packaging.version.Version and returns
     (version_str, is_devrelease).
     """
     match = TAG_REGEX.match(tag)
@@ -52,6 +52,13 @@ def validate_and_parse_tag(tag: str) -> tuple[str, bool]:
         )
     tag_clean = match.group(1)
     version_str = tag_clean.removeprefix("v")
+    date_part = version_str[:8]
+    try:
+        datetime.datetime.strptime(date_part, "%Y%m%d")
+    except ValueError as e:
+        raise ValueError(
+            f"Invalid release tag '{tag}': invalid calendar date '{date_part}' ({e})."
+        ) from e
     parsed = packaging.version.Version(version_str)
     return str(parsed), parsed.is_devrelease
 
@@ -103,16 +110,35 @@ def get_github_dev_versions(repo, package_name):
 
 
 def get_pypi_versions(package_name):
-    """Fetch all release versions for a package from PyPI."""
+    """Fetch all release versions for a package from PyPI.
+
+    Fails closed (raises RuntimeError) on network errors, non-200/404 HTTP status
+    codes, or invalid JSON payloads. Returns [] only on HTTP 404 or empty releases.
+    """
     url = f"https://pypi.org/pypi/{package_name}/json"
     try:
         response = requests.get(url, timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            return list(data.get("releases", {}).keys())
     except Exception as e:
-        print(f"Error fetching from PyPI: {e}", file=sys.stderr)
-    return []
+        raise RuntimeError(
+            f"Failed to query PyPI versions for '{package_name}': {e}"
+        ) from e
+
+    if response.status_code == 404:
+        return []
+    if response.status_code != 200:
+        raise RuntimeError(
+            f"PyPI returned HTTP {response.status_code} when fetching versions "
+            f"for '{package_name}': {response.text}"
+        )
+
+    try:
+        data = response.json()
+    except Exception as e:
+        raise RuntimeError(
+            f"Failed to decode JSON from PyPI for '{package_name}': {e}"
+        ) from e
+
+    return list(data.get("releases", {}).keys())
 
 
 def verify_latest_version(version_str, package_name):

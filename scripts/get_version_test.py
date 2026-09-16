@@ -39,6 +39,11 @@ class TestGetVersion(unittest.TestCase):
         self.assertEqual(ver, "20260831.dev12")
         self.assertTrue(is_dev)
 
+    def test_validate_and_parse_tag_valid_leap_year(self):
+        ver, is_dev = get_version.validate_and_parse_tag("v20240229")
+        self.assertEqual(ver, "20240229")
+        self.assertFalse(is_dev)
+
     def test_validate_and_parse_tag_invalid_tags(self):
         invalid_tags = [
             "V20260831",  # capital V
@@ -52,6 +57,10 @@ class TestGetVersion(unittest.TestCase):
             "v20260831-dev",  # hyphen instead of dot
             "v2026083",  # 7 digits
             "v202608311",  # 9 digits
+            "v20260231",  # invalid day in February
+            "v20260229",  # non-leap year Feb 29
+            "v99999999",  # invalid month/day
+            "v20261301",  # invalid month 13
             "main",  # branch name
             "release/v20260831",
         ]
@@ -137,10 +146,42 @@ class TestGetVersion(unittest.TestCase):
         self.assertIn("20221212.685", versions)
 
     @mock.patch("requests.get")
-    def test_get_pypi_versions_error(self, mock_get):
-        mock_get.side_effect = Exception("PyPI unreachable")
+    def test_get_pypi_versions_404(self, mock_get):
+        mock_response = mock.Mock()
+        mock_response.status_code = 404
+        mock_get.return_value = mock_response
+
         versions = get_version.get_pypi_versions("torch-mlir")
         self.assertEqual(versions, [])
+
+    @mock.patch("requests.get")
+    def test_get_pypi_versions_fails_closed_on_network_error(self, mock_get):
+        mock_get.side_effect = Exception("PyPI unreachable")
+        with self.assertRaises(RuntimeError) as ctx:
+            get_version.get_pypi_versions("torch-mlir")
+        self.assertIn("PyPI unreachable", str(ctx.exception))
+
+    @mock.patch("requests.get")
+    def test_get_pypi_versions_fails_closed_on_http_error(self, mock_get):
+        mock_response = mock.Mock()
+        mock_response.status_code = 503
+        mock_response.text = "Service Unavailable"
+        mock_get.return_value = mock_response
+
+        with self.assertRaises(RuntimeError) as ctx:
+            get_version.get_pypi_versions("torch-mlir")
+        self.assertIn("HTTP 503", str(ctx.exception))
+
+    @mock.patch("requests.get")
+    def test_get_pypi_versions_fails_closed_on_json_error(self, mock_get):
+        mock_response = mock.Mock()
+        mock_response.status_code = 200
+        mock_response.json.side_effect = ValueError("Invalid JSON")
+        mock_get.return_value = mock_response
+
+        with self.assertRaises(RuntimeError) as ctx:
+            get_version.get_pypi_versions("torch-mlir")
+        self.assertIn("Failed to decode JSON", str(ctx.exception))
 
     @mock.patch("scripts.get_version.get_pypi_versions")
     def test_verify_latest_version_success(self, mock_pypi):
