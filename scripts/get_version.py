@@ -11,6 +11,7 @@ import datetime
 import os
 import pathlib
 import re
+import subprocess
 import sys
 import tomllib
 
@@ -61,6 +62,68 @@ def validate_and_parse_tag(tag: str) -> tuple[str, bool]:
         ) from e
     parsed = packaging.version.Version(version_str)
     return str(parsed), parsed.is_devrelease
+
+
+def resolve_and_verify_tag(tag: str, main_branch: str = "origin/main") -> str:
+    """Resolve a tag to its 40-character commit SHA and prove reachability from main.
+
+    Peels annotated or lightweight tags via `git rev-parse --verify` and
+    verifies that the commit is an ancestor of `origin/main` via
+    `git merge-base --is-ancestor`. Fails closed with ValueError on error.
+    """
+    clean_tag = tag.removeprefix("refs/tags/")
+    tag_ref = f"refs/tags/{clean_tag}^{{commit}}"
+    try:
+        res = subprocess.run(
+            ["git", "rev-parse", "--verify", tag_ref],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        raise ValueError(
+            f"Failed to resolve tag '{clean_tag}' to a commit SHA: "
+            f"{e.stderr.strip() or e}"
+        ) from e
+
+    commit_sha = res.stdout.strip()
+    if not re.fullmatch(r"[0-9a-f]{40}", commit_sha):
+        raise ValueError(
+            f"Expected 40-character commit SHA for tag '{clean_tag}', "
+            f"got '{commit_sha}'."
+        )
+
+    try:
+        subprocess.run(
+            ["git", "merge-base", "--is-ancestor", commit_sha, main_branch],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        raise ValueError(
+            f"Commit {commit_sha} (from tag '{clean_tag}') is not an ancestor "
+            f"of '{main_branch}'. Unmerged tags cannot be released."
+        ) from e
+
+    return commit_sha
+
+
+def resolve_ref_sha(ref: str = "origin/main") -> str:
+    """Resolve a git ref (such as origin/main) to an immutable 40-char commit SHA."""
+    try:
+        res = subprocess.run(
+            ["git", "rev-parse", "--verify", f"{ref}^{{commit}}"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(
+            f"Failed to resolve ref '{ref}' to a commit SHA: "
+            f"{e.stderr.strip() or e}"
+        ) from e
+    return res.stdout.strip()
 
 
 def get_github_dev_versions(repo, package_name):
@@ -201,29 +264,27 @@ def calculate_version(event, ref, tag, package, repo=None):
         if tag:
             # Manual release of an existing tag; validate and parse with Version
             version, is_dev = validate_and_parse_tag(tag)
-            clean_tag = tag.removeprefix("refs/tags/")
-            target_ref = f"refs/tags/{clean_tag}"
+            target_ref = resolve_and_verify_tag(tag)
             should_publish_gh = "true"
             if not is_dev:
                 should_publish_pypi = "true"
         elif ref == DEV_BRANCH_REF:
             # For dev releases off main
             version = get_next_dev_version(package, repo)
-            target_ref = DEV_BRANCH_REF
+            target_ref = resolve_ref_sha("origin/main")
             should_publish_gh = "true"
         else:
             target_ref = ref
 
     elif event == "schedule":
         should_publish_gh = "true"
-        target_ref = DEV_BRANCH_REF
         if tag:
             version, is_dev = validate_and_parse_tag(tag)
-            clean_tag = tag.removeprefix("refs/tags/")
-            target_ref = f"refs/tags/{clean_tag}"
+            target_ref = resolve_and_verify_tag(tag)
             if not is_dev:
                 should_publish_pypi = "true"
         else:
+            target_ref = resolve_ref_sha("origin/main")
             now = datetime.datetime.now(datetime.timezone.utc)
             if now.day == 1:
                 version = now.strftime("%Y%m%d")

@@ -5,6 +5,7 @@
 
 import datetime
 import os
+import subprocess
 import sys
 import unittest
 from unittest import mock
@@ -261,6 +262,49 @@ class TestGetVersion(unittest.TestCase):
         version = get_version.get_next_dev_version("torch-mlir", "llvm/torch-mlir")
         self.assertEqual(version, f"{today}.dev0")
 
+    @mock.patch("subprocess.run")
+    def test_resolve_and_verify_tag_success(self, mock_run):
+        expected_sha = "a" * 40
+        mock_run.side_effect = [
+            mock.Mock(stdout=f"{expected_sha}\n", returncode=0),
+            mock.Mock(stdout="", returncode=0),
+        ]
+        sha = get_version.resolve_and_verify_tag("v20260831")
+        self.assertEqual(sha, expected_sha)
+        self.assertEqual(mock_run.call_count, 2)
+        mock_run.assert_any_call(
+            ["git", "rev-parse", "--verify", "refs/tags/v20260831^{commit}"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        mock_run.assert_any_call(
+            ["git", "merge-base", "--is-ancestor", expected_sha, "origin/main"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+    @mock.patch("subprocess.run")
+    def test_resolve_and_verify_tag_not_found(self, mock_run):
+        mock_run.side_effect = subprocess.CalledProcessError(
+            128, ["git", "rev-parse"], stderr="fatal: Needed a single revision"
+        )
+        with self.assertRaises(ValueError) as ctx:
+            get_version.resolve_and_verify_tag("v20260831")
+        self.assertIn("Failed to resolve tag", str(ctx.exception))
+
+    @mock.patch("subprocess.run")
+    def test_resolve_and_verify_tag_not_ancestor(self, mock_run):
+        expected_sha = "b" * 40
+        mock_run.side_effect = [
+            mock.Mock(stdout=f"{expected_sha}\n", returncode=0),
+            subprocess.CalledProcessError(1, ["git", "merge-base"], stderr=""),
+        ]
+        with self.assertRaises(ValueError) as ctx:
+            get_version.resolve_and_verify_tag("v20260831")
+        self.assertIn("not an ancestor", str(ctx.exception))
+
     def test_calculate_version_pull_request(self):
         v, ref, pub_gh, pub_pypi = get_version.calculate_version(
             event="pull_request",
@@ -273,7 +317,10 @@ class TestGetVersion(unittest.TestCase):
         self.assertEqual(pub_gh, "false")
         self.assertEqual(pub_pypi, "false")
 
-    def test_calculate_version_workflow_dispatch_tag(self):
+    @mock.patch("scripts.get_version.resolve_and_verify_tag")
+    def test_calculate_version_workflow_dispatch_tag(self, mock_resolve_tag):
+        expected_sha = "a" * 40
+        mock_resolve_tag.return_value = expected_sha
         v, ref, pub_gh, pub_pypi = get_version.calculate_version(
             event="workflow_dispatch",
             ref="refs/heads/main",
@@ -281,11 +328,15 @@ class TestGetVersion(unittest.TestCase):
             package="torch-mlir",
         )
         self.assertEqual(v, "20260831")
-        self.assertEqual(ref, "refs/tags/v20260831")
+        self.assertEqual(ref, expected_sha)
         self.assertEqual(pub_gh, "true")
         self.assertEqual(pub_pypi, "true")
+        mock_resolve_tag.assert_called_once_with("v20260831")
 
-    def test_calculate_version_workflow_dispatch_dev_tag(self):
+    @mock.patch("scripts.get_version.resolve_and_verify_tag")
+    def test_calculate_version_workflow_dispatch_dev_tag(self, mock_resolve_tag):
+        expected_sha = "b" * 40
+        mock_resolve_tag.return_value = expected_sha
         v, ref, pub_gh, pub_pypi = get_version.calculate_version(
             event="workflow_dispatch",
             ref="refs/heads/main",
@@ -293,9 +344,10 @@ class TestGetVersion(unittest.TestCase):
             package="torch-mlir",
         )
         self.assertEqual(v, "20260831.dev1")
-        self.assertEqual(ref, "refs/tags/v20260831.dev1")
+        self.assertEqual(ref, expected_sha)
         self.assertEqual(pub_gh, "true")
         self.assertEqual(pub_pypi, "false")
+        mock_resolve_tag.assert_called_once_with("v20260831.dev1")
 
     def test_calculate_version_workflow_dispatch_invalid_tag(self):
         with self.assertRaises(ValueError):
@@ -306,9 +358,14 @@ class TestGetVersion(unittest.TestCase):
                 package="torch-mlir",
             )
 
+    @mock.patch("scripts.get_version.resolve_ref_sha")
     @mock.patch("scripts.get_version.get_next_dev_version")
-    def test_calculate_version_workflow_dispatch_main_dev(self, mock_dev):
+    def test_calculate_version_workflow_dispatch_main_dev(
+        self, mock_dev, mock_resolve_ref
+    ):
+        expected_sha = "c" * 40
         mock_dev.return_value = "20260831.dev0"
+        mock_resolve_ref.return_value = expected_sha
         v, ref, pub_gh, pub_pypi = get_version.calculate_version(
             event="workflow_dispatch",
             ref="refs/heads/main",
@@ -316,9 +373,10 @@ class TestGetVersion(unittest.TestCase):
             package="torch-mlir",
         )
         self.assertEqual(v, "20260831.dev0")
-        self.assertEqual(ref, "refs/heads/main")
+        self.assertEqual(ref, expected_sha)
         self.assertEqual(pub_gh, "true")
         self.assertEqual(pub_pypi, "false")
+        mock_resolve_ref.assert_called_once_with("origin/main")
 
     def test_calculate_version_workflow_dispatch_feature_branch(self):
         v, ref, pub_gh, pub_pypi = get_version.calculate_version(
@@ -332,8 +390,13 @@ class TestGetVersion(unittest.TestCase):
         self.assertEqual(pub_gh, "false")
         self.assertEqual(pub_pypi, "false")
 
+    @mock.patch("scripts.get_version.resolve_ref_sha")
     @mock.patch("datetime.datetime")
-    def test_calculate_version_schedule_first_of_month(self, mock_datetime):
+    def test_calculate_version_schedule_first_of_month(
+        self, mock_datetime, mock_resolve_ref
+    ):
+        expected_sha = "d" * 40
+        mock_resolve_ref.return_value = expected_sha
         mock_now = mock.Mock()
         mock_now.day = 1
         mock_now.strftime.return_value = "20260901"
@@ -347,13 +410,19 @@ class TestGetVersion(unittest.TestCase):
             package="torch-mlir",
         )
         self.assertEqual(v, "20260901")
-        self.assertEqual(ref, "refs/heads/main")
+        self.assertEqual(ref, expected_sha)
         self.assertEqual(pub_gh, "true")
         self.assertEqual(pub_pypi, "true")
+        mock_resolve_ref.assert_called_once_with("origin/main")
 
+    @mock.patch("scripts.get_version.resolve_ref_sha")
     @mock.patch("datetime.datetime")
     @mock.patch("scripts.get_version.get_next_dev_version")
-    def test_calculate_version_schedule_mid_month(self, mock_dev, mock_datetime):
+    def test_calculate_version_schedule_mid_month(
+        self, mock_dev, mock_datetime, mock_resolve_ref
+    ):
+        expected_sha = "e" * 40
+        mock_resolve_ref.return_value = expected_sha
         mock_now = mock.Mock()
         mock_now.day = 15
         mock_datetime.now.return_value = mock_now
@@ -367,11 +436,15 @@ class TestGetVersion(unittest.TestCase):
             package="torch-mlir",
         )
         self.assertEqual(v, "20260915.dev0")
-        self.assertEqual(ref, "refs/heads/main")
+        self.assertEqual(ref, expected_sha)
         self.assertEqual(pub_gh, "true")
         self.assertEqual(pub_pypi, "false")
+        mock_resolve_ref.assert_called_once_with("origin/main")
 
-    def test_calculate_version_schedule_tag(self):
+    @mock.patch("scripts.get_version.resolve_and_verify_tag")
+    def test_calculate_version_schedule_tag(self, mock_resolve_tag):
+        expected_sha = "f" * 40
+        mock_resolve_tag.return_value = expected_sha
         v, ref, pub_gh, pub_pypi = get_version.calculate_version(
             event="schedule",
             ref="refs/heads/main",
@@ -379,9 +452,10 @@ class TestGetVersion(unittest.TestCase):
             package="torch-mlir",
         )
         self.assertEqual(v, "20260901")
-        self.assertEqual(ref, "refs/tags/v20260901")
+        self.assertEqual(ref, expected_sha)
         self.assertEqual(pub_gh, "true")
         self.assertEqual(pub_pypi, "true")
+        mock_resolve_tag.assert_called_once_with("v20260901")
 
 
 class TestMainCLI(unittest.TestCase):
@@ -395,20 +469,24 @@ class TestMainCLI(unittest.TestCase):
             mock_print.assert_any_call("should_publish_gh=false")
             mock_print.assert_any_call("should_publish_pypi=false")
 
+    @mock.patch("scripts.get_version.resolve_and_verify_tag")
     @mock.patch("scripts.get_version.verify_latest_version")
     @mock.patch(
         "sys.argv",
         ["get_version.py", "--event", "workflow_dispatch", "--tag", "v20260831"],
     )
-    def test_main_workflow_dispatch(self, mock_verify):
+    def test_main_workflow_dispatch(self, mock_verify, mock_resolve_tag):
+        expected_sha = "a" * 40
+        mock_resolve_tag.return_value = expected_sha
         with mock.patch("builtins.print") as mock_print:
             get_version.main()
             mock_verify.assert_called_once_with("20260831", "torch-mlir")
             mock_print.assert_any_call("version=20260831")
-            mock_print.assert_any_call("ref=refs/tags/v20260831")
+            mock_print.assert_any_call(f"ref={expected_sha}")
             mock_print.assert_any_call("should_publish_gh=true")
             mock_print.assert_any_call("should_publish_pypi=true")
 
+    @mock.patch("scripts.get_version.resolve_and_verify_tag")
     @mock.patch("scripts.get_version.verify_latest_version")
     @mock.patch(
         "sys.argv",
@@ -421,9 +499,11 @@ class TestMainCLI(unittest.TestCase):
             "--gha",
         ],
     )
-    def test_main_gha_output(self, mock_verify, tmp_path=None):
+    def test_main_gha_output(self, mock_verify, mock_resolve_tag, tmp_path=None):
         import tempfile
 
+        expected_sha = "a" * 40
+        mock_resolve_tag.return_value = expected_sha
         with tempfile.NamedTemporaryFile(mode="w+", delete=False) as tf:
             output_file = tf.name
 
@@ -435,7 +515,7 @@ class TestMainCLI(unittest.TestCase):
                 content = f.read()
 
             self.assertIn("version=20260831\n", content)
-            self.assertIn("ref=refs/tags/v20260831\n", content)
+            self.assertIn(f"ref={expected_sha}\n", content)
             self.assertIn("should_publish_gh=true\n", content)
             self.assertIn("should_publish_pypi=true\n", content)
         finally:
