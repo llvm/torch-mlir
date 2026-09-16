@@ -627,7 +627,7 @@ func.func @dequantize_per_channel_group_scale_truncation(
 
 // -----
 
-// Per-channel-group with 4-bit quantization (int4, group_size=128 typical for GPTQ).
+// Per-channel-group with 4-bit quantization.
 // CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
 // CHECK: #[[GROUP:.*]] = affine_map<(d0, d1) -> (d0, d1 floordiv 128)>
 // CHECK-LABEL: func.func @dequantize_per_channel_group_int4(
@@ -655,26 +655,59 @@ func.func @dequantize_per_channel_group_int4(
 
 // -----
 
-// 3D input tensor with per-channel-group quantization.
-// CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
-// CHECK: #[[GROUP:.*]] = affine_map<(d0, d1, d2) -> (d1, d2 floordiv 4)>
-// CHECK-LABEL: func.func @dequantize_per_channel_group_3d(
+// GPTQ single-column dequantize: group_size (128) > input.shape[-1] (16) and
+// scales.shape[-1] == 1, so group_size is clamped to 16 before lowering.
+// The affine map must use floordiv 16 (not floordiv 128).
+// CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK: #[[GROUP:.*]] = affine_map<(d0, d1) -> (d0, d1 floordiv 16)>
+// CHECK-LABEL: func.func @dequantize_per_channel_group_gptq_single_col(
 // CHECK: %[[GENERIC:.*]] = linalg.generic
-// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[GROUP]], #[[IDENTITY]]]
-func.func @dequantize_per_channel_group_3d(
-    %input: !torch.vtensor<[2,4,16],si8>,
-    %scales: !torch.vtensor<[4,4],f32>)
-    -> !torch.vtensor<[2,4,16],f32> {
+// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[GROUP]], #[[GROUP]], #[[IDENTITY]]]
+// CHECK-SAME: ins({{.*}} : tensor<4x16xi8>, tensor<4x1xf32>, tensor<4x1xi64>)
+// CHECK-SAME: outs({{.*}} : tensor<4x16xf32>)
+func.func @dequantize_per_channel_group_gptq_single_col(
+    %input: !torch.vtensor<[4,16],si8>,
+    %scales: !torch.vtensor<[4,1],f32>,
+    %zero_points: !torch.vtensor<[4,1],si64>)
+    -> !torch.vtensor<[4,16],f32> {
   %qmin = torch.constant.int -128
   %qmax = torch.constant.int 127
   %dtype = torch.constant.int 2
-  %group_size = torch.constant.int 4
+  %group_size = torch.constant.int 128
   %out_dtype = torch.constant.int 6
-  %none = torch.constant.none
   %out = torch.quantized_decomposed.dequantize_per_channel_group
-      %input, %scales, %none, %qmin, %qmax, %dtype, %group_size, %out_dtype
-      : !torch.vtensor<[2,4,16],si8>, !torch.vtensor<[4,4],f32>,
-        !torch.none, !torch.int, !torch.int, !torch.int,
-        !torch.int, !torch.int -> !torch.vtensor<[2,4,16],f32>
-  return %out : !torch.vtensor<[2,4,16],f32>
+      %input, %scales, %zero_points, %qmin, %qmax, %dtype, %group_size, %out_dtype
+      : !torch.vtensor<[4,16],si8>, !torch.vtensor<[4,1],f32>,
+        !torch.vtensor<[4,1],si64>, !torch.int, !torch.int, !torch.int,
+        !torch.int, !torch.int -> !torch.vtensor<[4,16],f32>
+  return %out : !torch.vtensor<[4,16],f32>
+}
+
+// -----
+
+// GPTQ single-column quantize: group_size (128) > input.shape[-1] (16) and
+// scales.shape[-1] == 1, so group_size is clamped to 16 before lowering.
+// The affine map must use floordiv 16 (not floordiv 128).
+// CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK: #[[GROUP:.*]] = affine_map<(d0, d1) -> (d0, d1 floordiv 16)>
+// CHECK-LABEL: func.func @quantize_per_channel_group_gptq_single_col(
+// CHECK: %[[GENERIC:.*]] = linalg.generic
+// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[GROUP]], #[[GROUP]], #[[IDENTITY]]]
+// CHECK-SAME: ins({{.*}} : tensor<4x16xf32>, tensor<4x1xf32>, tensor<4x1xi64>)
+// CHECK-SAME: outs({{.*}} : tensor<4x16xi8>)
+func.func @quantize_per_channel_group_gptq_single_col(
+    %input: !torch.vtensor<[4,16],f32>,
+    %scales: !torch.vtensor<[4,1],f32>,
+    %zero_points: !torch.vtensor<[4,1],si64>)
+    -> !torch.vtensor<[4,16],si8> {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 2
+  %group_size = torch.constant.int 128
+  %out = torch.quantized_decomposed.quantize_per_channel_group
+      %input, %scales, %zero_points, %qmin, %qmax, %dtype, %group_size
+      : !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,1],f32>,
+        !torch.vtensor<[4,1],si64>, !torch.int, !torch.int, !torch.int,
+        !torch.int -> !torch.vtensor<[4,16],si8>
+  return %out : !torch.vtensor<[4,16],si8>
 }

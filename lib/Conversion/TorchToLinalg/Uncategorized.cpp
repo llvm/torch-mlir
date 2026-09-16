@@ -1940,9 +1940,10 @@ public:
   }
 };
 
-static SmallVector<AffineMap>
-getPerChannelGroupIndexingMaps(OpBuilder &b, int64_t rank, int64_t groupSize,
-                               bool hasZeroPoints) {
+SmallVector<AffineMap> getPerChannelGroupIndexingMaps(OpBuilder &b,
+                                                      int64_t rank,
+                                                      int64_t groupSize,
+                                                      bool hasZeroPoints) {
   SmallVector<AffineMap> indexingMaps;
   AffineMap inputMap = b.getMultiDimIdentityMap(rank);
   indexingMaps.push_back(inputMap);
@@ -1959,13 +1960,12 @@ getPerChannelGroupIndexingMaps(OpBuilder &b, int64_t rank, int64_t groupSize,
 }
 
 template <typename OpTy>
-static LogicalResult checkPerChannelGroupShapes(
+LogicalResult checkPerChannelGroupShapes(
     OpTy op, ConversionPatternRewriter &rewriter, int64_t inputRank,
     ArrayRef<int64_t> inputShape, ArrayRef<int64_t> scalesShape,
     int64_t groupSize, bool hasZeroPoints, ArrayRef<int64_t> zeroPointsShape) {
-  if (inputRank < 2)
-    return rewriter.notifyMatchFailure(op,
-                                       "input must have at least 2 dimensions");
+  if (inputRank != 2)
+    return rewriter.notifyMatchFailure(op, "expected rank-2 input");
   if (groupSize <= 1)
     return rewriter.notifyMatchFailure(op, "group_size must be > 1");
 
@@ -1974,6 +1974,10 @@ static LogicalResult checkPerChannelGroupShapes(
 
   if (hasZeroPoints && static_cast<int64_t>(zeroPointsShape.size()) != 2)
     return rewriter.notifyMatchFailure(op, "expected rank-2 zero_points");
+
+  if (hasZeroPoints && zeroPointsShape != scalesShape)
+    return rewriter.notifyMatchFailure(
+        op, "zero_points shape must match scales shape");
 
   int64_t lastDim = inputShape[inputRank - 1];
   if (lastDim != ShapedType::kDynamic && lastDim % groupSize != 0)
@@ -1996,10 +2000,6 @@ static LogicalResult checkPerChannelGroupShapes(
       return rewriter.notifyMatchFailure(
           op, "scales dim 1 must equal input dim[-1] / group_size");
   }
-
-  if (hasZeroPoints && zeroPointsShape != scalesShape)
-    return rewriter.notifyMatchFailure(
-        op, "zero_points shape must match scales shape");
 
   return success();
 }
@@ -2034,6 +2034,14 @@ public:
     if (!matchPattern(op.getGroupSize(), m_TorchConstantInt(&groupSize)))
       return rewriter.notifyMatchFailure(op, "group_size must be constant");
 
+    // group_size behavior for GPTQ single-column quantization.
+    int64_t inputLastDim = inputType.getShape().back();
+    int64_t scalesLastDim = scalesType.getShape().back();
+    if (inputLastDim != ShapedType::kDynamic &&
+        scalesLastDim != ShapedType::kDynamic && groupSize > inputLastDim &&
+        scalesLastDim == 1)
+      groupSize = inputLastDim;
+
     int64_t inputRank = inputType.getRank();
     if (failed(checkPerChannelGroupShapes(
             op, rewriter, inputRank, inputType.getShape(),
@@ -2046,20 +2054,20 @@ public:
         !matchPattern(op.getQuantMax(), m_TorchConstantInt(&quantMax)))
       return rewriter.notifyMatchFailure(op, "quant_min/max must be constant");
 
+    bool resultIsUnsigned = torch_to_linalg::isUnsignedTorchType(
+        cast<BaseTensorType>(op.getResult().getType()).getDtype());
+    Type fpType = inputType.getElementType();
+    Type outputType = resultType.getElementType();
+
     Value init = tensor::EmptyOp::create(
         rewriter, loc, getAsOpFoldResult(getTensorSizes(rewriter, loc, input)),
-        resultType.getElementType());
+        outputType);
 
     SmallVector<AffineMap> indexingMaps = getPerChannelGroupIndexingMaps(
         rewriter, inputRank, groupSize, /*hasZeroPoints=*/true);
 
     SmallVector<utils::IteratorType> iteratorTypes(
         inputRank, utils::IteratorType::parallel);
-
-    bool resultIsUnsigned = torch_to_linalg::isUnsignedTorchType(
-        cast<BaseTensorType>(op.getResult().getType()).getDtype());
-    Type fpType = inputType.getElementType();
-    Type outputType = resultType.getElementType();
 
     Value result =
         linalg::GenericOp::create(
@@ -2118,6 +2126,15 @@ public:
     int64_t groupSize;
     if (!matchPattern(op.getGroupSize(), m_TorchConstantInt(&groupSize)))
       return rewriter.notifyMatchFailure(op, "group_size must be constant");
+
+    // group_size behavior for GPTQ single-column quantization.
+    int64_t inputLastDim = inputType.getShape().back();
+    int64_t scalesLastDim = scalesType.getShape().back();
+    if (inputLastDim != ShapedType::kDynamic &&
+        scalesLastDim != ShapedType::kDynamic && groupSize > inputLastDim &&
+        scalesLastDim == 1)
+      groupSize = inputLastDim;
+
     bool hasZeroPoints = isa<RankedTensorType>(zeroPoints.getType());
     ArrayRef<int64_t> zpShape =
         hasZeroPoints ? cast<RankedTensorType>(zeroPoints.getType()).getShape()
