@@ -1,14 +1,23 @@
 """Preflight check and preparation for PyPI wheel publishing.
 
 Enforces PyPI release immutability and supports idempotent missing-file retries:
-1. Queries PyPI for existing files and SHA256 digests under the target version.
-2. Compares local wheel files against PyPI:
+1. Validates that each local wheel filename matches the expected package name
+   and version according to PEP 427.
+2. Queries PyPI for existing files and SHA256 digests under the target version.
+3. Compares local wheel files against PyPI:
    - If a file exists with matching SHA256: removes it from the local dist/ directory
      so it is not re-uploaded.
    - If a file exists with a DIFFERENT SHA256: fails closed with ValueError
      (content collision; PyPI artifacts are immutable).
    - If a file does not exist: leaves it in dist/ to be uploaded.
-3. If all files already exist on PyPI, outputs should_upload=false to skip publishing.
+4. If all files already exist on PyPI, outputs should_upload=false to skip publishing.
+
+Operational note for partial PyPI upload retries:
+If a workflow fails partway through uploading wheels to PyPI, do NOT start a new
+`workflow_dispatch` run for the same version tag (rebuilding wheels produces new
+zip timestamps/hashes and will trigger a SHA256 collision error). Instead, click
+"Re-run failed jobs" on the existing workflow run in the GitHub Actions UI so the
+original build artifacts are reused and already-published wheels are pruned.
 """
 
 import argparse
@@ -17,6 +26,8 @@ import os
 import pathlib
 import sys
 
+from packaging.utils import canonicalize_name, parse_wheel_filename
+from packaging.version import Version
 import requests
 
 CHUNK_SIZE = 65536
@@ -83,6 +94,22 @@ def prepare_publish(
         raise FileNotFoundError(
             f"No wheels found in distribution directory '{dist_dir}'."
         )
+
+    expected_name = canonicalize_name(package_name)
+    expected_version = Version(version_str)
+
+    for wheel_path in local_wheels:
+        dist_name, dist_ver, _build, _tags = parse_wheel_filename(wheel_path.name)
+        if canonicalize_name(dist_name) != expected_name:
+            raise ValueError(
+                f"Wheel '{wheel_path.name}' has distribution name '{dist_name}', "
+                f"expected '{package_name}'."
+            )
+        if dist_ver != expected_version:
+            raise ValueError(
+                f"Wheel '{wheel_path.name}' has version '{dist_ver}', "
+                f"expected '{version_str}'."
+            )
 
     pypi_files = fetch_pypi_release_files(package_name, version_str)
 

@@ -89,10 +89,10 @@ class TestPreparePyPIPublish(unittest.TestCase):
         mock_fetch.return_value = {}
 
         w1, _ = self._create_wheel(
-            "torch_mlir-20260901-cp311-linux.whl", b"linux wheel"
+            "torch_mlir-20260901-cp311-cp311-linux_x86_64.whl", b"linux wheel"
         )
         w2, _ = self._create_wheel(
-            "torch_mlir-20260901-cp311-macos.whl", b"macos wheel"
+            "torch_mlir-20260901-cp311-cp311-macosx_11_0_arm64.whl", b"macos wheel"
         )
 
         should_upload, state = prepare_pypi_publish.prepare_publish(
@@ -106,15 +106,15 @@ class TestPreparePyPIPublish(unittest.TestCase):
     @mock.patch("scripts.prepare_pypi_publish.fetch_pypi_release_files")
     def test_prepare_publish_already_completed(self, mock_fetch):
         w1, sha1 = self._create_wheel(
-            "torch_mlir-20260901-cp311-linux.whl", b"linux wheel"
+            "torch_mlir-20260901-cp311-cp311-linux_x86_64.whl", b"linux wheel"
         )
         w2, sha2 = self._create_wheel(
-            "torch_mlir-20260901-cp311-macos.whl", b"macos wheel"
+            "torch_mlir-20260901-cp311-cp311-macosx_11_0_arm64.whl", b"macos wheel"
         )
 
         mock_fetch.return_value = {
-            "torch_mlir-20260901-cp311-linux.whl": sha1,
-            "torch_mlir-20260901-cp311-macos.whl": sha2,
+            "torch_mlir-20260901-cp311-cp311-linux_x86_64.whl": sha1,
+            "torch_mlir-20260901-cp311-cp311-macosx_11_0_arm64.whl": sha2,
         }
 
         should_upload, state = prepare_pypi_publish.prepare_publish(
@@ -128,15 +128,15 @@ class TestPreparePyPIPublish(unittest.TestCase):
     @mock.patch("scripts.prepare_pypi_publish.fetch_pypi_release_files")
     def test_prepare_publish_incomplete_retry(self, mock_fetch):
         w1, sha1 = self._create_wheel(
-            "torch_mlir-20260901-cp311-linux.whl", b"linux wheel"
+            "torch_mlir-20260901-cp311-cp311-linux_x86_64.whl", b"linux wheel"
         )
         w2, _ = self._create_wheel(
-            "torch_mlir-20260901-cp311-macos.whl", b"macos wheel"
+            "torch_mlir-20260901-cp311-cp311-macosx_11_0_arm64.whl", b"macos wheel"
         )
 
         # w1 already uploaded, w2 missing
         mock_fetch.return_value = {
-            "torch_mlir-20260901-cp311-linux.whl": sha1,
+            "torch_mlir-20260901-cp311-cp311-linux_x86_64.whl": sha1,
         }
 
         should_upload, state = prepare_pypi_publish.prepare_publish(
@@ -149,11 +149,14 @@ class TestPreparePyPIPublish(unittest.TestCase):
 
     @mock.patch("scripts.prepare_pypi_publish.fetch_pypi_release_files")
     def test_prepare_publish_content_collision_fails(self, mock_fetch):
-        self._create_wheel("torch_mlir-20260901-cp311-linux.whl", b"new modified wheel")
+        self._create_wheel(
+            "torch_mlir-20260901-cp311-cp311-linux_x86_64.whl",
+            b"new modified wheel",
+        )
 
         # PyPI has different hash for same filename
         mock_fetch.return_value = {
-            "torch_mlir-20260901-cp311-linux.whl": "different_hash_on_pypi",
+            "torch_mlir-20260901-cp311-cp311-linux_x86_64.whl": "different_hash_on_pypi",
         }
 
         with self.assertRaises(ValueError) as ctx:
@@ -162,6 +165,26 @@ class TestPreparePyPIPublish(unittest.TestCase):
             )
         self.assertIn("Content collision", str(ctx.exception))
         self.assertIn("PyPI artifacts are immutable", str(ctx.exception))
+
+    def test_prepare_publish_invalid_package_name_fails(self):
+        self._create_wheel(
+            "wrong_pkg-20260901-cp311-cp311-linux_x86_64.whl", b"content"
+        )
+        with self.assertRaises(ValueError) as ctx:
+            prepare_pypi_publish.prepare_publish(
+                self.dist_dir, "torch-mlir", "20260901"
+            )
+        self.assertIn("has distribution name 'wrong-pkg'", str(ctx.exception))
+
+    def test_prepare_publish_mismatched_version_fails(self):
+        self._create_wheel(
+            "torch_mlir-20260831-cp311-cp311-linux_x86_64.whl", b"content"
+        )
+        with self.assertRaises(ValueError) as ctx:
+            prepare_pypi_publish.prepare_publish(
+                self.dist_dir, "torch-mlir", "20260901"
+            )
+        self.assertIn("has version '20260831'", str(ctx.exception))
 
     def test_prepare_publish_no_wheels(self):
         with self.assertRaises(FileNotFoundError) as ctx:
@@ -183,7 +206,9 @@ class TestPreparePyPIPublishMainCLI(unittest.TestCase):
     @mock.patch("scripts.prepare_pypi_publish.fetch_pypi_release_files")
     def test_main_cli_gha(self, mock_fetch):
         mock_fetch.return_value = {}
-        (self.dist_dir / "torch_mlir-20260901-cp311-linux.whl").write_bytes(b"content")
+        (
+            self.dist_dir / "torch_mlir-20260901-cp311-cp311-linux_x86_64.whl"
+        ).write_bytes(b"content")
 
         with tempfile.NamedTemporaryFile(mode="w+", delete=False) as tf:
             output_file = tf.name
