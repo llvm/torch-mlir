@@ -449,11 +449,9 @@ func.func @quantize_per_token_3d(
 // CHECK-LABEL: func.func @choose_qparams_per_token_asymmetric(
 // CHECK-DAG: linalg.fill
 // CHECK-DAG: linalg.fill
-// CHECK: %[[MIN:.*]] = linalg.generic
-// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[TOKEN]]]
+// CHECK: linalg.generic
+// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[TOKEN]], #[[TOKEN]]]
 // CHECK: arith.minimumf
-// CHECK: %[[MAX:.*]] = linalg.generic
-// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[TOKEN]]]
 // CHECK: arith.maximumf
 // CHECK: linalg.generic
 // CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[IDENTITY]], #[[IDENTITY]], #[[IDENTITY]]]
