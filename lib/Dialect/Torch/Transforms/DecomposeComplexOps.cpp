@@ -6818,6 +6818,184 @@ class DecomposeAtenNonzeroOp : public OpRewritePattern<AtenNonzeroOp> {
   }
 };
 
+// aten.im2col (the op behind nn.Unfold) gathers every sliding kernel footprint
+// of a 4-D [N, C, H, W] input -- or a 3-D unbatched [C, H, W] one -- into the
+// columns of a [N, C * kH * kW, L] result, where L is the number of window
+// positions.
+//
+// It is expressible with sliding-window views:
+//   padded = constant_pad_nd(self, [pW, pW, pH, pH], 0)
+//   blocks = padded.unfold(2, dH * (kH - 1) + 1, sH)
+//                  .unfold(3, dW * (kW - 1) + 1, sW)   // N,C,oH,oW,eH,eW
+//   blocks = blocks[..., ::dH, ::dW]                   // drop dilation gaps
+//   result = blocks.permute(0, 1, 4, 5, 2, 3)          // N,C,kH,kW,oH,oW
+//                  .view(N, C * kH * kW, oH * oW)
+//
+// The kernel footprint is unfolded at its dilated extent and then strided down
+// to the kernel size, which is what keeps dilation from needing its own gather.
+namespace {
+class DecomposeAtenIm2colOp : public OpRewritePattern<AtenIm2colOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenIm2colOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    MLIRContext *context = op.getContext();
+    Value self = op.getSelf();
+
+    auto selfTy = dyn_cast<ValueTensorType>(self.getType());
+    if (!selfTy || !selfTy.areAllSizesKnown() || !selfTy.hasDtype())
+      return rewriter.notifyMatchFailure(
+          op, "expected `self` to have a known shape and dtype");
+
+    auto resultTy = dyn_cast<ValueTensorType>(op.getType());
+    if (!resultTy || !resultTy.areAllSizesKnown())
+      return rewriter.notifyMatchFailure(
+          op, "expected the result to have a known shape");
+
+    SmallVector<int64_t> kernelSize, dilation, padding, stride;
+    if (!matchPattern(op.getKernelSize(),
+                      m_TorchListOfConstantInts(kernelSize)))
+      return rewriter.notifyMatchFailure(op, "kernel_size must be constant");
+    if (!matchPattern(op.getDilation(), m_TorchListOfConstantInts(dilation)))
+      return rewriter.notifyMatchFailure(op, "dilation must be constant");
+    if (!matchPattern(op.getPadding(), m_TorchListOfConstantInts(padding)))
+      return rewriter.notifyMatchFailure(op, "padding must be constant");
+    if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(stride)))
+      return rewriter.notifyMatchFailure(op, "stride must be constant");
+
+    if (kernelSize.size() != 2 || dilation.size() != 2 || padding.size() != 2 ||
+        stride.size() != 2)
+      return rewriter.notifyMatchFailure(
+          op, "expected kernel_size, dilation, padding and stride to have two "
+              "elements each");
+    if (stride[0] < 1 || stride[1] < 1 || dilation[0] < 1 || dilation[1] < 1 ||
+        kernelSize[0] < 1 || kernelSize[1] < 1 || padding[0] < 0 ||
+        padding[1] < 0)
+      return rewriter.notifyMatchFailure(op, "invalid im2col parameters");
+
+    SmallVector<int64_t> selfShape(selfTy.getSizes());
+    int64_t selfRank = static_cast<int64_t>(selfShape.size());
+    if (selfRank != 3 && selfRank != 4)
+      return rewriter.notifyMatchFailure(
+          op, "expected a 3-D (unbatched) or 4-D input");
+
+    Type dtype = selfTy.getOptionalDtype();
+    auto tensorTy = [&](ArrayRef<int64_t> sizes) -> ValueTensorType {
+      return rewriter.getType<ValueTensorType>(sizes, dtype);
+    };
+    auto constInt = [&](int64_t value) -> Value {
+      return ConstantIntOp::create(rewriter, loc,
+                                   rewriter.getI64IntegerAttr(value));
+    };
+    auto intList = [&](ArrayRef<Value> values) -> Value {
+      return PrimListConstructOp::create(
+          rewriter, loc, ListType::get(IntType::get(context)), values);
+    };
+
+    // Work in batched form throughout, and drop the batch again at the end.
+    bool unbatched = selfRank == 3;
+    if (unbatched) {
+      SmallVector<int64_t> batchedShape{1};
+      batchedShape.append(selfShape.begin(), selfShape.end());
+      self = AtenUnsqueezeOp::create(rewriter, loc, tensorTy(batchedShape),
+                                     self, constInt(0));
+      selfShape = batchedShape;
+    }
+
+    int64_t batch = selfShape[0], channels = selfShape[1];
+    int64_t height = selfShape[2], width = selfShape[3];
+
+    // padded = constant_pad_nd(self, [pW, pW, pH, pH], 0)
+    if (padding[0] != 0 || padding[1] != 0) {
+      Value padList = intList({constInt(padding[1]), constInt(padding[1]),
+                               constInt(padding[0]), constInt(padding[0])});
+      Value zero =
+          ConstantFloatOp::create(rewriter, loc, rewriter.getF64FloatAttr(0));
+      height += 2 * padding[0];
+      width += 2 * padding[1];
+      self = AtenConstantPadNdOp::create(
+          rewriter, loc, tensorTy({batch, channels, height, width}), self,
+          padList, zero);
+    }
+
+    // Unfold both spatial dims at the dilated kernel extent.
+    int64_t extentH = dilation[0] * (kernelSize[0] - 1) + 1;
+    int64_t extentW = dilation[1] * (kernelSize[1] - 1) + 1;
+    if (extentH > height || extentW > width)
+      return rewriter.notifyMatchFailure(
+          op, "the dilated kernel does not fit within the padded input");
+
+    int64_t blocksH = (height - extentH) / stride[0] + 1;
+    int64_t blocksW = (width - extentW) / stride[1] + 1;
+
+    Value blocks = AtenUnfoldOp::create(
+        rewriter, loc, tensorTy({batch, channels, blocksH, width, extentH}),
+        self, /*dimension=*/constInt(2), /*size=*/constInt(extentH),
+        /*step=*/constInt(stride[0]));
+    blocks = AtenUnfoldOp::create(
+        rewriter, loc,
+        tensorTy({batch, channels, blocksH, blocksW, extentH, extentW}), blocks,
+        /*dimension=*/constInt(3), /*size=*/constInt(extentW),
+        /*step=*/constInt(stride[1]));
+
+    // Stride the kernel dims down to the kernel size, dropping dilation gaps.
+    Value none = ConstantNoneOp::create(rewriter, loc);
+    if (dilation[0] != 1)
+      blocks = AtenSliceTensorOp::create(
+          rewriter, loc,
+          tensorTy({batch, channels, blocksH, blocksW, kernelSize[0], extentW}),
+          blocks, /*dim=*/constInt(4), /*start=*/constInt(0), /*end=*/none,
+          /*step=*/constInt(dilation[0]));
+    if (dilation[1] != 1)
+      blocks = AtenSliceTensorOp::create(
+          rewriter, loc,
+          tensorTy({batch, channels, blocksH, blocksW, kernelSize[0],
+                    kernelSize[1]}),
+          blocks, /*dim=*/constInt(5), /*start=*/constInt(0), /*end=*/none,
+          /*step=*/constInt(dilation[1]));
+
+    // Move the kernel dims next to the channels, then collapse each group.
+    Value permuteDims = intList({constInt(0), constInt(1), constInt(4),
+                                 constInt(5), constInt(2), constInt(3)});
+    Value permuted =
+        AtenPermuteOp::create(rewriter, loc,
+                              tensorTy({batch, channels, kernelSize[0],
+                                        kernelSize[1], blocksH, blocksW}),
+                              blocks, permuteDims);
+
+    int64_t channelsCol = channels * kernelSize[0] * kernelSize[1];
+    int64_t numBlocks = blocksH * blocksW;
+
+    // The shape function computes the same result, so a disagreement means one
+    // of the two is wrong; bail rather than emit a differently shaped value.
+    SmallVector<int64_t> expectedShape;
+    if (!unbatched)
+      expectedShape.push_back(batch);
+    expectedShape.push_back(channelsCol);
+    expectedShape.push_back(numBlocks);
+    if (SmallVector<int64_t>(resultTy.getSizes()) != expectedShape)
+      return rewriter.notifyMatchFailure(
+          op, "the result shape does not match the one implied by the "
+              "im2col parameters");
+
+    Value viewSizes =
+        intList({constInt(batch), constInt(channelsCol), constInt(numBlocks)});
+    Value result = AtenViewOp::create(
+        rewriter, loc,
+        unbatched ? tensorTy({batch, channelsCol, numBlocks}) : resultTy,
+        permuted, viewSizes);
+
+    if (unbatched)
+      result = AtenSqueezeDimOp::create(rewriter, loc, resultTy, result,
+                                        constInt(0));
+
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
 // Decompose aten.addmm into aten.mm and aten.add.Tensor op.
 namespace {
 class DecomposeAtenAddmmOp : public OpRewritePattern<AtenAddmmOp> {
@@ -13815,6 +13993,7 @@ public:
         patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTanhBackwardOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNonzeroOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenIm2colOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAddmmOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanDimOp>(patterns);
