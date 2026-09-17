@@ -42,8 +42,8 @@ def validate_and_parse_tag(tag: str) -> tuple[str, bool]:
     """Validate a case-sensitive refs/tags/vYYYYMMDD or vYYYYMMDD(.devN) tag.
 
     Rejects branch/tag ambiguity, duplicate leading 'v's, wrong capitalization,
-    invalid calendar dates, and invalid formats. Parses with packaging.version.Version and returns
-    (version_str, is_devrelease).
+    invalid calendar dates, and invalid formats. Parses with
+    packaging.version.Version and returns (version_str, is_devrelease).
     """
     match = TAG_REGEX.match(tag)
     if not match:
@@ -69,7 +69,7 @@ def resolve_and_verify_tag(tag: str, main_branch: str = "origin/main") -> str:
 
     Peels annotated or lightweight tags via `git rev-parse --verify` and
     verifies that the commit is an ancestor of `origin/main` via
-    `git merge-base --is-ancestor`. Fails closed with ValueError on error.
+    `git merge-base --is-ancestor`. Raises ValueError if these validation fail.
     """
     clean_tag = tag.removeprefix("refs/tags/")
     tag_ref = f"refs/tags/{clean_tag}^{{commit}}"
@@ -129,8 +129,8 @@ def resolve_ref_sha(ref: str = "origin/main") -> str:
 def get_github_dev_versions(repo, package_name):
     """Fetch versions of dev wheels from GitHub dev-wheels release.
 
-    Fails closed (raises RuntimeError) if the GitHub API query fails with any status
-    code other than 404 (release tag does not exist yet) or if a network error occurs.
+    Raises RuntimeError if the GitHub API query fails with any status code other
+    than 404 (release tag does not exist yet) or if a network error occurs.
     """
     url = f"https://api.github.com/repos/{repo}/releases/tags/dev-wheels"
     headers = {}
@@ -175,8 +175,8 @@ def get_github_dev_versions(repo, package_name):
 def get_pypi_versions(package_name):
     """Fetch all release versions for a package from PyPI.
 
-    Fails closed (raises RuntimeError) on network errors, non-200/404 HTTP status
-    codes, or invalid JSON payloads. Returns [] only on HTTP 404 or empty releases.
+    Raises RuntimeError on network errors, non-200/404 HTTP status codes, or
+    invalid JSON payloads. Returns [] only on HTTP 404 or empty releases.
     """
     url = f"https://pypi.org/pypi/{package_name}/json"
     try:
