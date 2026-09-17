@@ -1574,11 +1574,19 @@ class GraphNodeImporter:
     def return_node_values(self, loc, nodes: List[Node], constants: Dict[int, Any]):
         # This function returns both node values and constant values
         with loc, InsertionPoint(self._b):
+            compact_constants = {
+                compact_index: constants[original_index]
+                for compact_index, original_index in zip(
+                    (index for index, node in enumerate(nodes) if node is None),
+                    sorted(constants),
+                    strict=True,
+                )
+            }
             operands = [
                 (
                     self.resolve_node_value(n)
                     if isinstance(n, Node)
-                    else self._import_literal(constants[index])
+                    else self._import_literal(compact_constants[index])
                 )
                 for index, n in enumerate(nodes)
             ]
