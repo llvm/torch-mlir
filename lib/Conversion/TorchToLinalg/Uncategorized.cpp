@@ -2004,6 +2004,19 @@ LogicalResult checkPerChannelGroupShapes(
   return success();
 }
 
+// Adjusts group_size for GPTQ single-column quantization.
+int64_t adjustGroupSizeForGPTQSingleColumn(int64_t groupSize,
+                                           ArrayRef<int64_t> inputShape,
+                                           ArrayRef<int64_t> scalesShape) {
+  int64_t inputLastDim = inputShape.back();
+  int64_t scalesLastDim = scalesShape.back();
+  if (inputLastDim != ShapedType::kDynamic &&
+      scalesLastDim != ShapedType::kDynamic && groupSize > inputLastDim &&
+      scalesLastDim == 1)
+    return inputLastDim;
+  return groupSize;
+}
+
 class ConvertQuantizedDecomposedQuantizePerChannelGroupOp
     : public OpConversionPattern<QuantizedDecomposedQuantizePerChannelGroupOp> {
 public:
@@ -2034,13 +2047,8 @@ public:
     if (!matchPattern(op.getGroupSize(), m_TorchConstantInt(&groupSize)))
       return rewriter.notifyMatchFailure(op, "group_size must be constant");
 
-    // group_size behavior for GPTQ single-column quantization.
-    int64_t inputLastDim = inputType.getShape().back();
-    int64_t scalesLastDim = scalesType.getShape().back();
-    if (inputLastDim != ShapedType::kDynamic &&
-        scalesLastDim != ShapedType::kDynamic && groupSize > inputLastDim &&
-        scalesLastDim == 1)
-      groupSize = inputLastDim;
+    groupSize = adjustGroupSizeForGPTQSingleColumn(
+        groupSize, inputType.getShape(), scalesType.getShape());
 
     int64_t inputRank = inputType.getRank();
     if (failed(checkPerChannelGroupShapes(
@@ -2127,13 +2135,8 @@ public:
     if (!matchPattern(op.getGroupSize(), m_TorchConstantInt(&groupSize)))
       return rewriter.notifyMatchFailure(op, "group_size must be constant");
 
-    // group_size behavior for GPTQ single-column quantization.
-    int64_t inputLastDim = inputType.getShape().back();
-    int64_t scalesLastDim = scalesType.getShape().back();
-    if (inputLastDim != ShapedType::kDynamic &&
-        scalesLastDim != ShapedType::kDynamic && groupSize > inputLastDim &&
-        scalesLastDim == 1)
-      groupSize = inputLastDim;
+    groupSize = adjustGroupSizeForGPTQSingleColumn(
+        groupSize, inputType.getShape(), scalesType.getShape());
 
     bool hasZeroPoints = isa<RankedTensorType>(zeroPoints.getType());
     ArrayRef<int64_t> zpShape =
