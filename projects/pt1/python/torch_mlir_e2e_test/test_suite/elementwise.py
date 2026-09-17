@@ -5740,6 +5740,36 @@ def ElementwiseAndScalarStaticShapeModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseAndTensorMixedDtypeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.uint8, True),
+            ([-1], torch.int64, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.__and__(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseAndTensorMixedDtypeModule())
+def ElementwiseAndTensorMixedDtypeModule_basic(module, tu: TestUtils):
+    # Values >= 128 exercise the uint8 -> int64 promotion path, which must
+    # zero-extend (not sign-extend) the uint8 operand to match PyTorch
+    # semantics.
+    module.forward(
+        torch.tensor([128, 255, 0, 1], dtype=torch.uint8),
+        torch.tensor([-1, -1, -1, -1], dtype=torch.int64),
+    )
+
+
+# ==============================================================================
+
+
 class ElementwiseBitwiseXorModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
