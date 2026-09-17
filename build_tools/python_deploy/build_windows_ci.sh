@@ -28,6 +28,7 @@ ccache -z
 echo "::group::CMake configure"
 cmake -GNinja -Bbuild \
   -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
   -DCMAKE_C_COMPILER=clang-cl \
   -DCMAKE_CXX_COMPILER=clang-cl \
   -DCMAKE_C_COMPILER_LAUNCHER=ccache \

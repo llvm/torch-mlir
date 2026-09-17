@@ -151,6 +151,21 @@ else()
   set(MLIR_INCLUDE_DIRS "${MLIR_INCLUDE_DIR};${MLIR_GENERATED_INCLUDE_DIR}")
 endif()
 
+# Disable reusing LLVM's precompiled headers (PCH) in torch-mlir and its
+# subprojects (e.g., StableHLO). torch-mlir and StableHLO define directory-level
+# compile macros (TORCH_MLIR_ENABLE_*, _USE_MATH_DEFINES) that were not present
+# when LLVM's PCHs (LLVMSupport, LLVMCore, LLVMCodeGen) were compiled.
+# With clang-cl on Windows, reusing those PCHs causes macro mismatch warnings
+# (-Wclang-cl-pch) and locks standard header guards (e.g., <cmath> without M_PI),
+# breaking compilation in targets like StablehloReferenceOps.
+foreach(_llvm_pch_target LLVMSupport obj.LLVMSupport LLVMCore obj.LLVMCore LLVMCodeGen obj.LLVMCodeGen)
+  if(TARGET ${_llvm_pch_target})
+    set_target_properties(${_llvm_pch_target} PROPERTIES LLVM_PCH_PRIORITY 0)
+  endif()
+endforeach()
+unset(_llvm_pch_target)
+set(CMAKE_DISABLE_PRECOMPILE_HEADERS ON)
+
 set(TORCH_MLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 set(TORCH_MLIR_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}")
 message(STATUS "Building torch-mlir project at ${TORCH_MLIR_SOURCE_DIR} (into ${TORCH_MLIR_BINARY_DIR})")

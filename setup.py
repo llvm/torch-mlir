@@ -86,6 +86,9 @@ TORCH_MLIR_ENABLE_LTC = _check_env_flag("TORCH_MLIR_ENABLE_LTC", True)
 TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS = _check_env_flag(
     "TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS", True
 )
+CMAKE_DISABLE_PRECOMPILE_HEADERS = _check_env_flag(
+    "CMAKE_DISABLE_PRECOMPILE_HEADERS", True
+)
 LLVM_INSTALL_DIR = os.getenv("LLVM_INSTALL_DIR", None)
 SRC_DIR = pathlib.Path(__file__).parent.absolute()
 CMAKE_BUILD_TYPE = os.getenv("CMAKE_BUILD_TYPE", "Release")
@@ -137,6 +140,7 @@ class CMakeBuild(build_py):
             f"-DTORCH_MLIR_ENABLE_LTC={'ON' if TORCH_MLIR_ENABLE_LTC else 'OFF'}",
             f"-DTORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS={'OFF' if TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else 'ON'}",
             f"-DMLIR_ENABLE_PYTHON_STABLE_ABI={'ON' if use_stable_abi else 'OFF'}",
+            f"-DCMAKE_DISABLE_PRECOMPILE_HEADERS={'ON' if CMAKE_DISABLE_PRECOMPILE_HEADERS else 'OFF'}",
         ]
         for compiler_var in ["CMAKE_C_COMPILER", "CMAKE_CXX_COMPILER"]:
             if compiler_var in os.environ:
