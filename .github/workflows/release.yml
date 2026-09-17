@@ -142,7 +142,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          MAX_ASSETS=300
+          # 4 wheels per dev release, gives 100 remaining assets as a buffer
+          MAX_ASSETS=225
           REPO="${{ github.repository }}"
           ASSETS_JSON=$(gh api "repos/${REPO}/releases/tags/dev-wheels" --jq '.assets | sort_by(.created_at)' 2>/dev/null || echo "[]")
           TOTAL_COUNT=$(echo "$ASSETS_JSON" | jq 'length')
