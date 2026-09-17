@@ -3633,10 +3633,10 @@ def aten〇softplus_backward〡dtype(grad_output_rank_dtype: Tuple[int, int], se
     promoted_dtype = promote_dtypes(ranks, dtypes)
     return promoted_dtype
 
-@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.uint8, torch.bool}))
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={torch.bool}))
 def aten〇hardtanh〡dtype(self_rank_dtype: Tuple[int, int], min_val: Union[int, float, complex] = -1, max_val: Union[int, float, complex] = 1) -> int:
     self_rank, self_dtype = self_rank_dtype
-    assert self_dtype not in [torch.uint8, torch.bool]
+    assert self_dtype != torch.bool
     return self_dtype
 
 _index_put_invocations = [
