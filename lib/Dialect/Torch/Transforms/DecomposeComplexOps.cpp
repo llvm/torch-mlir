@@ -4223,6 +4223,32 @@ public:
 };
 } // namespace
 
+// erfc(x) = 1 - erf(x)
+namespace {
+class DecomposeAtenErfcOp : public OpRewritePattern<AtenErfcOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenErfcOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto resType = cast<BaseTensorType>(op.getType());
+    if (!resType.hasDtype()) {
+      return rewriter.notifyMatchFailure(op, "result should have dtype");
+    }
+
+    // aten.erf promotes integer inputs to the result's floating-point dtype,
+    // and erfc has the same dtype rule, so erf can be given the result type
+    // directly.
+    Value erf = AtenErfOp::create(rewriter, loc, resType, op.getSelf());
+    Value one =
+        ConstantFloatOp::create(rewriter, loc, rewriter.getF64FloatAttr(1.0));
+    rewriter.replaceOpWithNewOp<AtenRsubScalarOp>(op, resType, erf, one,
+                                                  /*alpha=*/one);
+    return success();
+  }
+};
+} // namespace
+
 // Hardswish(x) = x * Relu6(x+3)/6
 namespace {
 class DecomposeAtenHardswishOp : public OpRewritePattern<AtenHardswishOp> {
@@ -13887,6 +13913,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandLikeOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardsigmoidOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRelu6Op>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenErfcOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenPreluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRreluOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRreluWithNoiseOp>(patterns);

@@ -1722,3 +1722,29 @@ func.func @torch.aten.linalg_vector_norm$zero_dim_keepdim(%arg0: !torch.vtensor<
   %0 = torch.aten.linalg_vector_norm %arg0, %ord, %dim, %keepdim, %dtype : !torch.vtensor<[3,4],f32>, !torch.float, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[3,1],f32>
   return %0 : !torch.vtensor<[3,1],f32>
 }
+
+// -----
+
+// erfc(x) = 1 - erf(x), expressed as rsub so it stays a single tensor op.
+// CHECK-LABEL: func.func @torch.aten.erfc(
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32> {
+// CHECK:         %[[ONE:.*]] = torch.constant.float 1.000000e+00
+// CHECK:         %[[ERF:.*]] = torch.aten.erf %[[ARG0]] : !torch.vtensor<[3,4],f32> -> !torch.vtensor<[3,4],f32>
+// CHECK:         %[[RES:.*]] = torch.aten.rsub.Scalar %[[ERF]], %[[ONE]], %[[ONE]] : !torch.vtensor<[3,4],f32>, !torch.float, !torch.float -> !torch.vtensor<[3,4],f32>
+// CHECK-NOT:     torch.aten.erfc
+// CHECK:         return %[[RES]] : !torch.vtensor<[3,4],f32>
+func.func @torch.aten.erfc(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32> {
+  %0 = torch.aten.erfc %arg0 : !torch.vtensor<[3,4],f32> -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
+// An integer input is promoted to the result's floating-point dtype by erf.
+// CHECK-LABEL: func.func @torch.aten.erfc$int(
+// CHECK:         %[[ERF:.*]] = torch.aten.erf %{{.*}} : !torch.vtensor<[3,4],si32> -> !torch.vtensor<[3,4],f32>
+// CHECK:         torch.aten.rsub.Scalar %[[ERF]], %{{.*}}, %{{.*}} : !torch.vtensor<[3,4],f32>, !torch.float, !torch.float -> !torch.vtensor<[3,4],f32>
+func.func @torch.aten.erfc$int(%arg0: !torch.vtensor<[3,4],si32>) -> !torch.vtensor<[3,4],f32> {
+  %0 = torch.aten.erfc %arg0 : !torch.vtensor<[3,4],si32> -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}
