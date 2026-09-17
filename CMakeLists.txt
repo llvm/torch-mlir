@@ -274,10 +274,19 @@ if (TORCH_MLIR_ENABLE_STABLEHLO AND NOT TORCH_MLIR_USE_EXTERNAL_STABLEHLO)
   set(STABLEHLO_ENABLE_BINDINGS_PYTHON ON)
   message(STATUS "Using LLVM_ENABLE_DEBUGLOC_COVERAGE_TRACKING in: ${LLVM_ENABLE_DEBUGLOC_COVERAGE_TRACKING}")
   set(LLVM_ENABLE_DEBUGLOC_COVERAGE_TRACKING "DISABLED")
+  # Disable CMAKE_INCLUDE_CURRENT_DIR (inherited from LLVM) so subdirectory paths
+  # like stablehlo/reference are not added as -I flags. On case-insensitive Windows
+  # filesystems, -I.../stablehlo/reference causes MSVC's <thread> (#include <process.h>)
+  # to erroneously include stablehlo/reference/Process.h.
+  set(_torch_mlir_prev_include_current_dir "${CMAKE_INCLUDE_CURRENT_DIR}")
+  set(CMAKE_INCLUDE_CURRENT_DIR OFF)
   add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/externals/stablehlo
     ${CMAKE_CURRENT_BINARY_DIR}/stablehlo
     EXCLUDE_FROM_ALL)
+  set(CMAKE_INCLUDE_CURRENT_DIR "${_torch_mlir_prev_include_current_dir}")
+  unset(_torch_mlir_prev_include_current_dir)
   include_directories(${CMAKE_CURRENT_SOURCE_DIR}/externals/stablehlo)
+  include_directories(${CMAKE_CURRENT_BINARY_DIR}/stablehlo)
 endif()
 
 #-------------------------------------------------------------------------------
