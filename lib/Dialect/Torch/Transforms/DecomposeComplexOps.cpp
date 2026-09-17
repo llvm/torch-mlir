@@ -14,6 +14,7 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
@@ -14069,6 +14070,10 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAten_AssertScalarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRoundDecimalsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAbsoluteOp>(patterns);
+
+    // Wrap patterns to forward user-discardable attributes (mlir.user.*)
+    // from source operations to newly created operations during decomposition.
+    wrapPatternsWithForwarding(patterns);
 
     GreedyRewriteConfig config;
     config.setUseTopDownTraversal(true);
