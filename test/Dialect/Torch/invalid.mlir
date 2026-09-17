@@ -498,31 +498,6 @@ func.func @torch.aten._scaled_mm$invalid_mixed_scale_dtype(
 
 // -----
 
-func.func @torch.aten._scaled_mm_v2$invalid_mxfp4_mixed_logical_lhs_packed_rhs(
-    %arg0: !torch.vtensor<[128,256],f4E2M1FN>,
-    %arg1: !torch.vtensor<[128,128],f4E2M1FN>,
-    %arg2: !torch.vtensor<[1024],f8E8M0FNU>,
-    %arg3: !torch.vtensor<[1024],f8E8M0FNU>) -> !torch.vtensor<[128,128],bf16> {
-  %false = torch.constant.bool false
-  %int0 = torch.constant.int 0
-  %int1 = torch.constant.int 1
-  %int3 = torch.constant.int 3
-  %int15 = torch.constant.int 15
-  %none = torch.constant.none
-  %scale_a = torch.prim.ListConstruct %arg2 : (!torch.vtensor<[1024],f8E8M0FNU>) -> !torch.list<vtensor>
-  %recipe_a = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
-  %swizzle_a = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
-  %scale_b = torch.prim.ListConstruct %arg3 : (!torch.vtensor<[1024],f8E8M0FNU>) -> !torch.list<vtensor>
-  %recipe_b = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
-  %swizzle_b = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
-  %contraction_dim = torch.prim.ListConstruct %int1, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
-  // expected-error @+1 {{'torch.aten._scaled_mm_v2' op expected self and mat2 contraction_dim-selected dimensions to match, but got 256 and 128}}
-  %0 = torch.aten._scaled_mm_v2 %arg0, %arg1, %scale_a, %recipe_a, %swizzle_a, %scale_b, %recipe_b, %swizzle_b, %none, %int15, %contraction_dim, %false : !torch.vtensor<[128,256],f4E2M1FN>, !torch.vtensor<[128,128],f4E2M1FN>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.none, !torch.int, !torch.list<int>, !torch.bool -> !torch.vtensor<[128,128],bf16>
-  return %0 : !torch.vtensor<[128,128],bf16>
-}
-
-// -----
-
 func.func @torch.aten._scaled_mm_v2$invalid_mxfp4_blockwise_packed_k128_scale_numel(
     %arg0: !torch.vtensor<[128,128],f4E2M1FN>,
     %arg1: !torch.vtensor<[128,128],f4E2M1FN>,

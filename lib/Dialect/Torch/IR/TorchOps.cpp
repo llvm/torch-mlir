@@ -7065,26 +7065,32 @@ verifyScaledMmV2MatrixShapes(Aten_ScaledMmV2Op op) {
       selfType.hasDtype() && isa<Float4E2M1FNType>(selfType.getDtype());
   bool mat2IsFp4 =
       mat2Type.hasDtype() && isa<Float4E2M1FNType>(mat2Type.getDtype());
-  // `k` is the statically visible storage dimension. For FP4, the
-  // float4_e2m1fn_x2 representation packs two logical FP4 values into each
-  // storage element. PyTorch _scaled_mm_v2 requires both FP4 matrix operands
-  // to use this packed representation.
+  // TorchAO imports FP4 operands in float4_e2m1fn_x2 storage, where each
+  // visible element packs two logical FP4 values. After activation fusion,
+  // self may already expose logical K while mat2 remains packed.
   info.logicalK = info.k;
   int64_t mat2LogicalK = mat2K;
   if (selfIsFp4 && mat2IsFp4) {
-    if (info.k != kUnknownSize)
-      info.logicalK = info.k * 2;
     if (mat2K != kUnknownSize)
       mat2LogicalK = mat2K * 2;
+    if (info.k != kUnknownSize) {
+      if (mat2LogicalK != kUnknownSize && info.k == mat2LogicalK)
+        info.logicalK = info.k;
+      else
+        info.logicalK = info.k * 2;
+    }
   }
 
   if (hasStaticContractionDims) {
-    int64_t selfContractionSize = hasExplicitContractionDims
-                                      ? selfShape[selfContractionDim]
-                                      : info.logicalK;
-    int64_t mat2ContractionSize = hasExplicitContractionDims
-                                      ? mat2Shape[mat2ContractionDim]
-                                      : mat2LogicalK;
+    bool usesDefaultContractionDims =
+        !hasExplicitContractionDims ||
+        (selfContractionDim == 1 && mat2ContractionDim == 0);
+    int64_t selfContractionSize = usesDefaultContractionDims
+                                      ? info.logicalK
+                                      : selfShape[selfContractionDim];
+    int64_t mat2ContractionSize = usesDefaultContractionDims
+                                      ? mat2LogicalK
+                                      : mat2Shape[mat2ContractionDim];
     if (selfContractionSize != kUnknownSize &&
         mat2ContractionSize != kUnknownSize &&
         selfContractionSize != mat2ContractionSize) {

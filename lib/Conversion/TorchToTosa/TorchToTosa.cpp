@@ -16,6 +16,7 @@
 #include "mlir/Dialect/Tosa/Utils/ConversionUtils.h"
 #include "mlir/IR/DialectResourceBlobManager.h"
 #include "mlir/IR/Matchers.h"
+#include "mlir/Interfaces/SideEffectInterfaces.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Conversion/Passes.h"
@@ -487,19 +488,19 @@ getDenseConstantRawByteData(Value value, int64_t numElements) {
 //     ceil(K / 32, 4), either rank-1, rank-2, or rank-3 with a leading batch
 //     dimension. Lowering reshapes it and slices away padding that is outside
 //     the true M/N extent.
-//   SwizzledConstant: a compile-time constant stored as 32x16 byte tiles,
-//     either as a 2-D tile grid or a flattened list of tiles. This is reordered
-//     at compile time into the compact [1, rows, K / 32] TOSA layout because
-//     TOSA does not model the swizzled storage format.
+//   Swizzled: a value stored as 32x16 byte tiles, either as a 2-D tile grid or
+//     as a flattened list of tiles. Constants are reordered at compile time;
+//     runtime values are reordered with TOSA operations. Both produce the
+//     compact [1, rows, K / 32] layout expected by TOSA.
 enum class BlockedScaleLayout {
   Invalid,
   FlatPadded,
-  SwizzledConstant,
+  Swizzled,
 };
 
 struct BlockedScaleClassification {
   BlockedScaleLayout layout = BlockedScaleLayout::Invalid;
-  SmallVector<char> rawSwizzledData = {};
+  std::optional<SmallVector<char>> rawSwizzledData;
 };
 
 static BlockedScaleLayout classifyFlatBlockedScale(RankedTensorType scaleTy,
@@ -551,20 +552,6 @@ static bool hasSwizzledBlockedScaleShape(RankedTensorType scaleTy, int64_t rows,
          shape == ArrayRef<int64_t>(flatTileShape);
 }
 
-static FailureOr<SmallVector<char>>
-getSwizzledBlockedScaleRawData(Value scale, RankedTensorType scaleTy,
-                               int64_t rows, int64_t scaleCols) {
-  if (!hasSwizzledBlockedScaleShape(scaleTy, rows, scaleCols))
-    return failure();
-
-  FailureOr<SmallVector<char>> rawData =
-      getDenseConstantRawByteData(scale, scaleTy.getNumElements());
-  if (failed(rawData) ||
-      static_cast<int64_t>(rawData->size()) != scaleTy.getNumElements())
-    return failure();
-  return *rawData;
-}
-
 static BlockedScaleClassification classifyBlockedScale(Value scale,
                                                        RankedTensorType scaleTy,
                                                        int64_t rows,
@@ -574,32 +561,25 @@ static BlockedScaleClassification classifyBlockedScale(Value scale,
   if (flatLayout != BlockedScaleLayout::Invalid)
     return {flatLayout, {}};
 
-  FailureOr<SmallVector<char>> rawData =
-      getSwizzledBlockedScaleRawData(scale, scaleTy, rows, scaleCols);
-  if (failed(rawData))
+  if (!hasSwizzledBlockedScaleShape(scaleTy, rows, scaleCols))
     return {};
-  return {BlockedScaleLayout::SwizzledConstant, std::move(*rawData)};
+
+  FailureOr<SmallVector<char>> rawData =
+      getDenseConstantRawByteData(scale, scaleTy.getNumElements());
+  if (failed(rawData))
+    return {BlockedScaleLayout::Swizzled, std::nullopt};
+  if (static_cast<int64_t>(rawData->size()) != scaleTy.getNumElements())
+    return {};
+  return {BlockedScaleLayout::Swizzled, std::move(*rawData)};
 }
 
 static FailureOr<Value> reorderSwizzledBlockedScaleConstant(
-    Value scale, RankedTensorType scaleTy, int64_t rows, int64_t scaleCols,
+    RankedTensorType scaleTy, int64_t rows, int64_t scaleCols,
     ArrayRef<char> rawData, ConversionPatternRewriter &rewriter, Location loc) {
   if (!hasSwizzledBlockedScaleShape(scaleTy, rows, scaleCols))
     return failure();
 
-  int64_t rowBlocks = llvm::divideCeil(rows, kTosaBlockedScaleRowBlock);
   int64_t colBlocks = llvm::divideCeil(scaleCols, kTosaBlockedScaleColBlock);
-  SmallVector<int64_t, 2> gridShape{
-      rowBlocks * kTosaBlockedScaleSwizzleTileRows,
-      colBlocks * kTosaBlockedScaleSwizzleTileCols};
-  SmallVector<int64_t, 2> flatTileShape{rowBlocks * colBlocks *
-                                            kTosaBlockedScaleSwizzleTileRows,
-                                        kTosaBlockedScaleSwizzleTileCols};
-  ArrayRef<int64_t> shape = scaleTy.getShape();
-  bool isGridShape = shape == ArrayRef<int64_t>(gridShape);
-  bool isFlatTileShape = shape == ArrayRef<int64_t>(flatTileShape);
-  if (!isGridShape && !isFlatTileShape)
-    return failure();
 
   // E8M0 scale values are layout-reordered byte payloads here, not numerically
   // transformed. The swizzled storage is made of 32x16 tiles, each holding one
@@ -634,6 +614,58 @@ static FailureOr<Value> reorderSwizzledBlockedScaleConstant(
   return tosa::ConstOp::create(rewriter, loc, compactTy, attr).getResult();
 }
 
+static FailureOr<Value> reorderSwizzledBlockedScaleRuntime(
+    Value scale, RankedTensorType scaleTy, int64_t rows, int64_t scaleCols,
+    ConversionPatternRewriter &rewriter, Location loc) {
+  if (!hasSwizzledBlockedScaleShape(scaleTy, rows, scaleCols))
+    return failure();
+
+  int64_t rowBlocks = llvm::divideCeil(rows, kTosaBlockedScaleRowBlock);
+  int64_t colBlocks = llvm::divideCeil(scaleCols, kTosaBlockedScaleColBlock);
+  int64_t paddedRows = rowBlocks * kTosaBlockedScaleRowBlock;
+  int64_t paddedScaleCols = colBlocks * kTosaBlockedScaleColBlock;
+  int64_t rowGroups =
+      kTosaBlockedScaleRowBlock / kTosaBlockedScaleSwizzleTileRows;
+
+  SmallVector<int64_t> swizzledShape = {rowBlocks, colBlocks,
+                                        kTosaBlockedScaleSwizzleTileRows,
+                                        rowGroups, kTosaBlockedScaleColBlock};
+  auto swizzledTy =
+      RankedTensorType::get(swizzledShape, scaleTy.getElementType());
+  Value swizzled = tosa::ReshapeOp::create(
+                       rewriter, loc, swizzledTy, scale,
+                       tosa::getTosaConstShape(rewriter, loc, swizzledShape))
+                       .getResult();
+
+  SmallVector<int32_t> deswizzlePerm = {0, 3, 2, 1, 4};
+  SmallVector<int64_t> deswizzledShape =
+      permuteShape(swizzledShape, deswizzlePerm);
+  auto deswizzledTy =
+      RankedTensorType::get(deswizzledShape, scaleTy.getElementType());
+  Value deswizzled =
+      tosa::TransposeOp::create(rewriter, loc, deswizzledTy, swizzled,
+                                rewriter.getDenseI32ArrayAttr(deswizzlePerm))
+          .getResult();
+
+  SmallVector<int64_t> paddedShape = {1, paddedRows, paddedScaleCols};
+  auto paddedTy = RankedTensorType::get(paddedShape, scaleTy.getElementType());
+  Value padded = tosa::ReshapeOp::create(
+                     rewriter, loc, paddedTy, deswizzled,
+                     tosa::getTosaConstShape(rewriter, loc, paddedShape))
+                     .getResult();
+
+  SmallVector<int64_t> scaleShape = {1, rows, scaleCols};
+  if (paddedShape == scaleShape)
+    return padded;
+
+  auto compactTy = RankedTensorType::get(scaleShape, scaleTy.getElementType());
+  return tosa::SliceOp::create(
+             rewriter, loc, compactTy, padded,
+             tosa::getTosaConstShape(rewriter, loc, {0, 0, 0}),
+             tosa::getTosaConstShape(rewriter, loc, scaleShape))
+      .getResult();
+}
+
 static FailureOr<Value>
 getBlockedScale(Value scale, RankedTensorType scaleTy, int64_t rows,
                 int64_t scaleCols, BlockedScaleClassification classification,
@@ -645,10 +677,13 @@ getBlockedScale(Value scale, RankedTensorType scaleTy, int64_t rows,
            "blocked scale classification must validate flat padded layout");
     return reshapeFlatBlockedScale(scale, scaleTy, rows, scaleCols, rewriter,
                                    loc);
-  case BlockedScaleLayout::SwizzledConstant:
-    return reorderSwizzledBlockedScaleConstant(scale, scaleTy, rows, scaleCols,
-                                               classification.rawSwizzledData,
-                                               rewriter, loc);
+  case BlockedScaleLayout::Swizzled:
+    if (classification.rawSwizzledData)
+      return reorderSwizzledBlockedScaleConstant(
+          scaleTy, rows, scaleCols, *classification.rawSwizzledData, rewriter,
+          loc);
+    return reorderSwizzledBlockedScaleRuntime(scale, scaleTy, rows, scaleCols,
+                                              rewriter, loc);
   case BlockedScaleLayout::Invalid:
     return failure();
   }
@@ -3555,6 +3590,9 @@ public:
 };
 
 static Value unwrapBuiltinTensorRoundTrip(Value value) {
+  if (auto fromBuiltin =
+          value.getDefiningOp<TorchConversion::FromBuiltinTensorOp>())
+    return fromBuiltin.getOperand();
   if (auto toBuiltin =
           value.getDefiningOp<TorchConversion::ToBuiltinTensorOp>()) {
     if (auto fromBuiltin =
@@ -3566,43 +3604,17 @@ static Value unwrapBuiltinTensorRoundTrip(Value value) {
 }
 
 static FailureOr<Value>
-getLogicalFp4Activation(Value value, int64_t m, int64_t logicalK,
-                        Type elementTy, ConversionPatternRewriter &rewriter,
-                        Location loc) {
-  value = unwrapBuiltinTensorRoundTrip(value);
-  SmallVector<int64_t> logicalRank3Shape = {1, m, logicalK};
-  SmallVector<int64_t> logicalRank2Shape = {m, logicalK};
-  auto hasLogicalRank3Shape = [&](Value candidate) {
-    auto ty = dyn_cast<RankedTensorType>(candidate.getType());
-    return ty && ty.getElementType() == elementTy && ty.hasStaticShape() &&
-           ty.getShape() == ArrayRef<int64_t>(logicalRank3Shape);
-  };
-  auto hasLogicalRank2Shape = [&](Value candidate) {
-    auto ty = dyn_cast<RankedTensorType>(candidate.getType());
-    return ty && ty.getElementType() == elementTy && ty.hasStaticShape() &&
-           ty.getShape() == ArrayRef<int64_t>(logicalRank2Shape);
-  };
+getLogicalFp4ActivationFromSelf(Value self, Value scaleList, int64_t m,
+                                int64_t logicalK, Type elementTy) {
+  FailureOr<Value> scaleElement = getSingleListConstructElement(scaleList);
+  if (failed(scaleElement))
+    return failure();
 
-  if (hasLogicalRank3Shape(value))
-    return value;
-  if (hasLogicalRank2Shape(value))
-    return reshapeTensor(value, logicalRank3Shape, elementTy, rewriter, loc);
+  self = unwrapBuiltinTensorRoundTrip(self);
+  while (auto reshape = self.getDefiningOp<tosa::ReshapeOp>())
+    self = reshape.getInput1();
 
-  if (auto reshape = value.getDefiningOp<tosa::ReshapeOp>()) {
-    Value input = reshape.getInput1();
-    if (hasLogicalRank3Shape(input))
-      return input;
-    if (hasLogicalRank2Shape(input))
-      return reshapeTensor(input, logicalRank3Shape, elementTy, rewriter, loc);
-  }
-
-  return failure();
-}
-
-static FailureOr<Value> getLogicalFp4ActivationFromScale(Value scale, int64_t m,
-                                                         int64_t logicalK,
-                                                         Type elementTy) {
-  scale = unwrapBuiltinTensorRoundTrip(scale);
+  Value scale = unwrapBuiltinTensorRoundTrip(*scaleElement);
   while (true) {
     if (auto pad = scale.getDefiningOp<tosa::PadOp>()) {
       scale = pad.getInput1();
@@ -3615,18 +3627,19 @@ static FailureOr<Value> getLogicalFp4ActivationFromScale(Value scale, int64_t m,
     break;
   }
 
-  auto castToBlockScaled = scale.getDefiningOp<tosa::CastToBlockScaledOp>();
-  if (!castToBlockScaled)
+  auto dataCast = self.getDefiningOp<tosa::CastToBlockScaledOp>();
+  auto scaleCast = scale.getDefiningOp<tosa::CastToBlockScaledOp>();
+  if (!dataCast || dataCast != scaleCast || self != dataCast.getOutputData() ||
+      scale != scaleCast.getOutputScale())
     return failure();
 
-  Value data = castToBlockScaled.getOutputData();
   SmallVector<int64_t> logicalShape = {1, m, logicalK};
-  auto dataTy = dyn_cast<RankedTensorType>(data.getType());
+  auto dataTy = dyn_cast<RankedTensorType>(self.getType());
   if (!dataTy || dataTy.getElementType() != elementTy ||
       !dataTy.hasStaticShape() ||
       dataTy.getShape() != ArrayRef<int64_t>(logicalShape))
     return failure();
-  return data;
+  return self;
 }
 
 static Value unwrapScaledMmV2TransparentTensorOp(Value value) {
@@ -3651,39 +3664,51 @@ static Value unwrapScaledMmV2TransparentTensorOp(Value value) {
   }
 }
 
-static void collectPackedFp4WeightProducerTree(
-    Value value, llvm::SmallPtrSetImpl<Operation *> &producers) {
-  SmallVector<Operation *> worklist;
-  if (Operation *op = value.getDefiningOp())
-    worklist.push_back(op);
-
+static void eraseUnusedOpsAfterPackedFp4View(Operation *view) {
+  llvm::SmallPtrSet<Operation *, 4> opsAfterView;
+  SmallVector<Operation *> worklist(view->getUsers());
   while (!worklist.empty()) {
     Operation *op = worklist.pop_back_val();
-    if (!op || !producers.insert(op).second)
+    if (!opsAfterView.insert(op).second)
       continue;
-    for (Value operand : op->getOperands())
-      if (Operation *definingOp = operand.getDefiningOp())
-        worklist.push_back(definingOp);
+    for (Value result : op->getResults())
+      worklist.append(result.getUsers().begin(), result.getUsers().end());
   }
-}
 
-static void eraseDeadPackedFp4WeightProducers(
-    ConversionPatternRewriter &rewriter,
-    llvm::SmallPtrSetImpl<Operation *> &producers) {
   bool changed = true;
   while (changed) {
     changed = false;
     SmallVector<Operation *> deadOps;
-    for (Operation *op : producers)
-      if (op->use_empty())
+    for (Operation *op : opsAfterView)
+      if (isOpTriviallyDead(op))
         deadOps.push_back(op);
     for (Operation *op : deadOps) {
-      if (producers.erase(op)) {
-        rewriter.eraseOp(op);
-        changed = true;
-      }
+      opsAfterView.erase(op);
+      op->erase();
+      changed = true;
     }
   }
+}
+
+static bool isUsedOnlyAsScaledMmV2Weight(Value value) {
+  if (value.use_empty())
+    return false;
+
+  for (OpOperand &use : value.getUses()) {
+    Operation *user = use.getOwner();
+    if (isa<AtenAliasOp, AtenDetachOp, Aten_ToCopyOp, AtenToDtypeOp,
+            AtenPermuteOp>(user)) {
+      if (user->getNumResults() != 1 ||
+          !isUsedOnlyAsScaledMmV2Weight(user->getResult(0)))
+        return false;
+      continue;
+    }
+
+    auto scaledMm = dyn_cast<Aten_ScaledMmV2Op>(user);
+    if (!scaledMm || scaledMm.getMat2() != value)
+      return false;
+  }
+  return true;
 }
 
 static bool isPackedFp4ScaledMmV2WeightView(AtenViewDtypeOp view) {
@@ -3696,21 +3721,7 @@ static bool isPackedFp4ScaledMmV2WeightView(AtenViewDtypeOp view) {
   if (!source.getDefiningOp<ValueTensorLiteralOp>())
     return false;
 
-  Value value = view.getResult();
-  while (value.hasOneUse()) {
-    Operation *user = *value.getUsers().begin();
-    if (isa<AtenAliasOp, AtenDetachOp, Aten_ToCopyOp, AtenToDtypeOp,
-            AtenPermuteOp>(user)) {
-      if (user->getNumResults() != 1)
-        return false;
-      value = user->getResult(0);
-      continue;
-    }
-    if (auto scaledMm = dyn_cast<Aten_ScaledMmV2Op>(user))
-      return scaledMm.getMat2() == value;
-    return false;
-  }
-  return false;
+  return isUsedOnlyAsScaledMmV2Weight(view.getResult());
 }
 
 static SmallVector<char> unpackFp4X2ToDenseBytes(ArrayRef<char> packed) {
@@ -3815,13 +3826,6 @@ public:
           op, "aten._scaled_mm_v2 only supports MXFP4 BlockWise1x32 scales "
               "with SWIZZLE_32_4_4");
 
-    // The TOSA result uses an unpacked constant, so the original packed RHS
-    // producer tree should become dead when _scaled_mm_v2 is replaced.
-    llvm::SmallPtrSet<Operation *, 16> packedWeightProducers;
-    collectPackedFp4WeightProducerTree(op.getMat2(), packedWeightProducers);
-    collectPackedFp4WeightProducerTree(adaptor.getMat2(),
-                                       packedWeightProducers);
-
     Value lhs = adaptor.getSelf();
     Value rhs = adaptor.getMat2();
     Value bias = adaptor.getBias();
@@ -3907,12 +3911,8 @@ public:
           op, "failed to reshape aten._scaled_mm_v2 blocked scales");
     }
 
-    FailureOr<Value> lhsLogical =
-        getLogicalFp4Activation(lhs, m, logicalK, lhsElemTy, rewriter, loc);
-    if (failed(lhsLogical)) {
-      lhsLogical =
-          getLogicalFp4ActivationFromScale(*scaleA, m, logicalK, lhsElemTy);
-    }
+    FailureOr<Value> lhsLogical = getLogicalFp4ActivationFromSelf(
+        op.getSelf(), op.getScaleA(), m, logicalK, lhsElemTy);
     if (failed(lhsLogical))
       return rewriter.notifyMatchFailure(
           op, "aten._scaled_mm_v2 requires logical FP4 activation produced by "
@@ -3939,7 +3939,6 @@ public:
             tosa::getTosaConstShape(rewriter, loc, getTensorShape(resultTy)))
             .getResult();
     rewriter.replaceOp(op, {result});
-    eraseDeadPackedFp4WeightProducers(rewriter, packedWeightProducers);
     return success();
   }
 };
@@ -12271,12 +12270,25 @@ public:
       target.addIllegalOp(OperationName(op, context));
     }
 
-    target.addDynamicallyLegalOp<AtenViewDtypeOp>(
-        [&](AtenViewDtypeOp op) { return packedFp4WeightViews.contains(op); });
+    bool convertViewDtype =
+        this->requireFullTosaConversion ||
+        illegalOps.count(AtenViewDtypeOp::getOperationName());
+    target.addDynamicallyLegalOp<AtenViewDtypeOp>([&](AtenViewDtypeOp op) {
+      return packedFp4WeightViews.contains(op) || !convertViewDtype;
+    });
+
+    bool convertValueTensorLiteral =
+        this->requireFullTosaConversion ||
+        illegalOps.count(ValueTensorLiteralOp::getOperationName());
     target.addDynamicallyLegalOp<ValueTensorLiteralOp>(
         [&](ValueTensorLiteralOp op) {
-          return packedFp4WeightLiterals.contains(op);
+          return packedFp4WeightLiterals.contains(op) ||
+                 !convertValueTensorLiteral;
         });
+
+    bool convertScaledMmV2 =
+        this->requireFullTosaConversion ||
+        illegalOps.count(Aten_ScaledMmV2Op::getOperationName());
 
     auto frozenPatterns = FrozenRewritePatternSet(
         std::move(patterns), this->disabledPatterns, this->enabledPatterns);
@@ -12285,7 +12297,15 @@ public:
                                       std::move(frozenPatterns))))
       return signalPassFailure();
 
-    if (!packedFp4WeightViews.empty()) {
+    if (convertScaledMmV2 && !packedFp4WeightViews.empty()) {
+      SmallVector<Operation *> remainingPackedFp4WeightViews;
+      getOperation()->walk([&](Operation *op) {
+        if (packedFp4WeightViews.contains(op))
+          remainingPackedFp4WeightViews.push_back(op);
+      });
+      for (Operation *op : remainingPackedFp4WeightViews)
+        eraseUnusedOpsAfterPackedFp4View(op);
+
       bool changed = true;
       while (changed) {
         changed = false;
