@@ -1186,6 +1186,31 @@ def ReduceMaxAlongDim_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ReduceMaxAlongDimBool(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.bool, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.max(a, 1)[0]
+
+
+@register_test_case(module_factory=lambda: ReduceMaxAlongDimBool())
+def ReduceMaxAlongDimBool_basic(module, tu: TestUtils):
+    module.forward(
+        torch.tensor([[True, True], [True, False], [False, True], [False, False]])
+    )
+
+
+# ==============================================================================
+
+
 class ReduceMinAlongDim(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1204,6 +1229,31 @@ class ReduceMinAlongDim(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReduceMinAlongDim())
 def ReduceMinAlongDim_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5).to(torch.float64))
+
+
+class ReduceMinAlongDimBool(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.bool, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.min(a, 1)[0]
+
+
+@register_test_case(module_factory=lambda: ReduceMinAlongDimBool())
+def ReduceMinAlongDimBool_basic(module, tu: TestUtils):
+    module.forward(
+        torch.tensor([[True, True], [True, False], [False, True], [False, False]])
+    )
+
+
+# ==============================================================================
 
 
 class ReduceMinAlongDimSignedInt(torch.nn.Module):
