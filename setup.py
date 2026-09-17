@@ -138,6 +138,9 @@ class CMakeBuild(build_py):
             f"-DTORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS={'OFF' if TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else 'ON'}",
             f"-DMLIR_ENABLE_PYTHON_STABLE_ABI={'ON' if use_stable_abi else 'OFF'}",
         ]
+        for compiler_var in ["CMAKE_C_COMPILER", "CMAKE_CXX_COMPILER"]:
+            if compiler_var in os.environ:
+                cmake_config_args.append(f"-D{compiler_var}={os.environ[compiler_var]}")
         if LLVM_INSTALL_DIR:
             cmake_config_args += [
                 f"-DMLIR_DIR='{LLVM_INSTALL_DIR}/lib/cmake/mlir/'",
