@@ -7459,16 +7459,34 @@ LogicalResult GlobalSlotModuleInitializerOp::verify() {
       return op.emitError("there must be only one global slot initializer");
   }
 
+  // The body is required to be non-empty (SizedRegion<1>), but its terminator
+  // is only guaranteed to be well-formed once SingleBlockImplicitTerminator's
+  // trait verifier runs, which happens after this verify(). getTerminator()
+  // itself asserts that the last op is a terminator, so check the last op
+  // ourselves (without that assertion) before relying on its type, so
+  // malformed IR (missing or mismatched terminator) is reported as a normal
+  // diagnostic instead of crashing.
+  Block *body = getBody();
+  Operation *last = body->empty() ? nullptr : &body->back();
+  auto initialize = dyn_cast_or_null<InitializeGlobalSlotsOp>(last);
+  if (!initialize)
+    return emitOpError("expected body to be terminated by "
+                        "'torch.initialize.global_slots'");
+
   // Collect the relevant symbol names we will verify.
   DenseSet</*StringAttr*/ Attribute> knownGlobalSlots;
   for (auto op : module.getOps<GlobalSlotOp>())
     knownGlobalSlots.insert(op.getSymNameAttr());
   DenseSet</*StringAttr*/ Attribute> initializedGlobalSlots;
-  auto initialize = cast<InitializeGlobalSlotsOp>(getBody()->getTerminator());
   for (Attribute symName : initialize.getSlotSymNames()) {
-    auto wasInserted = initializedGlobalSlots
-                           .insert(cast<FlatSymbolRefAttr>(symName).getAttr())
-                           .second;
+    auto flatSymName = dyn_cast<FlatSymbolRefAttr>(symName);
+    if (!flatSymName)
+      return initialize.emitOpError(
+                 "expected each element of slotSymNames to be a symbol "
+                 "reference, got ")
+             << symName;
+    auto wasInserted =
+        initializedGlobalSlots.insert(flatSymName.getAttr()).second;
     if (!wasInserted)
       return initialize.emitError("duplicate initialization of global slot: ")
              << symName;
