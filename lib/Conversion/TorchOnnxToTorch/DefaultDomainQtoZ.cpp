@@ -2610,21 +2610,27 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                       binder.op, resultType, operand);
                   return success();
                 });
-  patterns.onOp(
-      "Softplus", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Torch::ValueTensorType resultType;
-        Value input;
-        if (binder.tensorOperand(input) ||
-            binder.tensorResultType(resultType)) {
-          return failure();
-        }
-        // out = ln(exp(x) + 1)
-        Value exp = Torch::AtenExpOp::create(rewriter, binder.getLoc(),
-                                             resultType, input);
-        rewriter.replaceOpWithNewOp<Torch::AtenLog1pOp>(binder.op, resultType,
-                                                        exp);
-        return success();
-      });
+  patterns.onOp("Softplus", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value input;
+                  if (binder.tensorOperand(input) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  Location loc = binder.getLoc();
+                  // beta = 1 matches the ONNX spec; threshold = 20 is
+                  // PyTorch's default and its tail correction (exp(-20) ~=
+                  // 2e-9) is below the fp32 ulp at 20 (~1.9e-6), so the
+                  // threshold shortcut stays spec-exact.
+                  Value beta = Torch::ConstantIntOp::create(
+                      rewriter, loc, rewriter.getI64IntegerAttr(1));
+                  Value threshold = Torch::ConstantIntOp::create(
+                      rewriter, loc, rewriter.getI64IntegerAttr(20));
+                  rewriter.replaceOpWithNewOp<Torch::AtenSoftplusOp>(
+                      binder.op, resultType, input, beta, threshold);
+                  return success();
+                });
   patterns.onOp(
       "Softsign", 22, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
