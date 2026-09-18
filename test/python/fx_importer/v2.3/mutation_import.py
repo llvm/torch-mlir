@@ -12,8 +12,6 @@ import torch.export
 import torch.nn as nn
 
 from torch_mlir import fx
-from torch_mlir.extras.fx_decomp_util import get_decomposition_table
-
 from torch_mlir.ir import (
     Operation,
     StringAttr,
@@ -88,7 +86,7 @@ def test_user_input_mutate():
 
 
 @run
-# `run_decompositions` makes the mutation output explicit before the user outputs.
+# The default decomposition makes the mutation output explicit before the user outputs.
 # The importer omits that mutation output from `user_outputs`, so the constant
 # retains output-spec index 2 while occupying node-list index 1.
 # CHECK-LABEL: test_constant_output_after_mutation_output
@@ -104,15 +102,12 @@ def test_constant_output_after_mutation_output():
             y.add_(x)
             return x, 7
 
-    exported = torch.export.export(Repro(), (torch.ones(3, 4), torch.ones(3, 4)))
-    exported = exported.run_decompositions(get_decomposition_table())
-
     m = fx.export_and_import(
-        exported,
+        Repro(),
+        torch.ones(3, 4),
+        torch.ones(3, 4),
         output_type="raw",
         experimental_support_mutation=True,
-        # The program has already been decomposed above.
-        decomposition_table={},
     )
     print(m)
     m.operation.verify()
