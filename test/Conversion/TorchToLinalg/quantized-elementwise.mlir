@@ -711,3 +711,60 @@ func.func @quantize_per_channel_group_gptq_single_col(
         !torch.int -> !torch.vtensor<[4,16],si8>
   return %out : !torch.vtensor<[4,16],si8>
 }
+
+// -----
+
+// Per-channel-group round trip on dynamic dimensions.
+// CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK: #[[GROUP:.*]] = affine_map<(d0, d1) -> (d0, d1 floordiv 4)>
+// CHECK-LABEL: func.func @per_channel_group_dynamic_roundtrip(
+// CHECK: torch_c.to_builtin_tensor %{{.*}} : !torch.vtensor<[?,?],si64> -> tensor<?x?xi64>
+// CHECK: tensor.empty({{.*}}) : tensor<?x?xi8>
+// CHECK: linalg.generic
+// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[GROUP]], #[[GROUP]], #[[IDENTITY]]]
+// CHECK-SAME: ins(%{{.*}}, %{{.*}}, %{{.*}} : tensor<?x?xf32>, tensor<?x?xf32>, tensor<?x?xi64>)
+// CHECK-SAME: outs(%{{.*}} : tensor<?x?xi8>)
+// CHECK: ^bb0(%[[IN:.*]]: f32, %[[SCALE:.*]]: f32, %[[ZP:.*]]: i64, %{{.*}}: i8):
+// CHECK:   %[[QMIN:.*]] = arith.constant -1.280000e+02 : f32
+// CHECK:   %[[QMAX:.*]] = arith.constant 1.270000e+02 : f32
+// CHECK:   %[[ZPF:.*]] = arith.sitofp %[[ZP]] : i64 to f32
+// CHECK:   %[[DIV:.*]] = arith.divf %[[IN]], %[[SCALE]] : f32
+// CHECK:   %[[RND:.*]] = math.roundeven %[[DIV]] : f32
+// CHECK:   %[[ADD:.*]] = arith.addf %[[RND]], %[[ZPF]] : f32
+// CHECK:   %[[LOW:.*]] = arith.maximumf %[[ADD]], %[[QMIN]] : f32
+// CHECK:   %[[HIGH:.*]] = arith.minimumf %[[LOW]], %[[QMAX]] : f32
+// CHECK:   %[[QV:.*]] = arith.fptosi %[[HIGH]] : f32 to i8
+// CHECK:   linalg.yield %[[QV]] : i8
+// CHECK: tensor.empty({{.*}}) : tensor<?x?xf32>
+// CHECK: linalg.generic
+// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[GROUP]], #[[GROUP]], #[[IDENTITY]]]
+// CHECK-SAME: ins(%{{.*}}, %{{.*}}, %{{.*}} : tensor<?x?xi8>, tensor<?x?xf32>, tensor<?x?xi64>)
+// CHECK-SAME: outs(%{{.*}} : tensor<?x?xf32>)
+// CHECK: ^bb0(%[[QIN:.*]]: i8, %[[SC2:.*]]: f32, %[[ZP2:.*]]: i64, %{{.*}}: f32):
+// CHECK:   %[[EXT:.*]] = arith.extsi %[[QIN]] : i8 to i64
+// CHECK:   %[[SUB:.*]] = arith.subi %[[EXT]], %[[ZP2]] : i64
+// CHECK:   %[[FP:.*]] = arith.sitofp %[[SUB]] : i64 to f32
+// CHECK:   %[[MUL:.*]] = arith.mulf %[[FP]], %[[SC2]] : f32
+// CHECK:   linalg.yield %[[MUL]] : f32
+func.func @per_channel_group_dynamic_roundtrip(
+    %input: !torch.vtensor<[?,?],f32>,
+    %scales: !torch.vtensor<[?,?],f32>,
+    %zero_points: !torch.vtensor<[?,?],si64>)
+    -> !torch.vtensor<[?,?],f32> {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 2
+  %group_size = torch.constant.int 4
+  %out_dtype = torch.constant.int 6
+  %quantized = torch.quantized_decomposed.quantize_per_channel_group
+      %input, %scales, %zero_points, %qmin, %qmax, %dtype, %group_size
+      : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],f32>,
+        !torch.vtensor<[?,?],si64>, !torch.int, !torch.int, !torch.int,
+        !torch.int -> !torch.vtensor<[?,?],si8>
+  %out = torch.quantized_decomposed.dequantize_per_channel_group
+      %quantized, %scales, %zero_points, %qmin, %qmax, %dtype, %group_size, %out_dtype
+      : !torch.vtensor<[?,?],si8>, !torch.vtensor<[?,?],f32>,
+        !torch.vtensor<[?,?],si64>, !torch.int, !torch.int, !torch.int,
+        !torch.int, !torch.int -> !torch.vtensor<[?,?],f32>
+  return %out : !torch.vtensor<[?,?],f32>
+}
