@@ -355,22 +355,69 @@ func.func @torch.aten._scaled_mm_v2$blockwise_128x128_1x128_scales(
 func.func @torch.aten._scaled_mm_v2$mxfp4_blockwise_packed_k128_scales(
     %arg0: !torch.vtensor<[128,128],f4E2M1FN>,
     %arg1: !torch.vtensor<[128,128],f4E2M1FN>,
-    %arg2: !torch.vtensor<[512],f8E8M0FNU>,
-    %arg3: !torch.vtensor<[512],f8E8M0FNU>) -> !torch.vtensor<[128,128],bf16> {
+    %arg2: !torch.vtensor<[1024],f8E8M0FNU>,
+    %arg3: !torch.vtensor<[1024],f8E8M0FNU>) -> !torch.vtensor<[128,128],bf16> {
   %scaled_mm_v2_false = torch.constant.bool false
   %scaled_mm_v2_int1 = torch.constant.int 1
   %scaled_mm_v2_int3 = torch.constant.int 3
   %scaled_mm_v2_int15 = torch.constant.int 15
   %scaled_mm_v2_none = torch.constant.none
-  %scaled_mm_v2_scale_a = torch.prim.ListConstruct %arg2 : (!torch.vtensor<[512],f8E8M0FNU>) -> !torch.list<vtensor>
+  %scaled_mm_v2_scale_a = torch.prim.ListConstruct %arg2 : (!torch.vtensor<[1024],f8E8M0FNU>) -> !torch.list<vtensor>
   %scaled_mm_v2_recipe_a = torch.prim.ListConstruct %scaled_mm_v2_int3 : (!torch.int) -> !torch.list<int>
   %scaled_mm_v2_swizzle_a = torch.prim.ListConstruct %scaled_mm_v2_int1 : (!torch.int) -> !torch.list<int>
-  %scaled_mm_v2_scale_b = torch.prim.ListConstruct %arg3 : (!torch.vtensor<[512],f8E8M0FNU>) -> !torch.list<vtensor>
+  %scaled_mm_v2_scale_b = torch.prim.ListConstruct %arg3 : (!torch.vtensor<[1024],f8E8M0FNU>) -> !torch.list<vtensor>
   %scaled_mm_v2_recipe_b = torch.prim.ListConstruct %scaled_mm_v2_int3 : (!torch.int) -> !torch.list<int>
   %scaled_mm_v2_swizzle_b = torch.prim.ListConstruct %scaled_mm_v2_int1 : (!torch.int) -> !torch.list<int>
   %scaled_mm_v2_contraction_dim = torch.prim.ListConstruct : () -> !torch.list<int>
   %0 = torch.aten._scaled_mm_v2 %arg0, %arg1, %scaled_mm_v2_scale_a, %scaled_mm_v2_recipe_a, %scaled_mm_v2_swizzle_a, %scaled_mm_v2_scale_b, %scaled_mm_v2_recipe_b, %scaled_mm_v2_swizzle_b, %scaled_mm_v2_none, %scaled_mm_v2_int15, %scaled_mm_v2_contraction_dim, %scaled_mm_v2_false : !torch.vtensor<[128,128],f4E2M1FN>, !torch.vtensor<[128,128],f4E2M1FN>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.none, !torch.int, !torch.list<int>, !torch.bool -> !torch.vtensor<[128,128],bf16>
   return %0 : !torch.vtensor<[128,128],bf16>
+}
+
+// CHECK-LABEL: func.func @torch.aten._scaled_mm_v2$mxfp4_blockwise_packed_k128_explicit_contraction_dims(
+// CHECK: torch.aten._scaled_mm_v2
+func.func @torch.aten._scaled_mm_v2$mxfp4_blockwise_packed_k128_explicit_contraction_dims(
+    %arg0: !torch.vtensor<[128,128],f4E2M1FN>,
+    %arg1: !torch.vtensor<[128,128],f4E2M1FN>,
+    %arg2: !torch.vtensor<[1024],f8E8M0FNU>,
+    %arg3: !torch.vtensor<[1024],f8E8M0FNU>) -> !torch.vtensor<[128,128],bf16> {
+  %mxfp4_explicit_false = torch.constant.bool false
+  %mxfp4_explicit_int0 = torch.constant.int 0
+  %mxfp4_explicit_int1 = torch.constant.int 1
+  %mxfp4_explicit_int3 = torch.constant.int 3
+  %mxfp4_explicit_int15 = torch.constant.int 15
+  %mxfp4_explicit_none = torch.constant.none
+  %mxfp4_explicit_scale_a = torch.prim.ListConstruct %arg2 : (!torch.vtensor<[1024],f8E8M0FNU>) -> !torch.list<vtensor>
+  %mxfp4_explicit_recipe_a = torch.prim.ListConstruct %mxfp4_explicit_int3 : (!torch.int) -> !torch.list<int>
+  %mxfp4_explicit_swizzle_a = torch.prim.ListConstruct %mxfp4_explicit_int1 : (!torch.int) -> !torch.list<int>
+  %mxfp4_explicit_scale_b = torch.prim.ListConstruct %arg3 : (!torch.vtensor<[1024],f8E8M0FNU>) -> !torch.list<vtensor>
+  %mxfp4_explicit_recipe_b = torch.prim.ListConstruct %mxfp4_explicit_int3 : (!torch.int) -> !torch.list<int>
+  %mxfp4_explicit_swizzle_b = torch.prim.ListConstruct %mxfp4_explicit_int1 : (!torch.int) -> !torch.list<int>
+  %mxfp4_explicit_contraction_dim = torch.prim.ListConstruct %mxfp4_explicit_int1, %mxfp4_explicit_int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %mxfp4_explicit_result = torch.aten._scaled_mm_v2 %arg0, %arg1, %mxfp4_explicit_scale_a, %mxfp4_explicit_recipe_a, %mxfp4_explicit_swizzle_a, %mxfp4_explicit_scale_b, %mxfp4_explicit_recipe_b, %mxfp4_explicit_swizzle_b, %mxfp4_explicit_none, %mxfp4_explicit_int15, %mxfp4_explicit_contraction_dim, %mxfp4_explicit_false : !torch.vtensor<[128,128],f4E2M1FN>, !torch.vtensor<[128,128],f4E2M1FN>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.none, !torch.int, !torch.list<int>, !torch.bool -> !torch.vtensor<[128,128],bf16>
+  return %mxfp4_explicit_result : !torch.vtensor<[128,128],bf16>
+}
+
+// CHECK-LABEL: func.func @torch.aten._scaled_mm_v2$mxfp4_blockwise_padded_mn(
+// CHECK: torch.aten._scaled_mm_v2
+func.func @torch.aten._scaled_mm_v2$mxfp4_blockwise_padded_mn(
+    %arg0: !torch.vtensor<[130,128],f4E2M1FN>,
+    %arg1: !torch.vtensor<[128,80],f4E2M1FN>,
+    %arg2: !torch.vtensor<[2048],f8E8M0FNU>,
+    %arg3: !torch.vtensor<[1024],f8E8M0FNU>) -> !torch.vtensor<[130,80],bf16> {
+  %mxfp4_padded_false = torch.constant.bool false
+  %mxfp4_padded_int1 = torch.constant.int 1
+  %mxfp4_padded_int3 = torch.constant.int 3
+  %mxfp4_padded_int15 = torch.constant.int 15
+  %mxfp4_padded_none = torch.constant.none
+  %mxfp4_padded_scale_a = torch.prim.ListConstruct %arg2 : (!torch.vtensor<[2048],f8E8M0FNU>) -> !torch.list<vtensor>
+  %mxfp4_padded_recipe_a = torch.prim.ListConstruct %mxfp4_padded_int3 : (!torch.int) -> !torch.list<int>
+  %mxfp4_padded_swizzle_a = torch.prim.ListConstruct %mxfp4_padded_int1 : (!torch.int) -> !torch.list<int>
+  %mxfp4_padded_scale_b = torch.prim.ListConstruct %arg3 : (!torch.vtensor<[1024],f8E8M0FNU>) -> !torch.list<vtensor>
+  %mxfp4_padded_recipe_b = torch.prim.ListConstruct %mxfp4_padded_int3 : (!torch.int) -> !torch.list<int>
+  %mxfp4_padded_swizzle_b = torch.prim.ListConstruct %mxfp4_padded_int1 : (!torch.int) -> !torch.list<int>
+  %mxfp4_padded_contraction_dim = torch.prim.ListConstruct : () -> !torch.list<int>
+  %mxfp4_padded_result = torch.aten._scaled_mm_v2 %arg0, %arg1, %mxfp4_padded_scale_a, %mxfp4_padded_recipe_a, %mxfp4_padded_swizzle_a, %mxfp4_padded_scale_b, %mxfp4_padded_recipe_b, %mxfp4_padded_swizzle_b, %mxfp4_padded_none, %mxfp4_padded_int15, %mxfp4_padded_contraction_dim, %mxfp4_padded_false : !torch.vtensor<[130,128],f4E2M1FN>, !torch.vtensor<[128,80],f4E2M1FN>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.none, !torch.int, !torch.list<int>, !torch.bool -> !torch.vtensor<[130,80],bf16>
+  return %mxfp4_padded_result : !torch.vtensor<[130,80],bf16>
 }
 
 // CHECK-LABEL: func.func @torch.aten._scaled_mm_v2$nv_blockwise_1x16_scales(
