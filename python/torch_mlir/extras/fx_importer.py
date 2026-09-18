@@ -698,7 +698,7 @@ class FxImporter:
         # producer for the output.
         user_outputs: List[Optional[Node]] = []
         user_output_types: List[IrType] = []
-        for i, output_spec in enumerate(sig.output_specs):
+        for output_spec in sig.output_specs:
             kind = output_spec.kind
             arg = output_spec.arg
             if kind == OutputKind.USER_OUTPUT:
@@ -716,7 +716,7 @@ class FxImporter:
                     )
                 elif isinstance(arg, ConstantArgument):
                     # Constant Outputs don't have a node so we will only store their values
-                    constant_output_values[i] = arg.value
+                    constant_output_values[len(user_outputs)] = arg.value
                     # Placeholder for constant outputs in the node list
                     user_outputs.append(None)
                     user_output_types.append(self._cc.value_info_to_type(arg.value))
