@@ -1,0 +1,280 @@
+# yamllint disable rule:line-length
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag to build/publish (e.g. v20260624). Leave empty for a dev build off main.'
+        required: false
+        default: ''
+  schedule:
+    # Daily build (dev wheels daily, proper release monthly on 1st)
+    - cron: '0 11 * * *'
+
+# Never cancel a real release/publish run.
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  setup-version:
+    name: Setup version and publication status
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'schedule' && github.repository_owner == 'llvm')
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.get-version.outputs.version }}
+      ref: ${{ steps.get-version.outputs.ref }}
+      should_publish_gh: ${{ steps.get-version.outputs.should_publish_gh }}
+      should_publish_pypi: ${{ steps.get-version.outputs.should_publish_pypi }}
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: refs/heads/main
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Install Python 3.12
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install requests==2.32.3 packaging==24.2
+
+      - name: Get version
+        id: get-version
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/get_version.py \
+            --event "${{ github.event_name }}" \
+            --ref "${{ github.ref }}" \
+            --tag "${{ github.event.release.tag_name || inputs.tag_name || '' }}" \
+            --package "torch-mlir" \
+            --gha
+
+  build_wheels:
+    name: Build wheels
+    needs: [setup-version]
+    uses: ./.github/workflows/_build_wheels.yml
+    with:
+      ref: ${{ needs.setup-version.outputs.ref }}
+      version: ${{ needs.setup-version.outputs.version }}
+
+  perform_release:
+    name: Create GitHub Release and Upload Assets
+    needs: [setup-version, build_wheels]
+    if: needs.setup-version.outputs.should_publish_gh == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          path: dist
+          pattern: dist-*
+          merge-multiple: true
+
+      - name: Extract and rename torch-mlir-opt binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p extracted
+          for whl in dist/*.whl; do
+            filename=$(basename "$whl")
+            # Platform tag is the last '-'-separated field of the wheel name,
+            # minus the .whl extension.
+            platform=$(echo "$filename" | rev | cut -d- -f1 | rev | cut -d. -f1)
+            if [[ "$platform" == win* ]]; then
+              bin_name="torch-mlir-opt.exe"
+              ext=".exe"
+            else
+              bin_name="torch-mlir-opt"
+              ext=""
+            fi
+            target_path="extracted/torch-mlir-opt-${platform}${ext}"
+            if [ -f "$target_path" ]; then
+              echo "Skipping $whl: $target_path already extracted for $platform"
+              continue
+            fi
+            echo "Extracting $bin_name from $whl for platform $platform"
+            mkdir -p tmp_extract
+            # -j strips the archive path so the binary lands directly in tmp.
+            unzip -q -j "$whl" "torch_mlir/_mlir_libs/${bin_name}" -d tmp_extract
+            if [ ! -f "tmp_extract/${bin_name}" ]; then
+              echo "Error: ${bin_name} not found in $whl" >&2
+              exit 1
+            fi
+            mv "tmp_extract/${bin_name}" "$target_path"
+            chmod +x "$target_path"
+            rm -rf tmp_extract
+          done
+          echo "Extracted files:"
+          ls -alh extracted/
+
+      - name: Determine tag name
+        id: tag
+        shell: bash
+        run: |
+          VERSION="${{ needs.setup-version.outputs.version }}"
+          if [[ "$VERSION" == *dev* ]]; then
+            TAG_NAME="dev-wheels"
+            IS_DEV="true"
+          else
+            TAG_NAME="v$VERSION"
+            IS_DEV="false"
+          fi
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+          echo "is_dev=$IS_DEV" >> "$GITHUB_OUTPUT"
+
+      - name: Prune old dev-wheels assets (enforce 1,000 asset ceiling)
+        if: ${{ steps.tag.outputs.is_dev == 'true' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # 4 wheels per dev release, gives 100 remaining assets as a buffer
+          MAX_ASSETS=225
+          REPO="${{ github.repository }}"
+          ASSETS_JSON=$(gh api "repos/${REPO}/releases/tags/dev-wheels" --jq '.assets | sort_by(.created_at)' 2>/dev/null || echo "[]")
+          TOTAL_COUNT=$(echo "$ASSETS_JSON" | jq 'length')
+          if [ "$TOTAL_COUNT" -gt "$MAX_ASSETS" ]; then
+            DELETE_COUNT=$((TOTAL_COUNT - MAX_ASSETS))
+            ASSET_IDS=$(echo "$ASSETS_JSON" | jq -r ".[0:${DELETE_COUNT}][].id")
+            for asset_id in $ASSET_IDS; do
+              gh api --method DELETE "repos/${REPO}/releases/assets/${asset_id}"
+            done
+          fi
+
+      - name: Create/Update Dev Release
+        if: ${{ steps.tag.outputs.is_dev == 'true' }}
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+        with:
+          tag_name: ${{ steps.tag.outputs.tag_name }}
+          name: ${{ steps.tag.outputs.tag_name }}
+          body: "Automatic snapshot release of torch-mlir python wheels."
+          files: |
+            dist/*.whl
+            extracted/*
+
+      - name: Check out repo for non-dev preflight check
+        if: ${{ steps.tag.outputs.is_dev != 'true' }}
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: refs/heads/main
+
+      - name: Install Python 3.12 for non-dev preflight check
+        if: ${{ steps.tag.outputs.is_dev != 'true' }}
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Verify PyPI immutability before GitHub Release (non-dev)
+        if: ${{ steps.tag.outputs.is_dev != 'true' }}
+        run: |
+          pip install requests==2.32.3 packaging==24.2
+          cp -r dist dist_check
+          python scripts/prepare_pypi_publish.py \
+            --dist-dir dist_check \
+            --package "torch-mlir" \
+            --version "${{ needs.setup-version.outputs.version }}"
+          rm -rf dist_check
+
+      - name: Create Proper Release
+        if: ${{ steps.tag.outputs.is_dev != 'true' }}
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+        with:
+          tag_name: ${{ steps.tag.outputs.tag_name }}
+          name: ${{ steps.tag.outputs.tag_name }}
+          generate_release_notes: true
+          overwrite_files: false
+          files: |
+            dist/*.whl
+            extracted/*
+
+  prepare_pypi:
+    name: Prepare and Validate PyPI Distribution
+    needs: [setup-version, build_wheels]
+    if: needs.setup-version.outputs.should_publish_pypi == 'true'
+    runs-on: ubuntu-24.04
+    outputs:
+      should_upload: ${{ steps.preflight.outputs.should_upload }}
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: refs/heads/main
+
+      - name: Install Python 3.12
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install requests==2.32.3 packaging==24.2
+
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          path: dist
+          pattern: dist-*
+          merge-multiple: true
+
+      - name: Preflight PyPI Release Validation
+        id: preflight
+        run: |
+          python scripts/prepare_pypi_publish.py \
+            --dist-dir dist \
+            --package "torch-mlir" \
+            --version "${{ needs.setup-version.outputs.version }}" \
+            --gha
+
+      - name: Upload PyPI-ready distribution artifact
+        if: steps.preflight.outputs.should_upload == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: pypi-ready-dist
+          path: dist/*.whl
+          if-no-files-found: error
+
+  # ============================================================================
+  # OPERATIONAL RUNBOOK — RETRYING PARTIAL PYPI UPLOADS:
+  # If `pypi_upload` fails partway through uploading wheels (e.g. network error):
+  #   1. DO NOT start a new `workflow_dispatch` run for the same version tag.
+  #      Rebuilding wheels generates new zip timestamps and SHA256 hashes, which
+  #      will fail closed in `prepare_pypi_publish.py` due to PyPI immutability.
+  #   2. Instead, click "Re-run failed jobs" on THIS existing workflow run in
+  #      the GitHub Actions UI. This re-downloads the original wheel artifacts
+  #      with identical SHA256 hashes, prunes already-published wheels, and
+  #      idempotently uploads only the remaining missing wheels.
+  # ============================================================================
+  pypi_upload:
+    name: Publish wheels to PyPI
+    needs: [setup-version, prepare_pypi]
+    if: >-
+      needs.setup-version.outputs.should_publish_pypi == 'true' &&
+      needs.prepare_pypi.outputs.should_upload == 'true'
+    runs-on: ubuntu-24.04
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - name: Download PyPI-ready wheels
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: pypi-ready-dist
+          path: dist
+
+      - name: Publish wheels to PyPI
+        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # release/v1.13
+        with:
+          packages-dir: dist
+          verbose: true
