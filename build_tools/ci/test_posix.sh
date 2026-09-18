@@ -8,8 +8,16 @@ torch_version="${1:-unknown}"
 
 export PYTHONPATH="$repo_root/build/tools/torch-mlir/python_packages/torch_mlir:$repo_root/projects/pt1"
 
-echo "::group::Run ONNX e2e integration tests"
+echo "::group::Run ONNX exported from torch authored op e2e integration tests"
 python3 -m e2e_testing.main --config=onnx -v
+echo "::endgroup::"
+
+echo "::group::Run ONNX authored op e2e integration tests (linalg)"
+python3 -m onnx_e2e_test.main --config linalg -v
+echo "::endgroup::"
+
+echo "::group::Run ONNX authored op e2e integration tests (TOSA)"
+python3 -m onnx_e2e_test.main --config tosa -v
 echo "::endgroup::"
 
 case $torch_version in
