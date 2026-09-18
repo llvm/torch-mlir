@@ -80,8 +80,8 @@ public:
         typeConverter, patterns, target, this->allowNonFinites);
     torch_to_linalg::populateRandomPatternsAndLegality(typeConverter, patterns,
                                                        target);
-    torch_to_linalg::populateUncategorizedPatternsAndLegality(typeConverter,
-                                                              patterns, target);
+    torch_to_linalg::populateUncategorizedPatternsAndLegality(
+        typeConverter, patterns, target, this->allowNonFinites);
     torch_to_linalg::populateReductionPatternsAndLegality(
         typeConverter, patterns, target, this->allowNonFinites);
     torch_to_linalg::populateDataMovementPatternsAndLegality(typeConverter,
