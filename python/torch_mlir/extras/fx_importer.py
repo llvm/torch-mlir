@@ -1276,7 +1276,7 @@ class ContextCache:
 
         raise NotImplementedError(
             f"Could not deduce type from value info: "
-            f"tensor_meta={tensor_meta}, val={val} {type(val)}, sparsity={sparsity}"
+            f"tensor_meta={tensor_meta}, val={val} {type(val)}"
         )
 
     def tensor_metadata_to_type(
