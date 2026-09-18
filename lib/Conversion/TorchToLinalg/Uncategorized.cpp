@@ -1985,11 +1985,6 @@ LogicalResult checkPerTokenShapes(OpTy op, ConversionPatternRewriter &rewriter,
     return rewriter.notifyMatchFailure(
         op, "zero_points shape must match scales shape");
 
-  if (scalesShape[inputRank - 1] != ShapedType::kDynamic &&
-      scalesShape[inputRank - 1] != 1)
-    return rewriter.notifyMatchFailure(
-        op, "scales last dimension must be 1 for per-token quantization");
-
   for (int64_t i = 0; i < inputRank - 1; ++i) {
     if (inputShape[i] != ShapedType::kDynamic &&
         scalesShape[i] != ShapedType::kDynamic &&
@@ -2136,16 +2131,24 @@ public:
   }
 };
 
-bool getQminQmaxFromDtype(MLIRContext *ctx, int64_t dtypeVal, int64_t &qmin,
-                          int64_t &qmax) {
+FailureOr<std::pair<int64_t, int64_t>> getQminQmaxFromDtype(MLIRContext *ctx,
+                                                            int64_t dtypeVal) {
   FailureOr<Type> maybeType = Torch::getTypeForScalarType(
       ctx, static_cast<torch_upstream::ScalarType>(dtypeVal));
   if (failed(maybeType))
-    return false;
+    return failure();
   auto intTy = dyn_cast<IntegerType>(*maybeType);
   if (!intTy)
-    return false;
+    return failure();
+
+  // PyTorch only supports int8 for now.
+  // See
+  // https://github.com/pytorch/pytorch/blob/75c19b73/torch/ao/quantization/fx/_decomposed.py#L800
+  if (intTy != mlir::IntegerType::get(ctx, 8, mlir::IntegerType::Signed))
+    return failure();
+
   unsigned width = intTy.getWidth();
+  int64_t qmin, qmax;
   if (intTy.isUnsigned()) {
     qmin = 0;
     qmax = static_cast<int64_t>(APInt::getMaxValue(width).getZExtValue());
@@ -2153,14 +2156,20 @@ bool getQminQmaxFromDtype(MLIRContext *ctx, int64_t dtypeVal, int64_t &qmin,
     qmin = APInt::getSignedMinValue(width).getSExtValue();
     qmax = APInt::getSignedMaxValue(width).getSExtValue();
   }
-  return true;
+  return std::make_pair(qmin, qmax);
 }
 
 class ConvertQuantizedDecomposedChooseQparamsPerTokenAsymmetricOp
     : public OpConversionPattern<
           QuantizedDecomposedChooseQparamsPerTokenAsymmetricOp> {
+private:
+  bool allowNonFinites;
+
 public:
-  using OpConversionPattern::OpConversionPattern;
+  ConvertQuantizedDecomposedChooseQparamsPerTokenAsymmetricOp(
+      TypeConverter &typeConverter, MLIRContext *context, bool allowNonFinites)
+      : OpConversionPattern(typeConverter, context),
+        allowNonFinites(allowNonFinites) {}
   LogicalResult
   matchAndRewrite(QuantizedDecomposedChooseQparamsPerTokenAsymmetricOp op,
                   OpAdaptor adaptor,
@@ -2183,10 +2192,12 @@ public:
     if (!matchPattern(op.getDtype(), m_TorchConstantInt(&dtypeVal)))
       return rewriter.notifyMatchFailure(op, "dtype must be a constant");
 
-    int64_t qmin, qmax;
-    if (!getQminQmaxFromDtype(op->getContext(), dtypeVal, qmin, qmax))
+    auto qminqmax = getQminQmaxFromDtype(op->getContext(), dtypeVal);
+    if (failed(qminqmax))
       return rewriter.notifyMatchFailure(
           op, "unsupported dtype for choose_qparams_per_token_asymmetric");
+    double qmin = static_cast<double>((*qminqmax).first);
+    double qmax = static_cast<double>((*qminqmax).second);
 
     auto scaleResultType = dyn_cast<RankedTensorType>(
         this->getTypeConverter()->convertType(op.getScale().getType()));
@@ -2232,11 +2243,15 @@ public:
     Value posInf = arith::ConstantOp::create(
         rewriter, loc,
         rewriter.getFloatAttr(scaleElemType,
-                              std::numeric_limits<float>::infinity()));
+                              getFloatInf(cast<mlir::FloatType>(scaleElemType),
+                                          /*negative=*/false,
+                                          this->allowNonFinites)));
     Value negInf = arith::ConstantOp::create(
         rewriter, loc,
         rewriter.getFloatAttr(scaleElemType,
-                              -std::numeric_limits<float>::infinity()));
+                              getFloatInf(cast<mlir::FloatType>(scaleElemType),
+                                          /*negative=*/true,
+                                          this->allowNonFinites)));
 
     Value minInit =
         tensor::EmptyOp::create(rewriter, loc, outputSizes, scaleElemType);
@@ -2284,14 +2299,14 @@ public:
                                                 utils::IteratorType::parallel);
 
     // Choose per-token asymmetric quantization parameters:
-    //   scale = max(max(0, max_val) - min(0, min_val) / (qmax - qmin), eps)
+    //   scale = max((max(0, max_val) - min(0, min_val)) / (qmax - qmin), eps)
     //
-    //   errSum = ((min(0, min_val) / scale) + qmin) +
-    //            ((max(0, max_val) / scale) + qmax)
-    //   zpCandA = ((min(0, min_val) / scale) - qmin)
-    //   zpCandB = ((max(0, max_val) / scale) - qmax)
-    //   zero_point = min(max((errSum > 0) ? zpCandA : zpCandB,
-    //                qmin), qmax)
+    //   errSum = (min(0, min_val) / scale + qmin) +
+    //            (max(0, max_val) / scale + qmax)
+    //   zpCandA = qmin - (min(0, min_val) / scale)
+    //   zpCandB = qmax - (max(0, max_val) / scale)
+    //   zero_point = round_even(clamp((errSum > 0) ? zpCandA : zpCandB,
+    //                                qmin, qmax))
     auto scaleZpGeneric = linalg::GenericOp::create(
         rewriter, loc, TypeRange{scaleTy, zpTy},
         ValueRange{minTensor, maxTensor}, ValueRange{scaleInit, zpInit},
@@ -2339,13 +2354,13 @@ public:
               arith::SubFOp::create(b, bodyLoc, cstQmaxF, descaledMax);
           Value zpF =
               arith::SelectOp::create(b, bodyLoc, cond, zpCandA, zpCandB);
-          Value zpRounded = math::RoundEvenOp::create(b, bodyLoc, zpF);
           Value zpClamped =
-              arith::MaximumFOp::create(b, bodyLoc, zpRounded, cstQminF);
+              arith::MaximumFOp::create(b, bodyLoc, zpF, cstQminF);
           zpClamped =
               arith::MinimumFOp::create(b, bodyLoc, zpClamped, cstQmaxF);
+          Value zpRounded = math::RoundEvenOp::create(b, bodyLoc, zpClamped);
           Value zpI =
-              arith::FPToSIOp::create(b, bodyLoc, zpElemType, zpClamped);
+              arith::FPToSIOp::create(b, bodyLoc, zpElemType, zpRounded);
 
           linalg::YieldOp::create(b, bodyLoc, ValueRange{scale, zpI});
         });
@@ -2377,10 +2392,11 @@ public:
     if (!matchPattern(op.getDtype(), m_TorchConstantInt(&dtypeVal)))
       return rewriter.notifyMatchFailure(op, "dtype must be a constant");
 
-    int64_t qmin, qmax;
-    if (!getQminQmaxFromDtype(op->getContext(), dtypeVal, qmin, qmax))
+    auto qminqmax = getQminQmaxFromDtype(op->getContext(), dtypeVal);
+    if (failed(qminqmax))
       return rewriter.notifyMatchFailure(
           op, "unsupported dtype for choose_qparams_per_token");
+    double qmax = static_cast<double>((*qminqmax).second);
 
     int64_t inputRank = inputType.getRank();
     if (inputRank < 1)
@@ -4832,7 +4848,7 @@ private:
 
 void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
-    ConversionTarget &target) {
+    ConversionTarget &target, bool allowNonFinites) {
   MLIRContext *context = patterns.getContext();
   target.addIllegalOp<
       AtenTanOp, AtenTanhOp, AtenSinhOp, AtenCoshOp, AtenAtanhOp, AtenAcoshOp,
@@ -4868,8 +4884,9 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
                                                                context);
   target.addIllegalOp<QuantizedDecomposedChooseQparamsPerTokenAsymmetricOp,
                       QuantizedDecomposedChooseQparamsPerTokenOp>();
-  patterns.add<ConvertQuantizedDecomposedChooseQparamsPerTokenAsymmetricOp,
-               ConvertQuantizedDecomposedChooseQparamsPerTokenOp>(typeConverter,
+  patterns.add<ConvertQuantizedDecomposedChooseQparamsPerTokenAsymmetricOp>(
+      typeConverter, context, allowNonFinites);
+  patterns.add<ConvertQuantizedDecomposedChooseQparamsPerTokenOp>(typeConverter,
                                                                   context);
   target.addIllegalOp<QuantizedDecomposedQuantizePerChannelOp,
                       QuantizedDecomposedDequantizePerChannelOp>();

@@ -51,7 +51,8 @@ void populateRandomPatternsAndLegality(TypeConverter &typeConverter,
                                        ConversionTarget &target);
 void populateUncategorizedPatternsAndLegality(TypeConverter &typeConverter,
                                               RewritePatternSet &patterns,
-                                              ConversionTarget &target);
+                                              ConversionTarget &target,
+                                              bool allowNonFinites);
 void populateReductionPatternsAndLegality(TypeConverter &typeConverter,
                                           RewritePatternSet &patterns,
                                           ConversionTarget &target,
