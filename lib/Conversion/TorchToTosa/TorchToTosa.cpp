@@ -11544,6 +11544,70 @@ LogicalResult ConvertAtenOp<AtenExpm1Op>::matchAndRewriteImpl(
   return success();
 }
 
+// Legalization for aten.atanh
+template <>
+LogicalResult ConvertAtenOp<AtenAtanhOp>::matchAndRewriteImpl(
+    AtenAtanhOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  // atanh formula:
+  // yi = 0.5 * log((1 + x) / (1 - x))
+  // Note: This lowering might not provide as great precision as aten.atanh
+  // since TOSA doesn't have a built-in atanh op.
+  auto self = adaptor.getSelf();
+
+  auto selfType = dyn_cast<TensorType>(self.getType());
+  if (!selfType)
+    return rewriter.notifyMatchFailure(op, "Only tensor types are supported");
+
+  auto resultType =
+      dyn_cast<TensorType>(typeConverter->convertType(op.getType()));
+  auto resultElemTy = resultType.getElementType();
+
+  if (!isa<mlir::FloatType>(resultElemTy))
+    return rewriter.notifyMatchFailure(
+        op, "Only floating-point datatype result types are supported");
+
+  // If input is not a float type then cast it to result element type
+  auto selfElemTy = selfType.getElementType();
+  if (!isa<mlir::FloatType>(selfElemTy))
+    self = tosa::tosaCastTensorToType(rewriter, self, resultType).value();
+
+  auto one =
+      tosa::getConstTensor<float>(rewriter, op, 1.0f, {}, resultElemTy).value();
+  auto oneHalf =
+      tosa::getConstTensor<float>(rewriter, op, 0.5f, {}, resultElemTy).value();
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, one).failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), self, oneHalf).failed())
+    return rewriter.notifyMatchFailure(
+        op, "Failed to equalize ranks among operands and result");
+
+  auto numeratorOp =
+      tosa::AddOp::create(rewriter, op->getLoc(), resultType, one, self);
+
+  auto denominatorOp =
+      tosa::SubOp::create(rewriter, op->getLoc(), resultType, one, self);
+
+  // TOSA has no elementwise division, so divide via the reciprocal.
+  auto reciprocalOp = tosa::ReciprocalOp::create(
+      rewriter, op->getLoc(), resultType, denominatorOp.getResult());
+
+  auto divOp = tosa::createMulOpAndCast(rewriter, op, resultType,
+                                        numeratorOp.getResult(),
+                                        reciprocalOp.getResult(), /*shift=*/0);
+
+  auto logOp = tosa::LogOp::create(rewriter, op->getLoc(), resultType,
+                                   divOp.getResult());
+
+  auto result = tosa::createMulOpAndCast(rewriter, op, resultType,
+                                         logOp.getResult(), oneHalf,
+                                         /*shift=*/0);
+
+  rewriter.replaceOp(op, {result.getResult()});
+
+  return success();
+}
+
 // Legalization for aten.atan
 // NOTE: TOSA has no native atan op, so this lowering is approximate.
 template <>
@@ -12893,6 +12957,7 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
   INSERT_ATENOP_PATTERN(AtenLog1pOp);
   INSERT_ATENOP_PATTERN(AtenLog10Op);
   INSERT_ATENOP_PATTERN(AtenExpm1Op);
+  INSERT_ATENOP_PATTERN(AtenAtanhOp);
   INSERT_ATENOP_PATTERN(AtenAtanOp);
   INSERT_ATENOP_PATTERN(AtenTanOp);
   INSERT_ATENOP_PATTERN(AtenUnfoldOp);
