@@ -308,3 +308,47 @@ func.func @gather_graph(%arg0: !torch.vtensor<[5,3],f32>, %arg1: !torch.vtensor<
   %9 = torch.aten.unflatten.int %8, %int0, %5 : !torch.vtensor<[?,3],f32>, !torch.int, !torch.list<int> -> !torch.vtensor<[?,?,3],f32>
   return %9 : !torch.vtensor<[?,?,3],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.view$dynamicBatchSeqCollapse(
+// CHECK-SAME:      %[[ARG:.*]]: !torch.vtensor<[?,?,8,8],f32>) -> !torch.vtensor<[?,64],f32>
+// CHECK:        %[[BUILTIN_TENSOR:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[?,?,8,8],f32> -> tensor<?x?x8x8xf32>
+// CHECK-NOT:    tensor.cast
+// CHECK:        %[[RESHAPE:.*]] = tensor.reshape %[[BUILTIN_TENSOR]]
+// CHECK:        %[[BUILTIN_TENSOR_CAST:.*]] = torch_c.from_builtin_tensor %[[RESHAPE]] : tensor<?x64xf32> -> !torch.vtensor<[?,64],f32>
+// CHECK:        return %[[BUILTIN_TENSOR_CAST]] : !torch.vtensor<[?,64],f32>
+func.func @torch.aten.view$dynamicBatchSeqCollapse(%arg0: !torch.vtensor<[?,?,8,8],f32>) -> !torch.vtensor<[?,64],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int64 = torch.constant.int 64
+  %0 = torch.aten.size.int %arg0, %int0 : !torch.vtensor<[?,?,8,8],f32>, !torch.int -> !torch.int
+  %1 = torch.aten.size.int %arg0, %int1 : !torch.vtensor<[?,?,8,8],f32>, !torch.int -> !torch.int
+  %2 = torch.aten.mul.int %0, %1 : !torch.int, !torch.int -> !torch.int
+  %3 = torch.prim.ListConstruct %2, %int64 : (!torch.int, !torch.int) -> !torch.list<int>
+  %4 = torch.aten.view %arg0, %3 : !torch.vtensor<[?,?,8,8],f32>, !torch.list<int> -> !torch.vtensor<[?,64],f32>
+  return %4 : !torch.vtensor<[?,64],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.view$dynamicBatchSeqCollapseStrict(
+// CHECK-SAME:      %[[ARG:.*]]: !torch.vtensor<[?,?,8,8],f32>) -> !torch.vtensor<[?,64],f32>
+// CHECK:        %[[BUILTIN_TENSOR:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[?,?,8,8],f32> -> tensor<?x?x8x8xf32>
+// CHECK-NOT:    tensor.cast
+// CHECK:        %[[RESHAPE:.*]] = tensor.reshape %[[BUILTIN_TENSOR]]
+// CHECK:        %[[BUILTIN_TENSOR_CAST:.*]] = torch_c.from_builtin_tensor %[[RESHAPE]] : tensor<?x64xf32> -> !torch.vtensor<[?,64],f32>
+// CHECK:        return %[[BUILTIN_TENSOR_CAST]] : !torch.vtensor<[?,64],f32>
+func.func @torch.aten.view$dynamicBatchSeqCollapseStrict(%arg0: !torch.vtensor<[?,?,8,8],f32>) -> !torch.vtensor<[?,64],f32>
+  attributes {torch.assume_strict_symbolic_shapes}
+{
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int64 = torch.constant.int 64
+  %0 = torch.aten.size.int %arg0, %int0 : !torch.vtensor<[?,?,8,8],f32>, !torch.int -> !torch.int
+  %1 = torch.aten.size.int %arg0, %int1 : !torch.vtensor<[?,?,8,8],f32>, !torch.int -> !torch.int
+  %2 = torch.aten.mul.int %0, %1 : !torch.int, !torch.int -> !torch.int
+  %3 = torch.prim.ListConstruct %2, %int64 : (!torch.int, !torch.int) -> !torch.list<int>
+  %4 = torch.aten.view %arg0, %3 : !torch.vtensor<[?,?,8,8],f32>, !torch.list<int> -> !torch.vtensor<[?,64],f32>
+  return %4 : !torch.vtensor<[?,64],f32>
+}

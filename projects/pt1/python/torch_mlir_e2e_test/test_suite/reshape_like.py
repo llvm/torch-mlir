@@ -335,6 +335,29 @@ def ViewCollapseDynamicWithAtenSizeIntModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ViewCollapseTwoDynamicDimsModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, 8, 8], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return a.view(a.size(0) * a.size(1), 64)
+
+
+@register_test_case(module_factory=lambda: ViewCollapseTwoDynamicDimsModule())
+def ViewCollapseTwoDynamicDimsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 8, 8))
+
+
+# ==============================================================================
+
+
 class ViewExpandCollapseWithOnesModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
