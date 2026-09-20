@@ -350,8 +350,10 @@ static void liftFuncArgAttrs(func::FuncOp func) {
     bool localChanged = false;
     for (NamedAttribute named : dict.getValue()) {
       if (named.getName().getValue().starts_with(kUserAttrPrefix)) {
+        // +1 because the UserAttrPrefix is `mlir.user` but the part that needs
+        // to be removed is `mlir.user.`
         StringRef stripped =
-            named.getName().getValue().drop_front(kUserAttrPrefix.size());
+            named.getName().getValue().drop_front(kUserAttrPrefix.size() + 1);
         rewritten.set(stripped, named.getValue());
         localChanged = true;
       } else {
