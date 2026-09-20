@@ -260,8 +260,6 @@ Value torch_to_linalg::createReductionLinalgGeneric(
       b, loc, /*resultTensorTypes=*/accumulator.getType(),
       /*inputs=*/opInfo.tensorOperand,
       /*outputs=*/accumulator, indexingMaps, iteratorTypes, bodyBuild);
-  if (sourceOp)
-    forwardUserDiscardableAttrs(sourceOp, genericOp);
   return genericOp.getResult(0);
 }
 
@@ -395,8 +393,6 @@ Value torch_to_linalg::createElementwiseLinalgGeneric(
       /*resultTensorTypes=*/initTensor.getType(),
       /*inputs=*/tensorOperands,
       /*outputs=*/initTensor, indexingMaps, iteratorTypes, bodyBuild);
-  if (sourceOp)
-    forwardUserDiscardableAttrs(sourceOp, genericOp);
   return genericOp.getResult(0);
 }
 
