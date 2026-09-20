@@ -326,8 +326,10 @@ static void liftPrefixedAttrs(Operation *op) {
   if (toLift.empty())
     return;
   for (NamedAttribute named : toLift) {
+    // +1 because the UserAttrPrefix is `mlir.user` but the part that needs
+    // to be removed is `mlir.user.`
     StringRef stripped =
-        named.getName().getValue().drop_front(kUserAttrPrefix.size());
+        named.getName().getValue().drop_front(kUserAttrPrefix.size() + 1);
     op->setAttr(stripped, named.getValue());
     op->removeAttr(named.getName());
   }

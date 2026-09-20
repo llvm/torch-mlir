@@ -677,6 +677,34 @@ void forwardUserDiscardableAttrs(Operation *from, Operation *to) {
   }
 }
 
+// Forward user-discardable attributes for a specific result index.
+// This extracts attributes from the array-of-dictionaries representation
+// (mlir.user = [{attrs for result 0}, {attrs for result 1}, ...])
+// and copies them to the destination operation.
+static void forwardResultUserAttrs(Operation *from, unsigned resultIndex,
+                                   Operation *to) {
+  // Look for the mlir.user attribute (array of dicts)
+  auto userAttr = from->getAttrOfType<ArrayAttr>(kUserAttrPrefix);
+  if (!userAttr)
+    return;
+
+  if (resultIndex >= userAttr.size())
+    return;
+
+  auto resultDict = llvm::dyn_cast<DictionaryAttr>(userAttr[resultIndex]);
+  if (!resultDict)
+    return;
+
+  // Forward all attributes from this result's dictionary to the destination
+  // FIXME: keep the mlir.user = [.. {attrs for result i} ...] form
+  // because the replacement may not have a single op result.
+  for (NamedAttribute attr : resultDict) {
+    // FIXME: is this string cat step inefficient?
+    std::string attrName = (kUserAttrPrefix + "." + attr.getName().strref()).str();
+    to->setDiscardableAttr(attrName, attr.getValue());
+  }
+}
+
 namespace {
 class ForwardingListener : public RewriterBase::ForwardingListener {
   Operation *sourceOp;
@@ -685,12 +713,30 @@ public:
   ForwardingListener(OpBuilder::Listener *parent, Operation *op)
       : RewriterBase::ForwardingListener(parent), sourceOp(op) {}
 
-  void notifyOperationInserted(Operation *insertedOp,
-                               OpBuilder::InsertPoint previous) override {
-    RewriterBase::ForwardingListener::notifyOperationInserted(insertedOp,
-                                                              previous);
-    if (insertedOp && sourceOp) {
-      forwardUserDiscardableAttrs(sourceOp, insertedOp);
+  // Override notifyOperationReplaced to forward attributes based on the
+  // actual replacement mapping. This handles per-result attributes correctly.
+  void notifyOperationReplaced(Operation *op, ValueRange replacement) override {
+    RewriterBase::ForwardingListener::notifyOperationReplaced(op, replacement);
+
+    if (op != sourceOp)
+      return;
+
+    // For each result of the source operation, forward its attributes
+    // to the operation that defines the corresponding replacement value
+    for (unsigned i = 0; i < op->getNumResults() && i < replacement.size();
+         ++i) {
+      Value replacementValue = replacement[i];
+
+      // Get the operation that defines this replacement value
+      Operation *defOp = replacementValue.getDefiningOp();
+      if (!defOp) {
+        // Replacement is a block argument. Only some block arguments have
+        // sensible attribute mechanisms, such as a func.func's argattrs. We
+        // skip these for now.
+        continue;
+      }
+
+      forwardResultUserAttrs(sourceOp, i, defOp);
     }
   }
 };
