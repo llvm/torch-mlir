@@ -82,8 +82,13 @@ public:
 
     wrapPatternsWithForwarding(patterns);
 
+    // Install a listener for attribute forwarding during conversion
+    auto listener = torch::Torch::createConversionForwardingListener();
+    ConversionConfig config;
+    config.listener = listener.get();
+
     if (failed(applyPartialConversion(getOperation(), target,
-                                      std::move(patterns)))) {
+                                      std::move(patterns), config))) {
       return signalPassFailure();
     }
   }

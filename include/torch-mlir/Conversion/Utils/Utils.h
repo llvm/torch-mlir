@@ -162,6 +162,10 @@ void forwardUserDiscardableAttrs(Operation *from, Operation *to);
 
 void wrapPatternsWithForwarding(RewritePatternSet &patterns);
 
+// Creates a listener for attribute forwarding during conversions.
+// This should be installed before calling applyPartialConversion.
+std::unique_ptr<RewriterBase::Listener> createConversionForwardingListener();
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir
