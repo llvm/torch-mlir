@@ -1747,10 +1747,41 @@ class GraphNodeImporter:
                 )
             else:
                 producer_op = input_val.owner
+                num_results = len(producer_op.results)
+
+                # Find which result index this value corresponds to
+                result_index = None
+                for i, result in enumerate(producer_op.results):
+                    if result == input_val:
+                        result_index = i
+                        break
+
+                if result_index is None:
+                    raise ValueError(
+                        f"Could not find result index for value in operation {producer_op}"
+                    )
+
+                # Get existing user attributes array or create new one
+                # Structure: mlir.user = [{dict for result 0}, {dict for result 1}, ...]
+                user_attr = producer_op.attributes.get(USER_ATTR_PREFIX, None)
+                if user_attr is None:
+                    # Create array of empty dicts, one per result
+                    dicts = [{} for _ in range(num_results)]
+                else:
+                    # Parse existing ArrayAttr of DictAttrs
+                    dicts = [{na.name: na.attr for na in d} for d in user_attr]
+
+                # Add annotations to the specific result's dictionary
                 for k, v in annotations.items():
                     mlir_attr = _coerce_mlir_attr(v, self._c)
                     if mlir_attr is not None:
-                        producer_op.attributes[USER_ATTR_PREFIX + k] = mlir_attr
+                        dicts[result_index][k] = mlir_attr
+
+                # Write back as ArrayAttr of DictAttrs
+                producer_op.attributes[USER_ATTR_PREFIX] = ArrayAttr.get(
+                    [DictAttr.get(d, context=self._c) for d in dicts],
+                    context=self._c
+                )
 
         self.bind_node_value(node, input_val, 0)
 
