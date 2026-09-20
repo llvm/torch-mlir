@@ -38,11 +38,11 @@ class LinearWithOutputAnnotation(nn.Module):
 # which includes decomposition of aten.linear into transpose/matmul/add.
 # With the new per-result forwarding, only the final operation gets the attributes.
 # CHECK:       func.func @main(%arg0: !torch.vtensor<[1,4],f32>)
-# CHECK:       torch.aten.t
+# CHECK:       torch.aten.transpose.int
 # CHECK-NOT:   mlir.user
-# CHECK:       torch.aten.matmul
+# CHECK:       torch.aten.mm
 # CHECK-NOT:   mlir.user
-# CHECK:       torch.aten.add.Tensor{{.*}}{mlir.user.my.range_hi = 1.000000e+00 : f64, mlir.user.my.range_lo = -1.000000e+00 : f64}
+# CHECK:       torch.aten.add.Tensor{{.*}}{mlir.user = [{my.range_hi = 1.000000e+00 : f64, my.range_lo = -1.000000e+00 : f64}]}
 # CHECK-NOT:   annotate_and_pass_through
 @run
 def test_annotation_survives_decomposition_torch():

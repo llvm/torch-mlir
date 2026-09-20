@@ -213,8 +213,7 @@ func.func @elementwise_bitwise_right_shift_tensor_unsigned(%arg0: !torch.vtensor
 // -----
 
 // CHECK-LABEL:   func.func @elementwise_user_attrs(
-// CHECK:           linalg.generic
-// CHECK-SAME:        mlir.user.domain_lower = -1.000000e+00 : f64
+// CHECK:           tensor.cast {{.*}} {mlir.user = [{domain_lower = -1.000000e+00 : f64}]}
 // CHECK-NOT:         other.attr
 func.func @elementwise_user_attrs(%arg0: !torch.vtensor<[3],f32>) -> !torch.vtensor<[3],f32> {
   %0 = torch.aten.tanh %arg0 {mlir.user = [{domain_lower = -1.0 : f64}], other.attr = 1 : i64} : !torch.vtensor<[3],f32> -> !torch.vtensor<[3],f32>

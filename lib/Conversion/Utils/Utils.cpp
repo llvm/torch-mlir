@@ -692,17 +692,14 @@ static void forwardResultUserAttrs(Operation *from, unsigned resultIndex,
     return;
 
   auto resultDict = llvm::dyn_cast<DictionaryAttr>(userAttr[resultIndex]);
-  if (!resultDict)
+  if (!resultDict || resultDict.empty())
     return;
 
-  // Forward all attributes from this result's dictionary to the destination
-  // FIXME: keep the mlir.user = [.. {attrs for result i} ...] form
-  // because the replacement may not have a single op result.
-  for (NamedAttribute attr : resultDict) {
-    // FIXME: is this string cat step inefficient?
-    std::string attrName = (kUserAttrPrefix + "." + attr.getName().strref()).str();
-    to->setDiscardableAttr(attrName, attr.getValue());
-  }
+  // Preserve the array-of-dicts format by setting mlir.user = [{...}]
+  // where the array contains a single dictionary for this operation
+  SmallVector<Attribute> arrayElements;
+  arrayElements.push_back(resultDict);
+  to->setDiscardableAttr(kUserAttrPrefix, ArrayAttr::get(to->getContext(), arrayElements));
 }
 
 namespace {
@@ -713,8 +710,6 @@ public:
   ForwardingListener(OpBuilder::Listener *parent, Operation *op)
       : RewriterBase::ForwardingListener(parent), sourceOp(op) {}
 
-  // Override notifyOperationReplaced to forward attributes based on the
-  // actual replacement mapping. This handles per-result attributes correctly.
   void notifyOperationReplaced(Operation *op, ValueRange replacement) override {
     RewriterBase::ForwardingListener::notifyOperationReplaced(op, replacement);
 
@@ -845,6 +840,56 @@ void wrapPatternsWithForwarding(RewritePatternSet &patterns) {
     }
   }
   nativePatterns = std::move(wrappedPatterns);
+}
+
+namespace {
+// Listener for forwarding attributes during dialect conversion.
+// This is installed at the pass level and persists for the entire conversion,
+// receiving notifications when replacements are committed.
+class ConversionForwardingListener : public RewriterBase::Listener {
+public:
+  void notifyOperationReplaced(Operation *op, ValueRange replacement) override {
+    // Only forward from Torch dialect operations
+    StringRef dialectNamespace = op->getName().getDialectNamespace();
+    if (dialectNamespace != "torch")
+      return;
+
+    // Check if the operation has user attributes to forward
+    auto userAttr = op->getAttrOfType<ArrayAttr>(kUserAttrPrefix);
+    if (!userAttr)
+      return;
+
+    // Forward to each replacement value's defining op
+    for (unsigned i = 0; i < op->getNumResults() && i < replacement.size(); ++i) {
+      Value replacementValue = replacement[i];
+      if (!replacementValue)
+        continue;
+
+      Operation *targetOp = replacementValue.getDefiningOp();
+      if (!targetOp)
+        continue;
+
+      // If the replacement is an unrealized_conversion_cast, look through it
+      // to find the actual target operation (e.g., tensor.cast)
+      if (targetOp->getName().getStringRef() == "builtin.unrealized_conversion_cast") {
+        if (targetOp->getNumOperands() > 0) {
+          Value operand = targetOp->getOperand(0);
+          if (operand) {
+            if (auto operandDefOp = operand.getDefiningOp()) {
+              targetOp = operandDefOp;
+            }
+          }
+        }
+      }
+
+      forwardResultUserAttrs(op, i, targetOp);
+    }
+  }
+};
+} // namespace
+
+std::unique_ptr<RewriterBase::Listener> createConversionForwardingListener() {
+  return std::make_unique<ConversionForwardingListener>();
 }
 
 } // namespace Torch

@@ -12511,8 +12511,13 @@ public:
     auto frozenPatterns = FrozenRewritePatternSet(
         std::move(patterns), this->disabledPatterns, this->enabledPatterns);
 
+    // Install a listener for attribute forwarding during conversion
+    auto listener = torch::Torch::createConversionForwardingListener();
+    ConversionConfig config;
+    config.listener = listener.get();
+
     if (failed(applyPartialConversion(getOperation(), target,
-                                      std::move(frozenPatterns))))
+                                      std::move(frozenPatterns), config)))
       return signalPassFailure();
   }
 };
