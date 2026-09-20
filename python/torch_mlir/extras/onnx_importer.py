@@ -78,6 +78,11 @@ from ..dialects import (
 )
 
 
+def _normalize_onnx_domain(domain: str) -> str:
+    """Returns the canonical spelling of an ONNX operator domain."""
+    return "" if domain == "ai.onnx" else domain
+
+
 @dataclass
 class Config:
     """Various configuration settings for the importer."""
@@ -317,8 +322,9 @@ class NodeImporter:
             default_opset_version = 0
             opset_versions: Dict[str, IntegerAttr] = {}
             for opset_import in m.opset_import:
-                if opset_import.domain:
-                    opset_versions[opset_import.domain] = IntegerAttr.get(
+                domain = _normalize_onnx_domain(opset_import.domain)
+                if domain:
+                    opset_versions[domain] = IntegerAttr.get(
                         i64_type, opset_import.version
                     )
                 else:
@@ -383,7 +389,7 @@ class NodeImporter:
     def import_node(self, node: onnx.NodeProto):
         with InsertionPoint(self._b), Location.name(node.name):
             op_type = node.op_type
-            op_domain = node.domain
+            op_domain = _normalize_onnx_domain(node.domain)
 
             # Handle special op types that materialize to non-op IR constructs.
             # Handlers return True if the op was handled, else this function
@@ -425,7 +431,7 @@ class NodeImporter:
                 output_types.append(self._cc.type_proto_to_type(type_proto))
 
             for opset_import in self._gi.model_info.model_proto.opset_import:
-                if opset_import.domain == op_domain:
+                if _normalize_onnx_domain(opset_import.domain) == op_domain:
                     opset_version = opset_import.version
                     break
             operator_func_op = self._mc.get_operator_function(
