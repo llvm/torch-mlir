@@ -280,7 +280,6 @@ public:
           ConvertAtenOp<AtenOpT>::getTypeConverter()->convertType(op.getType());
       auto dotOp = stablehlo::DotOp::create(rewriter, op->getLoc(), tensorType,
                                             lhs, rhs, nullptr);
-      forwardUserDiscardableAttrs(op, dotOp);
       output = dotOp;
       return success();
     }
@@ -328,7 +327,6 @@ public:
     auto dotOp =
         stablehlo::DotGeneralOp::create(rewriter, op->getLoc(), outTy, lhs, rhs,
                                         dotDimensionNumbers, nullptr, nullptr);
-    forwardUserDiscardableAttrs(op, dotOp);
     output = dotOp.getResult();
     return success();
   }

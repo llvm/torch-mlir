@@ -3577,7 +3577,6 @@ public:
         OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
             mmOutputTy),
         matmulLhs, matmulRhs, lhsZp, rhsZp);
-    forwardUserDiscardableAttrs(op, matmulOp);
     Value mmOpResult = matmulOp.getResult();
 
     // Perform the reshape to output shape. This is always required unless max
