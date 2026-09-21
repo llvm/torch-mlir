@@ -27,8 +27,12 @@ class TopKWithDifferentAnnotations(nn.Module):
         # topk returns (values, indices)
         values, indices = torch.topk(x, k=2, dim=-1)
         # Annotate each result differently
-        values = AnnotateAndPassThrough(values, {"my.tag": "values", "my.range_lo": -1.0})
-        indices = AnnotateAndPassThrough(indices, {"my.tag": "indices", "my.type": "int"})
+        values = AnnotateAndPassThrough(
+            values, {"my.tag": "values", "my.range_lo": -1.0}
+        )
+        indices = AnnotateAndPassThrough(
+            indices, {"my.tag": "indices", "my.type": "int"}
+        )
         return values, indices
 
 
