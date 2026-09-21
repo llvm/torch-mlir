@@ -677,6 +677,28 @@ void forwardUserDiscardableAttrs(Operation *from, Operation *to) {
   }
 }
 
+// Look through cast operations to find the actual operation that produces a
+// value. This handles tensor.cast, unrealized_conversion_cast, and other
+// cast-like ops that may be eliminated by canonicalization.
+static Operation *lookThroughCasts(Value value) {
+  Operation *defOp = value.getDefiningOp();
+  if (!defOp)
+    return nullptr;
+
+  // Look through tensor.cast
+  if (auto castOp = dyn_cast<tensor::CastOp>(defOp)) {
+    return lookThroughCasts(castOp.getSource());
+  }
+
+  // Look through unrealized_conversion_cast
+  if (auto castOp = dyn_cast<UnrealizedConversionCastOp>(defOp)) {
+    if (castOp.getInputs().size() == 1)
+      return lookThroughCasts(castOp.getInputs()[0]);
+  }
+
+  return defOp;
+}
+
 // Forward user-discardable attributes for a specific result index.
 // This extracts attributes from the array-of-dictionaries representation
 // (mlir.user = [{attrs for result 0}, {attrs for result 1}, ...])
@@ -699,7 +721,8 @@ static void forwardResultUserAttrs(Operation *from, unsigned resultIndex,
   // where the array contains a single dictionary for this operation
   SmallVector<Attribute> arrayElements;
   arrayElements.push_back(resultDict);
-  to->setDiscardableAttr(kUserAttrPrefix, ArrayAttr::get(to->getContext(), arrayElements));
+  to->setDiscardableAttr(kUserAttrPrefix,
+                         ArrayAttr::get(to->getContext(), arrayElements));
 }
 
 namespace {
@@ -722,8 +745,9 @@ public:
          ++i) {
       Value replacementValue = replacement[i];
 
-      // Get the operation that defines this replacement value
-      Operation *defOp = replacementValue.getDefiningOp();
+      // Get the operation that defines this replacement value, looking through
+      // cast operations that may be eliminated by canonicalization
+      Operation *defOp = lookThroughCasts(replacementValue);
       if (!defOp) {
         // Replacement is a block argument. Only some block arguments have
         // sensible attribute mechanisms, such as a func.func's argattrs. We
@@ -860,27 +884,17 @@ public:
       return;
 
     // Forward to each replacement value's defining op
-    for (unsigned i = 0; i < op->getNumResults() && i < replacement.size(); ++i) {
+    for (unsigned i = 0; i < op->getNumResults() && i < replacement.size();
+         ++i) {
       Value replacementValue = replacement[i];
       if (!replacementValue)
         continue;
 
-      Operation *targetOp = replacementValue.getDefiningOp();
+      // Look through cast operations (tensor.cast, unrealized_conversion_cast,
+      // etc.) to find the actual operation that produces the value
+      Operation *targetOp = lookThroughCasts(replacementValue);
       if (!targetOp)
         continue;
-
-      // If the replacement is an unrealized_conversion_cast, look through it
-      // to find the actual target operation (e.g., tensor.cast)
-      if (targetOp->getName().getStringRef() == "builtin.unrealized_conversion_cast") {
-        if (targetOp->getNumOperands() > 0) {
-          Value operand = targetOp->getOperand(0);
-          if (operand) {
-            if (auto operandDefOp = operand.getDefiningOp()) {
-              targetOp = operandDefOp;
-            }
-          }
-        }
-      }
 
       forwardResultUserAttrs(op, i, targetOp);
     }
