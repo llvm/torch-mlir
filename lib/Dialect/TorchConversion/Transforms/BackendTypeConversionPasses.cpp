@@ -320,14 +320,19 @@ namespace {
 static void liftPrefixedAttrs(Operation *op) {
   SmallVector<NamedAttribute> toLift;
   for (NamedAttribute named : op->getDiscardableAttrs()) {
-    if (named.getName().getValue().starts_with(kUserAttrPrefix))
+    StringRef attrName = named.getName().getValue();
+    // Match attributes that start with kUserAttrPrefix followed by a dot
+    // (e.g., "mlir.user.my.tag"). Don't match the exact prefix "mlir.user"
+    // which is used for array-of-dicts representation.
+    if (attrName.starts_with(kUserAttrPrefix) &&
+        attrName.size() > kUserAttrPrefix.size() &&
+        attrName[kUserAttrPrefix.size()] == '.')
       toLift.push_back(named);
   }
   if (toLift.empty())
     return;
   for (NamedAttribute named : toLift) {
-    // +1 because the UserAttrPrefix is `mlir.user` but the part that needs
-    // to be removed is `mlir.user.`
+    // +1 to skip the dot after the prefix
     StringRef stripped =
         named.getName().getValue().drop_front(kUserAttrPrefix.size() + 1);
     op->setAttr(stripped, named.getValue());

@@ -471,7 +471,8 @@ func.func @torch.aten.convolution$transposed_groups(%arg0: !torch.vtensor<[1,2,7
 // -----
 
 // CHECK-LABEL:  func.func @test_stablehlo_dot_user_attrs(
-// CHECK:          tensor.cast {{.*}} {mlir.user = [{tag = "mlp_fc"}]}
+// CHECK:          stablehlo.dot {{.*}} {mlir.user = [{tag = "mlp_fc"}]}
+// CHECK:          tensor.cast
 // CHECK-NOT:      internal.flag
 func.func @test_stablehlo_dot_user_attrs(%arg0: !torch.vtensor<[2,3],f32>, %arg1: !torch.vtensor<[3,3],f32>) -> !torch.vtensor<[2,3],f32> {
   %0 = torch.aten.mm %arg0, %arg1 {mlir.user = [{tag = "mlp_fc"}], internal.flag = 99 : i64} : !torch.vtensor<[2,3],f32>, !torch.vtensor<[3,3],f32> -> !torch.vtensor<[2,3],f32>
@@ -481,7 +482,8 @@ func.func @test_stablehlo_dot_user_attrs(%arg0: !torch.vtensor<[2,3],f32>, %arg1
 // -----
 
 // CHECK-LABEL:  func.func @test_stablehlo_dot_general_user_attrs(
-// CHECK:          tensor.cast {{.*}} {mlir.user = [{tag = "mlp_fc"}]}
+// CHECK:          stablehlo.dot_general {{.*}} {mlir.user = [{tag = "mlp_fc"}]}
+// CHECK:          tensor.cast
 // CHECK-NOT:      internal.flag
 func.func @test_stablehlo_dot_general_user_attrs(%arg0: !torch.vtensor<[256,120],f32>, %arg1: !torch.vtensor<[4,120,256],f32>) -> !torch.vtensor<[4,256,256],f32> {
   %0 = torch.aten.matmul %arg0, %arg1 {mlir.user = [{tag = "mlp_fc"}], internal.flag = 99 : i64} : !torch.vtensor<[256,120],f32>, !torch.vtensor<[4,120,256],f32> -> !torch.vtensor<[4,256,256],f32>
