@@ -60,3 +60,21 @@ func.func @test_multi_result_different_attrs(%arg0: !torch.vtensor<[4],f32>) -> 
   %values, %indices = torch.aten.topk %arg0, %int2, %int-1, %true, %true {mlir.user = [{my.tag = "values", my.range_lo = -1.0 : f64}, {my.tag = "indices", my.type = "int"}]} : !torch.vtensor<[4],f32>, !torch.int, !torch.int, !torch.bool, !torch.bool -> !torch.vtensor<[2],f32>, !torch.vtensor<[2],si64>
   return %values, %indices : !torch.vtensor<[2],f32>, !torch.vtensor<[2],si64>
 }
+
+// -----
+
+// Regression test: a decomposition may drop an unused result by passing a null
+// Value to `rewriter.replaceOp`, e.g.
+// `rewriter.replaceOp(op, {maxPool.getResult(), Value()})`. The attribute
+// forwarding listener must skip null replacements rather than calling
+// `getDefiningOp()` on them (which asserts inside `dyn_cast<OpResult>`).
+// Here the `indices` result of `aten.adaptive_max_pool1d` is unused.
+// CHECK-LABEL:   func.func @test_null_replacement_for_unused_result(
+// CHECK:           %[[POOL:.*]] = torch.aten.max_pool1d {{.*}} {mlir.user = [{my.tag = "values"}]}
+// CHECK:           return %[[POOL]]
+func.func @test_null_replacement_for_unused_result(%arg0: !torch.vtensor<[1,512,7],f32>) -> !torch.vtensor<[1,512,1],f32> {
+  %int1 = torch.constant.int 1
+  %0 = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %values, %indices = torch.aten.adaptive_max_pool1d %arg0, %0 {mlir.user = [{my.tag = "values"}, {my.tag = "indices"}]} : !torch.vtensor<[1,512,7],f32>, !torch.list<int> -> !torch.vtensor<[1,512,1],f32>, !torch.vtensor<[1,512,1],si64>
+  return %values : !torch.vtensor<[1,512,1],f32>
+}
