@@ -35,10 +35,10 @@ class LinearWithOutputAnnotation(nn.Module):
 
 # CHECK-LABEL: test_annotation_survives_decomposition_torch
 # This test verifies that annotations survive through the Torch-to-Torch pipeline
-# which includes decomposition of aten.linear into transpose/matmul/add.
+# which includes decomposition of aten.linear into permute/matmul/add.
 # With the new per-result forwarding, only the final operation gets the attributes.
 # CHECK:       func.func @main(%arg0: !torch.vtensor<[1,4],f32>)
-# CHECK:       torch.aten.transpose.int
+# CHECK:       torch.aten.permute
 # CHECK-NOT:   mlir.user
 # CHECK:       torch.aten.mm
 # CHECK-NOT:   mlir.user

@@ -517,7 +517,7 @@ def _coerce_mlir_attr(value: Any, context: Context) -> Optional[Attribute]:
 # these attrs without leaking unrelated discardable attrs (dialect internals
 # etc.). The `torch-lift-user-attrs` pass at the end of the lowering pipeline
 # strips this prefix to expose the user's chosen names.
-USER_ATTR_PREFIX = "mlir.user."
+USER_ATTR_PREFIX = "mlir.user"
 
 
 def is_scalar_arg(arg: NodeArgument) -> bool:
@@ -1748,7 +1748,9 @@ class GraphNodeImporter:
                 for k, v in annotations.items():
                     mlir_attr = _coerce_mlir_attr(v, self._c)
                     if mlir_attr is not None:
-                        dicts[input_val.arg_number][USER_ATTR_PREFIX + k] = mlir_attr
+                        dicts[input_val.arg_number][
+                            USER_ATTR_PREFIX + "." + k
+                        ] = mlir_attr
                 func_op.arg_attrs = ArrayAttr.get(
                     [DictAttr.get(d, context=self._c) for d in dicts], context=self._c
                 )
@@ -1786,8 +1788,7 @@ class GraphNodeImporter:
 
                 # Write back as ArrayAttr of DictAttrs
                 producer_op.attributes[USER_ATTR_PREFIX] = ArrayAttr.get(
-                    [DictAttr.get(d, context=self._c) for d in dicts],
-                    context=self._c
+                    [DictAttr.get(d, context=self._c) for d in dicts], context=self._c
                 )
 
         self.bind_node_value(node, input_val, 0)
