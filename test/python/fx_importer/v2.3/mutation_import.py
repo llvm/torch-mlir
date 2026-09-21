@@ -12,7 +12,6 @@ import torch.export
 import torch.nn as nn
 
 from torch_mlir import fx
-
 from torch_mlir.ir import (
     Operation,
     StringAttr,
@@ -80,6 +79,34 @@ def test_user_input_mutate():
         Basic(),
         torch.randn(3, 4),
         torch.randn(3, 4),
+        experimental_support_mutation=True,
+    )
+    print(m)
+    m.operation.verify()
+
+
+@run
+# The default decomposition makes the mutation output explicit before the user outputs.
+# The importer omits that mutation output from `user_outputs`, so the constant
+# retains output-spec index 2 while occupying node-list index 1.
+# CHECK-LABEL: test_constant_output_after_mutation_output
+# CHECK: func.func @main(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.tensor<[3,4],f32>) -> (!torch.vtensor<[3,4],f32>, !torch.int)
+# CHECK-DAG: %[[arg1_copy:.+]] = torch.copy.to_vtensor %arg1 : !torch.vtensor<[3,4],f32>
+# CHECK-DAG: %[[arg1_add:.+]] = torch.aten.add.Tensor %[[arg1_copy]], %arg0
+# CHECK-DAG: torch.overwrite.tensor.contents %[[arg1_add]] overwrites %arg1
+# CHECK: %[[int7:.+]] = torch.constant.int 7
+# CHECK: return %arg0, %[[int7]] : !torch.vtensor<[3,4],f32>, !torch.int
+def test_constant_output_after_mutation_output():
+    class Repro(torch.nn.Module):
+        def forward(self, x, y):
+            y.add_(x)
+            return x, 7
+
+    m = fx.export_and_import(
+        Repro(),
+        torch.ones(3, 4),
+        torch.ones(3, 4),
+        output_type="raw",
         experimental_support_mutation=True,
     )
     print(m)
