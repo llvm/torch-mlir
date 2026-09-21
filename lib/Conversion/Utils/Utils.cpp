@@ -681,6 +681,12 @@ void forwardUserDiscardableAttrs(Operation *from, Operation *to) {
 // value. This handles tensor.cast, unrealized_conversion_cast, and other
 // cast-like ops that may be eliminated by canonicalization.
 static Operation *lookThroughCasts(Value value) {
+  // A replacement value may be null, e.g. when a pattern drops an unused
+  // result via `rewriter.replaceOp(op, {realValue, Value()})`. Calling
+  // `getDefiningOp()` on a null Value asserts inside `dyn_cast<OpResult>`.
+  if (!value)
+    return nullptr;
+
   Operation *defOp = value.getDefiningOp();
   if (!defOp)
     return nullptr;
@@ -744,6 +750,9 @@ public:
     for (unsigned i = 0; i < op->getNumResults() && i < replacement.size();
          ++i) {
       Value replacementValue = replacement[i];
+      // Patterns may pass a null Value for results they know are unused.
+      if (!replacementValue)
+        continue;
 
       // Get the operation that defines this replacement value, looking through
       // cast operations that may be eliminated by canonicalization
