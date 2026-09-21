@@ -151,6 +151,21 @@ else()
   set(MLIR_INCLUDE_DIRS "${MLIR_INCLUDE_DIR};${MLIR_GENERATED_INCLUDE_DIR}")
 endif()
 
+# Disable reusing LLVM's precompiled headers (PCH) in torch-mlir and its
+# subprojects (e.g., StableHLO). torch-mlir and StableHLO define directory-level
+# compile macros (TORCH_MLIR_ENABLE_*, _USE_MATH_DEFINES) that were not present
+# when LLVM's PCHs (LLVMSupport, LLVMCore, LLVMCodeGen) were compiled.
+# With clang-cl on Windows, reusing those PCHs causes macro mismatch warnings
+# (-Wclang-cl-pch) and locks standard header guards (e.g., <cmath> without M_PI),
+# breaking compilation in targets like StablehloReferenceOps.
+foreach(_llvm_pch_target LLVMSupport obj.LLVMSupport LLVMCore obj.LLVMCore LLVMCodeGen obj.LLVMCodeGen)
+  if(TARGET ${_llvm_pch_target})
+    set_target_properties(${_llvm_pch_target} PROPERTIES LLVM_PCH_PRIORITY 0)
+  endif()
+endforeach()
+unset(_llvm_pch_target)
+set(CMAKE_DISABLE_PRECOMPILE_HEADERS ON)
+
 set(TORCH_MLIR_SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 set(TORCH_MLIR_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}")
 message(STATUS "Building torch-mlir project at ${TORCH_MLIR_SOURCE_DIR} (into ${TORCH_MLIR_BINARY_DIR})")
@@ -259,10 +274,19 @@ if (TORCH_MLIR_ENABLE_STABLEHLO AND NOT TORCH_MLIR_USE_EXTERNAL_STABLEHLO)
   set(STABLEHLO_ENABLE_BINDINGS_PYTHON ON)
   message(STATUS "Using LLVM_ENABLE_DEBUGLOC_COVERAGE_TRACKING in: ${LLVM_ENABLE_DEBUGLOC_COVERAGE_TRACKING}")
   set(LLVM_ENABLE_DEBUGLOC_COVERAGE_TRACKING "DISABLED")
+  # Disable CMAKE_INCLUDE_CURRENT_DIR (inherited from LLVM) so subdirectory paths
+  # like stablehlo/reference are not added as -I flags. On case-insensitive Windows
+  # filesystems, -I.../stablehlo/reference causes MSVC's <thread> (#include <process.h>)
+  # to erroneously include stablehlo/reference/Process.h.
+  set(_torch_mlir_prev_include_current_dir "${CMAKE_INCLUDE_CURRENT_DIR}")
+  set(CMAKE_INCLUDE_CURRENT_DIR OFF)
   add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/externals/stablehlo
     ${CMAKE_CURRENT_BINARY_DIR}/stablehlo
     EXCLUDE_FROM_ALL)
+  set(CMAKE_INCLUDE_CURRENT_DIR "${_torch_mlir_prev_include_current_dir}")
+  unset(_torch_mlir_prev_include_current_dir)
   include_directories(${CMAKE_CURRENT_SOURCE_DIR}/externals/stablehlo)
+  include_directories(${CMAKE_CURRENT_BINARY_DIR}/stablehlo)
 endif()
 
 #-------------------------------------------------------------------------------
