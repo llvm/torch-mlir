@@ -5754,6 +5754,39 @@ def LogCumsumExpStaticFloat64DtypeModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class LogCumsumExpLargeMagnitudeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1, -1], torch.float32, True)])
+    def forward(self, x):
+        return torch.ops.aten.logcumsumexp(x, dim=1)
+
+
+@register_test_case(module_factory=lambda: LogCumsumExpLargeMagnitudeModule())
+def LogCumsumExpLargeMagnitudeModule_basic(module, tu: TestUtils):
+    # Regression for the sequential logaddexp scan. Rows exercise both failure
+    # modes of the alternatives along the scan dim:
+    #   - a large late value ([1, 2, 200]) makes a global-max shift
+    #     (M + log(cumsum(exp(x - M)))) underflow early prefixes to log(0) = -inf;
+    #   - large positive values ([100, 101, 102]) overflow the naive
+    #     log(cumsum(exp)) to +inf.
+    # The prefix-local logaddexp scan stays finite and matches eager on both.
+    module.forward(
+        torch.tensor(
+            [
+                [1.0, 2.0, 200.0],
+                [-100.0, 0.0, 50.0],
+                [100.0, 101.0, 102.0],
+            ]
+        )
+    )
+
+
+# ==============================================================================
+
+
 class CumprodModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
