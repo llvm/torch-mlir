@@ -379,13 +379,15 @@ Value createRemainderPayload(OpBuilder &b, Location loc,
 
 static Value createQuantizePayload(OpBuilder &b, Location loc,
                                    const TypeConverter *converter, Value input,
-                                   Value scale, Value zeroPoint, Value quantMin,
+                                   Value scale, Value zeroPoint,
+                                   Type zeroPointTorchType, Value quantMin,
                                    Value quantMax, Type outputType,
                                    bool outputIsUnsigned) {
   Type computeType = input.getType();
-  scale = materializeScalarToDtype(b, loc, converter, scale, computeType);
-  zeroPoint =
-      materializeScalarToDtype(b, loc, converter, zeroPoint, computeType);
+  scale = materializeScalarToDtype(b, loc, converter, scale, scale.getType(),
+                                   computeType);
+  zeroPoint = materializeScalarToDtype(b, loc, converter, zeroPoint,
+                                       zeroPointTorchType, computeType);
   Value value = arith::DivFOp::create(b, loc, input, scale);
   value = math::RoundEvenOp::create(b, loc, value);
   value = arith::AddFOp::create(b, loc, value, zeroPoint);
@@ -415,7 +417,8 @@ getSafeSubtractionWidth(unsigned inputWidth, unsigned zeroPointWidth) {
 static Value createDequantizePayload(OpBuilder &b, Location loc,
                                      const TypeConverter *converter,
                                      Value input, Value scale, Value zeroPoint,
-                                     Type outputType, bool inputIsUnsigned) {
+                                     Type zeroPointTorchType, Type outputType,
+                                     bool inputIsUnsigned) {
   auto inputIntType = cast<mlir::IntegerType>(input.getType());
   if (zeroPoint) {
     Type zeroPointType = converter->convertType(zeroPoint.getType());
@@ -424,8 +427,8 @@ static Value createDequantizePayload(OpBuilder &b, Location loc,
         inputIntType.getWidth(), zeroPointIntType.getWidth());
     assert(subtractionWidth && "unsupported quantized input width");
     IntegerType subtractionType = b.getIntegerType(*subtractionWidth);
-    zeroPoint =
-        materializeScalarToDtype(b, loc, converter, zeroPoint, subtractionType);
+    zeroPoint = materializeScalarToDtype(b, loc, converter, zeroPoint,
+                                         zeroPointTorchType, subtractionType);
     if (inputIsUnsigned)
       input = arith::ExtUIOp::create(b, loc, subtractionType, input);
     else
@@ -435,7 +438,8 @@ static Value createDequantizePayload(OpBuilder &b, Location loc,
   Type scaleType = isa<Torch::FloatType>(scale.getType())
                        ? getDefaultDtypeForTorchScalar(scale.getType())
                        : converter->convertType(scale.getType());
-  scale = materializeScalarToDtype(b, loc, converter, scale, scaleType);
+  scale = materializeScalarToDtype(b, loc, converter, scale, scale.getType(),
+                                   scaleType);
   Value value;
   if (inputIsUnsigned && !zeroPoint)
     value = arith::UIToFPOp::create(b, loc, scale.getType(), input);
@@ -1690,15 +1694,16 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
 
     bool isUnsigned = torch_to_linalg::isUnsignedTorchType(qtensorTy);
     return createDequantizePayload(b, loc, converter, payloadArgs[0], scale, zp,
-                                   payloadArgs[1].getType(), isUnsigned);
+                                   zp.getType(), payloadArgs[1].getType(),
+                                   isUnsigned);
   }
 
   if (auto dq = dyn_cast<QuantizedDecomposedDequantizePerTensorOp>(op)) {
     auto inputTy = cast<ValueTensorType>(dq.getInput().getType()).getDtype();
     bool isUnsigned = torch_to_linalg::isUnsignedTorchType(inputTy);
-    return createDequantizePayload(b, loc, converter, payloadArgs[0],
-                                   dq.getScale(), dq.getZeroPoint(),
-                                   payloadArgs[1].getType(), isUnsigned);
+    return createDequantizePayload(
+        b, loc, converter, payloadArgs[0], dq.getScale(), dq.getZeroPoint(),
+        dq.getZeroPoint().getType(), payloadArgs[1].getType(), isUnsigned);
   }
 
   if (auto quant = dyn_cast<AtenQuantizePerTensorOp>(op)) {
@@ -1719,9 +1724,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
         arith::ConstantOp::create(b, loc, b.getFloatAttr(valueTy, minI));
     Value qmax =
         arith::ConstantOp::create(b, loc, b.getFloatAttr(valueTy, maxI));
-    return createQuantizePayload(b, loc, converter, value, quant.getScale(),
-                                 quant.getZeroPoint(), qmin, qmax, destTy,
-                                 isUnsigned);
+    return createQuantizePayload(
+        b, loc, converter, value, quant.getScale(), quant.getZeroPoint(),
+        quant.getZeroPoint().getType(), qmin, qmax, destTy, isUnsigned);
   }
 
   if (auto q = dyn_cast<QuantizedDecomposedQuantizePerTensorOp>(op)) {
@@ -1732,13 +1737,14 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
         cast<BaseTensorType>(q.getResult().getType()).getDtype());
     // qmin/qmax are explicit Torch int operands; convert to float for clamping.
     auto toFloat = [&](Value v) -> Value {
-      return materializeScalarToDtype(b, loc, converter, v, valueTy);
+      return materializeScalarToDtype(b, loc, converter, v, v.getType(),
+                                      valueTy);
     };
     Value qmin = toFloat(q.getQuantMin());
     Value qmax = toFloat(q.getQuantMax());
     return createQuantizePayload(b, loc, converter, value, q.getScale(),
-                                 q.getZeroPoint(), qmin, qmax, destTy,
-                                 isUnsigned);
+                                 q.getZeroPoint(), q.getZeroPoint().getType(),
+                                 qmin, qmax, destTy, isUnsigned);
   }
 
   if (auto isClose = dyn_cast<AtenIscloseOp>(op)) {
@@ -1856,6 +1862,8 @@ public:
         inputType.getRank(), utils::IteratorType::parallel);
     bool resultIsUnsigned = torch_to_linalg::isUnsignedTorchType(
         cast<BaseTensorType>(op.getResult().getType()).getDtype());
+    Type zeroPointDtype =
+        cast<BaseTensorType>(op.getZeroPoints().getType()).getDtype();
 
     Value result =
         linalg::GenericOp::create(
@@ -1872,7 +1880,7 @@ public:
                   b.getFloatAttr(fpType, static_cast<double>(quantMax)));
               Value value = createQuantizePayload(
                   b, bodyLoc, getTypeConverter(), args[0], args[1], args[2],
-                  qmin, qmax, outputType, resultIsUnsigned);
+                  zeroPointDtype, qmin, qmax, outputType, resultIsUnsigned);
               linalg::YieldOp::create(b, bodyLoc, value);
             })
             .getResult(0);
@@ -1908,7 +1916,11 @@ public:
       return rewriter.notifyMatchFailure(
           op, "axis must be a constant integer in range [-rank, rank)");
 
-    bool hasZeroPoints = isa<RankedTensorType>(zeroPoints.getType());
+    auto zeroPointsTorchType =
+        dyn_cast<BaseTensorType>(op.getZeroPoints().getType());
+    bool hasZeroPoints = static_cast<bool>(zeroPointsTorchType);
+    Type zeroPointDtype =
+        hasZeroPoints ? zeroPointsTorchType.getDtype() : Type();
     SmallVector<Value> inputs = {input, scales};
     if (hasZeroPoints)
       inputs.push_back(zeroPoints);
@@ -1931,7 +1943,7 @@ public:
               Value zeroPoint = hasZeroPoints ? args[2] : Value();
               Value value = createDequantizePayload(
                   b, bodyLoc, getTypeConverter(), args[0], args[1], zeroPoint,
-                  resultType.getElementType(), inputIsUnsigned);
+                  zeroPointDtype, resultType.getElementType(), inputIsUnsigned);
               linalg::YieldOp::create(b, bodyLoc, value);
             })
             .getResult(0);
@@ -2624,6 +2636,7 @@ public:
 
     auto operandDTy = cast<ValueTensorType>(operand.getType()).getDtype();
     bool operandIsUnsigned = torch_to_linalg::isUnsignedTorchType(operandDTy);
+    Type zeroPointDtype = cast<ValueTensorType>(zeropoint.getType()).getDtype();
     operand = converter->materializeTargetConversion(
         rewriter, loc, converter->convertType(operand.getType()), operand);
     scale = converter->materializeTargetConversion(
@@ -2655,8 +2668,8 @@ public:
         ValueRange{empty}, maps, iterators,
         [&](OpBuilder &b, Location loc, ValueRange args) {
           Value value = createDequantizePayload(
-              b, loc, converter, args[0], args[1], args[2], args[3].getType(),
-              operandIsUnsigned);
+              b, loc, converter, args[0], args[1], args[2], zeroPointDtype,
+              args[3].getType(), operandIsUnsigned);
           linalg::YieldOp::create(b, loc, value);
         });
     rewriter.replaceOp(op, linalgOp.getResults());

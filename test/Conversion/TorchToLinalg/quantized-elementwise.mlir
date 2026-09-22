@@ -160,6 +160,56 @@ func.func @dequantize_per_channel_same_width(
 
 // -----
 
+// CHECK-LABEL: func.func @dequantize_per_channel_unsigned_zero_point(
+// CHECK: ^bb0(%[[IN:.*]]: i8, %{{.*}}: f32, %[[ZP:.*]]: i8, %{{.*}}: f32):
+// CHECK:   arith.extui %[[ZP]] : i8 to i16
+// CHECK:   arith.extui %[[IN]] : i8 to i16
+func.func @dequantize_per_channel_unsigned_zero_point(
+    %input: !torch.vtensor<[3,4],ui8>,
+    %scales: !torch.vtensor<[4],f32>,
+    %zero_points: !torch.vtensor<[4],ui8>)
+    -> !torch.vtensor<[3,4],f32> {
+  %axis = torch.constant.int 1
+  %qmin = torch.constant.int 0
+  %qmax = torch.constant.int 255
+  %dtype = torch.constant.int 0
+  %none = torch.constant.none
+  %od = torch.derefine %none : !torch.none to !torch.optional<int>
+  %out = torch.quantized_decomposed.dequantize_per_channel
+      %input, %scales, %zero_points, %axis, %qmin, %qmax, %dtype, %od
+      : !torch.vtensor<[3,4],ui8>, !torch.vtensor<[4],f32>,
+        !torch.vtensor<[4],ui8>, !torch.int, !torch.int, !torch.int,
+        !torch.int, !torch.optional<int> -> !torch.vtensor<[3,4],f32>
+  return %out : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @dequantize_per_channel_mixed_signedness(
+// CHECK: ^bb0(%[[IN:.*]]: i8, %{{.*}}: f32, %[[ZP:.*]]: i8, %{{.*}}: f32):
+// CHECK:   arith.extui %[[ZP]] : i8 to i16
+// CHECK:   arith.extsi %[[IN]] : i8 to i16
+func.func @dequantize_per_channel_mixed_signedness(
+    %input: !torch.vtensor<[3,4],si8>,
+    %scales: !torch.vtensor<[4],f32>,
+    %zero_points: !torch.vtensor<[4],ui8>)
+    -> !torch.vtensor<[3,4],f32> {
+  %axis = torch.constant.int 1
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 2
+  %none = torch.constant.none
+  %od = torch.derefine %none : !torch.none to !torch.optional<int>
+  %out = torch.quantized_decomposed.dequantize_per_channel
+      %input, %scales, %zero_points, %axis, %qmin, %qmax, %dtype, %od
+      : !torch.vtensor<[3,4],si8>, !torch.vtensor<[4],f32>,
+        !torch.vtensor<[4],ui8>, !torch.int, !torch.int, !torch.int,
+        !torch.int, !torch.optional<int> -> !torch.vtensor<[3,4],f32>
+  return %out : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
 // CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
 // CHECK: #[[CHANNEL0:.*]] = affine_map<(d0, d1) -> (d0)>
 // CHECK-LABEL: func.func @dequantize_per_channel_symmetric(
@@ -231,6 +281,28 @@ func.func @quantize_per_channel_axis1(
         !torch.vtensor<[8],si64>, !torch.int, !torch.int, !torch.int,
         !torch.int -> !torch.vtensor<[4,8],si8>
   return %out : !torch.vtensor<[4,8],si8>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @quantize_per_channel_unsigned_zero_point(
+// CHECK: ^bb0(%{{.*}}: f32, %{{.*}}: f32, %[[ZP:.*]]: i8, %{{.*}}: i8):
+// CHECK:   arith.uitofp %[[ZP]] : i8 to f32
+func.func @quantize_per_channel_unsigned_zero_point(
+    %input: !torch.vtensor<[4,8],f32>,
+    %scales: !torch.vtensor<[8],f32>,
+    %zero_points: !torch.vtensor<[8],ui8>)
+    -> !torch.vtensor<[4,8],ui8> {
+  %axis = torch.constant.int 1
+  %qmin = torch.constant.int 0
+  %qmax = torch.constant.int 255
+  %dtype = torch.constant.int 0
+  %out = torch.quantized_decomposed.quantize_per_channel
+      %input, %scales, %zero_points, %axis, %qmin, %qmax, %dtype
+      : !torch.vtensor<[4,8],f32>, !torch.vtensor<[8],f32>,
+        !torch.vtensor<[8],ui8>, !torch.int, !torch.int, !torch.int,
+        !torch.int -> !torch.vtensor<[4,8],ui8>
+  return %out : !torch.vtensor<[4,8],ui8>
 }
 
 // -----
@@ -366,4 +438,24 @@ func.func @dequantize_per_channel_negative_axis(
         !torch.none, !torch.int, !torch.int, !torch.int,
         !torch.int, !torch.optional<int> -> !torch.vtensor<[4,8],f32>
   return %out : !torch.vtensor<[4,8],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @dequantize_per_channel_make_quantized_unsigned(
+// CHECK: ^bb0(%[[IN:.*]]: i8, %{{.*}}: f32, %[[ZP:.*]]: i8, %{{.*}}: f32):
+// CHECK:   arith.extui %[[ZP]] : i8 to i16
+// CHECK:   arith.extui %[[IN]] : i8 to i16
+func.func @dequantize_per_channel_make_quantized_unsigned(
+    %input: !torch.vtensor<[1,3,3,2],ui8>,
+    %scales: !torch.vtensor<[3],f32>,
+    %zero_points: !torch.vtensor<[3],ui8>)
+    -> !torch.vtensor<[1,3,3,2],f32> {
+  %axis = torch.constant.int 1
+  %q = torch.aten._make_per_channel_quantized_tensor %input, %scales, %zero_points, %axis
+      : !torch.vtensor<[1,3,3,2],ui8>, !torch.vtensor<[3],f32>,
+        !torch.vtensor<[3],ui8>, !torch.int -> !torch.vtensor<[1,3,3,2],!torch.quint8>
+  %out = torch.aten.dequantize.self %q
+      : !torch.vtensor<[1,3,3,2],!torch.quint8> -> !torch.vtensor<[1,3,3,2],f32>
+  return %out : !torch.vtensor<[1,3,3,2],f32>
 }
