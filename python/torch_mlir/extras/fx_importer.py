@@ -511,11 +511,21 @@ def _coerce_mlir_attr(value: Any, context: Context) -> Optional[Attribute]:
 
 
 # User-supplied attributes (from `mlir.attrs` / `mlir.arg_attrs` meta) are
-# emitted by the importer with this prefix, so backend-lowering patterns that
-# opt in (e.g. ConvertElementwiseOp in TorchToLinalg) can forward exactly
-# these attrs without leaking unrelated discardable attrs (dialect internals
-# etc.). The `torch-lift-user-attrs` pass at the end of the lowering pipeline
-# strips this prefix to expose the user's chosen names.
+# emitted by the importer under this reserved namespace, so backend-lowering
+# patterns that opt in (e.g. ConvertElementwiseOp in TorchToLinalg) can forward
+# exactly these attrs without leaking unrelated discardable attrs (dialect
+# internals etc.).
+#
+# The namespace is deliberately retained all the way to the backend contract
+# rather than stripped: lifting user-chosen names to the top level can collide
+# with an op's inherent attributes (e.g. `value` on `arith.constant`) or
+# silently overwrite an existing discardable attr.
+#
+# Two payload shapes are used, one per annotation site:
+#   * op results: `mlir.user = [{...}, {...}]`, an array of dictionaries
+#     indexed by result number.
+#   * function arguments: `mlir.user = {...}`, a single dictionary, since an
+#     argument denotes exactly one value.
 USER_ATTR_PREFIX = "mlir.user"
 
 
@@ -1738,12 +1748,24 @@ class GraphNodeImporter:
                     dicts = [{} for _ in range(len(input_val.owner.arguments))]
                 else:
                     dicts = [{na.name: na.attr for na in d} for d in arg_attrs]
+
+                # An argument denotes a single value, so unlike the op case
+                # below there is no per-result indexing to do. The annotations
+                # are nested under a single `mlir.user` dictionary.
+                # Structure: mlir.user = {key for arg, ...}
+                arg_dict = dicts[input_val.arg_number]
+                existing = arg_dict.get(USER_ATTR_PREFIX, None)
+                if existing is None:
+                    user_attrs = {}
+                else:
+                    user_attrs = {na.name: na.attr for na in DictAttr(existing)}
+
                 for k, v in annotations.items():
                     mlir_attr = _coerce_mlir_attr(v, self._c)
                     if mlir_attr is not None:
-                        dicts[input_val.arg_number][
-                            USER_ATTR_PREFIX + "." + k
-                        ] = mlir_attr
+                        user_attrs[k] = mlir_attr
+
+                arg_dict[USER_ATTR_PREFIX] = DictAttr.get(user_attrs, context=self._c)
                 func_op.arg_attrs = ArrayAttr.get(
                     [DictAttr.get(d, context=self._c) for d in dicts], context=self._c
                 )

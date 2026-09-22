@@ -35,7 +35,7 @@ class LinearWithInputAndOutputAnnotations(nn.Module):
 
 
 # CHECK-LABEL: test_annotate_and_pass_through_raw
-# CHECK:       func.func @main(%arg0: !torch.vtensor<[1,4],f32> {mlir.user.my.tag = "input"})
+# CHECK:       func.func @main(%arg0: !torch.vtensor<[1,4],f32> {mlir.user = {my.tag = "input"}})
 # CHECK:       {mlir.user = [{my.range_lo = -1.000000e+00 : f64}]}
 # CHECK-NOT:   annotate_and_pass_through
 @run
@@ -49,7 +49,7 @@ def test_annotate_and_pass_through_raw():
 
 
 # CHECK-LABEL: test_annotate_and_pass_through_linalg
-# CHECK:       func.func @main(%arg0: tensor<1x4xf32> {my.tag = "input"})
+# CHECK:       func.func @main(%arg0: tensor<1x4xf32> {mlir.user = {my.tag = "input"}})
 # CHECK:       linalg.matmul
 # CHECK-NOT:   annotate_and_pass_through
 @run
