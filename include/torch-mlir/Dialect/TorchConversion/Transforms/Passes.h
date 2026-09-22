@@ -122,8 +122,6 @@ createConvertCustomQuantOpPass();
 std::unique_ptr<OperationPass<ModuleOp>>
 createVerifyLinalgOnTensorsBackendContractPass();
 
-std::unique_ptr<OperationPass<ModuleOp>> createLiftUserAttrsPass();
-
 } // namespace TorchConversion
 
 /// Registers all Torch transformation passes.
