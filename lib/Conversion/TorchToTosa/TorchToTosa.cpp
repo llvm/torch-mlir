@@ -11167,6 +11167,8 @@ public:
     SmallVector<double> scaleFactors;
     double scalesH;
     double scalesW;
+    bool useExplicitScalesH = false;
+    bool useExplicitScalesW = false;
     int64_t outputHeight;
     int64_t outputWidth;
     if constexpr (std::is_same<AtenOpT, AtenUpsampleNearest2dOp>()) {
@@ -11185,8 +11187,7 @@ public:
         if (!matchPattern(op.getScalesH(), m_TorchConstantFloat(&scalesH)))
           return rewriter.notifyMatchFailure(
               op, "Non-constant height scales not supported");
-
-        scalesH = std::ceil(scalesH);
+        useExplicitScalesH = scalesH > 0.0;
       }
 
       if (isa<Torch::NoneType>(op.getScalesW().getType())) {
@@ -11196,8 +11197,7 @@ public:
         if (!matchPattern(op.getScalesW(), m_TorchConstantFloat(&scalesW)))
           return rewriter.notifyMatchFailure(
               op, "Non-constant width scales not supported");
-
-        scalesW = std::ceil(scalesW);
+        useExplicitScalesW = scalesW > 0.0;
       }
     } else if constexpr (std::is_same<AtenOpT, AtenUpsampleNearest2dVecOp>()) {
       auto isOutputSizeNone =
@@ -11231,15 +11231,31 @@ public:
           return rewriter.notifyMatchFailure(
               op, "Non-constant output size not supported");
 
-        scalesH = std::ceil(scaleFactors[0]);
-        scalesW = std::ceil(scaleFactors[1]);
+        // Preserve explicit scales
+        scalesH = scaleFactors[0];
+        scalesW = scaleFactors[1];
+        useExplicitScalesH = scalesH > 0.0;
+        useExplicitScalesW = scalesW > 0.0;
 
         // Scale values being provided implies that output size values are not
         // provided
-        outputHeight = static_cast<int64_t>(scalesH * selfHeight);
-        outputWidth = static_cast<int64_t>(scalesW * selfWidth);
+        outputHeight =
+            static_cast<int64_t>(std::floor(scalesH * selfHeight));
+        outputWidth =
+            static_cast<int64_t>(std::floor(scalesW * selfWidth));
       }
     }
+
+    // Match PyTorch nearest_idx's size-based compatibility cases before
+    // applying the general explicit-scale sampling formula.
+    if (outputHeight == selfHeight)
+      scalesH = 1.0;
+    else if (outputHeight == 2 * selfHeight)
+      scalesH = 2.0;
+    if (outputWidth == selfWidth)
+      scalesW = 1.0;
+    else if (outputWidth == 2 * selfWidth)
+      scalesW = 2.0;
 
     // Reshape input
     SmallVector<int64_t> reshapedSelfShape(selfShape.begin(),
@@ -11251,16 +11267,32 @@ public:
         RankedTensorType::get(reshapedSelfShape, selfElemTy), self,
         tosa::getTosaConstShape(rewriter, op->getLoc(), reshapedSelfShape));
 
+    // Match PyTorch's float32 inverse-scale multiplication for source indices.
+    // Keep output-size calculations above in double precision.
+    float inverseScaleH = useExplicitScalesH
+                              ? static_cast<float>(1.0 / scalesH)
+                              : static_cast<float>(selfHeight) / outputHeight;
+    float inverseScaleW = useExplicitScalesW
+                              ? static_cast<float>(1.0 / scalesW)
+                              : static_cast<float>(selfWidth) / outputWidth;
+
     // Calculate PyTorch-styled gather indices
     SmallVector<int32_t> targetIndicesVec;
     int64_t indexRepeat = std::accumulate(
         selfShape.begin(), selfShape.end() - 2, 1, std::multiplies<int64_t>());
     for (int64_t i = 0; i < indexRepeat; i++) {
       for (int64_t heightIndex = 0; heightIndex < outputHeight; heightIndex++) {
+        int64_t sourceHeight = std::min(
+            static_cast<int64_t>(std::floor(
+                static_cast<float>(heightIndex) * inverseScaleH)),
+            selfHeight - 1);
         for (int64_t widthIndex = 0; widthIndex < outputWidth; widthIndex++) {
-          targetIndicesVec.push_back(static_cast<int32_t>(
-              std::floor(heightIndex / scalesH) * selfWidth +
-              std::floor(widthIndex / scalesW)));
+          int64_t sourceWidth = std::min(
+              static_cast<int64_t>(std::floor(
+                  static_cast<float>(widthIndex) * inverseScaleW)),
+              selfWidth - 1);
+          targetIndicesVec.push_back(
+              static_cast<int32_t>(sourceHeight * selfWidth + sourceWidth));
         }
       }
     }

@@ -4021,6 +4021,65 @@ func.func @torch.aten.upsample_nearest2d.vec$basic(%arg0: !torch.vtensor<[1,1,4,
 
 // -----
 
+// Preserve fractional scales and floor scale-derived output sizes.
+// CHECK-LABEL: func.func @torch.aten.upsample_nearest2d.vec$fractional_scales(
+// CHECK: "tosa.const"() <{values = dense<{{\[\[}}[0, 0, 1, 2, 6, 6, 7, 8]]]> : tensor<1x1x8xi32>
+// CHECK: %[[GATHER:.*]] = tosa.gather {{.*}} -> tensor<1x8x1xf32>
+// CHECK: %[[FLAT:.*]] = tosa.reshape %[[GATHER]], {{.*}} -> tensor<1x1x8xf32>
+// CHECK: %[[OUT:.*]] = tosa.reshape %[[FLAT]], {{.*}} -> tensor<1x1x2x4xf32>
+// CHECK: %[[RET:.*]] = torch_c.from_builtin_tensor %[[OUT]] : tensor<1x1x2x4xf32> -> !torch.vtensor<[1,1,2,4],f32>
+// CHECK: return %[[RET]] : !torch.vtensor<[1,1,2,4],f32>
+func.func @torch.aten.upsample_nearest2d.vec$fractional_scales(%arg0: !torch.vtensor<[1,1,5,3],f32>) -> !torch.vtensor<[1,1,2,4],f32> {
+  %none = torch.constant.none
+  %sh = torch.constant.float 5.000000e-01
+  %sw = torch.constant.float 1.500000e+00
+  %scales = torch.prim.ListConstruct %sh, %sw : (!torch.float, !torch.float) -> !torch.list<float>
+  %result = torch.aten.upsample_nearest2d.vec %arg0, %none, %scales : !torch.vtensor<[1,1,5,3],f32>, !torch.none, !torch.list<float> -> !torch.vtensor<[1,1,2,4],f32>
+  return %result : !torch.vtensor<[1,1,2,4],f32>
+}
+
+// -----
+
+// Use same-size height and exact-2x width compatibility sampling.
+// CHECK-LABEL: func.func @torch.aten.upsample_nearest2d$size_compatibility(
+// CHECK: "tosa.const"() <{values = dense<{{\[\[}}[0, 0, 1, 1, 2, 2, 3, 3]]]> : tensor<1x1x8xi32>
+// CHECK: %[[GATHER:.*]] = tosa.gather {{.*}} -> tensor<1x8x1xf32>
+// CHECK: %[[FLAT:.*]] = tosa.reshape %[[GATHER]], {{.*}} -> tensor<1x1x8xf32>
+// CHECK: %[[OUT:.*]] = tosa.reshape %[[FLAT]], {{.*}} -> tensor<1x1x2x4xf32>
+// CHECK: %[[RET:.*]] = torch_c.from_builtin_tensor %[[OUT]] : tensor<1x1x2x4xf32> -> !torch.vtensor<[1,1,2,4],f32>
+// CHECK: return %[[RET]] : !torch.vtensor<[1,1,2,4],f32>
+func.func @torch.aten.upsample_nearest2d$size_compatibility(%arg0: !torch.vtensor<[1,1,2,2],f32>) -> !torch.vtensor<[1,1,2,4],f32> {
+  %oh = torch.constant.int 2
+  %ow = torch.constant.int 4
+  %size = torch.prim.ListConstruct %oh, %ow : (!torch.int, !torch.int) -> !torch.list<int>
+  %sh = torch.constant.float 1.250000e+00
+  %sw = torch.constant.float 2.250000e+00
+  %result = torch.aten.upsample_nearest2d %arg0, %size, %sh, %sw : !torch.vtensor<[1,1,2,2],f32>, !torch.list<int>, !torch.float, !torch.float -> !torch.vtensor<[1,1,2,4],f32>
+  return %result : !torch.vtensor<[1,1,2,4],f32>
+}
+
+// -----
+
+// Float32 reciprocal/multiply selects source 1 at output column 3.
+// CHECK-LABEL: func.func @torch.aten.upsample_nearest2d$float32_explicit_scale(
+// CHECK: "tosa.const"() <{values = dense<{{\[\[}}[0, 0, 0, 1, 1, 1]]]> : tensor<1x1x6xi32>
+// CHECK: %[[GATHER:.*]] = tosa.gather {{.*}} -> tensor<1x6x1xf32>
+// CHECK: %[[FLAT:.*]] = tosa.reshape %[[GATHER]], {{.*}} -> tensor<1x1x6xf32>
+// CHECK: %[[OUT:.*]] = tosa.reshape %[[FLAT]], {{.*}} -> tensor<1x1x1x6xf32>
+// CHECK: %[[RET:.*]] = torch_c.from_builtin_tensor %[[OUT]] : tensor<1x1x1x6xf32> -> !torch.vtensor<[1,1,1,6],f32>
+// CHECK: return %[[RET]] : !torch.vtensor<[1,1,1,6],f32>
+func.func @torch.aten.upsample_nearest2d$float32_explicit_scale(%arg0: !torch.vtensor<[1,1,1,2],f32>) -> !torch.vtensor<[1,1,1,6],f32> {
+  %oh = torch.constant.int 1
+  %ow = torch.constant.int 6
+  %size = torch.prim.ListConstruct %oh, %ow : (!torch.int, !torch.int) -> !torch.list<int>
+  %sh = torch.constant.float 1.00000000e+00
+  %sw = torch.constant.float 3.00000001e+00
+  %result = torch.aten.upsample_nearest2d %arg0, %size, %sh, %sw : !torch.vtensor<[1,1,1,2],f32>, !torch.list<int>, !torch.float, !torch.float -> !torch.vtensor<[1,1,1,6],f32>
+  return %result : !torch.vtensor<[1,1,1,6],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.gelu$none(
 // CHECK-SAME:                                    %[[VAL_0:.*]]: !torch.vtensor<[1,1500,1536],f32>) -> !torch.vtensor<[1,1500,1536],f32> {
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,1500,1536],f32> -> tensor<1x1500x1536xf32>
