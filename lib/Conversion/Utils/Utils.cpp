@@ -735,13 +735,9 @@ namespace {
 class ForwardingListener : public RewriterBase::ForwardingListener {
   Operation *sourceOp;
 
-public:
-  ForwardingListener(OpBuilder::Listener *parent, Operation *op)
-      : RewriterBase::ForwardingListener(parent), sourceOp(op) {}
-
-  void notifyOperationReplaced(Operation *op, ValueRange replacement) override {
-    RewriterBase::ForwardingListener::notifyOperationReplaced(op, replacement);
-
+  // Forward the source op's per-result user attributes onto the operations
+  // defining the corresponding replacement values.
+  void forwardUserAttrs(Operation *op, ValueRange replacement) {
     if (op != sourceOp)
       return;
 
@@ -766,6 +762,15 @@ public:
 
       forwardResultUserAttrs(sourceOp, i, defOp);
     }
+  }
+
+public:
+  ForwardingListener(OpBuilder::Listener *parent, Operation *op)
+      : RewriterBase::ForwardingListener(parent), sourceOp(op) {}
+
+  void notifyOperationReplaced(Operation *op, ValueRange replacement) override {
+    RewriterBase::ForwardingListener::notifyOperationReplaced(op, replacement);
+    forwardUserAttrs(op, replacement);
   }
 };
 
