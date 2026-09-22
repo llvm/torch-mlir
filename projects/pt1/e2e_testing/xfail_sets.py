@@ -2800,6 +2800,9 @@ ONNX_XFAIL_SET = {
     # This test is expected to time out
     "TimeOutModule_basic",
     # Failure - incorrect numerics
+    # ONNX export preserves explicit Resize scales, losing PyTorch's
+    # same-size/exact-2x nearest-neighbor compatibility sampling.
+    "UpSampleNearest2dSizeCompatibility_basic",
     "AvgPool2dDivisorOverrideModule_basic",
     "ElementwiseAtanTensorBFloat16SpecialValuesModule_basic",
     "ElementwiseFminModule_basic",
