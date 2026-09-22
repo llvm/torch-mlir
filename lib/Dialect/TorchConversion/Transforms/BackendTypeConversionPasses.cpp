@@ -23,7 +23,6 @@
 using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::TorchConversion;
-using mlir::torch::Torch::kUserAttrPrefix;
 namespace mlir::torch::TorchConversion {
 
 #define GEN_PASS_DEF_FUNCBACKENDTYPECONVERSION
@@ -308,84 +307,5 @@ createFinalizingBackendTypeConversionForStablehloPass() {
   return std::make_unique<FinalizingBackendTypeConversionForStablehloPass>();
 }
 #endif // TORCH_MLIR_ENABLE_STABLEHLO
-
-//===----------------------------------------------------------------------===//
-// LiftUserAttrsPass
-//===----------------------------------------------------------------------===//
-
-namespace {
-
-// Strip the `mlir.user.` prefix from every prefixed discardable attr on `op`,
-// re-attaching the value under its un-prefixed name.
-static void liftPrefixedAttrs(Operation *op) {
-  SmallVector<NamedAttribute> toLift;
-  for (NamedAttribute named : op->getDiscardableAttrs()) {
-    StringRef attrName = named.getName().getValue();
-    // Match attributes that start with kUserAttrPrefix followed by a dot
-    // (e.g., "mlir.user.my.tag"). Don't match the exact prefix "mlir.user"
-    // which is used for array-of-dicts representation.
-    if (attrName.starts_with(kUserAttrPrefix) &&
-        attrName.size() > kUserAttrPrefix.size() &&
-        attrName[kUserAttrPrefix.size()] == '.')
-      toLift.push_back(named);
-  }
-  if (toLift.empty())
-    return;
-  for (NamedAttribute named : toLift) {
-    // +1 to skip the dot after the prefix
-    StringRef stripped =
-        named.getName().getValue().drop_front(kUserAttrPrefix.size() + 1);
-    op->setAttr(stripped, named.getValue());
-    op->removeAttr(named.getName());
-  }
-}
-
-// Same for every per-arg dict in a function's `arg_attrs` array.
-static void liftFuncArgAttrs(func::FuncOp func) {
-  ArrayAttr argAttrs = func.getAllArgAttrs();
-  if (!argAttrs)
-    return;
-  bool changed = false;
-  SmallVector<Attribute> newArgAttrs(argAttrs.begin(), argAttrs.end());
-  for (auto &attr : newArgAttrs) {
-    auto dict = dyn_cast<DictionaryAttr>(attr);
-    if (!dict)
-      continue;
-    NamedAttrList rewritten;
-    bool localChanged = false;
-    for (NamedAttribute named : dict.getValue()) {
-      if (named.getName().getValue().starts_with(kUserAttrPrefix)) {
-        // +1 because the UserAttrPrefix is `mlir.user` but the part that needs
-        // to be removed is `mlir.user.`
-        StringRef stripped =
-            named.getName().getValue().drop_front(kUserAttrPrefix.size() + 1);
-        rewritten.set(stripped, named.getValue());
-        localChanged = true;
-      } else {
-        rewritten.set(named.getName(), named.getValue());
-      }
-    }
-    if (localChanged) {
-      attr = rewritten.getDictionary(func.getContext());
-      changed = true;
-    }
-  }
-  if (changed)
-    func.setAllArgAttrs(newArgAttrs);
-}
-
-struct LiftUserAttrsPass : public impl::LiftUserAttrsBase<LiftUserAttrsPass> {
-  using LiftUserAttrsBase::LiftUserAttrsBase;
-  void runOnOperation() override {
-    ModuleOp module = getOperation();
-    module.walk([](Operation *op) { liftPrefixedAttrs(op); });
-    module.walk([](func::FuncOp func) { liftFuncArgAttrs(func); });
-  }
-};
-} // namespace
-
-std::unique_ptr<OperationPass<ModuleOp>> createLiftUserAttrsPass() {
-  return std::make_unique<LiftUserAttrsPass>();
-}
 
 } // namespace mlir::torch::TorchConversion
