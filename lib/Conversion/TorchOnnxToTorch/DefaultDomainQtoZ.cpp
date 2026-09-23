@@ -267,15 +267,19 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
       "QuantizeLinear", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
-        llvm::SmallVector<Value> operands;
-        if (binder.tensorOperands(operands, 3) ||
+        Value operand, scale, zeropoint;
+        if (binder.getNumOperands() < 2 || binder.getNumOperands() > 3 ||
+            binder.tensorOperandAtIndex(operand, 0) ||
+            binder.tensorOperandAtIndex(scale, 1) ||
             binder.tensorResultType(resultType))
           return failure();
 
         auto loc = binder.getLoc();
-        Value operand = operands[0];
-        Value scale = operands[1];
-        Value zeropoint = operands[2];
+        if (binder.getNumOperands() == 3 &&
+            !isa<Torch::NoneType>(binder.op->getOperand(2).getType())) {
+          if (binder.tensorOperandAtIndex(zeropoint, 2))
+            return failure();
+        }
 
         auto scaleTy = dyn_cast<Torch::ValueTensorType>(scale.getType());
         if (!scaleTy || !scaleTy.hasSizes())
@@ -284,27 +288,18 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return rewriter.notifyMatchFailure(binder.op,
                                              "requires known result dtype");
 
-        auto resultETy = resultType.getDtype();
-
         int64_t scaleRank = scaleTy.getSizes().size();
         if (scaleRank > 1)
           return rewriter.notifyMatchFailure(
               binder.op, "unimplemented: only per-tensor or per-axis "
                          "quantization supported");
 
-        auto qTensorTy = getQTorchTypeFromTorchIntType(resultType);
-        if (!qTensorTy) {
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "unsupported result dtype");
-        }
-
-        auto torchqTy = Torch::getScalarTypeForType(qTensorTy.getDtype());
-
+        auto resultETy = resultType.getDtype();
         Value tyConst = Torch::ConstantIntOp::create(
             rewriter, loc, rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                    static_cast<int64_t>(torchqTy)));
-
+            rewriter.getIntegerAttr(
+                rewriter.getIntegerType(64),
+                static_cast<int64_t>(Torch::getScalarTypeForType(resultETy))));
         bool fpResult = isa<mlir::FloatType>(resultETy);
         bool isPerTensorQuantization = false;
         if (scaleRank == 0 ||
@@ -316,6 +311,16 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return rewriter.notifyMatchFailure(
               binder.op, "unimplemented: support for per-Channel Quantization "
                          "for floating point output.");
+
+        if (!zeropoint) {
+          Value none = Torch::ConstantNoneOp::create(rewriter, loc);
+          auto zpTy =
+              scaleTy.getWithSizesAndDtype(scaleTy.getSizes(), resultETy);
+          zeropoint = Torch::AtenZerosLikeOp::create(
+              rewriter, loc, zpTy, scale,
+              /*dtype=*/tyConst, /*layout=*/none, /*device=*/none,
+              /*pin_memory=*/none, /*memory_format=*/none);
+        }
 
         if (isPerTensorQuantization) {
           scale = Torch::AtenItemOp::create(
@@ -329,11 +334,32 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         }
 
         if (!fpResult) {
+          Value minInt = Torch::ConstantIntOp::create(
+              rewriter, loc,
+              rewriter.getI64IntegerAttr(
+                  resultETy.isSignedInteger()
+                      ? APInt::getSignedMinValue(
+                            resultETy.getIntOrFloatBitWidth())
+                            .getSExtValue()
+                      : 0));
+
+          Value maxInt = Torch::ConstantIntOp::create(
+              rewriter, loc,
+              rewriter.getI64IntegerAttr(
+                  resultETy.isSignedInteger()
+                      ? APInt::getSignedMaxValue(
+                            resultETy.getIntOrFloatBitWidth())
+                            .getSExtValue()
+                      : APInt::getMaxValue(resultETy.getIntOrFloatBitWidth())
+                            .getZExtValue()));
+
           Value quantize;
-          // Case 1: Per-Tensor Quantization for non-floating point input.
+          // Case 1: Per-Tensor Quantization for non-floating point output.
           if (isPerTensorQuantization) {
-            quantize = Torch::AtenQuantizePerTensorOp::create(
-                rewriter, loc, qTensorTy, operand, scale, zeropoint, tyConst);
+            quantize = Torch::QuantizedDecomposedQuantizePerTensorOp::create(
+                rewriter, loc, resultType, operand, scale, zeropoint, minInt,
+                maxInt, tyConst);
+
           } else {
             // Case 2: Per-Channel Quantization for non-floating point input.
             int64_t axis;
@@ -342,12 +368,11 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
 
             Value cstAxis = Torch::ConstantIntOp::create(
                 rewriter, loc, rewriter.getI64IntegerAttr(axis));
-            quantize = Torch::AtenQuantizePerChannelOp::create(
-                rewriter, loc, qTensorTy, operand, scale, zeropoint, cstAxis,
-                tyConst);
+            quantize = Torch::QuantizedDecomposedQuantizePerChannelOp::create(
+                rewriter, loc, resultType, operand, scale, zeropoint, cstAxis,
+                minInt, maxInt, tyConst);
           }
-          rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(
-              binder.op, resultType, quantize);
+          rewriter.replaceOp(binder.op, quantize);
           return success();
         }
 
