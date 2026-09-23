@@ -28,7 +28,7 @@ for backend in backends:
             module_to_compile, torch.ones(2, 4), output_type=backend
         )
         print(f"Compilation to {backend} successful!")
-        raise ValueError("wat")
+        # raise ValueError("wat")
     except Exception as e:
         print(f"Compilation to {backend} FAILED!")
         raise e
