@@ -103,11 +103,14 @@ from ..ir import (
     AffineModExpr,
     AffineMulExpr,
     AffineSymbolExpr,
+    ArrayAttr,
     Attribute,
     Block,
+    BlockArgument,
     Context,
     DenseElementsAttr,
     DenseResourceElementsAttr,
+    DictAttr,
     FlatSymbolRefAttr,
     FloatAttr,
     BF16Type,
@@ -139,7 +142,6 @@ from ..ir import (
 from ..dialects import (
     func as func_dialect,
 )
-
 
 __all__ = [
     "FxImporter",
@@ -468,6 +470,63 @@ def is_symbolic(obj: Any) -> bool:
 
 def is_builtin_function_or_method(obj: Any) -> bool:
     return isinstance(obj, (BuiltinMethodType, BuiltinFunctionType))
+
+
+def _coerce_mlir_attr(value: Any, context: Context) -> Optional[Attribute]:
+    """Convert a Python value into an MLIR `Attribute`.
+
+    Note that Python `bool` values (`True` / `False`) model MLIR `UnitAttr`
+    (`True` -> `UnitAttr`, `False` -> omitted). When boolean value semantics
+    (`true` / `false`) are required, construct and pass explicit
+    `mlir.ir.BoolAttr` objects instead.
+
+    Returns `None` for values that should be skipped (e.g. `False` on a unit
+    attr channel). Raises `TypeError` for unsupported Python types.
+    """
+    if isinstance(value, Attribute):
+        return value
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        # Booleans model unit attrs: True -> UnitAttr, False -> omitted (None).
+        # To get MLIR boolean value semantics (`true` / `false`), pass an
+        # explicit `mlir.ir.BoolAttr`.
+        return UnitAttr.get(context=context) if value else None
+    if isinstance(value, int):
+        return IntegerAttr.get(IntegerType.get_signless(64, context=context), value)
+    if isinstance(value, float):
+        # Use f64 to match MLIR's default parse of a bare `3.14` literal.
+        return FloatAttr.get(F64Type.get(context=context), value)
+    if isinstance(value, str):
+        return StringAttr.get(value, context=context)
+    if isinstance(value, (list, tuple)):
+        elems = [_coerce_mlir_attr(v, context) for v in value]
+        elems = [e for e in elems if e is not None]
+        return ArrayAttr.get(elems, context=context)
+    raise TypeError(
+        f"Cannot coerce Python value of type {type(value).__name__} "
+        f"to an MLIR Attribute (value={value!r}). Pass a pre-built "
+        f"`mlir.ir.Attribute` to use a custom encoding."
+    )
+
+
+# User-supplied attributes (from `mlir.attrs` / `mlir.arg_attrs` meta) are
+# emitted by the importer under this reserved namespace, so backend-lowering
+# patterns that opt in (e.g. ConvertElementwiseOp in TorchToLinalg) can forward
+# exactly these attrs without leaking unrelated discardable attrs (dialect
+# internals etc.).
+#
+# The namespace is deliberately retained all the way to the backend contract
+# rather than stripped: lifting user-chosen names to the top level can collide
+# with an op's inherent attributes (e.g. `value` on `arith.constant`) or
+# silently overwrite an existing discardable attr.
+#
+# Two payload shapes are used, one per annotation site:
+#   * op results: `mlir.user = [{...}, {...}]`, an array of dictionaries
+#     indexed by result number.
+#   * function arguments: `mlir.user = {...}`, a single dictionary, since an
+#     argument denotes exactly one value.
+USER_ATTR_PREFIX = "mlir.user"
 
 
 def is_scalar_arg(arg: NodeArgument) -> bool:
@@ -1621,6 +1680,18 @@ class GraphNodeImporter:
                         and is_builtin_function_or_method(target)
                     ):
                         self._import_symbolic_torch_op(loc, node, target)
+                    elif (
+                        hasattr(torch.ops, "torch_mlir")
+                        and hasattr(torch.ops.torch_mlir, "annotate_and_pass_through")
+                        and target
+                        == torch.ops.torch_mlir.annotate_and_pass_through.default
+                    ) or (
+                        isinstance(target, TorchOpOverload)
+                        and getattr(target, "_op_namespace", None) == "torch_mlir"
+                        and getattr(target, "_op_name", None)
+                        == "annotate_and_pass_through"
+                    ):
+                        self._import_annotate_and_pass_through(loc, node)
                     elif isinstance(target, TorchOpOverload):
                         # Dispatch to an ATen op.
                         self._import_torch_op_overload(loc, node)
@@ -1660,6 +1731,82 @@ class GraphNodeImporter:
         temp_node.meta["val"] = torch.sym_float(param.meta["val"])
         self._import_torch_op_overload(loc, temp_node, temp_target)
         return temp_node
+
+    def _import_annotate_and_pass_through(self, loc: Location, node: torch_fx.Node):
+        if len(node.args) != 2 or not isinstance(node.args[1], dict):
+            raise ValueError(
+                f"annotate_and_pass_through expects 2 arguments (input, dict), got {node.args}"
+            )
+        input_val = self._import_argument(loc, node.args[0])
+        annotations = node.args[1]
+
+        with loc:
+            if isinstance(input_val, BlockArgument):
+                func_op = input_val.owner.owner
+                arg_attrs = getattr(func_op, "arg_attrs", None)
+                if arg_attrs is None:
+                    dicts = [{} for _ in range(len(input_val.owner.arguments))]
+                else:
+                    dicts = [{na.name: na.attr for na in d} for d in arg_attrs]
+
+                # An argument denotes a single value, so unlike the op case
+                # below there is no per-result indexing to do. The annotations
+                # are nested under a single `mlir.user` dictionary.
+                # Structure: mlir.user = {key for arg, ...}
+                arg_dict = dicts[input_val.arg_number]
+                existing = arg_dict.get(USER_ATTR_PREFIX, None)
+                if existing is None:
+                    user_attrs = {}
+                else:
+                    user_attrs = {na.name: na.attr for na in DictAttr(existing)}
+
+                for k, v in annotations.items():
+                    mlir_attr = _coerce_mlir_attr(v, self._c)
+                    if mlir_attr is not None:
+                        user_attrs[k] = mlir_attr
+
+                arg_dict[USER_ATTR_PREFIX] = DictAttr.get(user_attrs, context=self._c)
+                func_op.arg_attrs = ArrayAttr.get(
+                    [DictAttr.get(d, context=self._c) for d in dicts], context=self._c
+                )
+            else:
+                producer_op = input_val.owner
+                num_results = len(producer_op.results)
+
+                # Find which result index this value corresponds to
+                result_index = None
+                for i, result in enumerate(producer_op.results):
+                    if result == input_val:
+                        result_index = i
+                        break
+
+                if result_index is None:
+                    raise ValueError(
+                        f"Could not find result index for value in operation {producer_op}"
+                    )
+
+                # Get existing user attributes array or create new one
+                # Structure: mlir.user = [{dict for result 0}, {dict for result 1}, ...]
+                user_attr = producer_op.attributes.get(USER_ATTR_PREFIX, None)
+                if user_attr is None:
+                    # Create array of empty dicts, one per result
+                    dicts = [{} for _ in range(num_results)]
+                else:
+                    # Parse existing ArrayAttr of DictAttrs
+                    dicts = [{na.name: na.attr for na in d} for d in user_attr]
+
+                # Add annotations to the specific result's dictionary
+                for k, v in annotations.items():
+                    mlir_attr = _coerce_mlir_attr(v, self._c)
+                    if mlir_attr is not None:
+                        dicts[result_index][k] = mlir_attr
+
+                # Write back as ArrayAttr of DictAttrs
+                producer_op.attributes[USER_ATTR_PREFIX] = ArrayAttr.get(
+                    [DictAttr.get(d, context=self._c) for d in dicts], context=self._c
+                )
+
+        self.bind_node_value(node, input_val, 0)
 
     def _import_symbolic_torch_op(
         self,

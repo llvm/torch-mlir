@@ -16,7 +16,9 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include "llvm/Support/ErrorHandling.h"
 
 namespace mlir {
 namespace torch {
@@ -664,6 +666,258 @@ APFloat getFloatInf(mlir::FloatType fpType, bool negative,
   return allowNonFinites
              ? APFloat::getInf(fpType.getFloatSemantics(), negative)
              : APFloat::getLargest(fpType.getFloatSemantics(), negative);
+}
+
+void forwardUserDiscardableAttrs(Operation *from, Operation *to) {
+  if (!from || !to)
+    return;
+  for (NamedAttribute attr : from->getDiscardableAttrs()) {
+    if (attr.getName().getValue().starts_with(kUserAttrPrefix))
+      to->setAttr(attr.getName(), attr.getValue());
+  }
+}
+
+// Look through cast operations to find the actual operation that produces a
+// value. This handles tensor.cast, unrealized_conversion_cast, and other
+// cast-like ops that may be eliminated by canonicalization.
+static Operation *lookThroughCasts(Value value) {
+  // A replacement value may be null, e.g. when a pattern drops an unused
+  // result via `rewriter.replaceOp(op, {realValue, Value()})`. Calling
+  // `getDefiningOp()` on a null Value asserts inside `dyn_cast<OpResult>`.
+  if (!value)
+    return nullptr;
+
+  Operation *defOp = value.getDefiningOp();
+  if (!defOp)
+    return nullptr;
+
+  // Look through tensor.cast
+  if (auto castOp = dyn_cast<tensor::CastOp>(defOp)) {
+    return lookThroughCasts(castOp.getSource());
+  }
+
+  // Look through unrealized_conversion_cast
+  if (auto castOp = dyn_cast<UnrealizedConversionCastOp>(defOp)) {
+    if (castOp.getInputs().size() == 1)
+      return lookThroughCasts(castOp.getInputs()[0]);
+  }
+
+  return defOp;
+}
+
+// Forward user-discardable attributes for a specific result index.
+// This extracts attributes from the array-of-dictionaries representation
+// (mlir.user = [{attrs for result 0}, {attrs for result 1}, ...])
+// and copies them to the destination operation.
+static void forwardResultUserAttrs(Operation *from, unsigned resultIndex,
+                                   Operation *to) {
+  // Look for the mlir.user attribute (array of dicts)
+  auto userAttr = from->getAttrOfType<ArrayAttr>(kUserAttrPrefix);
+  if (!userAttr)
+    return;
+
+  if (resultIndex >= userAttr.size())
+    return;
+
+  auto resultDict = llvm::dyn_cast<DictionaryAttr>(userAttr[resultIndex]);
+  if (!resultDict || resultDict.empty())
+    return;
+
+  // Preserve the array-of-dicts format by setting mlir.user = [{...}]
+  // where the array contains a single dictionary for this operation
+  SmallVector<Attribute> arrayElements;
+  arrayElements.push_back(resultDict);
+  to->setDiscardableAttr(kUserAttrPrefix,
+                         ArrayAttr::get(to->getContext(), arrayElements));
+}
+
+namespace {
+class ForwardingListener : public RewriterBase::ForwardingListener {
+  Operation *sourceOp;
+
+  // Forward the source op's per-result user attributes onto the operations
+  // defining the corresponding replacement values.
+  void forwardUserAttrs(Operation *op, ValueRange replacement) {
+    if (op != sourceOp)
+      return;
+
+    // For each result of the source operation, forward its attributes
+    // to the operation that defines the corresponding replacement value
+    for (unsigned i = 0; i < op->getNumResults() && i < replacement.size();
+         ++i) {
+      Value replacementValue = replacement[i];
+      // Patterns may pass a null Value for results they know are unused.
+      if (!replacementValue)
+        continue;
+
+      // Get the operation that defines this replacement value, looking through
+      // cast operations that may be eliminated by canonicalization
+      Operation *defOp = lookThroughCasts(replacementValue);
+      if (!defOp) {
+        // Replacement is a block argument. Only some block arguments have
+        // sensible attribute mechanisms, such as a func.func's argattrs. We
+        // skip these for now.
+        continue;
+      }
+
+      forwardResultUserAttrs(sourceOp, i, defOp);
+    }
+  }
+
+public:
+  ForwardingListener(OpBuilder::Listener *parent, Operation *op)
+      : RewriterBase::ForwardingListener(parent), sourceOp(op) {}
+
+  void notifyOperationReplaced(Operation *op, ValueRange replacement) override {
+    RewriterBase::ForwardingListener::notifyOperationReplaced(op, replacement);
+    forwardUserAttrs(op, replacement);
+  }
+};
+
+static LogicalResult matchAndRewriteImpl(Operation *op,
+                                         PatternRewriter &rewriter,
+                                         const RewritePattern &innerPattern) {
+  OpBuilder::Listener *parentListener = rewriter.getListener();
+  ForwardingListener listener(parentListener, op);
+  rewriter.setListener(&listener);
+  llvm::scope_exit cleanup([&]() { rewriter.setListener(parentListener); });
+  return innerPattern.matchAndRewrite(op, rewriter);
+}
+
+class ForwardingOpNamePatternWrapper : public RewritePattern {
+  std::unique_ptr<RewritePattern> innerPattern;
+
+public:
+  ForwardingOpNamePatternWrapper(std::unique_ptr<RewritePattern> inner)
+      : RewritePattern(inner->getRootKind()->getStringRef(),
+                       inner->getBenefit(), inner->getContext()),
+        innerPattern(std::move(inner)) {
+    setDebugName(innerPattern->getDebugName());
+    addDebugLabels(innerPattern->getDebugLabels());
+  }
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    return matchAndRewriteImpl(op, rewriter, *innerPattern);
+  }
+};
+
+class ForwardingAnyOpPatternWrapper : public RewritePattern {
+  std::unique_ptr<RewritePattern> innerPattern;
+
+public:
+  ForwardingAnyOpPatternWrapper(std::unique_ptr<RewritePattern> inner)
+      : RewritePattern(MatchAnyOpTypeTag(), inner->getBenefit(),
+                       inner->getContext()),
+        innerPattern(std::move(inner)) {
+    setDebugName(innerPattern->getDebugName());
+    addDebugLabels(innerPattern->getDebugLabels());
+  }
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    return matchAndRewriteImpl(op, rewriter, *innerPattern);
+  }
+};
+
+class ForwardingInterfacePatternWrapper : public RewritePattern {
+  std::unique_ptr<RewritePattern> innerPattern;
+
+public:
+  ForwardingInterfacePatternWrapper(std::unique_ptr<RewritePattern> inner)
+      : RewritePattern(MatchInterfaceOpTypeTag(), *inner->getRootInterfaceID(),
+                       inner->getBenefit(), inner->getContext()),
+        innerPattern(std::move(inner)) {
+    setDebugName(innerPattern->getDebugName());
+    addDebugLabels(innerPattern->getDebugLabels());
+  }
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    return matchAndRewriteImpl(op, rewriter, *innerPattern);
+  }
+};
+
+class ForwardingTraitPatternWrapper : public RewritePattern {
+  std::unique_ptr<RewritePattern> innerPattern;
+
+public:
+  ForwardingTraitPatternWrapper(std::unique_ptr<RewritePattern> inner)
+      : RewritePattern(MatchTraitOpTypeTag(), *inner->getRootTraitID(),
+                       inner->getBenefit(), inner->getContext()),
+        innerPattern(std::move(inner)) {
+    setDebugName(innerPattern->getDebugName());
+    addDebugLabels(innerPattern->getDebugLabels());
+  }
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    return matchAndRewriteImpl(op, rewriter, *innerPattern);
+  }
+};
+} // namespace
+
+void wrapPatternsWithForwarding(RewritePatternSet &patterns) {
+  auto &nativePatterns = patterns.getNativePatterns();
+  std::vector<std::unique_ptr<RewritePattern>> wrappedPatterns;
+  wrappedPatterns.reserve(nativePatterns.size());
+  for (auto &pattern : nativePatterns) {
+    if (pattern->getRootKind()) {
+      wrappedPatterns.push_back(
+          std::make_unique<ForwardingOpNamePatternWrapper>(std::move(pattern)));
+    } else if (pattern->getRootInterfaceID()) {
+      wrappedPatterns.push_back(
+          std::make_unique<ForwardingInterfacePatternWrapper>(
+              std::move(pattern)));
+    } else if (pattern->getRootTraitID()) {
+      wrappedPatterns.push_back(
+          std::make_unique<ForwardingTraitPatternWrapper>(std::move(pattern)));
+    } else {
+      wrappedPatterns.push_back(
+          std::make_unique<ForwardingAnyOpPatternWrapper>(std::move(pattern)));
+    }
+  }
+  nativePatterns = std::move(wrappedPatterns);
+}
+
+namespace {
+// Listener for forwarding attributes during dialect conversion.
+// This is installed at the pass level and persists for the entire conversion,
+// receiving notifications when replacements are committed.
+class ConversionForwardingListener : public RewriterBase::Listener {
+public:
+  void notifyOperationReplaced(Operation *op, ValueRange replacement) override {
+    // Only forward from Torch dialect operations
+    StringRef dialectNamespace = op->getName().getDialectNamespace();
+    if (dialectNamespace != "torch")
+      return;
+
+    // Check if the operation has user attributes to forward
+    auto userAttr = op->getAttrOfType<ArrayAttr>(kUserAttrPrefix);
+    if (!userAttr)
+      return;
+
+    // Forward to each replacement value's defining op
+    for (unsigned i = 0; i < op->getNumResults() && i < replacement.size();
+         ++i) {
+      Value replacementValue = replacement[i];
+      if (!replacementValue)
+        continue;
+
+      // Look through cast operations (tensor.cast, unrealized_conversion_cast,
+      // etc.) to find the actual operation that produces the value
+      Operation *targetOp = lookThroughCasts(replacementValue);
+      if (!targetOp)
+        continue;
+
+      forwardResultUserAttrs(op, i, targetOp);
+    }
+  }
+};
+} // namespace
+
+std::unique_ptr<RewriterBase::Listener> createConversionForwardingListener() {
+  return std::make_unique<ConversionForwardingListener>();
 }
 
 } // namespace Torch

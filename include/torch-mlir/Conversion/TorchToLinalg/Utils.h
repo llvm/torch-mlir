@@ -74,14 +74,16 @@ Value getOutputDimForConvTransposeOps(OpBuilder &b, Location loc, Value in,
 // the reduction will be stored.
 Value createReductionLinalgGeneric(
     OpBuilder &b, Location loc, const ReductionOpInfo &opInfo, Value initElem,
-    function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild);
+    function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild,
+    Operation *sourceOp = nullptr);
 
 // Create a pointwise operation that uses values in `tensorOperands`, such that
 // the element type of the resulting tensor is `resultElementType`.
 Value createElementwiseLinalgGeneric(
     OpBuilder &b, Location loc, ValueRange tensorOperands,
     Type resultElementType,
-    function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild);
+    function_ref<void(OpBuilder &, Location, ValueRange)> bodyBuild,
+    Operation *sourceOp = nullptr);
 
 // Broadcasts input tensor based on the broadcastToShape.
 LogicalResult broadcastToGivenShape(Operation *op, PatternRewriter &rewriter,

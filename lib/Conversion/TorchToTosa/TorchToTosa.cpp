@@ -3323,13 +3323,12 @@ public:
     auto mmOutputTy = RankedTensorType::get(
         makeShapeLLVMCompatible(matmulOutputShape), accElemTy);
 
-    Value mmOpResult =
-        tosa::MatMulOp::create(
-            rewriter, op->getLoc(),
-            OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-                mmOutputTy),
-            matmulLhs, matmulRhs, lhsZp, rhsZp)
-            .getResult();
+    auto matmulOp = tosa::MatMulOp::create(
+        rewriter, op->getLoc(),
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            mmOutputTy),
+        matmulLhs, matmulRhs, lhsZp, rhsZp);
+    Value mmOpResult = matmulOp.getResult();
 
     // Perform the reshape to output shape. This is always required unless max
     // input rank=3 and there was no broadcasting, in which case the tosa.matmul
@@ -12507,11 +12506,18 @@ public:
       target.addIllegalOp(OperationName(op, context));
     }
 
+    wrapPatternsWithForwarding(patterns);
+
     auto frozenPatterns = FrozenRewritePatternSet(
         std::move(patterns), this->disabledPatterns, this->enabledPatterns);
 
+    // Install a listener for attribute forwarding during conversion
+    auto listener = torch::Torch::createConversionForwardingListener();
+    ConversionConfig config;
+    config.listener = listener.get();
+
     if (failed(applyPartialConversion(getOperation(), target,
-                                      std::move(frozenPatterns))))
+                                      std::move(frozenPatterns), config)))
       return signalPassFailure();
   }
 };
