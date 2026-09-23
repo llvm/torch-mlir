@@ -267,15 +267,19 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
       "QuantizeLinear", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
-        llvm::SmallVector<Value> operands;
-        if (binder.tensorOperands(operands, 3) ||
+        Value operand, scale, zeropoint;
+        if (binder.getNumOperands() < 2 || binder.getNumOperands() > 3 ||
+            binder.tensorOperandAtIndex(operand, 0) ||
+            binder.tensorOperandAtIndex(scale, 1) ||
             binder.tensorResultType(resultType))
           return failure();
 
         auto loc = binder.getLoc();
-        Value operand = operands[0];
-        Value scale = operands[1];
-        Value zeropoint = operands[2];
+        if (binder.getNumOperands() == 3 &&
+            !isa<Torch::NoneType>(binder.op->getOperand(2).getType())) {
+          if (binder.tensorOperandAtIndex(zeropoint, 2))
+            return failure();
+        }
 
         auto scaleTy = dyn_cast<Torch::ValueTensorType>(scale.getType());
         if (!scaleTy || !scaleTy.hasSizes())
@@ -307,6 +311,16 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return rewriter.notifyMatchFailure(
               binder.op, "unimplemented: support for per-Channel Quantization "
                          "for floating point output.");
+
+        if (!zeropoint) {
+          Value none = Torch::ConstantNoneOp::create(rewriter, loc);
+          auto zpTy =
+              scaleTy.getWithSizesAndDtype(scaleTy.getSizes(), resultETy);
+          zeropoint = Torch::AtenZerosLikeOp::create(
+              rewriter, loc, zpTy, scale,
+              /*dtype=*/tyConst, /*layout=*/none, /*device=*/none,
+              /*pin_memory=*/none, /*memory_format=*/none);
+        }
 
         if (isPerTensorQuantization) {
           scale = Torch::AtenItemOp::create(

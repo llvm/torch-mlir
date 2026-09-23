@@ -2652,15 +2652,19 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
       "DequantizeLinear", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
-        llvm::SmallVector<Value> operands;
-        if (binder.tensorOperands(operands, 3) ||
+        Value operand, scale, zeropoint;
+        if (binder.getNumOperands() < 2 || binder.getNumOperands() > 3 ||
+            binder.tensorOperandAtIndex(operand, 0) ||
+            binder.tensorOperandAtIndex(scale, 1) ||
             binder.tensorResultType(resultType))
           return failure();
 
         auto loc = binder.getLoc();
-        Value operand = operands[0];
-        Value scale = operands[1];
-        Value zeropoint = operands[2];
+        if (binder.getNumOperands() == 3 &&
+            !isa<Torch::NoneType>(binder.op->getOperand(2).getType())) {
+          if (binder.tensorOperandAtIndex(zeropoint, 2))
+            return failure();
+        }
 
         auto operandTy = cast<Torch::ValueTensorType>(operand.getType());
         auto scaleTy = dyn_cast<Torch::ValueTensorType>(scale.getType());
@@ -2691,6 +2695,22 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           return rewriter.notifyMatchFailure(
               binder.op, "unimplemented: support for per-Channel Quantization "
                          "for floating point input not present");
+
+        if (!zeropoint) {
+          Value none = Torch::ConstantNoneOp::create(rewriter, loc);
+          Value tyConst = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getType<Torch::IntType>(),
+              rewriter.getIntegerAttr(
+                  rewriter.getIntegerType(64),
+                  static_cast<int64_t>(
+                      Torch::getScalarTypeForType(operandETy))));
+          auto zpTy =
+              scaleTy.getWithSizesAndDtype(scaleTy.getSizes(), operandETy);
+          zeropoint = Torch::AtenZerosLikeOp::create(
+              rewriter, loc, zpTy, scale,
+              /*dtype=*/tyConst, /*layout=*/none, /*device=*/none,
+              /*pin_memory=*/none, /*memory_format=*/none);
+        }
 
         if (isPerTensorQuantization) {
           scale = Torch::AtenItemOp::create(
