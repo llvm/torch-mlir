@@ -27,6 +27,7 @@ from typing import (
     Sequence,
     Set,
     Tuple,
+    Type,
     TYPE_CHECKING,
     Union,
     Iterable,
@@ -553,6 +554,9 @@ class FxImporter:
       be one reference tracker per import, but this can be injected to share
       the same uniqueing across imports (i.e. if building multiple functions
       into the same context or module).
+    * graph_node_importer_cls: A GraphNodeImporter subclass used for each
+      imported FX graph. It can extend or override node importing behavior,
+      including ``_import_hop_<name>`` methods for higher-order operators.
     """
 
     __slots__ = [
@@ -562,6 +566,7 @@ class FxImporter:
         "_m_ip",
         "_py_attr_tracker",
         "_hooks",
+        "_graph_node_importer_cls",
         "symbol_table",
         "_graph_module_to_func_name",
         "_func_name_counter",
@@ -575,6 +580,7 @@ class FxImporter:
         config_check: bool = True,
         py_attr_tracker: Optional["RefTracker"] = None,
         hooks: Optional[FxImporterHooks] = None,
+        graph_node_importer_cls: Optional[Type["GraphNodeImporter"]] = None,
     ):
         if module is not None:
             assert context is None, "If configuring with a Module, context must be None"
@@ -590,6 +596,7 @@ class FxImporter:
         self._cc = ContextCache(self._c, py_attr_tracker=self._py_attr_tracker)
         self._m_ip = InsertionPoint(self._m.body)
         self._hooks = hooks or FxImporterHooks()
+        self._graph_node_importer_cls = graph_node_importer_cls or GraphNodeImporter
         self.symbol_table = SymbolTable(self._m.operation)
         self._hooks.prepare_module(self._m.operation)
         # Used specifically in HOPs to map module IDs to function names
@@ -825,7 +832,7 @@ class FxImporter:
             func_op.attributes["torch.assume_strict_symbolic_shapes"] = UnitAttr.get()
             entry_block = Block.create_at_start(func_op.body, ftype.inputs)
 
-        node_importer = GraphNodeImporter(
+        node_importer = self._graph_node_importer_cls(
             self,
             self._c,
             self._cc,
@@ -1076,7 +1083,7 @@ class FxImporter:
                 visibility=func_visibility,
             )
             entry_block = Block.create_at_start(func.body, ftype.inputs)
-        node_importer = GraphNodeImporter(
+        node_importer = self._graph_node_importer_cls(
             self,
             self._c,
             self._cc,
