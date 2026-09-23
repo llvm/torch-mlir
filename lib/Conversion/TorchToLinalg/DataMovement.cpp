@@ -1230,12 +1230,14 @@ public:
           /// input and output dimensions in the slice statically known
           /// or parallel unknown to have the same number of elements.
           assumedDynamicDimNotSplit = true;
-        } else if (inputShapeSlice[0] == kUnknownSize) {
-          // Defer the dynamic shape check to avoid DialectConversion assertion:
-          if (outputShapeSlice[0] != kUnknownSize) {
-            checkDimPairs.push_back(
-                std::pair<int64_t, int64_t>(inputDim, outputDim));
-          }
+        } else if (inputShapeSlice[0] == kUnknownSize &&
+                   outputShapeSlice[0] != kUnknownSize) {
+          // The equality check is deferred to checkDimEqualHelper below to
+          // avoid a DialectConversion assertion, and it needs a static output
+          // dim to check against. With both dims dynamic nothing would be
+          // checked, so leave the view to a lower benefit pattern.
+          checkDimPairs.push_back(
+              std::pair<int64_t, int64_t>(inputDim, outputDim));
 
           inputShape[inputDim] = outputShape[outputDim];
           inputSliceIndices.push_back(0);
