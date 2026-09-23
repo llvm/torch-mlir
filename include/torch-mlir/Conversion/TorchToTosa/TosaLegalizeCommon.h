@@ -19,10 +19,17 @@
 namespace mlir {
 namespace tosa {
 
+// Create i32 or i64 index constants, rejecting values that do not fit.
+std::optional<Value> getIndexConstTensor(PatternRewriter &rewriter,
+                                         Operation *op,
+                                         ArrayRef<int64_t> values,
+                                         ArrayRef<int64_t> shape,
+                                         Type elementType);
+
 std::optional<Value>
 createOneDimTfIndices(PatternRewriter &rewriter, Operation *op,
                       SmallVector<int64_t> indiceOneDimShape, int32_t dim,
-                      ArrayRef<int64_t> indexShape);
+                      ArrayRef<int64_t> indexShape, Type indexElementType);
 
 // Default function to create TOSA op with shift value
 mlir::tosa::MulOp createMulOpAndCast(PatternRewriter &rewriter, Operation *op,
