@@ -1673,4 +1673,140 @@ def Torch_QuantizedDecomposedDequantizePerChannelOp : Torch_Op<
   }];
 }
 
+def Torch_QuantizedDecomposedQuantizePerTokenOp : Torch_Op<
+    "quantized_decomposed.quantize_per_token", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly,
+  ]> {
+  let summary = "PT2E quantize_per_token";
+  let description = [{
+    Quantizes a floating-point tensor with per-token affine quantization.
+
+    For an N-dimensional input tensor with shape (M1, M2, ..., Mn, K), each
+    token (the K elements along the last dimension) is quantized with its own
+    scale and zero_point. `scales` and `zero_points` have shape
+    (M1, M2, ..., Mn, 1).
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchTensorType:$scales,
+    AnyTorchTensorType:$zero_points,
+    Torch_IntType:$quant_min,
+    Torch_IntType:$quant_max,
+    Torch_IntType:$dtype
+  );
+  let results = (outs AnyTorchTensorType:$result);
+  let assemblyFormat = [{
+    $input `,` $scales `,` $zero_points `,` $quant_min `,`
+        $quant_max `,` $dtype attr-dict
+    `:` qualified(type($input)) `,` qualified(type($scales)) `,`
+        qualified(type($zero_points)) `,` qualified(type($quant_min)) `,`
+        qualified(type($quant_max)) `,` qualified(type($dtype))
+    `->` qualified(type($result))
+  }];
+}
+
+def Torch_QuantizedDecomposedDequantizePerTokenOp : Torch_Op<
+    "quantized_decomposed.dequantize_per_token", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly,
+  ]> {
+  let summary = "PT2E dequantize_per_token";
+  let description = [{
+    Dequantizes an integer tensor with per-token affine quantization.
+
+    For an N-dimensional input tensor with shape (M1, M2, ..., Mn, K), each
+    token (the K elements along the last dimension) is dequantized with its
+    own scale and zero_point. `scales` and `zero_points` have shape
+    (M1, M2, ..., Mn, 1).
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchTensorType:$scales,
+    AnyTorchTensorType:$zero_points,
+    Torch_IntType:$quant_min,
+    Torch_IntType:$quant_max,
+    Torch_IntType:$dtype,
+    Torch_IntType:$out_dtype
+  );
+  let results = (outs AnyTorchTensorType:$result);
+  let assemblyFormat = [{
+    $input `,` $scales `,` $zero_points `,` $quant_min `,`
+        $quant_max `,` $dtype `,` $out_dtype attr-dict
+    `:` qualified(type($input)) `,` qualified(type($scales)) `,`
+        qualified(type($zero_points)) `,` qualified(type($quant_min)) `,`
+        qualified(type($quant_max)) `,` qualified(type($dtype)) `,`
+        qualified(type($out_dtype))
+    `->` qualified(type($result))
+  }];
+}
+
+def Torch_QuantizedDecomposedChooseQparamsPerTokenAsymmetricOp : Torch_Op<
+    "quantized_decomposed.choose_qparams_per_token_asymmetric", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly,
+  ]> {
+  let summary = "PT2E choose_qparams_per_token_asymmetric";
+  let description = [{
+    Computes per-token asymmetric quantization parameters (scale and zero_point)
+    for an N-dimensional floating-point input tensor.
+
+    For an input of shape (M1, M2, ..., Mn, K), each token (the K elements
+    along the last dimension) produces one scale and one zero_point.
+    The output `scale` and `zero_point` tensors have shape (M1, ..., Mn, 1).
+
+    `dtype` specifies the target quantized dtype (e.g. torch.int8) and
+    determines the qmin/qmax bounds used for scale/ZP computation.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    Torch_IntType:$dtype
+  );
+  let results = (outs
+    AnyTorchTensorType:$scale,
+    AnyTorchTensorType:$zero_point
+  );
+  let assemblyFormat = [{
+    $input `,` $dtype attr-dict
+    `:` qualified(type($input)) `,` qualified(type($dtype))
+    `->` qualified(type($scale)) `,` qualified(type($zero_point))
+  }];
+}
+
+def Torch_QuantizedDecomposedChooseQparamsPerTokenOp : Torch_Op<
+    "quantized_decomposed.choose_qparams_per_token", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly,
+  ]> {
+  let summary = "PT2E choose_qparams_per_token (symmetric)";
+  let description = [{
+    Computes per-token symmetric quantization parameters (scale and zero_point)
+    for an N-dimensional floating-point input tensor.
+
+    For an input of shape (M1, M2, ..., Mn, K), each token (the K elements
+    along the last dimension) produces one scale and zero_point = 0.
+    The output `scale` and `zero_point` tensors have shape (M1, ..., Mn, 1).
+
+    `dtype` specifies the target quantized dtype (e.g. torch.int8) and
+    determines the qmax bound used for scale computation.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    Torch_IntType:$dtype
+  );
+  let results = (outs
+    AnyTorchTensorType:$scale,
+    AnyTorchTensorType:$zero_point
+  );
+  let assemblyFormat = [{
+    $input `,` $dtype attr-dict
+    `:` qualified(type($input)) `,` qualified(type($dtype))
+    `->` qualified(type($scale)) `,` qualified(type($zero_point))
+  }];
+}
+
 #endif // TORCH_OPS

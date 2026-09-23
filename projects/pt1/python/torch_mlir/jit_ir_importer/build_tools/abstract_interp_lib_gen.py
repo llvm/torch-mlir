@@ -6537,6 +6537,40 @@ def quantized_decomposed〇dequantize_per_channel〡dtype(input_rank_dtype: Tupl
         return out_dtype
     return torch.float32
 
+@not_present_in_registry
+def quantized_decomposed〇quantize_per_token〡shape(input: List[int], scales: List[int], zero_points: List[int], quant_min: int, quant_max: int, dtype: int) -> List[int]:
+    return upstream_shape_functions.unary(input)
+
+@not_present_in_registry
+def quantized_decomposed〇quantize_per_token〡dtype(input_rank_dtype: Tuple[int, int], scales_rank_dtype: Tuple[int, int], zero_points_rank_dtype: Tuple[int, int], quant_min: int, quant_max: int, dtype: int) -> int:
+    return dtype
+
+@not_present_in_registry
+def quantized_decomposed〇dequantize_per_token〡shape(input: List[int], scales: List[int], zero_points: List[int], quant_min: int, quant_max: int, dtype: int, output_dtype: int) -> List[int]:
+    return upstream_shape_functions.unary(input)
+
+@not_present_in_registry
+def quantized_decomposed〇dequantize_per_token〡dtype(input_rank_dtype: Tuple[int, int], scales_rank_dtype: Tuple[int, int], zero_points_rank_dtype: Tuple[int, int], quant_min: int, quant_max: int, dtype: int, output_dtype: int) -> int:
+    return output_dtype
+
+@not_present_in_registry
+def quantized_decomposed〇choose_qparams_per_token_asymmetric〡shape(input: List[int], dtype: int) -> Tuple[List[int], List[int]]:
+    token_shape = list(input[:-1]) + [1]
+    return token_shape, token_shape
+
+@not_present_in_registry
+def quantized_decomposed〇choose_qparams_per_token_asymmetric〡dtype(input_rank_dtype: Tuple[int, int], dtype: int) -> Tuple[int, int]:
+    return torch.float64, torch.int64
+
+@not_present_in_registry
+def quantized_decomposed〇choose_qparams_per_token〡shape(input: List[int], dtype: int) -> Tuple[List[int], List[int]]:
+    token_shape = list(input[:-1]) + [1]
+    return token_shape, token_shape
+
+@not_present_in_registry
+def quantized_decomposed〇choose_qparams_per_token〡dtype(input_rank_dtype: Tuple[int, int], dtype: int) -> Tuple[int, int]:
+    return torch.float64, torch.int64
+
 # ==============================================================================
 # Main
 # ==============================================================================
