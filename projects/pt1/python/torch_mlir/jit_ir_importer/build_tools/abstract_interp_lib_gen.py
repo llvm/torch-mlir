@@ -6489,6 +6489,43 @@ def aten〇unfold〡dtype(self_rank_dtype: Tuple[int, int], dimension: int, size
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
+@check_shape_function([
+    Invocation(TensorOfShape(1, 2, 4, 4), [2, 2], [1, 1], [0, 0], [1, 1]), # Basic case.
+    Invocation(TensorOfShape(2, 3, 5, 5), [3, 3], [1, 1], [1, 1], [2, 2]), # Padding and stride.
+    Invocation(TensorOfShape(1, 1, 6, 6), [2, 3], [2, 1], [0, 0], [1, 1]), # Dilation and a non-square kernel.
+    Invocation(TensorOfShape(2, 4, 4), [2, 2], [1, 1], [0, 0], [1, 1]), # Unbatched input.
+])
+def aten〇im2col〡shape(self: List[int], kernel_size: List[int], dilation: List[int], padding: List[int], stride: List[int]) -> List[int]:
+    assert len(self) == 3 or len(self) == 4, "input must be 3D or 4D (batched)"
+    assert len(kernel_size) == 2, "kernel_size must have two elements"
+    assert len(dilation) == 2, "dilation must have two elements"
+    assert len(padding) == 2, "padding must have two elements"
+    assert len(stride) == 2, "stride must have two elements"
+
+    batched = len(self) == 4
+    channels = self[1] if batched else self[0]
+    height = self[2] if batched else self[1]
+    width = self[3] if batched else self[2]
+
+    # Each block of the output is one full kernel footprint over every channel,
+    # and there is one block per sliding window position.
+    blocks_height = (height + 2 * padding[0] - dilation[0] * (kernel_size[0] - 1) - 1) // stride[0] + 1
+    blocks_width = (width + 2 * padding[1] - dilation[1] * (kernel_size[1] - 1) - 1) // stride[1] + 1
+    assert blocks_height > 0 and blocks_width > 0, "kernel size is too large for the input"
+
+    channels_col = channels * kernel_size[0] * kernel_size[1]
+    blocks = blocks_height * blocks_width
+    if batched:
+        return [self[0], channels_col, blocks]
+    return [channels_col, blocks]
+
+@check_dtype_function(
+    _check_tensors_with_the_same_dtype(tensor_shapes=[(1, 1, 4, 4)], kernel_size=[2, 2], dilation=[1, 1], padding=[0, 0], stride=[1, 1])
+)
+def aten〇im2col〡dtype(self_rank_dtype: Tuple[int, int], kernel_size: List[int], dilation: List[int], padding: List[int], stride: List[int]) -> int:
+    self_rank, self_dtype = self_rank_dtype
+    return self_dtype
+
 
 
 # ==============================================================================
