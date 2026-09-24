@@ -1722,3 +1722,21 @@ func.func @torch.aten.linalg_vector_norm$zero_dim_keepdim(%arg0: !torch.vtensor<
   %0 = torch.aten.linalg_vector_norm %arg0, %ord, %dim, %keepdim, %dtype : !torch.vtensor<[3,4],f32>, !torch.float, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[3,1],f32>
   return %0 : !torch.vtensor<[3,1],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.sinc
+// CHECK-DAG:     %[[ONES:.*]] = torch.vtensor.literal(dense<1.000000e+00> : tensor<3x4xf32>) : !torch.vtensor<[3,4],f32>
+// CHECK-DAG:     %[[INT0:.*]] = torch.constant.int 0
+// CHECK-DAG:     %[[PI:.*]] = torch.constant.float 3.14159{{.*}}
+// CHECK:         %[[PIX:.*]] = torch.aten.mul.Scalar %arg0, %[[PI]] : !torch.vtensor<[3,4],f32>, !torch.float -> !torch.vtensor<[3,4],f32>
+// CHECK:         %[[SIN:.*]] = torch.aten.sin %[[PIX]] : !torch.vtensor<[3,4],f32> -> !torch.vtensor<[3,4],f32>
+// CHECK:         %[[DIV:.*]] = torch.aten.div.Tensor %[[SIN]], %[[PIX]] : !torch.vtensor<[3,4],f32>, !torch.vtensor<[3,4],f32> -> !torch.vtensor<[3,4],f32>
+// CHECK:         %[[MASK:.*]] = torch.aten.eq.Scalar %arg0, %[[INT0]] : !torch.vtensor<[3,4],f32>, !torch.int -> !torch.vtensor<[3,4],i1>
+// CHECK:         %[[RES:.*]] = torch.aten.where.self %[[MASK]], %[[ONES]], %[[DIV]] : !torch.vtensor<[3,4],i1>, !torch.vtensor<[3,4],f32>, !torch.vtensor<[3,4],f32> -> !torch.vtensor<[3,4],f32>
+// CHECK-NOT:     torch.aten.sinc
+// CHECK:         return %[[RES]]
+func.func @torch.aten.sinc(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32> {
+  %0 = torch.aten.sinc %arg0 : !torch.vtensor<[3,4],f32> -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}
