@@ -145,3 +145,99 @@ class TensorToBool(torch.nn.Module):
 @register_test_case(module_factory=lambda: TensorToBool())
 def TensorToBool_basic(module, tu: TestUtils):
     module.forward(torch.tensor([[1]], dtype=torch.bool))
+
+
+# ==============================================================================
+
+
+class BasicCatUint8(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.uint8, True),
+            ([-1, -1], torch.uint8, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.cat([a, b, b, a], 1)
+
+
+@register_test_case(module_factory=lambda: BasicCatUint8())
+def BasicCatUint8_basic(module, tu: TestUtils):
+    module.forward(tu.randint(10, 4, 4).to(torch.uint8), tu.randint(10, 4, 4).to(torch.uint8))
+
+
+# ==============================================================================
+
+
+class BasicCatUint16(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.uint16, True),
+            ([-1, -1], torch.uint16, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.cat([a, b, b, a], 1)
+
+
+@register_test_case(module_factory=lambda: BasicCatUint16())
+def BasicCatUint16_basic(module, tu: TestUtils):
+    module.forward(tu.randint(10, 4, 4).to(torch.uint16), tu.randint(10, 4, 4).to(torch.uint16))
+
+
+# ==============================================================================
+
+
+class BasicCatUint32(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.uint32, True),
+            ([-1, -1], torch.uint32, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.cat([a, b, b, a], 1)
+
+
+@register_test_case(module_factory=lambda: BasicCatUint32())
+def BasicCatUint32_basic(module, tu: TestUtils):
+    module.forward(tu.randint(10, 4, 4).to(torch.uint32), tu.randint(10, 4, 4).to(torch.uint32))
+
+
+# ==============================================================================
+
+
+class BasicCatUint64(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.uint64, True),
+            ([-1, -1], torch.uint64, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.cat([a, b, b, a], 1)
+
+
+@register_test_case(module_factory=lambda: BasicCatUint64())
+def BasicCatUint64_basic(module, tu: TestUtils):
+    module.forward(tu.randint(10, 4, 4).to(torch.uint64), tu.randint(10, 4, 4).to(torch.uint64))
