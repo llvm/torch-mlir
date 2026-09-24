@@ -6434,6 +6434,53 @@ def ElementwiseSinModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseSincModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.sinc(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseSincModule())
+def ElementwiseSincModule_basic(module, tu: TestUtils):
+    # Include an exact zero to exercise the sinc(0) == 1 special case.
+    module.forward(torch.cat([torch.zeros(1, 4), tu.rand(2, 4) - 0.5]))
+
+
+# ==============================================================================
+
+
+class ElementwiseSincIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.sinc(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseSincIntModule())
+def ElementwiseSincIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=0, high=10).to(torch.int32))
+
+
+# ==============================================================================
+
+
 class ElementwiseSinIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

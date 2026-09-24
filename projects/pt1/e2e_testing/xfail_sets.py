@@ -4332,6 +4332,8 @@ ONNX_TOSA_XFAIL_SET = {
     "ElementwiseSgnModule_basic",
     "ElementwiseSigmoidIntModule_basic",
     "ElementwiseSinIntModule_basic",
+    "ElementwiseSincIntModule_basic",
+    "ElementwiseSincModule_basic",
     "ElementwiseSinhIntModule_basic",
     "ElementwiseSinhModule_basic",
     "ElementwiseSpecialExpm1IntModule_basic",

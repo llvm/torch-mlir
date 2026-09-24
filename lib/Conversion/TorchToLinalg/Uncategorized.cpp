@@ -26,6 +26,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/APSInt.h"
+#include "llvm/Support/MathExtras.h"
 #include <numeric>
 #include <optional>
 #include <string>
@@ -486,6 +487,31 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
   if (isa<AtenSinOp>(op)) {
     return createFpOpWithDtype<math::SinOp>(b, converter, payloadArgs[0], op);
+  }
+  if (isa<AtenSincOp>(op)) {
+    // sinc(x) = sin(pi * x) / (pi * x), with sinc(0) = 1.
+    Type inTTy = cast<ValueTensorType>(op->getOperand(0).getType()).getDtype();
+    Type outTTy = cast<ValueTensorType>(op->getResult(0).getType()).getDtype();
+    Type outTy = cast<RankedTensorType>(
+                     converter->convertType(op->getResult(0).getType()))
+                     .getElementType();
+    Type computeTy = outTy;
+    if (isa<IntegerType>(computeTy))
+      computeTy = b.getF32Type();
+    Value x = convertScalarToDtype(b, loc, payloadArgs[0], computeTy, inTTy);
+    Value pi = b.create<arith::ConstantOp>(
+        loc, FloatAttr::get(computeTy, llvm::numbers::pi));
+    Value zero =
+        b.create<arith::ConstantOp>(loc, FloatAttr::get(computeTy, 0.0));
+    Value one =
+        b.create<arith::ConstantOp>(loc, FloatAttr::get(computeTy, 1.0));
+    Value piX = b.create<arith::MulFOp>(loc, x, pi);
+    Value sinPiX = b.create<math::SinOp>(loc, piX);
+    Value quotient = b.create<arith::DivFOp>(loc, sinPiX, piX);
+    Value isZero =
+        b.create<arith::CmpFOp>(loc, arith::CmpFPredicate::OEQ, x, zero);
+    Value result = b.create<arith::SelectOp>(loc, isZero, one, quotient);
+    return convertScalarToDtype(b, loc, result, outTy, std::nullopt, outTTy);
   }
   if (isa<AtenSinhOp>(op)) {
     return createFpOpWithDtype<math::SinhOp>(b, converter, payloadArgs[0], op);
@@ -1966,15 +1992,15 @@ public:
   LogicalResult
   matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const override {
-    if (!isa<AtenTanOp, AtenTanhOp, AtenSinhOp, AtenCoshOp, AtenReluOp,
-             AtenPreluOp, AtenGeluOp, AtenGeluBackwardOp, AtenEluBackwardOp,
-             AtenSigmoidBackwardOp, AtenSoftplusBackwardOp, AtenAddTensorOp,
-             AtenMulTensorOp, AtenDivTensorOp, AtenDivTensorModeOp,
-             AtenDivScalarModeOp, AtenSubTensorOp, AtenAtan2Op,
-             AtenLerpTensorOp, AtenSigmoidOp, AtenExpOp, AtenExpm1Op,
-             AtenMinimumOp, AtenMaximumOp, AtenToDtypeOp, AtenClampOp,
-             AtenClampTensorOp, AtenRsubScalarOp, AtenMulScalarOp, AtenLogOp,
-             AtenErfOp, AtenSqrtOp, AtenFloorOp, AtenPowScalarOp,
+    if (!isa<AtenTanOp, AtenTanhOp, AtenSincOp, AtenSinhOp, AtenCoshOp,
+             AtenReluOp, AtenPreluOp, AtenGeluOp, AtenGeluBackwardOp,
+             AtenEluBackwardOp, AtenSigmoidBackwardOp, AtenSoftplusBackwardOp,
+             AtenAddTensorOp, AtenMulTensorOp, AtenDivTensorOp,
+             AtenDivTensorModeOp, AtenDivScalarModeOp, AtenSubTensorOp,
+             AtenAtan2Op, AtenLerpTensorOp, AtenSigmoidOp, AtenExpOp,
+             AtenExpm1Op, AtenMinimumOp, AtenMaximumOp, AtenToDtypeOp,
+             AtenClampOp, AtenClampTensorOp, AtenRsubScalarOp, AtenMulScalarOp,
+             AtenLogOp, AtenErfOp, AtenSqrtOp, AtenFloorOp, AtenPowScalarOp,
              AtenPowTensorScalarOp, AtenPowTensorTensorOp, AtenLog2Op,
              AtenLog10Op, AtenLog1pOp, AtenRsqrtOp, AtenDivScalarOp,
              AtenRemainderScalarOp, AtenRemainderTensorOp, AtenAbsOp,
@@ -4280,31 +4306,31 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
     ConversionTarget &target) {
   MLIRContext *context = patterns.getContext();
   target.addIllegalOp<
-      AtenTanOp, AtenTanhOp, AtenSinhOp, AtenCoshOp, AtenAtanhOp, AtenAcoshOp,
-      AtenAsinOp, AtenAsinhOp, AtenReluOp, AtenGeluOp, AtenGeluBackwardOp,
-      AtenEluBackwardOp, AtenSigmoidBackwardOp, AtenSoftplusBackwardOp,
-      AtenAddTensorOp, AtenMulTensorOp, AtenDivTensorOp, AtenDivTensorModeOp,
-      AtenDivScalarModeOp, AtenSubTensorOp, AtenLerpTensorOp, AtenSigmoidOp,
-      AtenMinimumOp, AtenAtan2Op, AtenMaximumOp, AtenToDtypeOp, AtenClampOp,
-      AtenClampTensorOp, AtenRsubScalarOp, AtenLogOp, AtenErfOp, AtenSqrtOp,
-      AtenFloorOp, AtenCeilOp, AtenPreluOp, AtenPowScalarOp,
-      AtenPowTensorScalarOp, AtenPowTensorTensorOp, AtenLog2Op, AtenLog10Op,
-      AtenLog1pOp, AtenRsqrtOp, AtenAbsOp, AtenComplexOp, AtenReciprocalOp,
-      AtenBitwiseAndTensorOp, AtenBitwiseAndScalarOp, AtenBitwiseOrTensorOp,
-      AtenBitwiseXorTensorOp, AtenBitwiseLeftShiftTensorOp,
-      AtenBitwiseRightShiftTensorOp, Aten__Lshift__ScalarOp,
-      Aten__Rshift__ScalarOp, AtenGtScalarOp, AtenGeScalarOp, AtenEqScalarOp,
-      AtenLtScalarOp, AtenLeScalarOp, AtenWhereSelfOp, AtenGtTensorOp,
-      AtenGeTensorOp, AtenEqTensorOp, AtenNeTensorOp, AtenLtTensorOp,
-      AtenLeTensorOp, AtenThresholdOp, AtenThresholdBackwardOp,
-      AtenHardtanhBackwardOp, AtenCloneOp, AtenSinOp, AtenCosOp, AtenNeScalarOp,
-      AtenMaskedFillTensorOp, AtenLogicalOrOp, AtenLogicalAndOp, AtenAtanOp,
-      AtenAcosOp, AtenLogicalXorOp, AtenLogicalNotOp, AtenIsinfOp, AtenTriuOp,
-      AtenTrilOp, AtenRemainderScalarOp, AtenRemainderTensorOp,
-      AtenBitwiseNotOp, AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp,
-      AtenRealOp, AtenImagOp, AtenDequantizeSelfOp, AtenDequantizeTensorOp,
-      AtenQuantizePerTensorOp, AtenIscloseOp,
-      QuantizedDecomposedDequantizePerTensorOp,
+      AtenTanOp, AtenTanhOp, AtenSincOp, AtenSinhOp, AtenCoshOp, AtenAtanhOp,
+      AtenAcoshOp, AtenAsinOp, AtenAsinhOp, AtenReluOp, AtenGeluOp,
+      AtenGeluBackwardOp, AtenEluBackwardOp, AtenSigmoidBackwardOp,
+      AtenSoftplusBackwardOp, AtenAddTensorOp, AtenMulTensorOp, AtenDivTensorOp,
+      AtenDivTensorModeOp, AtenDivScalarModeOp, AtenSubTensorOp,
+      AtenLerpTensorOp, AtenSigmoidOp, AtenMinimumOp, AtenAtan2Op,
+      AtenMaximumOp, AtenToDtypeOp, AtenClampOp, AtenClampTensorOp,
+      AtenRsubScalarOp, AtenLogOp, AtenErfOp, AtenSqrtOp, AtenFloorOp,
+      AtenCeilOp, AtenPreluOp, AtenPowScalarOp, AtenPowTensorScalarOp,
+      AtenPowTensorTensorOp, AtenLog2Op, AtenLog10Op, AtenLog1pOp, AtenRsqrtOp,
+      AtenAbsOp, AtenComplexOp, AtenReciprocalOp, AtenBitwiseAndTensorOp,
+      AtenBitwiseAndScalarOp, AtenBitwiseOrTensorOp, AtenBitwiseXorTensorOp,
+      AtenBitwiseLeftShiftTensorOp, AtenBitwiseRightShiftTensorOp,
+      Aten__Lshift__ScalarOp, Aten__Rshift__ScalarOp, AtenGtScalarOp,
+      AtenGeScalarOp, AtenEqScalarOp, AtenLtScalarOp, AtenLeScalarOp,
+      AtenWhereSelfOp, AtenGtTensorOp, AtenGeTensorOp, AtenEqTensorOp,
+      AtenNeTensorOp, AtenLtTensorOp, AtenLeTensorOp, AtenThresholdOp,
+      AtenThresholdBackwardOp, AtenHardtanhBackwardOp, AtenCloneOp, AtenSinOp,
+      AtenCosOp, AtenNeScalarOp, AtenMaskedFillTensorOp, AtenLogicalOrOp,
+      AtenLogicalAndOp, AtenAtanOp, AtenAcosOp, AtenLogicalXorOp,
+      AtenLogicalNotOp, AtenIsinfOp, AtenTriuOp, AtenTrilOp,
+      AtenRemainderScalarOp, AtenRemainderTensorOp, AtenBitwiseNotOp,
+      AtenRoundOp, AtenFillScalarOp, AtenFillTensorOp, AtenRealOp, AtenImagOp,
+      AtenDequantizeSelfOp, AtenDequantizeTensorOp, AtenQuantizePerTensorOp,
+      AtenIscloseOp, QuantizedDecomposedDequantizePerTensorOp,
       QuantizedDecomposedQuantizePerTensorOp>();
   target.addIllegalOp<QuantizedDecomposedQuantizePerChannelOp,
                       QuantizedDecomposedDequantizePerChannelOp>();

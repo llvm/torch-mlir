@@ -7207,6 +7207,57 @@ public:
 };
 } // namespace
 
+// sinc(x) = sin(pi * x) / (pi * x), with sinc(0) = 1.
+// The division is 0/0 at x == 0, so the result is selected with a `where`.
+namespace {
+class DecomposeAtenSincOp : public OpRewritePattern<AtenSincOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenSincOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+
+    auto resultTy = dyn_cast<ValueTensorType>(op.getType());
+    if (!resultTy || !resultTy.hasDtype())
+      return rewriter.notifyMatchFailure(op, "result must have a known dtype");
+    if (!isa<mlir::FloatType>(resultTy.getDtype()))
+      return rewriter.notifyMatchFailure(
+          op, "only floating-point results are supported");
+
+    Value none = ConstantNoneOp::create(rewriter, loc);
+    Value one =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
+    Value zero =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
+    Value pi = ConstantFloatOp::create(
+        rewriter, loc, rewriter.getF64FloatAttr(llvm::numbers::pi));
+
+    // piX = pi * x. `mul.Scalar` with a float scalar promotes an integer
+    // `self` to the result's floating-point dtype, matching PyTorch.
+    Value piX = AtenMulScalarOp::create(rewriter, loc, resultTy, self, pi);
+    Value sinPiX = AtenSinOp::create(rewriter, loc, resultTy, piX);
+    Value quotient =
+        AtenDivTensorOp::create(rewriter, loc, resultTy, sinPiX, piX);
+
+    // mask = (x == 0)
+    auto boolTensorType = rewriter.getType<ValueTensorType>(
+        resultTy.getOptionalSizes(), rewriter.getI1Type());
+    Value isZero =
+        AtenEqScalarOp::create(rewriter, loc, boolTensorType, self, zero);
+
+    Value ones = AtenFullLikeOp::create(rewriter, loc, resultTy, quotient, one,
+                                        /*dtype=*/none, /*layout=*/none,
+                                        /*device=*/none, /*pin_memory=*/none,
+                                        /*memory_format=*/none);
+
+    rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, resultTy, isZero, ones,
+                                                 quotient);
+    return success();
+  }
+};
+} // namespace
+
 // Silu(x) = sigmoid(x) * x
 namespace {
 class DecomposeAtenSiluOp : public OpRewritePattern<AtenSiluOp> {
@@ -13905,6 +13956,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenTraceOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardswishOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSoftplusOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenSincOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSiluOp>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeConstantTensorNewLikeOp<AtenNewZerosOp, AtenZerosOp>>(
