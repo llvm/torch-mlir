@@ -10388,9 +10388,17 @@ LogicalResult ConvertAtenOp<AtenThresholdBackwardOp>::matchAndRewriteImpl(
       dyn_cast<TensorType>(typeConverter->convertType(op.getType()));
   auto resultElemTy = resultType.getElementType();
 
+  // Build the threshold constant with an all-ones shape (one dim per rank of
+  // self) rather than passing selfShape directly. selfShape may contain
+  // dynamic dims, and getSplatConstTensor/getConstTensor build a
+  // RankedTensorType + DenseElementsAttr from the shape verbatim with no
+  // dynamic-dim guard, which crashes ("SmallVector unable to grow") when a
+  // dynamic dim's sentinel value is used as an element count. An all-ones
+  // shape is always static and broadcasts correctly via EqualizeRanks below.
+  SmallVector<int64_t> constTypeShape(selfType.getRank(), 1);
   Value threshold;
   if (failed(torchScalarToTosaTensor(rewriter, op, op.getThreshold(), threshold,
-                                     selfElemTy, selfShape)))
+                                     selfElemTy, constTypeShape)))
     return rewriter.notifyMatchFailure(op,
                                        "Threshold must be a constant scalar");
 
