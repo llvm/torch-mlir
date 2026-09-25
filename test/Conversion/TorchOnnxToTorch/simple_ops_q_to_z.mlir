@@ -732,6 +732,28 @@ func.func @unsqueeze_type_mismatch(%arg0: !torch.vtensor<[1,?,16],f32>, %arg1: !
 
 // -----
 
+// CHECK-LABEL: func.func @unsqueeze_type_mismatch_result_more_precise
+func.func @unsqueeze_type_mismatch_result_more_precise(%arg0: !torch.vtensor<[?,?,16],f32>) -> !torch.vtensor<[1,4,?,16],f32> attributes {torch.onnx_meta.opset_version = 18 : si64} {
+  %0 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<0> : tensor<1xsi64>} : () -> !torch.vtensor<[1],si64>
+  // CHECK: %[[INT0:.*]] = torch.constant.int 0
+  // CHECK: %[[UNSQ:.*]] = torch.aten.unsqueeze %arg0, %[[INT0]] : !torch.vtensor<[?,?,16],f32>, !torch.int -> !torch.vtensor<[1,?,?,16],f32>
+  // CHECK: torch.tensor_static_info_cast %[[UNSQ]] : !torch.vtensor<[1,?,?,16],f32> to !torch.vtensor<[1,4,?,16],f32>
+  %1 = torch.operator "onnx.Unsqueeze"(%arg0, %0) : (!torch.vtensor<[?,?,16],f32>, !torch.vtensor<[1],si64>) -> !torch.vtensor<[1,4,?,16],f32>
+  return %1 : !torch.vtensor<[1,4,?,16],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @unsqueeze_type_mismatch_rank_diff_zero
+func.func @unsqueeze_type_mismatch_rank_diff_zero(%arg0: !torch.vtensor<[?,4],f32>) -> !torch.vtensor<[1,4],f32> attributes {torch.onnx_meta.opset_version = 18 : si64} {
+  %0 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<> : tensor<0xsi64>} : () -> !torch.vtensor<[0],si64>
+  // CHECK: torch.tensor_static_info_cast %arg0 : !torch.vtensor<[?,4],f32> to !torch.vtensor<[1,4],f32>
+  %1 = torch.operator "onnx.Unsqueeze"(%arg0, %0) : (!torch.vtensor<[?,4],f32>, !torch.vtensor<[0],si64>) -> !torch.vtensor<[1,4],f32>
+  return %1 : !torch.vtensor<[1,4],f32>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @test_softmax_axis_0
 func.func @test_softmax_axis_0(%arg0: !torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[3,4,5],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 13 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   // CHECK: %[[INT0:.*]] = torch.constant.int 0
