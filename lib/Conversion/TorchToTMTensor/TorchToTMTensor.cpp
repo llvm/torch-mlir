@@ -617,16 +617,10 @@ getBroadcastShape(Location loc, llvm::ArrayRef<Value> indices, OpBuilder b) {
     indicesRank = std::max(rank, indicesRank);
   }
 
-  auto maxDim = [](int64_t dim0, int64_t dim1) {
-    if (dim0 == Torch::kUnknownSize || dim1 == Torch::kUnknownSize)
-      return Torch::kUnknownSize;
-    return std::max(dim0, dim1);
-  };
-
   Value torchCstOne =
       Torch::ConstantIntOp::create(b, loc, b.getI64IntegerAttr(1));
   llvm::SmallVector<Value> broadcastSizes(indicesRank, torchCstOne);
-  llvm::SmallVector<int64_t> broadcastShape(indicesRank, 0);
+  llvm::SmallVector<int64_t> broadcastShape(indicesRank, 1);
   for (auto index : indices) {
     auto indexTy = cast<Torch::ValueTensorType>(index.getType());
     auto shape = indexTy.getSizes();
@@ -638,9 +632,22 @@ getBroadcastShape(Location loc, llvm::ArrayRef<Value> indices, OpBuilder b) {
       auto size = shape[j];
 
       int32_t idx = broadcastShape.size() - rank + j;
+      // Numpy broadcasting fold: acc' = (size == 1) ? acc : size.
+      // `PrimMaxIntOp` is wrong here because it maps a size-0 dimension
+      // (from an empty index/slice) to 1 instead of preserving 0.
+      Value acc = broadcastSizes[idx];
+      Value isOne = Torch::AtenEqIntOp::create(b, loc, sizeOp, torchCstOne);
+      Value isOneInt = Torch::AtenIntBoolOp::create(b, loc, isOne);
+      Value diff = Torch::AtenSubIntOp::create(b, loc, acc, sizeOp);
+      Value scaled = Torch::AtenMulIntOp::create(b, loc, isOneInt, diff);
       broadcastSizes[idx] =
-          Torch::PrimMaxIntOp::create(b, loc, sizeOp, broadcastSizes[idx]);
-      broadcastShape[idx] = maxDim(size, broadcastShape[idx]);
+          Torch::AtenAddIntOp::create(b, loc, sizeOp, scaled);
+
+      if (size == Torch::kUnknownSize ||
+          broadcastShape[idx] == Torch::kUnknownSize)
+        broadcastShape[idx] = Torch::kUnknownSize;
+      else if (size != 1)
+        broadcastShape[idx] = size;
     }
   }
   return std::make_pair(broadcastSizes, broadcastShape);
