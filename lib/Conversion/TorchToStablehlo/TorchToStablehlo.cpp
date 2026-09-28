@@ -18,6 +18,7 @@
 #include "stablehlo/dialect/ChloOps.h"
 #include "stablehlo/dialect/StablehloOps.h"
 #include "torch-mlir/Conversion/Passes.h"
+#include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 
@@ -79,8 +80,15 @@ public:
     torch_to_stablehlo::populateUncategorizedPatternsAndLegality(
         typeConverter, patterns, target, options);
 
+    wrapPatternsWithForwarding(patterns);
+
+    // Install a listener for attribute forwarding during conversion
+    auto listener = torch::Torch::createConversionForwardingListener();
+    ConversionConfig config;
+    config.listener = listener.get();
+
     if (failed(applyPartialConversion(getOperation(), target,
-                                      std::move(patterns)))) {
+                                      std::move(patterns), config))) {
       return signalPassFailure();
     }
   }
