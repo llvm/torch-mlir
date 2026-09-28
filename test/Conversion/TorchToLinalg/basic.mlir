@@ -204,6 +204,46 @@ func.func @torch.aten.bmm$quantized_i8(%arg0: !torch.vtensor<[2,2,4],si8>, %arg1
 
 // -----
 
+// Preserve i16 inputs, convert zero points to i32, and accumulate in i64.
+// CHECK-LABEL: func.func @torch.aten.bmm$quantized_i16(
+// CHECK-DAG: %[[LHS_ZP64:.*]] = arith.constant -32768 : i64
+// CHECK-DAG: %[[RHS_ZP64:.*]] = arith.constant 32767 : i64
+// CHECK-DAG: %[[LHS_ZP:.*]] = arith.trunci %[[LHS_ZP64]] : i64 to i32
+// CHECK-DAG: %[[RHS_ZP:.*]] = arith.trunci %[[RHS_ZP64]] : i64 to i32
+// CHECK: linalg.quantized_batch_matmul ins(%{{.*}}, %{{.*}}, %[[LHS_ZP]], %[[RHS_ZP]] : tensor<2x2x4xi16>, tensor<2x4x3xi16>, i32, i32)
+// CHECK-SAME: outs(%{{.*}} : tensor<2x2x3xi64>) -> tensor<2x2x3xi64>
+func.func @torch.aten.bmm$quantized_i16(%arg0: !torch.vtensor<[2,2,4],si16>, %arg1: !torch.vtensor<[2,4,3],si16>) -> !torch.vtensor<[2,2,3],si64> {
+  %scale = torch.constant.float 1.000000e-02
+  %lhs_zp = torch.constant.int -32768
+  %rhs_zp = torch.constant.int 32767
+  %lhs = torch.aten._make_per_tensor_quantized_tensor %arg0, %scale, %lhs_zp : !torch.vtensor<[2,2,4],si16>, !torch.float, !torch.int -> !torch.vtensor<[2,2,4],!torch.qint16>
+  %rhs = torch.aten._make_per_tensor_quantized_tensor %arg1, %scale, %rhs_zp : !torch.vtensor<[2,4,3],si16>, !torch.float, !torch.int -> !torch.vtensor<[2,4,3],!torch.qint16>
+  %result = torch.aten.bmm %lhs, %rhs : !torch.vtensor<[2,2,4],!torch.qint16>, !torch.vtensor<[2,4,3],!torch.qint16> -> !torch.vtensor<[2,2,3],si64>
+  return %result : !torch.vtensor<[2,2,3],si64>
+}
+
+// -----
+
+// Preserve i32 inputs, convert zero points to i32, and accumulate in i64.
+// CHECK-LABEL: func.func @torch.aten.bmm$quantized_i32(
+// CHECK-DAG: %[[LHS_ZP64:.*]] = arith.constant -2147483648 : i64
+// CHECK-DAG: %[[RHS_ZP64:.*]] = arith.constant 2147483647 : i64
+// CHECK-DAG: %[[LHS_ZP:.*]] = arith.trunci %[[LHS_ZP64]] : i64 to i32
+// CHECK-DAG: %[[RHS_ZP:.*]] = arith.trunci %[[RHS_ZP64]] : i64 to i32
+// CHECK: linalg.quantized_batch_matmul ins(%{{.*}}, %{{.*}}, %[[LHS_ZP]], %[[RHS_ZP]] : tensor<2x2x4xi32>, tensor<2x4x3xi32>, i32, i32)
+// CHECK-SAME: outs(%{{.*}} : tensor<2x2x3xi64>) -> tensor<2x2x3xi64>
+func.func @torch.aten.bmm$quantized_i32(%arg0: !torch.vtensor<[2,2,4],si32>, %arg1: !torch.vtensor<[2,4,3],si32>) -> !torch.vtensor<[2,2,3],si64> {
+  %scale = torch.constant.float 1.000000e-02
+  %lhs_zp = torch.constant.int -2147483648
+  %rhs_zp = torch.constant.int 2147483647
+  %lhs = torch.aten._make_per_tensor_quantized_tensor %arg0, %scale, %lhs_zp : !torch.vtensor<[2,2,4],si32>, !torch.float, !torch.int -> !torch.vtensor<[2,2,4],!torch.qint32>
+  %rhs = torch.aten._make_per_tensor_quantized_tensor %arg1, %scale, %rhs_zp : !torch.vtensor<[2,4,3],si32>, !torch.float, !torch.int -> !torch.vtensor<[2,4,3],!torch.qint32>
+  %result = torch.aten.bmm %lhs, %rhs : !torch.vtensor<[2,2,4],!torch.qint32>, !torch.vtensor<[2,4,3],!torch.qint32> -> !torch.vtensor<[2,2,3],si64>
+  return %result : !torch.vtensor<[2,2,3],si64>
+}
+
+// -----
+
 // Shift both unsigned inputs by -128, including their zero points.
 // CHECK-LABEL: func.func @torch.aten.bmm$quantized_u8(
 // CHECK-SAME: %[[ARG0:.*]]: !torch.vtensor<[2,2,4],ui8>, %[[ARG1:.*]]: !torch.vtensor<[2,4,3],ui8>)
