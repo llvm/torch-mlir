@@ -7,6 +7,7 @@ from typing import Any
 
 import torch
 import torch.fx as fx
+from torch._subclasses.fake_tensor import unset_fake_temporarily
 
 _AS_STRIDED = torch.ops.aten.as_strided.default
 _INDEX = torch.ops.aten.index.Tensor
@@ -75,14 +76,15 @@ def _rewrite(g: fx.Graph, node: fx.Node) -> fx.Node:
 
     base = _base(source)
     base_value = _tensor(base, "base")
-    indices = _indices(
-        _ints(base_value.shape, "base.shape", meta=True),
-        _ints(base_value.stride(), "base.stride", meta=True),
-        _int(base_value.storage_offset(), "base.storage_offset"),
-        size,
-        stride,
-        offset,
-    )
+    with unset_fake_temporarily():
+        indices = _indices(
+            _ints(base_value.shape, "base.shape", meta=True),
+            _ints(base_value.stride(), "base.stride", meta=True),
+            _int(base_value.storage_offset(), "base.storage_offset"),
+            size,
+            stride,
+            offset,
+        )
     index_nodes = [_constant(g, node, i, v) for i, v in enumerate(indices)]
     with g.inserting_before(node):
         replacement = g.call_function(_INDEX, args=(base, index_nodes))

@@ -2258,8 +2258,9 @@ func.func @test_size(%arg0: !torch.vtensor<[3,4,5],f32>) -> !torch.vtensor<[],si
 
 // CHECK-LABEL: func.func @test_softplus
 func.func @test_softplus(%arg0: !torch.vtensor<[3],f32>) -> !torch.vtensor<[3],f32> attributes {torch.onnx_meta.ir_version = 3 : si64, torch.onnx_meta.opset_version = 1 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
-  // CHECK: %[[EXP:.*]] = torch.aten.exp %arg0 : !torch.vtensor<[3],f32> -> !torch.vtensor<[3],f32>
-  // CHECK: torch.aten.log1p %[[EXP]] : !torch.vtensor<[3],f32> -> !torch.vtensor<[3],f32>
+  // CHECK: %[[BETA:.*]] = torch.constant.int 1
+  // CHECK: %[[THRESHOLD:.*]] = torch.constant.int 20
+  // CHECK: torch.aten.softplus %arg0, %[[BETA]], %[[THRESHOLD]] : !torch.vtensor<[3],f32>, !torch.int, !torch.int -> !torch.vtensor<[3],f32>
   %0 = torch.operator "onnx.Softplus"(%arg0) : (!torch.vtensor<[3],f32>) -> !torch.vtensor<[3],f32>
   return %0 : !torch.vtensor<[3],f32>
 }
@@ -3328,6 +3329,24 @@ func.func @test_scatternd(%arg0: !torch.vtensor<[4,4,4],f32>, %arg1: !torch.vten
   %none = torch.constant.none
   %0 = torch.operator "onnx.ScatterND"(%arg0, %arg1, %arg2) : (!torch.vtensor<[4,4,4],f32>, !torch.vtensor<[2,1],si64>, !torch.vtensor<[2,4,4],f32>) -> !torch.vtensor<[4,4,4],f32>
   return %0 : !torch.vtensor<[4,4,4],f32>
+}
+
+// CHECK-LABEL:   func.func @test_scatternd_unflatten_indexed_prefix(
+// CHECK-SAME:        %[[DATA:.*]]: !torch.vtensor<[2,3,4],f32>,
+// CHECK-SAME:        %[[INDICES:.*]]: !torch.vtensor<[5,2],si64>,
+// CHECK-SAME:        %[[UPDATES:.*]]: !torch.vtensor<[5,4],f32>) -> !torch.vtensor<[2,3,4],f32>
+func.func @test_scatternd_unflatten_indexed_prefix(%arg0: !torch.vtensor<[2,3,4],f32>, %arg1: !torch.vtensor<[5,2],si64>, %arg2: !torch.vtensor<[5,4],f32>) -> !torch.vtensor<[2,3,4],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 16 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK-DAG:       %[[D0:.*]] = torch.aten.size.int %[[DATA]], {{.*}} : !torch.vtensor<[2,3,4],f32>, !torch.int -> !torch.int
+  // CHECK-DAG:       %[[D1:.*]] = torch.aten.size.int %[[DATA]], {{.*}} : !torch.vtensor<[2,3,4],f32>, !torch.int -> !torch.int
+  // CHECK-DAG:       %[[D2:.*]] = torch.aten.size.int %[[DATA]], {{.*}} : !torch.vtensor<[2,3,4],f32>, !torch.int -> !torch.int
+  // CHECK:           %[[FLAT_DATA:.*]] = torch.aten.flatten.using_ints %[[DATA]], {{.*}}, {{.*}} : !torch.vtensor<[2,3,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[6,4],f32>
+  // CHECK:           %[[SCATTER:.*]] = torch.aten.scatter.src %[[FLAT_DATA]], {{.*}}, {{.*}}, {{.*}} : !torch.vtensor<[6,4],f32>, !torch.int, !torch.vtensor<[5,4],si64>, !torch.vtensor<[5,4],f32> -> !torch.vtensor<[6,4],f32>
+  // CHECK:           %[[UNFLATTEN_DIMS:.*]] = torch.prim.ListConstruct %[[D0]], %[[D1]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK:           %[[UNFLATTEN:.*]] = torch.aten.unflatten.int %[[SCATTER]], {{.*}}, %[[UNFLATTEN_DIMS]] : !torch.vtensor<[6,4],f32>, !torch.int, !torch.list<int> -> !torch.vtensor<[2,3,4],f32>
+  // CHECK:           return %[[UNFLATTEN]] : !torch.vtensor<[2,3,4],f32>
+  %none = torch.constant.none
+  %0 = torch.operator "onnx.ScatterND"(%arg0, %arg1, %arg2) : (!torch.vtensor<[2,3,4],f32>, !torch.vtensor<[5,2],si64>, !torch.vtensor<[5,4],f32>) -> !torch.vtensor<[2,3,4],f32>
+  return %0 : !torch.vtensor<[2,3,4],f32>
 }
 
 // CHECK-LABEL:   func.func @test_scatternd_add(

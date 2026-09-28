@@ -1312,9 +1312,13 @@ func.func @channel_shuffle(%arg0: !torch.vtensor<[1,8,4,4],f32>) -> !torch.vtens
 // CHECK:         %[[ONE:.*]] = torch.constant.float 1.000000e+00
 // CHECK:         %[[THRESHOLD:.*]] = torch.constant.float 2.000000e+01
 // CHECK:         %[[SCALED:.*]] = torch.aten.mul.Scalar %arg0, %[[ONE]]
-// CHECK:         %[[EXP:.*]] = torch.aten.exp %[[SCALED]]
+// CHECK:         %[[ABS:.*]] = torch.aten.abs %[[SCALED]]
+// CHECK:         %[[NEG:.*]] = torch.aten.neg %[[ABS]]
+// CHECK:         %[[EXP:.*]] = torch.aten.exp %[[NEG]]
 // CHECK:         %[[LOG1P:.*]] = torch.aten.log1p %[[EXP]]
-// CHECK:         %[[SOFTPLUS:.*]] = torch.aten.div.Scalar %[[LOG1P]], %[[ONE]]
+// CHECK:         %[[RELU:.*]] = torch.aten.relu %[[SCALED]]
+// CHECK:         %[[SUM:.*]] = torch.aten.add.Tensor %[[RELU]], %[[LOG1P]]
+// CHECK:         %[[SOFTPLUS:.*]] = torch.aten.div.Scalar %[[SUM]], %[[ONE]]
 // CHECK:         %[[GT:.*]] = torch.aten.gt.Scalar %[[SCALED]], %[[THRESHOLD]]
 // CHECK:         %[[SOFTPLUS_STABLE:.*]] = torch.aten.where.self %[[GT]], %arg0, %[[SOFTPLUS]]
 // CHECK:         %[[TANH:.*]] = torch.aten.tanh %[[SOFTPLUS_STABLE]]
@@ -1826,4 +1830,85 @@ func.func @torch.aten.im2col$dynamic_params(%arg0: !torch.vtensor<[1,2,4,4],f32>
   %stride = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
   %0 = torch.aten.im2col %arg0, %kernel, %dilation, %padding, %stride : !torch.vtensor<[1,2,4,4],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int> -> !torch.vtensor<[?,?,?],f32>
   return %0 : !torch.vtensor<[?,?,?],f32>
+}
+
+// -----
+
+// logaddexp is decomposed to the numerically stable form
+//   max(a, b) + log1p(exp(-|a - b|))
+// rather than the naive log(exp(a) + exp(b)) (which overflows to +inf in fp32
+// once a or b exceeds ~88). Only ever exponentiating -|a - b| <= 0 avoids this.
+// When a == b == +/-inf the diff is NaN, so an inf-mask on max(a, b) selects
+// that infinity (matching PyTorch) instead of returning NaN.
+// CHECK-LABEL: func.func @torch.aten.logaddexp(
+// CHECK-SAME:      %[[A:.*]]: !torch.vtensor<[3,4],f32>, %[[B:.*]]: !torch.vtensor<[3,4],f32>
+// CHECK:         %[[SUB:.*]] = torch.aten.sub.Tensor %[[A]], %[[B]]
+// CHECK:         %[[ABS:.*]] = torch.aten.abs %[[SUB]]
+// CHECK:         %[[NEG:.*]] = torch.aten.neg %[[ABS]]
+// CHECK:         %[[MAX:.*]] = torch.aten.maximum %[[A]], %[[B]]
+// CHECK:         %[[EXP:.*]] = torch.aten.exp %[[NEG]]
+// CHECK:         %[[LOG1P:.*]] = torch.aten.log1p %[[EXP]]
+// CHECK:         %[[STABLE:.*]] = torch.aten.add.Tensor %[[MAX]], %[[LOG1P]]
+// isinf(max) is itself decomposed within this pass to abs(max) == inf.
+// CHECK:         %[[ABSMAX:.*]] = torch.aten.abs %[[MAX]]
+// CHECK:         %[[ISINF:.*]] = torch.aten.eq.Scalar %[[ABSMAX]], %{{.*}}
+// CHECK:         %[[RES:.*]] = torch.aten.where.self %[[ISINF]], %[[MAX]], %[[STABLE]]
+// CHECK-NOT:     torch.aten.logaddexp
+// CHECK:         return %[[RES]]
+func.func @torch.aten.logaddexp(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32> {
+  %0 = torch.aten.logaddexp %arg0, %arg1 : !torch.vtensor<[3,4],f32>, !torch.vtensor<[3,4],f32> -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
+// logaddexp2 uses the base-2 analogue of the stable form:
+//   max(a, b) + log2(1 + 2^(-|a - b|)).
+// The same inf-mask on max(a, b) selects a +/-inf input over the NaN diff.
+// CHECK-LABEL: func.func @torch.aten.logaddexp2(
+// CHECK-SAME:      %[[A:.*]]: !torch.vtensor<[3,4],f32>, %[[B:.*]]: !torch.vtensor<[3,4],f32>
+// CHECK:         %[[SUB:.*]] = torch.aten.sub.Tensor %[[A]], %[[B]]
+// CHECK:         %[[ABS:.*]] = torch.aten.abs %[[SUB]]
+// CHECK:         %[[NEG:.*]] = torch.aten.neg %[[ABS]]
+// CHECK:         %[[MAX:.*]] = torch.aten.maximum %[[A]], %[[B]]
+// CHECK:         %[[POW:.*]] = torch.aten.pow.Scalar %{{.*}}, %[[NEG]]
+// CHECK:         %[[ADD1:.*]] = torch.aten.add.Scalar %[[POW]]
+// CHECK:         %[[LOG2:.*]] = torch.aten.log2 %[[ADD1]]
+// CHECK:         %[[STABLE:.*]] = torch.aten.add.Tensor %[[MAX]], %[[LOG2]]
+// isinf(max) is itself decomposed within this pass to abs(max) == inf.
+// CHECK:         %[[ABSMAX:.*]] = torch.aten.abs %[[MAX]]
+// CHECK:         %[[ISINF:.*]] = torch.aten.eq.Scalar %[[ABSMAX]], %{{.*}}
+// CHECK:         %[[RES:.*]] = torch.aten.where.self %[[ISINF]], %[[MAX]], %[[STABLE]]
+// CHECK-NOT:     torch.aten.logaddexp2
+// CHECK:         return %[[RES]]
+func.func @torch.aten.logaddexp2(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32> {
+  %0 = torch.aten.logaddexp2 %arg0, %arg1 : !torch.vtensor<[3,4],f32>, !torch.vtensor<[3,4],f32> -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
+// softplus(x, beta, threshold) uses the numerically stable inner arm
+//   (max(z, 0) + log1p(exp(-|z|))) / beta,  z = x * beta
+// which only ever exponentiates -|z| <= 0. The threshold select is kept so
+// the op still honors its `threshold` argument.
+// CHECK-LABEL: func.func @torch.aten.softplus(
+// CHECK-SAME:      %[[X:.*]]: !torch.vtensor<[3,4],f32>
+// CHECK:         %[[Z:.*]] = torch.aten.mul.Scalar %[[X]], %{{.*}}
+// CHECK:         %[[ABS:.*]] = torch.aten.abs %[[Z]]
+// CHECK:         %[[NEG:.*]] = torch.aten.neg %[[ABS]]
+// CHECK:         %[[EXP:.*]] = torch.aten.exp %[[NEG]]
+// CHECK:         %[[LOG1P:.*]] = torch.aten.log1p %[[EXP]]
+// CHECK:         %[[RELU:.*]] = torch.aten.relu %[[Z]]
+// CHECK:         %[[SUM:.*]] = torch.aten.add.Tensor %[[RELU]], %[[LOG1P]]
+// CHECK:         %[[OUT:.*]] = torch.aten.div.Scalar %[[SUM]], %{{.*}}
+// CHECK:         %[[COND:.*]] = torch.aten.gt.Scalar %[[Z]], %{{.*}}
+// CHECK:         %[[RES:.*]] = torch.aten.where.self %[[COND]], %[[X]], %[[OUT]]
+// CHECK-NOT:     torch.aten.softplus
+// CHECK:         return %[[RES]]
+func.func @torch.aten.softplus(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32> {
+  %beta = torch.constant.int 1
+  %threshold = torch.constant.int 20
+  %0 = torch.aten.softplus %arg0, %beta, %threshold : !torch.vtensor<[3,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
 }
