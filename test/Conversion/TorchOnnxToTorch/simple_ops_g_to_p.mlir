@@ -434,8 +434,8 @@ func.func @test_lrn_default(%arg0: !torch.vtensor<[20,10,3,50],f32>) -> !torch.v
     // CHECK-DAG: %[[I1:.*]] = torch.constant.int 1
     // CHECK-DAG: %[[I10:.*]] = torch.constant.int 10
     // CHECK-DAG: %[[I3:.+]] = torch.constant.int 3
-    // CHECK-DAG: %[[IMINUS1:.+]] = torch.constant.int -1
-    // CHECK-DAG: %[[VIEWSHAPE:.*]] = torch.prim.ListConstruct %[[I20]], %[[I1]], %[[I10]], %[[I3]], %[[IMINUS1]]
+    // CHECK-DAG: %[[I50:.+]] = torch.constant.int 50
+    // CHECK-DAG: %[[VIEWSHAPE:.*]] = torch.prim.ListConstruct %[[I20]], %[[I1]], %[[I10]], %[[I3]], %[[I50]]
 
     // CHECK-DAG: %[[VIEW1:.*]] = torch.aten.view %[[INSQ]], %[[VIEWSHAPE]]
 
@@ -499,8 +499,8 @@ func.func @test_lrn_with_optionals(%arg0: !torch.vtensor<[13,19,100,200],f32>) -
     // CHECK-DAG: %[[I1:.*]] = torch.constant.int 1
     // CHECK-DAG: %[[I19:.*]] = torch.constant.int 19
     // CHECK-DAG: %[[I100:.+]] = torch.constant.int 100
-    // CHECK-DAG: %[[IMINUS1:.+]] = torch.constant.int -1
-    // CHECK-DAG: %[[VIEWSHAPE:.*]] = torch.prim.ListConstruct %[[I13]], %[[I1]], %[[I19]], %[[I100]], %[[IMINUS1]]
+    // CHECK-DAG: %[[I200:.+]] = torch.constant.int 200
+    // CHECK-DAG: %[[VIEWSHAPE:.*]] = torch.prim.ListConstruct %[[I13]], %[[I1]], %[[I19]], %[[I100]], %[[I200]]
 
     // CHECK-DAG: %[[VIEW1:.*]] = torch.aten.view %[[INSQ]], %[[VIEWSHAPE]]
 
@@ -547,6 +547,25 @@ func.func @test_lrn_with_optionals(%arg0: !torch.vtensor<[13,19,100,200],f32>) -
     %none = torch.constant.none
     %0 = torch.operator "onnx.LRN"(%arg0) {torch.onnx.alpha = 2.000000e-03 : f32, torch.onnx.beta = 6.500000e-01 : f32, torch.onnx.bias = 3.000000e+00 : f32, torch.onnx.size = 5 : si64} : (!torch.vtensor<[13,19,100,200],f32>) -> !torch.vtensor<[13,19,100,200],f32>
     return %0 : !torch.vtensor<[13,19,100,200],f32>
+}
+
+// -----
+
+// With a dynamic batch dim, the 5D reshape must keep dim0 (batch) as the only
+// dynamic dimension. The trailing dim is the static product of the input's
+// trailing dims (55), not an inferred -1 that would create a second dynamic dim
+// and make the reshape invalid.
+// CHECK-LABEL: func.func @test_lrn_dynamic_batch
+func.func @test_lrn_dynamic_batch(%arg0: !torch.vtensor<[?,96,55,55],f32>) -> !torch.vtensor<[?,96,55,55],f32> attributes {torch.onnx_meta.opset_version = 17 : si64} {
+    // CHECK-DAG: %[[IMINUS1:.+]] = torch.constant.int -1
+    // CHECK-DAG: %[[I1:.*]] = torch.constant.int 1
+    // CHECK-DAG: %[[I96:.*]] = torch.constant.int 96
+    // CHECK-DAG: %[[I55:.*]] = torch.constant.int 55
+    // CHECK-DAG: %[[I55_2:.*]] = torch.constant.int 55
+    // CHECK-DAG: %[[VIEWSHAPE:.*]] = torch.prim.ListConstruct %[[IMINUS1]], %[[I1]], %[[I96]], %[[I55]], %[[I55_2]]
+    // CHECK-DAG: %[[VIEW1:.*]] = torch.aten.view %{{.*}}, %[[VIEWSHAPE]] : !torch.vtensor<[?,96,55,55],f32>, !torch.list<int> -> !torch.vtensor<[?,1,96,55,55],f32>
+    %0 = torch.operator "onnx.LRN"(%arg0) {torch.onnx.size = 5 : si64} : (!torch.vtensor<[?,96,55,55],f32>) -> !torch.vtensor<[?,96,55,55],f32>
+    return %0 : !torch.vtensor<[?,96,55,55],f32>
 }
 
 // -----

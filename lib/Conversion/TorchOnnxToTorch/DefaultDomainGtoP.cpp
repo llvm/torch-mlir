@@ -2828,8 +2828,30 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               binder.op, "Unsupported: the second dimension size must be "
                          "statically known");
         }
+        // Collapse the trailing spatial dims (inTyShape[3:]) into a single
+        // dimension. Compute it statically when all trailing dims are known so
+        // that dim0 (the batch dim) stays the only dynamic dim. Falling back to
+        // kUnknownSize here would introduce a second inferred (-1) dimension
+        // when the batch dim is also dynamic, which is an invalid reshape.
+        int64_t trailingDim = 1;
+        for (int64_t d : inTyShape.drop_front(3)) {
+          if (d == Torch::kUnknownSize) {
+            trailingDim = Torch::kUnknownSize;
+            break;
+          }
+          trailingDim *= d;
+        }
         SmallVector<int64_t, 5> viewShapeInt{inTyShape[0], 1, inTyShape[1],
-                                             inTyShape[2], Torch::kUnknownSize};
+                                             inTyShape[2], trailingDim};
+        // aten.view infers at most one dimension (a single -1). The batch dim,
+        // the spatial dim inTyShape[2], and the collapsed trailing dim can each
+        // be dynamic; if more than one is, the reshape has multiple inferred
+        // dimensions and is invalid. Bail out cleanly.
+        if (llvm::count(viewShapeInt, Torch::kUnknownSize) > 1) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Unsupported: at most one of the batch, spatial, and "
+                         "collapsed trailing dimensions may be dynamic");
+        }
         Torch::ValueTensorType reshapeType =
             rewriter.getType<Torch::ValueTensorType>(viewShapeInt, dtype);
         Value viewShapeListVal =
