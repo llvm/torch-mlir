@@ -179,6 +179,194 @@ func.func @torch.aten.bmm$mixed_si4_f16(%arg0: !torch.vtensor<[1,4,8],si4>, %arg
 
 // -----
 
+// Signed inputs and zero points must remain unshifted.
+// CHECK-LABEL: func.func @torch.aten.bmm$quantized_i8(
+// CHECK-SAME: %[[ARG0:.*]]: !torch.vtensor<[2,2,4],si8>, %[[ARG1:.*]]: !torch.vtensor<[2,4,3],si8>)
+// CHECK-DAG: %[[LHS_TENSOR:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[2,2,4],si8> -> tensor<2x2x4xi8>
+// CHECK-DAG: %[[RHS_TENSOR:.*]] = torch_c.to_builtin_tensor %[[ARG1]] : !torch.vtensor<[2,4,3],si8> -> tensor<2x4x3xi8>
+// CHECK-DAG: %[[LHS:.*]] = tensor.cast %[[LHS_TENSOR]] : tensor<2x2x4xi8> to tensor<2x2x4xi8>
+// CHECK-DAG: %[[RHS:.*]] = tensor.cast %[[RHS_TENSOR]] : tensor<2x4x3xi8> to tensor<2x4x3xi8>
+// CHECK-DAG: %[[LHS_ZP64:.*]] = arith.constant -14 : i64
+// CHECK-DAG: %[[RHS_ZP64:.*]] = arith.constant -13 : i64
+// CHECK-DAG: %[[LHS_ZP:.*]] = arith.trunci %[[LHS_ZP64]] : i64 to i32
+// CHECK-DAG: %[[RHS_ZP:.*]] = arith.trunci %[[RHS_ZP64]] : i64 to i32
+// CHECK: linalg.quantized_batch_matmul ins(%[[LHS]], %[[RHS]], %[[LHS_ZP]], %[[RHS_ZP]] : tensor<2x2x4xi8>, tensor<2x4x3xi8>, i32, i32)
+// CHECK-SAME: outs(%{{.*}} : tensor<2x2x3xi32>) -> tensor<2x2x3xi32>
+func.func @torch.aten.bmm$quantized_i8(%arg0: !torch.vtensor<[2,2,4],si8>, %arg1: !torch.vtensor<[2,4,3],si8>) -> !torch.vtensor<[2,2,3],si32> {
+  %scale = torch.constant.float 1.000000e-02
+  %lhs_zp = torch.constant.int -14
+  %rhs_zp = torch.constant.int -13
+  %lhs = torch.aten._make_per_tensor_quantized_tensor %arg0, %scale, %lhs_zp : !torch.vtensor<[2,2,4],si8>, !torch.float, !torch.int -> !torch.vtensor<[2,2,4],!torch.qint8>
+  %rhs = torch.aten._make_per_tensor_quantized_tensor %arg1, %scale, %rhs_zp : !torch.vtensor<[2,4,3],si8>, !torch.float, !torch.int -> !torch.vtensor<[2,4,3],!torch.qint8>
+  %result = torch.aten.bmm %lhs, %rhs : !torch.vtensor<[2,2,4],!torch.qint8>, !torch.vtensor<[2,4,3],!torch.qint8> -> !torch.vtensor<[2,2,3],si32>
+  return %result : !torch.vtensor<[2,2,3],si32>
+}
+
+// -----
+
+// Shift both unsigned inputs by -128, including their zero points.
+// CHECK-LABEL: func.func @torch.aten.bmm$quantized_u8(
+// CHECK-SAME: %[[ARG0:.*]]: !torch.vtensor<[2,2,4],ui8>, %[[ARG1:.*]]: !torch.vtensor<[2,4,3],ui8>)
+// CHECK-DAG: %[[LHS_TENSOR:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[2,2,4],ui8> -> tensor<2x2x4xi8>
+// CHECK-DAG: %[[RHS_TENSOR:.*]] = torch_c.to_builtin_tensor %[[ARG1]] : !torch.vtensor<[2,4,3],ui8> -> tensor<2x4x3xi8>
+// CHECK-DAG: %[[LHS:.*]] = tensor.cast %[[LHS_TENSOR]] : tensor<2x2x4xi8> to tensor<2x2x4xi8>
+// CHECK-DAG: %[[RHS:.*]] = tensor.cast %[[RHS_TENSOR]] : tensor<2x4x3xi8> to tensor<2x4x3xi8>
+// CHECK-DAG: %[[LHS_ZP64:.*]] = arith.constant 113 : i64
+// CHECK-DAG: %[[RHS_ZP64:.*]] = arith.constant 114 : i64
+// CHECK-DAG: %[[LHS_ZP:.*]] = arith.trunci %[[LHS_ZP64]] : i64 to i32
+// CHECK-DAG: %[[RHS_ZP:.*]] = arith.trunci %[[RHS_ZP64]] : i64 to i32
+// CHECK: %[[LHS_SHIFT32:.*]] = arith.constant -128 : i32
+// CHECK: %[[LHS_ZP_SHIFTED:.*]] = arith.addi %[[LHS_ZP]], %[[LHS_SHIFT32]] : i32
+// CHECK: %[[LHS_SHIFT8:.*]] = arith.constant -128 : i8
+// CHECK: %[[LHS_SHIFTED:.*]] = linalg.generic
+// CHECK-SAME: ins(%[[LHS]] : tensor<2x2x4xi8>)
+// CHECK: ^bb0(%[[LHS_ELEM:.*]]: i8, %{{.*}}: i8):
+// CHECK: %[[LHS_ADJUSTED:.*]] = arith.addi %[[LHS_ELEM]], %[[LHS_SHIFT8]] : i8
+// CHECK: linalg.yield %[[LHS_ADJUSTED]] : i8
+// CHECK: %[[RHS_SHIFT32:.*]] = arith.constant -128 : i32
+// CHECK: %[[RHS_ZP_SHIFTED:.*]] = arith.addi %[[RHS_ZP]], %[[RHS_SHIFT32]] : i32
+// CHECK: %[[RHS_SHIFT8:.*]] = arith.constant -128 : i8
+// CHECK: %[[RHS_SHIFTED:.*]] = linalg.generic
+// CHECK-SAME: ins(%[[RHS]] : tensor<2x4x3xi8>)
+// CHECK: ^bb0(%[[RHS_ELEM:.*]]: i8, %{{.*}}: i8):
+// CHECK: %[[RHS_ADJUSTED:.*]] = arith.addi %[[RHS_ELEM]], %[[RHS_SHIFT8]] : i8
+// CHECK: linalg.yield %[[RHS_ADJUSTED]] : i8
+// CHECK: linalg.quantized_batch_matmul ins(%[[LHS_SHIFTED]], %[[RHS_SHIFTED]], %[[LHS_ZP_SHIFTED]], %[[RHS_ZP_SHIFTED]] : tensor<2x2x4xi8>, tensor<2x4x3xi8>, i32, i32)
+// CHECK-SAME: outs(%{{.*}} : tensor<2x2x3xi32>) -> tensor<2x2x3xi32>
+func.func @torch.aten.bmm$quantized_u8(%arg0: !torch.vtensor<[2,2,4],ui8>, %arg1: !torch.vtensor<[2,4,3],ui8>) -> !torch.vtensor<[2,2,3],si32> {
+  %scale = torch.constant.float 1.000000e-02
+  %lhs_zp = torch.constant.int 113
+  %rhs_zp = torch.constant.int 114
+  %lhs = torch.aten._make_per_tensor_quantized_tensor %arg0, %scale, %lhs_zp : !torch.vtensor<[2,2,4],ui8>, !torch.float, !torch.int -> !torch.vtensor<[2,2,4],!torch.quint8>
+  %rhs = torch.aten._make_per_tensor_quantized_tensor %arg1, %scale, %rhs_zp : !torch.vtensor<[2,4,3],ui8>, !torch.float, !torch.int -> !torch.vtensor<[2,4,3],!torch.quint8>
+  %result = torch.aten.bmm %lhs, %rhs : !torch.vtensor<[2,2,4],!torch.quint8>, !torch.vtensor<[2,4,3],!torch.quint8> -> !torch.vtensor<[2,2,3],si32>
+  return %result : !torch.vtensor<[2,2,3],si32>
+}
+
+// -----
+
+// Only the unsigned RHS is shifted; 255 becomes a zero point of 127.
+// CHECK-LABEL: func.func @torch.aten.bmm$quantized_i8_u8(
+// CHECK-SAME: %[[ARG0:.*]]: !torch.vtensor<[2,2,4],si8>, %[[ARG1:.*]]: !torch.vtensor<[2,4,3],ui8>)
+// CHECK-DAG: %[[LHS_TENSOR:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[2,2,4],si8> -> tensor<2x2x4xi8>
+// CHECK-DAG: %[[RHS_TENSOR:.*]] = torch_c.to_builtin_tensor %[[ARG1]] : !torch.vtensor<[2,4,3],ui8> -> tensor<2x4x3xi8>
+// CHECK-DAG: %[[LHS:.*]] = tensor.cast %[[LHS_TENSOR]] : tensor<2x2x4xi8> to tensor<2x2x4xi8>
+// CHECK-DAG: %[[RHS:.*]] = tensor.cast %[[RHS_TENSOR]] : tensor<2x4x3xi8> to tensor<2x4x3xi8>
+// CHECK-DAG: %[[LHS_ZP64:.*]] = arith.constant -14 : i64
+// CHECK-DAG: %[[RHS_ZP64:.*]] = arith.constant 255 : i64
+// CHECK-DAG: %[[LHS_ZP:.*]] = arith.trunci %[[LHS_ZP64]] : i64 to i32
+// CHECK-DAG: %[[RHS_ZP:.*]] = arith.trunci %[[RHS_ZP64]] : i64 to i32
+// CHECK: %[[RHS_SHIFT32:.*]] = arith.constant -128 : i32
+// CHECK: %[[RHS_ZP_SHIFTED:.*]] = arith.addi %[[RHS_ZP]], %[[RHS_SHIFT32]] : i32
+// CHECK: %[[RHS_SHIFT8:.*]] = arith.constant -128 : i8
+// CHECK: %[[RHS_SHIFTED:.*]] = linalg.generic
+// CHECK-SAME: ins(%[[RHS]] : tensor<2x4x3xi8>)
+// CHECK: ^bb0(%[[RHS_ELEM:.*]]: i8, %{{.*}}: i8):
+// CHECK: %[[RHS_ADJUSTED:.*]] = arith.addi %[[RHS_ELEM]], %[[RHS_SHIFT8]] : i8
+// CHECK: linalg.yield %[[RHS_ADJUSTED]] : i8
+// CHECK: linalg.quantized_batch_matmul ins(%[[LHS]], %[[RHS_SHIFTED]], %[[LHS_ZP]], %[[RHS_ZP_SHIFTED]] : tensor<2x2x4xi8>, tensor<2x4x3xi8>, i32, i32)
+// CHECK-SAME: outs(%{{.*}} : tensor<2x2x3xi32>) -> tensor<2x2x3xi32>
+func.func @torch.aten.bmm$quantized_i8_u8(%arg0: !torch.vtensor<[2,2,4],si8>, %arg1: !torch.vtensor<[2,4,3],ui8>) -> !torch.vtensor<[2,2,3],si32> {
+  %scale = torch.constant.float 1.000000e-02
+  %lhs_zp = torch.constant.int -14
+  %rhs_zp = torch.constant.int 255
+  %lhs = torch.aten._make_per_tensor_quantized_tensor %arg0, %scale, %lhs_zp : !torch.vtensor<[2,2,4],si8>, !torch.float, !torch.int -> !torch.vtensor<[2,2,4],!torch.qint8>
+  %rhs = torch.aten._make_per_tensor_quantized_tensor %arg1, %scale, %rhs_zp : !torch.vtensor<[2,4,3],ui8>, !torch.float, !torch.int -> !torch.vtensor<[2,4,3],!torch.quint8>
+  %result = torch.aten.bmm %lhs, %rhs : !torch.vtensor<[2,2,4],!torch.qint8>, !torch.vtensor<[2,4,3],!torch.quint8> -> !torch.vtensor<[2,2,3],si32>
+  return %result : !torch.vtensor<[2,2,3],si32>
+}
+
+// -----
+
+// Only the unsigned LHS is shifted; 0 becomes a zero point of -128.
+// CHECK-LABEL: func.func @torch.aten.bmm$quantized_u8_i8(
+// CHECK-SAME: %[[ARG0:.*]]: !torch.vtensor<[2,2,4],ui8>, %[[ARG1:.*]]: !torch.vtensor<[2,4,3],si8>)
+// CHECK-DAG: %[[LHS_TENSOR:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[2,2,4],ui8> -> tensor<2x2x4xi8>
+// CHECK-DAG: %[[RHS_TENSOR:.*]] = torch_c.to_builtin_tensor %[[ARG1]] : !torch.vtensor<[2,4,3],si8> -> tensor<2x4x3xi8>
+// CHECK-DAG: %[[LHS:.*]] = tensor.cast %[[LHS_TENSOR]] : tensor<2x2x4xi8> to tensor<2x2x4xi8>
+// CHECK-DAG: %[[RHS:.*]] = tensor.cast %[[RHS_TENSOR]] : tensor<2x4x3xi8> to tensor<2x4x3xi8>
+// CHECK-DAG: %[[LHS_ZP64:.*]] = arith.constant 0 : i64
+// CHECK-DAG: %[[RHS_ZP64:.*]] = arith.constant -13 : i64
+// CHECK-DAG: %[[LHS_ZP:.*]] = arith.trunci %[[LHS_ZP64]] : i64 to i32
+// CHECK-DAG: %[[RHS_ZP:.*]] = arith.trunci %[[RHS_ZP64]] : i64 to i32
+// CHECK: %[[LHS_SHIFT32:.*]] = arith.constant -128 : i32
+// CHECK: %[[LHS_ZP_SHIFTED:.*]] = arith.addi %[[LHS_ZP]], %[[LHS_SHIFT32]] : i32
+// CHECK: %[[LHS_SHIFT8:.*]] = arith.constant -128 : i8
+// CHECK: %[[LHS_SHIFTED:.*]] = linalg.generic
+// CHECK-SAME: ins(%[[LHS]] : tensor<2x2x4xi8>)
+// CHECK: ^bb0(%[[LHS_ELEM:.*]]: i8, %{{.*}}: i8):
+// CHECK: %[[LHS_ADJUSTED:.*]] = arith.addi %[[LHS_ELEM]], %[[LHS_SHIFT8]] : i8
+// CHECK: linalg.yield %[[LHS_ADJUSTED]] : i8
+// CHECK: linalg.quantized_batch_matmul ins(%[[LHS_SHIFTED]], %[[RHS]], %[[LHS_ZP_SHIFTED]], %[[RHS_ZP]] : tensor<2x2x4xi8>, tensor<2x4x3xi8>, i32, i32)
+// CHECK-SAME: outs(%{{.*}} : tensor<2x2x3xi32>) -> tensor<2x2x3xi32>
+func.func @torch.aten.bmm$quantized_u8_i8(%arg0: !torch.vtensor<[2,2,4],ui8>, %arg1: !torch.vtensor<[2,4,3],si8>) -> !torch.vtensor<[2,2,3],si32> {
+  %scale = torch.constant.float 1.000000e-02
+  %lhs_zp = torch.constant.int 0
+  %rhs_zp = torch.constant.int -13
+  %lhs = torch.aten._make_per_tensor_quantized_tensor %arg0, %scale, %lhs_zp : !torch.vtensor<[2,2,4],ui8>, !torch.float, !torch.int -> !torch.vtensor<[2,2,4],!torch.quint8>
+  %rhs = torch.aten._make_per_tensor_quantized_tensor %arg1, %scale, %rhs_zp : !torch.vtensor<[2,4,3],si8>, !torch.float, !torch.int -> !torch.vtensor<[2,4,3],!torch.qint8>
+  %result = torch.aten.bmm %lhs, %rhs : !torch.vtensor<[2,2,4],!torch.quint8>, !torch.vtensor<[2,4,3],!torch.qint8> -> !torch.vtensor<[2,2,3],si32>
+  return %result : !torch.vtensor<[2,2,3],si32>
+}
+
+// -----
+
+// Reject a quantized LHS paired with a nonquantized operand.
+func.func @torch.aten.bmm$quantized_lhs_only(%arg0: !torch.vtensor<[2,2,4],si8>, %arg1: !torch.vtensor<[2,4,3],si8>) -> !torch.vtensor<[2,2,3],si32> {
+  %scale = torch.constant.float 1.000000e-02
+  %zp = torch.constant.int 0
+  %quantized = torch.aten._make_per_tensor_quantized_tensor %arg0, %scale, %zp : !torch.vtensor<[2,2,4],si8>, !torch.float, !torch.int -> !torch.vtensor<[2,2,4],!torch.qint8>
+  // expected-error@+1 {{failed to legalize operation 'torch.aten.bmm'}}
+  %result = torch.aten.bmm %quantized, %arg1 : !torch.vtensor<[2,2,4],!torch.qint8>, !torch.vtensor<[2,4,3],si8> -> !torch.vtensor<[2,2,3],si32>
+  return %result : !torch.vtensor<[2,2,3],si32>
+}
+
+// -----
+
+// Reject a quantized RHS paired with a nonquantized operand.
+func.func @torch.aten.bmm$quantized_rhs_only(%arg0: !torch.vtensor<[2,2,4],si8>, %arg1: !torch.vtensor<[2,4,3],si8>) -> !torch.vtensor<[2,2,3],si32> {
+  %scale = torch.constant.float 1.000000e-02
+  %zp = torch.constant.int 0
+  %quantized = torch.aten._make_per_tensor_quantized_tensor %arg1, %scale, %zp : !torch.vtensor<[2,4,3],si8>, !torch.float, !torch.int -> !torch.vtensor<[2,4,3],!torch.qint8>
+  // expected-error@+1 {{failed to legalize operation 'torch.aten.bmm'}}
+  %result = torch.aten.bmm %arg0, %quantized : !torch.vtensor<[2,2,4],si8>, !torch.vtensor<[2,4,3],!torch.qint8> -> !torch.vtensor<[2,2,3],si32>
+  return %result : !torch.vtensor<[2,2,3],si32>
+}
+
+// -----
+
+// Runtime zero points must be converted to the i32 scalars required by Linalg.
+// CHECK-LABEL: func.func @torch.aten.bmm$quantized_dynamic_zero_points(
+// CHECK-SAME: %[[ARG0:.*]]: !torch.vtensor<[2,2,4],si8>, %[[ARG1:.*]]: !torch.vtensor<[2,4,3],si8>, %[[LZP:.*]]: !torch.int, %[[RZP:.*]]: !torch.int)
+// CHECK-DAG: %[[LZP64:.*]] = torch_c.to_i64 %[[LZP]]
+// CHECK-DAG: %[[RZP64:.*]] = torch_c.to_i64 %[[RZP]]
+// CHECK-DAG: %[[LZP32:.*]] = arith.trunci %[[LZP64]] : i64 to i32
+// CHECK-DAG: %[[RZP32:.*]] = arith.trunci %[[RZP64]] : i64 to i32
+// CHECK: linalg.quantized_batch_matmul ins(%{{.*}}, %{{.*}}, %[[LZP32]], %[[RZP32]] : tensor<2x2x4xi8>, tensor<2x4x3xi8>, i32, i32)
+func.func @torch.aten.bmm$quantized_dynamic_zero_points(%arg0: !torch.vtensor<[2,2,4],si8>, %arg1: !torch.vtensor<[2,4,3],si8>, %lhs_zp: !torch.int, %rhs_zp: !torch.int) -> !torch.vtensor<[2,2,3],si32> {
+  %scale = torch.constant.float 1.000000e-02
+  %lhs = torch.aten._make_per_tensor_quantized_tensor %arg0, %scale, %lhs_zp : !torch.vtensor<[2,2,4],si8>, !torch.float, !torch.int -> !torch.vtensor<[2,2,4],!torch.qint8>
+  %rhs = torch.aten._make_per_tensor_quantized_tensor %arg1, %scale, %rhs_zp : !torch.vtensor<[2,4,3],si8>, !torch.float, !torch.int -> !torch.vtensor<[2,4,3],!torch.qint8>
+  %result = torch.aten.bmm %lhs, %rhs : !torch.vtensor<[2,2,4],!torch.qint8>, !torch.vtensor<[2,4,3],!torch.qint8> -> !torch.vtensor<[2,2,3],si32>
+  return %result : !torch.vtensor<[2,2,3],si32>
+}
+
+// -----
+
+// Reject mixed widths instead of choosing an accumulator from only the LHS.
+func.func @torch.aten.bmm$quantized_mixed_widths(%arg0: !torch.vtensor<[2,2,4],si8>, %arg1: !torch.vtensor<[2,4,3],si32>) -> !torch.vtensor<[2,2,3],si32> {
+  %scale = torch.constant.float 1.000000e-02
+  %lhs_zp = torch.constant.int -14
+  %rhs_zp = torch.constant.int -13
+  %lhs = torch.aten._make_per_tensor_quantized_tensor %arg0, %scale, %lhs_zp : !torch.vtensor<[2,2,4],si8>, !torch.float, !torch.int -> !torch.vtensor<[2,2,4],!torch.qint8>
+  %rhs = torch.aten._make_per_tensor_quantized_tensor %arg1, %scale, %rhs_zp : !torch.vtensor<[2,4,3],si32>, !torch.float, !torch.int -> !torch.vtensor<[2,4,3],!torch.qint32>
+  // expected-error@+1 {{failed to legalize operation 'torch.aten.bmm'}}
+  %result = torch.aten.bmm %lhs, %rhs : !torch.vtensor<[2,2,4],!torch.qint8>, !torch.vtensor<[2,4,3],!torch.qint32> -> !torch.vtensor<[2,2,3],si32>
+  return %result : !torch.vtensor<[2,2,3],si32>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @torch.aten.mm$basic_strict(
 // CHECK-NOT: assert
 func.func @torch.aten.mm$basic_strict(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,2],f32>
