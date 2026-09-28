@@ -796,6 +796,33 @@ def MaxPool3dCeilModeTrueModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 20, 20, 20, low=0.5, high=1.0))
 
 
+class MaxPool3dStaticCeilModeUnitKernelDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mp3d = torch.nn.MaxPool3d(
+            kernel_size=[7, 5, 1],
+            stride=[1, 1, 1],
+            padding=[0, 0, 0],
+            dilation=[1, 1, 1],
+            ceil_mode=True,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 3, 64, 33, 56], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.mp3d(x)
+
+
+@register_test_case(module_factory=lambda: MaxPool3dStaticCeilModeUnitKernelDimModule())
+def MaxPool3dStaticCeilModeUnitKernelDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 3, 64, 33, 56, low=0.5, high=1.0))
+
+
 class MaxPool3dSingleIntTupleDilationModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
