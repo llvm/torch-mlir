@@ -27,6 +27,7 @@ from typing import (
     Sequence,
     Set,
     Tuple,
+    Type,
     TYPE_CHECKING,
     Union,
     Iterable,
@@ -553,6 +554,9 @@ class FxImporter:
       be one reference tracker per import, but this can be injected to share
       the same uniqueing across imports (i.e. if building multiple functions
       into the same context or module).
+    * graph_node_importer_cls: A GraphNodeImporter subclass used for each
+      imported FX graph. It can extend or override node importing behavior,
+      including ``_import_hop_<name>`` methods for higher-order operators.
     """
 
     __slots__ = [
@@ -562,6 +566,7 @@ class FxImporter:
         "_m_ip",
         "_py_attr_tracker",
         "_hooks",
+        "_graph_node_importer_cls",
         "symbol_table",
         "_graph_module_to_func_name",
         "_func_name_counter",
@@ -575,6 +580,7 @@ class FxImporter:
         config_check: bool = True,
         py_attr_tracker: Optional["RefTracker"] = None,
         hooks: Optional[FxImporterHooks] = None,
+        graph_node_importer_cls: Optional[Type["GraphNodeImporter"]] = None,
     ):
         if module is not None:
             assert context is None, "If configuring with a Module, context must be None"
@@ -590,6 +596,7 @@ class FxImporter:
         self._cc = ContextCache(self._c, py_attr_tracker=self._py_attr_tracker)
         self._m_ip = InsertionPoint(self._m.body)
         self._hooks = hooks or FxImporterHooks()
+        self._graph_node_importer_cls = graph_node_importer_cls or GraphNodeImporter
         self.symbol_table = SymbolTable(self._m.operation)
         self._hooks.prepare_module(self._m.operation)
         # Used specifically in HOPs to map module IDs to function names
@@ -698,7 +705,7 @@ class FxImporter:
         # producer for the output.
         user_outputs: List[Optional[Node]] = []
         user_output_types: List[IrType] = []
-        for i, output_spec in enumerate(sig.output_specs):
+        for output_spec in sig.output_specs:
             kind = output_spec.kind
             arg = output_spec.arg
             if kind == OutputKind.USER_OUTPUT:
@@ -716,7 +723,7 @@ class FxImporter:
                     )
                 elif isinstance(arg, ConstantArgument):
                     # Constant Outputs don't have a node so we will only store their values
-                    constant_output_values[i] = arg.value
+                    constant_output_values[len(user_outputs)] = arg.value
                     # Placeholder for constant outputs in the node list
                     user_outputs.append(None)
                     user_output_types.append(self._cc.value_info_to_type(arg.value))
@@ -825,7 +832,7 @@ class FxImporter:
             func_op.attributes["torch.assume_strict_symbolic_shapes"] = UnitAttr.get()
             entry_block = Block.create_at_start(func_op.body, ftype.inputs)
 
-        node_importer = GraphNodeImporter(
+        node_importer = self._graph_node_importer_cls(
             self,
             self._c,
             self._cc,
@@ -1076,7 +1083,7 @@ class FxImporter:
                 visibility=func_visibility,
             )
             entry_block = Block.create_at_start(func.body, ftype.inputs)
-        node_importer = GraphNodeImporter(
+        node_importer = self._graph_node_importer_cls(
             self,
             self._c,
             self._cc,
@@ -1276,7 +1283,7 @@ class ContextCache:
 
         raise NotImplementedError(
             f"Could not deduce type from value info: "
-            f"tensor_meta={tensor_meta}, val={val} {type(val)}, sparsity={sparsity}"
+            f"tensor_meta={tensor_meta}, val={val} {type(val)}"
         )
 
     def tensor_metadata_to_type(

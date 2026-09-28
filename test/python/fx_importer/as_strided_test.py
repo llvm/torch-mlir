@@ -5,10 +5,13 @@
 
 # RUN: %PYTHON %s | FileCheck %s
 
+from typing import cast
+
 import torch
 import torch.nn as nn
-from torch._subclasses.fake_tensor import FakeTensor, unset_fake_temporarily
+from torch._subclasses.fake_tensor import FakeTensor
 from torch.export import Dim
+from torch._guards import active_fake_mode
 
 from torch_mlir import fx
 from torch_mlir.extras.fx_as_strided import rewrite_as_strided
@@ -48,6 +51,7 @@ def expect_reject(module, *args, **kwargs):
 @run
 # CHECK-LABEL: test_as_strided_rewrite_preserves_fake_tensor_metadata
 # CHECK: original is FakeTensor: True
+# CHECK: fake mode disabled: True
 # CHECK: rewrite applied: True
 # CHECK: replacement is FakeTensor: True
 # CHECK: same FakeTensorMode: True
@@ -65,9 +69,8 @@ def test_as_strided_rewrite_preserves_fake_tensor_metadata():
     original_value = original.meta["val"]
     print("original is FakeTensor:", isinstance(original_value, FakeTensor))
 
-    with original_value.fake_mode:
-        with unset_fake_temporarily():
-            rewritten = rewrite_as_strided(program.graph)
+    print("fake mode disabled:", active_fake_mode() is None)
+    rewritten = rewrite_as_strided(program.graph)
     print("rewrite applied:", rewritten)
 
     replacement = program.graph.find_nodes(
@@ -80,6 +83,41 @@ def test_as_strided_rewrite_preserves_fake_tensor_metadata():
         replacement_is_fake and replacement_value.fake_mode is original_value.fake_mode
     )
     print("same FakeTensorMode:", same_fake_mode)
+
+
+@run
+# CHECK-LABEL: test_as_strided_rewrite_materialized_indices_under_fake_tensor_mode
+# CHECK: rewrite applied: True
+# CHECK: index_nodes len: 1
+# CHECK: indices are materialized tensors: True
+def test_as_strided_rewrite_materialized_indices_under_fake_tensor_mode():
+    class M(nn.Module):
+        def forward(self, x):
+            return torch.ops.aten.as_strided.default(x, [2, 2], [4, 1], 0)
+
+    program = torch.export.export(
+        M(),
+        (torch.arange(12, dtype=torch.float32),),  # 1-D input
+    )
+
+    original = program.graph.find_nodes(
+        op="call_function", target=torch.ops.aten.as_strided.default
+    )[0]
+    original_value = cast(FakeTensor, original.meta["val"])
+
+    with original_value.fake_mode:
+        rewritten = rewrite_as_strided(program.graph)
+    print("rewrite applied:", rewritten)
+
+    replacement = program.graph.find_nodes(
+        op="call_function", target=torch.ops.aten.index.Tensor
+    )[0]
+    index_nodes = cast(list[torch.fx.Node], replacement.args[1])
+    print("index_nodes len:", len(index_nodes))
+
+    index_tensor = program.graph_module.get_buffer(cast(str, index_nodes[0].target))
+    materialized = not isinstance(index_tensor, FakeTensor) and not index_tensor.is_meta
+    print("indices are materialized tensors:", materialized)
 
 
 @run
