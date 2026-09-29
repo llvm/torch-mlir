@@ -444,12 +444,14 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
 
 Value materializeScalarToDtype(OpBuilder &b, Location loc,
                                const TypeConverter *converter, Value scalar,
-                               Type dtype) {
+                               Type dtype, Type srcOriginalDtype) {
   Type convertedType = converter->convertType(scalar.getType());
   if (scalar.getType() != convertedType)
     scalar =
         converter->materializeTargetConversion(b, loc, convertedType, scalar);
-  return convertScalarToDtype(b, loc, scalar, dtype);
+  return convertScalarToDtype(
+      b, loc, scalar, dtype,
+      srcOriginalDtype ? std::optional<Type>(srcOriginalDtype) : std::nullopt);
 }
 
 Value toPositiveValidDim(ConversionPatternRewriter &rewriter, Location loc,
