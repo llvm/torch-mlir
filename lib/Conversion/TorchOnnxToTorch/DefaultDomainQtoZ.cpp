@@ -115,22 +115,34 @@ LogicalResult reduceOpImpl(OpBinder binder, ConversionPatternRewriter &rewriter,
       if (axesTy.getSizes()[0] == Torch::kUnknownSize)
         return failure();
 
-      Value zero = Torch::ConstantIntOp::create(
-          rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
-          rewriter.getI64IntegerAttr(0));
-      SmallVector<int64_t> selectSizes{1};
-      auto selType = rewriter.getType<Torch::ValueTensorType>(
-          selectSizes, axesTy.getOptionalDtype());
-      for (uint64_t i = 0; i < numAxes; ++i) {
-        Value iv = Torch::ConstantIntOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getI64IntegerAttr(i));
-        Value extract = Torch::AtenSelectIntOp::create(
-            rewriter, binder.getLoc(), selType, axesVal, zero, iv);
+      // For a single-element axes tensor (shape [1]), extract the axis
+      // directly via aten.item, skipping the redundant aten.select.int that
+      // otherwise leaves an orphan `torch.constant.int` failing to legalize
+      // at the end of the linalg pipeline. Benefits every reduce op sharing
+      // reduceOpImpl (Sum/Mean/L1/L2/SumSquare/LogSum/LogSumExp/Amax/Amin).
+      if (numAxes == 1) {
         Value dim = Torch::AtenItemOp::create(
             rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            extract);
+            axesVal);
         axesList.push_back(dim);
+      } else {
+        Value zero = Torch::ConstantIntOp::create(
+            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
+            rewriter.getI64IntegerAttr(0));
+        SmallVector<int64_t> selectSizes{1};
+        auto selType = rewriter.getType<Torch::ValueTensorType>(
+            selectSizes, axesTy.getOptionalDtype());
+        for (uint64_t i = 0; i < numAxes; ++i) {
+          Value iv = Torch::ConstantIntOp::create(
+              rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
+              rewriter.getI64IntegerAttr(i));
+          Value extract = Torch::AtenSelectIntOp::create(
+              rewriter, binder.getLoc(), selType, axesVal, zero, iv);
+          Value dim = Torch::AtenItemOp::create(
+              rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
+              extract);
+          axesList.push_back(dim);
+        }
       }
     }
   }
