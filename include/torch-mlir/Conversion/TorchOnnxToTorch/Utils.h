@@ -41,6 +41,14 @@ Value createConstantIntList(OpBinder binder,
 
 Torch::ValueTensorType getQTorchTypeFromTorchIntType(Type ty);
 
+inline bool isSupportedQuantizeDequantizeLinearDtype(Type type) {
+  // TODO: Support uint16 once Torch::getScalarTypeForType can map it.
+  return type.isUnsignedInteger(8) || type.isSignedInteger(8) ||
+         type.isSignedInteger(16) || type.isSignedInteger(32) ||
+         isa<Float4E2M1FNType, Float8E4M3FNType, Float8E4M3FNUZType,
+             Float8E5M2Type, Float8E5M2FNUZType>(type);
+}
+
 template <typename T>
 Value getItemOp(OpBinder binder, ConversionPatternRewriter &rewriter,
                 Value &ofItem) {
