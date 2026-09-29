@@ -295,11 +295,11 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                          "quantization supported");
 
         auto resultETy = resultType.getDtype();
-        Value tyConst = Torch::ConstantIntOp::create(
-            rewriter, loc, rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(
-                rewriter.getIntegerType(64),
-                static_cast<int64_t>(Torch::getScalarTypeForType(resultETy))));
+        if (!isSupportedQuantizeDequantizeLinearDtype(resultETy))
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented: unsupported quantized result dtype");
+        Value tyConst =
+            Torch::getDtypeIntValueForType(rewriter, loc, resultETy);
         bool fpResult = isa<mlir::FloatType>(resultETy);
         bool isPerTensorQuantization = false;
         if (scaleRank == 0 ||
@@ -312,25 +312,31 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               binder.op, "unimplemented: support for per-Channel Quantization "
                          "for floating point output.");
 
-        if (!zeropoint) {
-          Value none = Torch::ConstantNoneOp::create(rewriter, loc);
-          auto zpTy =
-              scaleTy.getWithSizesAndDtype(scaleTy.getSizes(), resultETy);
-          zeropoint = Torch::AtenZerosLikeOp::create(
-              rewriter, loc, zpTy, scale,
-              /*dtype=*/tyConst, /*layout=*/none, /*device=*/none,
-              /*pin_memory=*/none, /*memory_format=*/none);
-        }
-
         if (isPerTensorQuantization) {
           scale = Torch::AtenItemOp::create(
               rewriter, loc, rewriter.getType<Torch::FloatType>(), scale);
 
-          Type zeropointTy = rewriter.getType<Torch::IntType>();
-          if (fpResult)
-            zeropointTy = rewriter.getType<Torch::FloatType>();
-          zeropoint =
-              Torch::AtenItemOp::create(rewriter, loc, zeropointTy, zeropoint);
+          if (zeropoint) {
+            Type zeropointTy = rewriter.getType<Torch::IntType>();
+            if (fpResult)
+              zeropointTy = rewriter.getType<Torch::FloatType>();
+            zeropoint = Torch::AtenItemOp::create(rewriter, loc, zeropointTy,
+                                                  zeropoint);
+          }
+        }
+
+        if (!zeropoint) {
+          if (isPerTensorQuantization) {
+            zeropoint = Torch::ConstantIntOp::create(rewriter, loc, 0);
+          } else {
+            Value none = Torch::ConstantNoneOp::create(rewriter, loc);
+            auto zpTy =
+                scaleTy.getWithSizesAndDtype(scaleTy.getSizes(), resultETy);
+            zeropoint = Torch::AtenZerosLikeOp::create(
+                rewriter, loc, zpTy, scale,
+                /*dtype=*/tyConst, /*layout=*/none, /*device=*/none,
+                /*pin_memory=*/none, /*memory_format=*/none);
+          }
         }
 
         if (!fpResult) {
