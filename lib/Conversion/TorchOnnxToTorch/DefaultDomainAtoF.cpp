@@ -2684,6 +2684,9 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           return rewriter.notifyMatchFailure(binder.op,
                                              "requires known input dtype");
         auto operandETy = operandTy.getDtype();
+        if (!isSupportedQuantizeDequantizeLinearDtype(operandETy))
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented: unsupported quantized input dtype");
         bool fpOperand = isa<mlir::FloatType>(operandETy);
         bool isPerTensorQuantization = false;
         if (scaleRank == 0 ||
@@ -2696,45 +2699,30 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
               binder.op, "unimplemented: support for per-Channel Quantization "
                          "for floating point input not present");
 
-        if (!zeropoint) {
-          Value none = Torch::ConstantNoneOp::create(rewriter, loc);
-          Value tyConst = Torch::ConstantIntOp::create(
-              rewriter, loc, rewriter.getType<Torch::IntType>(),
-              rewriter.getIntegerAttr(
-                  rewriter.getIntegerType(64),
-                  static_cast<int64_t>(
-                      Torch::getScalarTypeForType(operandETy))));
-          auto zpTy =
-              scaleTy.getWithSizesAndDtype(scaleTy.getSizes(), operandETy);
-          zeropoint = Torch::AtenZerosLikeOp::create(
-              rewriter, loc, zpTy, scale,
-              /*dtype=*/tyConst, /*layout=*/none, /*device=*/none,
-              /*pin_memory=*/none, /*memory_format=*/none);
-        }
-
         if (isPerTensorQuantization) {
           scale = Torch::AtenItemOp::create(
               rewriter, loc, rewriter.getType<Torch::FloatType>(), scale);
 
-          Type zeropointTy = rewriter.getType<Torch::IntType>();
-          if (fpOperand)
-            zeropointTy = rewriter.getType<Torch::FloatType>();
-          zeropoint =
-              Torch::AtenItemOp::create(rewriter, loc, zeropointTy, zeropoint);
+          if (zeropoint) {
+            Type zeropointTy = rewriter.getType<Torch::IntType>();
+            if (fpOperand)
+              zeropointTy = rewriter.getType<Torch::FloatType>();
+            zeropoint = Torch::AtenItemOp::create(rewriter, loc, zeropointTy,
+                                                  zeropoint);
+          } else {
+            zeropoint = Torch::ConstantIntOp::create(rewriter, loc, 0);
+          }
+        } else if (!zeropoint) {
+          // dequantize_per_channel uses None for a default zero point of zero.
+          zeropoint = Torch::ConstantNoneOp::create(rewriter, loc);
         }
 
         auto resultETy = resultType.getDtype();
-        Value resultETyConst = Torch::ConstantIntOp::create(
-            rewriter, loc, rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(
-                rewriter.getIntegerType(64),
-                static_cast<int64_t>(Torch::getScalarTypeForType(resultETy))));
+        Value resultETyConst =
+            Torch::getDtypeIntValueForType(rewriter, loc, resultETy);
 
-        Value operandETyConst = Torch::ConstantIntOp::create(
-            rewriter, loc, rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(
-                rewriter.getIntegerType(64),
-                static_cast<int64_t>(Torch::getScalarTypeForType(operandETy))));
+        Value operandETyConst =
+            Torch::getDtypeIntValueForType(rewriter, loc, operandETy);
 
         if (!fpOperand) {
           Value minInt = Torch::ConstantIntOp::create(
@@ -2784,11 +2772,8 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         // Case 3: Per-Tensor Quantization for floating point input.
         Value none = Torch::ConstantNoneOp::create(rewriter, loc);
         Value cstFalse = Torch::ConstantBoolOp::create(rewriter, loc, false);
-        auto tyVal = Torch::getScalarTypeForType(resultType.getDtype());
-        Value tyConst = Torch::ConstantIntOp::create(
-            rewriter, loc, rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                    static_cast<int64_t>(tyVal)));
+        Value tyConst =
+            Torch::getDtypeIntValueForType(rewriter, loc, resultETy);
         Value toDtype = Torch::AtenToDtypeOp::create(
             rewriter, loc, resultType, operand, tyConst,
             /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
