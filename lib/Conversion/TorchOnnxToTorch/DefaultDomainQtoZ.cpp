@@ -340,24 +340,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         }
 
         if (!fpResult) {
-          Value minInt = Torch::ConstantIntOp::create(
-              rewriter, loc,
-              rewriter.getI64IntegerAttr(
-                  resultETy.isSignedInteger()
-                      ? APInt::getSignedMinValue(
-                            resultETy.getIntOrFloatBitWidth())
-                            .getSExtValue()
-                      : 0));
-
-          Value maxInt = Torch::ConstantIntOp::create(
-              rewriter, loc,
-              rewriter.getI64IntegerAttr(
-                  resultETy.isSignedInteger()
-                      ? APInt::getSignedMaxValue(
-                            resultETy.getIntOrFloatBitWidth())
-                            .getSExtValue()
-                      : APInt::getMaxValue(resultETy.getIntOrFloatBitWidth())
-                            .getZExtValue()));
+          auto [minInt, maxInt] = createQuantizationBounds(
+              rewriter, loc, cast<IntegerType>(resultETy));
 
           Value quantize;
           // Case 1: Per-Tensor Quantization for non-floating point output.

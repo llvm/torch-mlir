@@ -2725,24 +2725,8 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             Torch::getDtypeIntValueForType(rewriter, loc, operandETy);
 
         if (!fpOperand) {
-          Value minInt = Torch::ConstantIntOp::create(
-              rewriter, loc,
-              rewriter.getI64IntegerAttr(
-                  operandETy.isSignedInteger()
-                      ? APInt::getSignedMinValue(
-                            operandETy.getIntOrFloatBitWidth())
-                            .getSExtValue()
-                      : 0));
-
-          Value maxInt = Torch::ConstantIntOp::create(
-              rewriter, loc,
-              rewriter.getI64IntegerAttr(
-                  operandETy.isSignedInteger()
-                      ? APInt::getSignedMaxValue(
-                            operandETy.getIntOrFloatBitWidth())
-                            .getSExtValue()
-                      : APInt::getMaxValue(operandETy.getIntOrFloatBitWidth())
-                            .getZExtValue()));
+          auto [minInt, maxInt] = createQuantizationBounds(
+              rewriter, loc, cast<IntegerType>(operandETy));
 
           Value dequantize;
           // Case 1: Per-Tensor Quantization for non-floating point input.
