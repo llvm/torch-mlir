@@ -212,8 +212,8 @@ std::pair<Value, Value> mlir::torch::onnx_c::createQuantizationBounds(
                     ? APInt::getSignedMaxValue(bitWidth).getSExtValue()
                     : APInt::getMaxValue(bitWidth).getZExtValue();
 
-  return {
-      Torch::ConstIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(min)),
-      Torch::ConstIntOp::create(rewriter, loc,
-                                rewriter.getI64IntegerAttr(max))};
+  return {Torch::ConstantIntOp::create(rewriter, loc,
+                                       rewriter.getI64IntegerAttr(min)),
+          Torch::ConstantIntOp::create(rewriter, loc,
+                                       rewriter.getI64IntegerAttr(max))};
 }
