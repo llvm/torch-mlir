@@ -201,3 +201,19 @@ LogicalResult mlir::torch::onnx_c::createDequantizeTensor(
 
   return success();
 }
+
+std::pair<Value, Value> mlir::torch::onnx_c::createQuantizationBounds(
+    ConversionPatternRewriter &rewriter, Location loc, IntegerType dtype) {
+  auto bitWidth = dtype.getWidth();
+  int64_t min =
+      dtype.isSigned() ? APInt::getSignedMinValue(bitWidth).getSExtValue() : 0;
+
+  int64_t max = dtype.isSigned()
+                    ? APInt::getSignedMaxValue(bitWidth).getSExtValue()
+                    : APInt::getMaxValue(bitWidth).getZExtValue();
+
+  return {
+      Torch::ConstIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(min)),
+      Torch::ConstIntOp::create(rewriter, loc,
+                                rewriter.getI64IntegerAttr(max))};
+}
