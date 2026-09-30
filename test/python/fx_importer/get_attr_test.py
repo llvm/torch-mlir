@@ -3,9 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 
-# RUN: %PYTHON %s
-
-import unittest
+# RUN: %PYTHON %s | FileCheck %s
 
 import torch
 import torch.nn.functional as F
@@ -13,6 +11,13 @@ import torch.nn.functional as F
 from torch_mlir import ir
 from torch_mlir.dialects import torch as torch_dialect
 from torch_mlir.extras.fx_importer import FxImporter
+
+
+def run(f):
+    print(f.__name__)
+    f()
+    print()
+    return f
 
 
 class LinearWeight(torch.nn.Module):
@@ -52,6 +57,8 @@ def export_graph(model):
 
 
 def import_graph(graph):
+    # The frozen-program path used by fx.export_and_import lifts parameters and
+    # buffers to placeholders, so it does not exercise get_attr import.
     with ir.Context() as context:
         torch_dialect.register_dialect(context)
         importer = FxImporter(context=context)
@@ -60,44 +67,80 @@ def import_graph(graph):
         return importer.module
 
 
-class GetAttrTest(unittest.TestCase):
-    def test_linear_weight(self):
-        for nested in (False, True):
-            for shared in (False, True):
-                with self.subTest(nested=nested, shared=shared):
-                    module = import_graph(export_graph(LinearWeight(nested, shared)))
-                    ops = list(
-                        module.body.operations[0].regions[0].blocks[0].operations
-                    )
-                    literals = [
-                        op for op in ops if op.operation.name == "torch.vtensor.literal"
-                    ]
-                    linears = [
-                        op for op in ops if op.operation.name == "torch.aten.linear"
-                    ]
-                    self.assertEqual(len(literals), 1)
-                    self.assertEqual(len(linears), 2 if shared else 1)
-                    for linear in linears:
-                        self.assertEqual(linear.operands[1], literals[0].results[0])
-
-    def test_nested_shared_list_operand(self):
-        module = import_graph(export_graph(NestedBufferList()))
-        ops = list(module.body.operations[0].regions[0].blocks[0].operations)
-        literals = [op for op in ops if op.operation.name == "torch.vtensor.literal"]
-        operands = next(
-            op for op in ops if op.operation.name == "torch.prim.ListConstruct"
-        )
-        self.assertEqual(len(literals), 1)
-        self.assertEqual(operands.operands[1], literals[0].results[0])
-        self.assertEqual(operands.operands[2], literals[0].results[0])
-
-    def test_missing_nested_attribute(self):
-        graph = export_graph(LinearWeight(nested=True, shared=False))
-        weight = next(node for node in graph.graph.nodes if node.op == "get_attr")
-        weight.target = "layer.missing"
-        with self.assertRaisesRegex(AssertionError, "layer.missing.*no such attribute"):
-            import_graph(graph)
+@run
+# CHECK-LABEL: test_flat_weight
+# CHECK: %[[WEIGHT:.+]] = torch.vtensor.literal
+# CHECK-NOT: torch.vtensor.literal
+# CHECK: torch.aten.linear %{{.*}}, %[[WEIGHT]],
+# CHECK-NOT: torch.vtensor.literal
+# CHECK-NOT: torch.aten.linear
+# CHECK: return
+def test_flat_weight():
+    print(import_graph(export_graph(LinearWeight(nested=False, shared=False))))
 
 
-if __name__ == "__main__":
-    unittest.main()
+@run
+# CHECK-LABEL: test_nested_weight
+# CHECK: %[[WEIGHT:.+]] = torch.vtensor.literal
+# CHECK-NOT: torch.vtensor.literal
+# CHECK: torch.aten.linear %{{.*}}, %[[WEIGHT]],
+# CHECK-NOT: torch.vtensor.literal
+# CHECK-NOT: torch.aten.linear
+# CHECK: return
+def test_nested_weight():
+    print(import_graph(export_graph(LinearWeight(nested=True, shared=False))))
+
+
+@run
+# CHECK-LABEL: test_flat_shared_weight
+# CHECK: %[[WEIGHT:.+]] = torch.vtensor.literal
+# CHECK-NOT: torch.vtensor.literal
+# CHECK: torch.aten.linear %{{.*}}, %[[WEIGHT]],
+# CHECK-NOT: torch.vtensor.literal
+# CHECK: torch.aten.linear %{{.*}}, %[[WEIGHT]],
+# CHECK-NOT: torch.vtensor.literal
+# CHECK-NOT: torch.aten.linear
+# CHECK: return
+def test_flat_shared_weight():
+    print(import_graph(export_graph(LinearWeight(nested=False, shared=True))))
+
+
+@run
+# CHECK-LABEL: test_nested_shared_weight
+# CHECK: %[[WEIGHT:.+]] = torch.vtensor.literal
+# CHECK-NOT: torch.vtensor.literal
+# CHECK: torch.aten.linear %{{.*}}, %[[WEIGHT]],
+# CHECK-NOT: torch.vtensor.literal
+# CHECK: torch.aten.linear %{{.*}}, %[[WEIGHT]],
+# CHECK-NOT: torch.vtensor.literal
+# CHECK-NOT: torch.aten.linear
+# CHECK: return
+def test_nested_shared_weight():
+    print(import_graph(export_graph(LinearWeight(nested=True, shared=True))))
+
+
+@run
+# CHECK-LABEL: test_nested_shared_list_operand
+# CHECK: %[[VALUE:.+]] = torch.vtensor.literal
+# CHECK-NOT: torch.vtensor.literal
+# CHECK: torch.prim.ListConstruct %{{.*}}, %[[VALUE]], %[[VALUE]]
+# CHECK-NOT: torch.vtensor.literal
+# CHECK: return
+def test_nested_shared_list_operand():
+    print(import_graph(export_graph(NestedBufferList())))
+
+
+@run
+# CHECK-LABEL: test_missing_nested_attribute
+# CHECK: layer.missing rejected
+def test_missing_nested_attribute():
+    graph = export_graph(LinearWeight(nested=True, shared=False))
+    weight = next(node for node in graph.graph.nodes if node.op == "get_attr")
+    weight.target = "layer.missing"
+    try:
+        import_graph(graph)
+    except AssertionError as exc:
+        assert "layer.missing" in str(exc) and "no such attribute" in str(exc)
+        print("layer.missing rejected")
+    else:
+        raise AssertionError("Missing nested attribute was imported")
