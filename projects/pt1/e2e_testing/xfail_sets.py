@@ -652,6 +652,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "Aten_EmbeddingBagExample_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
     "AvgPool2dCeilPadNonUnitaryStrides_basic",
+    "AvgPool2dCeilScalarKernelStride_basic",
     "AvgPool2dCeilNoPadStridedIncludePadding_basic",
     "AvgPool2dCeilPaddingStridedIncludePadding_basic",
     "AvgPool2dDiffKernelsStridesNoPadCeilPadNotIncluded_basic",

@@ -622,3 +622,21 @@ func.func @forward_avgpool_2d_exclude_pad_dilated_edge(%arg0: !torch.vtensor<[1,
   %3 = torch.aten.avg_pool2d %arg0, %0, %2, %1, %false, %false_1, %none : !torch.vtensor<[1,1,11,11],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1,1,1],f32>
   return %3 : !torch.vtensor<[1,1,1,1],f32>
 }
+
+// -----
+
+// An unbatched input has no N dim, so the spatial dims do not start at index 2.
+// PyTorch accepts this, but the lowering does not: it must bail rather than
+// index past the end of the shape.
+func.func @forward_avgpool_2d_unbatched(%arg0: !torch.vtensor<[3,10,10],f32>) -> !torch.vtensor<[3,4,4],f32> {
+  %int3 = torch.constant.int 3
+  %int0 = torch.constant.int 0
+  %true = torch.constant.bool true
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.avg_pool2d'}}
+  %3 = torch.aten.avg_pool2d %arg0, %0, %1, %2, %true, %true, %none : !torch.vtensor<[3,10,10],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[3,4,4],f32>
+  return %3 : !torch.vtensor<[3,4,4],f32>
+}

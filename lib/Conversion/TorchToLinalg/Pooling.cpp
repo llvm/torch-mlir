@@ -1171,8 +1171,13 @@ LogicalResult ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::matchAndRewrite(
   const TypeConverter *typeConverter = this->getTypeConverter();
   Value self = adaptor.getSelf();
 
-  Type inputElementType =
-      cast<RankedTensorType>(self.getType()).getElementType();
+  auto selfType = cast<RankedTensorType>(self.getType());
+  if (selfType.getRank() != Dim + 2)
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: only supports inputs with rank equal to the number "
+            "of spatial dimensions plus two");
+
+  Type inputElementType = selfType.getElementType();
   Type resultType = typeConverter->convertType(op.getType());
   Type resultElementType = cast<RankedTensorType>(resultType).getElementType();
 
