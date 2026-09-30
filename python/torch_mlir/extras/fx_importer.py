@@ -2572,6 +2572,8 @@ def _make_vtensor_literal_op(
                     .resolve_conj()
                     .resolve_neg()
                     .contiguous()
+                    # A singleton final dimension can retain a non-unit stride.
+                    .reshape(-1)
                     .view(torch.uint8)
                     .numpy()
                     .copy()

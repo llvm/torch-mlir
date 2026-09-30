@@ -15,7 +15,7 @@ import torch
 from torch._subclasses.fake_tensor import FakeTensor, FakeTensorMode
 from torch.fx.passes.shape_prop import _extract_tensor_metadata
 
-from torch_mlir import ir
+from torch_mlir import fx, ir
 from torch_mlir.dialects import torch as torch_dialect
 from torch_mlir.extras.fx_importer import FxImporter
 
@@ -134,6 +134,33 @@ class TensorLiteralTest(unittest.TestCase):
         del value, other
         gc.collect()
         self.assertEqual(resource_bytes(module), [expected, expected])
+
+    def test_contiguous_singleton_final_dimension_with_nonunit_stride(self):
+        tensor = torch.arange(6, dtype=torch.float32).reshape(1, 6).t()
+        self.assertTrue(tensor.is_contiguous())
+        self.assertEqual(tensor.stride(), (1, 6))
+        with patch.object(
+            torch.Tensor, "tolist", side_effect=AssertionError("tolist used")
+        ):
+            module = import_literals([tensor], fake_mode=True)
+        self.assertEqual(resource_bytes(module), [tensor.reshape(-1).numpy().tobytes()])
+        literal = module.body.operations[0].regions[0].blocks[0].operations[0]
+        self.assertEqual(
+            tuple(ir.ShapedType(literal.attributes["value"].type).shape),
+            tuple(tensor.shape),
+        )
+
+        class Model(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.register_buffer("weight", tensor)
+
+            def forward(self, x):
+                return x + self.weight
+
+        imported = fx.export_and_import(Model(), torch.zeros(6, 1))
+        self.assertTrue(imported.operation.verify())
+        self.assertEqual(resource_bytes(imported), [tensor.reshape(-1).numpy().tobytes()])
 
     @unittest.skipUnless(torch.cuda.is_available(), "requires CUDA")
     def test_cuda_literal_under_fake_mode(self):
