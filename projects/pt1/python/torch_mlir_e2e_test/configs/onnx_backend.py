@@ -94,7 +94,7 @@ def convert_onnx(model, inputs):
     return import_onnx(buffer)
 
 
-def _module_lowering(
+def module_lowering(
     verbose,
     output_type,
     torch_mod,
@@ -145,7 +145,7 @@ class OnnxBackendTestConfig(TestConfig):
     def compile(self, program: torch.nn.Module, verbose: bool = False) -> Any:
         example_args = convert_annotations_to_placeholders(program.forward)
         onnx_module = convert_onnx(program, example_args)
-        backend_module = _module_lowering(
+        backend_module = module_lowering(
             verbose, OutputType.get(self.output_type), onnx_module
         )
         compiled_module = self.backend.compile(backend_module)

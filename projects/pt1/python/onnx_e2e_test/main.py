@@ -11,7 +11,7 @@ reports results using the existing ``torch_mlir_e2e_test.reporting`` layer.
 
 Usage::
 
-    python -m onnx_e2e_test.main --config linalg -v --filter Add
+    python -m onnx_e2e_test.main --config linalg -v --filter 'OnnxAdd.*'
 """
 
 import argparse

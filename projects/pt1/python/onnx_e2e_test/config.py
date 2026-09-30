@@ -24,10 +24,8 @@ import onnx.reference
 from torch_mlir.compiler_utils import (
     OutputType,
     TensorPlaceholder,
-    lower_mlir_module,
-    run_pipeline_with_repro_report,
 )
-from torch_mlir_e2e_test.configs.onnx_backend import import_onnx
+from torch_mlir_e2e_test.configs.onnx_backend import import_onnx, module_lowering
 from torch_mlir_e2e_test.configs.utils import recursively_convert_from_numpy
 
 from .framework import _INPUT_RANGE_ATTR
@@ -133,16 +131,6 @@ def run_golden(
 # SUT evaluation via a torch-mlir Linalg backend
 # ---------------------------------------------------------------------------
 
-_BACKEND_LEGAL_OPS = [
-    "aten.flatten.using_ints",
-    "aten.adaptive_avg_pool1d",
-    "aten.unflatten.int",
-]
-_ONNX_TO_TORCH_PIPELINE = (
-    "builtin.module(torch-onnx-to-torch-backend-pipeline"
-    "{backend-legal-ops=" + ",".join(_BACKEND_LEGAL_OPS) + "})"
-)
-
 
 def run_backend(
     model_proto: onnx.ModelProto,
@@ -178,16 +166,12 @@ def run_backend(
     # Import to MLIR.
     mlir_module = import_onnx(serialized)
 
-    # Lower ONNX dialect -> Torch backend contract.
-    run_pipeline_with_repro_report(
-        mlir_module,
-        _ONNX_TO_TORCH_PIPELINE,
-        "Lowering ONNX Raw IR -> Torch Backend IR",
-    )
-
-    # Lower Torch backend contract -> requested backend dialect.
-    backend_module = lower_mlir_module(
-        verbose=False, output_type=OutputType.get(output_type), module=mlir_module
+    # Lower ONNX dialect -> Torch backend contract -> requested backend dialect,
+    # reusing the shared lowering sequence from the torch-level ONNX e2e config.
+    backend_module = module_lowering(
+        verbose=False,
+        output_type=OutputType.get(output_type),
+        torch_mod=mlir_module,
     )
 
     # Compile and run.
