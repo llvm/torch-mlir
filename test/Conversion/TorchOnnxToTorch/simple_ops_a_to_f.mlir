@@ -748,6 +748,35 @@ func.func @test_deform_conv(%arg0: !torch.vtensor<[1,1,7,6],f32>, %arg1: !torch.
 
 // -----
 
+// CHECK-LABEL: @test_dequantizelinear_missing_zp
+func.func @test_dequantizelinear_missing_zp(%arg0: !torch.vtensor<[6],si8>, %arg1: !torch.vtensor<[],f32>) -> !torch.vtensor<[6],f32> attributes {torch.onnx_meta.opset_version = 19 : si64} {
+  // CHECK-NOT: torch.aten.zeros_like
+  // CHECK: %[[SCALE:.+]] = torch.aten.item %arg1 : !torch.vtensor<[],f32> -> !torch.float
+  // CHECK-NEXT: %[[ZP:.+]] = torch.constant.int 0
+  // CHECK-NOT: torch.aten.zeros_like
+  // CHECK-NOT: torch.aten.item
+  // CHECK: %[[DEQ:.+]] = torch.quantized_decomposed.dequantize_per_tensor %arg0, %[[SCALE]], %[[ZP]],
+  // CHECK-NEXT: return %[[DEQ]]
+  %0 = torch.operator "onnx.DequantizeLinear"(%arg0, %arg1) : (!torch.vtensor<[6],si8>, !torch.vtensor<[],f32>) -> !torch.vtensor<[6],f32>
+  return %0 : !torch.vtensor<[6],f32>
+}
+
+// -----
+
+// CHECK-LABEL: @test_dequantizelinear_per_channel_missing_zp
+func.func @test_dequantizelinear_per_channel_missing_zp(%arg0: !torch.vtensor<[2,3],si8>, %arg1: !torch.vtensor<[3],f32>) -> !torch.vtensor<[2,3],f32> attributes {torch.onnx_meta.opset_version = 19 : si64} {
+  // CHECK-NOT: torch.aten.zeros_like
+  // CHECK: %[[ZP:.+]] = torch.constant.none
+  // CHECK-NOT: torch.aten.zeros_like
+  // CHECK: %[[DEQ:.+]] = torch.quantized_decomposed.dequantize_per_channel %arg0, %arg1, %[[ZP]],
+  // CHECK-SAME: : !torch.vtensor<[2,3],si8>, !torch.vtensor<[3],f32>, !torch.none,
+  // CHECK-NEXT: return %[[DEQ]]
+  %0 = torch.operator "onnx.DequantizeLinear"(%arg0, %arg1) {torch.onnx.axis = 1 : si64} : (!torch.vtensor<[2,3],si8>, !torch.vtensor<[3],f32>) -> !torch.vtensor<[2,3],f32>
+  return %0 : !torch.vtensor<[2,3],f32>
+}
+
+// -----
+
 // CHECK-LABEL: @test_dequantizelinear_si8
 func.func @test_dequantizelinear_si8(%arg0: !torch.vtensor<[6],si8>, %arg1: !torch.vtensor<[],f32>, %arg2: !torch.vtensor<[],si8>) -> !torch.vtensor<[6],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 19 : si64} {
   %0 = torch.operator "onnx.DequantizeLinear"(%arg0, %arg1, %arg2) : (!torch.vtensor<[6],si8>, !torch.vtensor<[],f32>, !torch.vtensor<[],si8>) -> !torch.vtensor<[6],f32>

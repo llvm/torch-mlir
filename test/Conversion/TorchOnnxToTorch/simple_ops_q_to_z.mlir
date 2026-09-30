@@ -5,6 +5,35 @@
 // level constants. This is a pragmatic choice which lets us have a lot
 // of tests in this file, whereas the others tend to be more bespoke.
 
+// CHECK-LABEL: @test_quantizelinear_missing_zp
+func.func @test_quantizelinear_missing_zp(%arg0: !torch.vtensor<[6],f32>, %arg1: !torch.vtensor<[],f32>) -> !torch.vtensor<[6],ui8> attributes {torch.onnx_meta.opset_version = 19 : si64} {
+  // CHECK-NOT: torch.aten.zeros_like
+  // CHECK: %[[SCALE:.+]] = torch.aten.item %arg1 : !torch.vtensor<[],f32> -> !torch.float
+  // CHECK-NEXT: %[[ZP:.+]] = torch.constant.int 0
+  // CHECK-NOT: torch.aten.zeros_like
+  // CHECK-NOT: torch.aten.item
+  // CHECK: %[[QUANT:.+]] = torch.quantized_decomposed.quantize_per_tensor %arg0, %[[SCALE]], %[[ZP]],
+  // CHECK-NEXT: return %[[QUANT]]
+  %0 = torch.operator "onnx.QuantizeLinear"(%arg0, %arg1) : (!torch.vtensor<[6],f32>, !torch.vtensor<[],f32>) -> !torch.vtensor<[6],ui8>
+  return %0 : !torch.vtensor<[6],ui8>
+}
+
+// -----
+
+// CHECK-LABEL: @test_quantizelinear_per_channel_missing_zp
+func.func @test_quantizelinear_per_channel_missing_zp(%arg0: !torch.vtensor<[2,?],f32>, %arg1: !torch.vtensor<[?],f32>) -> !torch.vtensor<[2,?],ui8> attributes {torch.onnx_meta.opset_version = 19 : si64} {
+  // CHECK: %[[DTYPE:.+]] = torch.constant.int 0
+  // CHECK: %[[NONE:.+]] = torch.constant.none
+  // CHECK: %[[ZP:.+]] = torch.aten.zeros_like %arg1, %[[DTYPE]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]]
+  // CHECK-SAME: -> !torch.vtensor<[?],ui8>
+  // CHECK: %[[QUANT:.+]] = torch.quantized_decomposed.quantize_per_channel %arg0, %arg1, %[[ZP]],
+  // CHECK-NEXT: return %[[QUANT]]
+  %0 = torch.operator "onnx.QuantizeLinear"(%arg0, %arg1) {torch.onnx.axis = 1 : si64} : (!torch.vtensor<[2,?],f32>, !torch.vtensor<[?],f32>) -> !torch.vtensor<[2,?],ui8>
+  return %0 : !torch.vtensor<[2,?],ui8>
+}
+
+// -----
+
 // CHECK-LABEL: @test_quantizelinear_si8
 func.func @test_quantizelinear_si8(%arg0: !torch.vtensor<[6],f32>, %arg1: !torch.vtensor<[],f32>, %arg2: !torch.vtensor<[],si8>) -> !torch.vtensor<[6],si8> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 19 : si64} {
   %0 = torch.operator "onnx.QuantizeLinear"(%arg0, %arg1, %arg2) : (!torch.vtensor<[6],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[],si8>) -> !torch.vtensor<[6],si8>
