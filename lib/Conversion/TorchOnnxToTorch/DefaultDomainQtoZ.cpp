@@ -4575,13 +4575,16 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           // Calculate the indices where each of the unique elements first
           // appeared in the original input tensor. Also, the counts tensor
           // and the indices tensor have the same Dtype, int64, so reuse
-          // that here.
+          // that here. The indices are taken along `axis` (the flattened
+          // input when `axis` is absent), so the arange spans `axisSize`.
+          if (axisSize == Torch::kUnknownSize)
+            return rewriter.notifyMatchFailure(
+                binder.op, "Expected input to have a static size along axis");
           auto arangeResultType = rewriter.getType<Torch::ValueTensorType>(
-              ArrayRef<int64_t>({inputShape[0]}), countsTy.getOptionalDtype());
+              ArrayRef<int64_t>({axisSize}), countsTy.getOptionalDtype());
 
           Value inputDimZero = Torch::ConstantIntOp::create(
-              rewriter, binder.getLoc(),
-              rewriter.getI64IntegerAttr(inputShape[0]));
+              rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(axisSize));
           Value int64Type = Torch::ConstantIntOp::create(
               rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(4));
           Value noneVal =
@@ -4592,21 +4595,19 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               /*dtype=*/int64Type,
               /*layout=*/noneVal, /*device=*/noneVal, /*pin_memory=*/noneVal);
 
-          // Inverse has the same shape as input, but the dtype is not the
-          // same.
+          // Inverse is 1-D and as long as the input along `axis`.
           Value flipDims = createConstantIntList(binder, rewriter, {0});
           Value inverse = Torch::AtenFlipOp::create(
-              rewriter, binder.getLoc(),
-              inputTy.getWithSizesAndDtype(inputShape, countsTy.getDtype()),
-              uniqueResults[1], flipDims);
+              rewriter, binder.getLoc(), inverseTy, uniqueResults[1], flipDims);
           perm = Torch::AtenFlipOp::create(
               rewriter, binder.getLoc(),
               cast<Torch::ValueTensorType>(perm.getType()), perm, flipDims);
 
           auto newInverseTy = rewriter.getType<Torch::ValueTensorType>(
-              ArrayRef<int64_t>({outputTy.getSizes()[0]}), countsTy.getDtype());
-          Value newInverseSize =
-              createConstantIntList(binder, rewriter, {outputTy.getSizes()[0]});
+              ArrayRef<int64_t>({outputTy.getSizes()[axisDim]}),
+              countsTy.getDtype());
+          Value newInverseSize = createConstantIntList(
+              binder, rewriter, {outputTy.getSizes()[axisDim]});
           Value newInverse = Torch::AtenNewEmptyOp::create(
               rewriter, binder.getLoc(), newInverseTy, inverse, newInverseSize,
               /*dtype=*/int64Type, /*layout=*/noneVal, /*device=*/noneVal,
