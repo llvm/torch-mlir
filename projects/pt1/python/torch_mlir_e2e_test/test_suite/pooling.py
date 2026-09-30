@@ -2782,6 +2782,38 @@ def AvgPool2dCeilPadNonUnitaryStrides_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 4, 4, low=-1))
 
 
+class AvgPool2dCeilScalarKernelStride(torch.nn.Module):
+    # The kernel and stride are given as scalars rather than per-dimension
+    # lists. The extent 6 is not a multiple of the stride, so the trailing
+    # ceil_mode window reads one element past the input on both spatial dims.
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=3,
+            stride=2,
+            padding=0,
+            ceil_mode=True,
+            count_include_pad=False,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 6, 6], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool2dCeilScalarKernelStride())
+def AvgPool2dCeilScalarKernelStride_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 6, 6, low=-1))
+
+
 class AvgPool2dCeilNoPadStridedIncludePadding(torch.nn.Module):
 
     def __init__(self):
