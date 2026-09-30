@@ -124,6 +124,224 @@ func.func @forward_max_pool3d(%arg0: !torch.vtensor<[?,?,?,?,?],f32>) -> !torch.
 
 // -----
 
+// Every window already fits in the unpadded input, so ceil_mode adds nothing.
+// CHECK-LABEL: func @forward_max_pool3d_ceil_mode_unit_kernel
+func.func @forward_max_pool3d_ceil_mode_unit_kernel(%arg0: !torch.vtensor<[1,3,64,33,56],f32>) -> !torch.vtensor<[1,3,58,29,56],f32> {
+  %int7 = torch.constant.int 7
+  %int5 = torch.constant.int 5
+  %int1 = torch.constant.int 1
+  %int0 = torch.constant.int 0
+  %true = torch.constant.bool true
+  %kernel_size = torch.prim.ListConstruct %int7, %int5, %int1 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int1, %int1, %int1 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int0, %int0, %int0 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %int1, %int1, %int1 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[IN:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[1,3,64,33,56],f32> -> tensor<1x3x64x33x56xf32>
+  // CHECK: %[[NEUTRAL:.*]] = arith.constant 0xFF800000 : f32
+  // CHECK: %[[PADDED:.*]] = tensor.pad %[[IN]] low[0, 0, 0, 0, 0] high[0, 0, 0, 0, 0]
+  // CHECK:   tensor.yield %[[NEUTRAL]] : f32
+  // CHECK: } : tensor<1x3x64x33x56xf32> to tensor<1x3x64x33x56xf32>
+  // CHECK: %[[OUT:.*]] = linalg.fill ins(%[[NEUTRAL]] : f32) outs(%{{.*}} : tensor<1x3x58x29x56xf32>) -> tensor<1x3x58x29x56xf32>
+  // CHECK: %[[KERNEL:.*]] = tensor.empty() : tensor<7x5x1xf32>
+  // CHECK: linalg.generic
+  // CHECK-SAME: ins(%[[PADDED]], %[[KERNEL]] : tensor<1x3x64x33x56xf32>, tensor<7x5x1xf32>)
+  // CHECK-SAME: outs(%[[OUT]] : tensor<1x3x58x29x56xf32>)
+  %4 = torch.aten.max_pool3d %arg0, %kernel_size, %stride, %padding, %dilation, %true : !torch.vtensor<[1,3,64,33,56],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,58,29,56],f32>
+  return %4 : !torch.vtensor<[1,3,58,29,56],f32>
+}
+
+// -----
+
+// The trailing window on the 10-wide dim starts at index 9 and reads through 11,
+// so high padding is the deficit of 2, not a whole stride of 3.
+// CHECK-LABEL: func @forward_max_pool3d_ceil_mode_partial_window
+func.func @forward_max_pool3d_ceil_mode_partial_window(%arg0: !torch.vtensor<[1,3,10,10,10],f32>) -> !torch.vtensor<[1,3,4,4,4],f32> {
+  %int3 = torch.constant.int 3
+  %int1 = torch.constant.int 1
+  %int0 = torch.constant.int 0
+  %true = torch.constant.bool true
+  %kernel_size = torch.prim.ListConstruct %int3, %int3, %int3 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int3, %int3, %int3 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int0, %int0, %int0 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %int1, %int1, %int1 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[IN:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[1,3,10,10,10],f32> -> tensor<1x3x10x10x10xf32>
+  // CHECK: %[[NEUTRAL:.*]] = arith.constant 0xFF800000 : f32
+  // CHECK: %[[PADDED:.*]] = tensor.pad %[[IN]] low[0, 0, 0, 0, 0] high[0, 0, 2, 2, 2]
+  // CHECK:   tensor.yield %[[NEUTRAL]] : f32
+  // CHECK: } : tensor<1x3x10x10x10xf32> to tensor<1x3x12x12x12xf32>
+  // CHECK: %[[OUT:.*]] = linalg.fill ins(%[[NEUTRAL]] : f32) outs(%{{.*}} : tensor<1x3x4x4x4xf32>) -> tensor<1x3x4x4x4xf32>
+  // CHECK: %[[KERNEL:.*]] = tensor.empty() : tensor<3x3x3xf32>
+  // CHECK: linalg.generic
+  // CHECK-SAME: ins(%[[PADDED]], %[[KERNEL]] : tensor<1x3x12x12x12xf32>, tensor<3x3x3xf32>)
+  // CHECK-SAME: outs(%[[OUT]] : tensor<1x3x4x4x4xf32>)
+  %4 = torch.aten.max_pool3d %arg0, %kernel_size, %stride, %padding, %dilation, %true : !torch.vtensor<[1,3,10,10,10],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,4,4,4],f32>
+  return %4 : !torch.vtensor<[1,3,4,4,4],f32>
+}
+
+// -----
+
+// Same overrun through the with_indices op, which shares the pooling helper.
+// CHECK-LABEL: func @forward_max_pool3d_with_indices_ceil_mode_partial_window
+func.func @forward_max_pool3d_with_indices_ceil_mode_partial_window(%arg0: !torch.vtensor<[1,3,10,10,10],f32>) -> (!torch.vtensor<[1,3,4,4,4],f32>, !torch.vtensor<[1,3,4,4,4],si64>) {
+  %int3 = torch.constant.int 3
+  %int1 = torch.constant.int 1
+  %int0 = torch.constant.int 0
+  %true = torch.constant.bool true
+  %kernel_size = torch.prim.ListConstruct %int3, %int3, %int3 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int3, %int3, %int3 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int0, %int0, %int0 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %int1, %int1, %int1 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[IN:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[1,3,10,10,10],f32> -> tensor<1x3x10x10x10xf32>
+  // CHECK: %[[NEUTRAL:.*]] = arith.constant 0xFF800000 : f32
+  // CHECK: %[[PADDED:.*]] = tensor.pad %[[IN]] low[0, 0, 0, 0, 0] high[0, 0, 2, 2, 2]
+  // CHECK:   tensor.yield %[[NEUTRAL]] : f32
+  // CHECK: } : tensor<1x3x10x10x10xf32> to tensor<1x3x12x12x12xf32>
+  // CHECK: %[[OUT:.*]] = linalg.fill ins(%[[NEUTRAL]] : f32) outs(%{{.*}} : tensor<1x3x4x4x4xf32>) -> tensor<1x3x4x4x4xf32>
+  // CHECK: %[[KERNEL:.*]] = tensor.empty() : tensor<3x3x3xf32>
+  // CHECK: linalg.generic
+  // CHECK-SAME: ins(%[[PADDED]], %[[KERNEL]] : tensor<1x3x12x12x12xf32>, tensor<3x3x3xf32>)
+  // CHECK-SAME: outs(%[[OUT]] : tensor<1x3x4x4x4xf32>)
+  %4, %5 = torch.aten.max_pool3d_with_indices %arg0, %kernel_size, %stride, %padding, %dilation, %true : !torch.vtensor<[1,3,10,10,10],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,4,4,4],f32>, !torch.vtensor<[1,3,4,4,4],si64>
+  return %4, %5 : !torch.vtensor<[1,3,4,4,4],f32>, !torch.vtensor<[1,3,4,4,4],si64>
+}
+
+// -----
+
+// A dynamic spatial dim has no static deficit, so a stride above 1 falls back to
+// one stride of padding.
+// CHECK-LABEL: func @forward_max_pool3d_ceil_mode_dynamic_dim
+func.func @forward_max_pool3d_ceil_mode_dynamic_dim(%arg0: !torch.vtensor<[1,3,?,10,10],f32>) -> !torch.vtensor<[1,3,?,4,4],f32> {
+  %int3 = torch.constant.int 3
+  %int1 = torch.constant.int 1
+  %int0 = torch.constant.int 0
+  %true = torch.constant.bool true
+  %kernel_size = torch.prim.ListConstruct %int3, %int3, %int3 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int3, %int3, %int3 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int0, %int0, %int0 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %int1, %int1, %int1 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[IN:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[1,3,?,10,10],f32> -> tensor<1x3x?x10x10xf32>
+  // CHECK: %[[NEUTRAL:.*]] = arith.constant 0xFF800000 : f32
+  // CHECK: %[[PADDED:.*]] = tensor.pad %[[IN]] low[0, 0, 0, 0, 0] high[0, 0, 3, 2, 2]
+  // CHECK:   tensor.yield %[[NEUTRAL]] : f32
+  // CHECK: } : tensor<1x3x?x10x10xf32> to tensor<1x3x?x12x12xf32>
+  // CHECK: %[[OUT:.*]] = linalg.fill ins(%[[NEUTRAL]] : f32) outs(%{{.*}} : tensor<1x3x?x4x4xf32>) -> tensor<1x3x?x4x4xf32>
+  // CHECK: %[[KERNEL:.*]] = tensor.empty() : tensor<3x3x3xf32>
+  // CHECK: linalg.generic
+  // CHECK-SAME: ins(%[[PADDED]], %[[KERNEL]] : tensor<1x3x?x12x12xf32>, tensor<3x3x3xf32>)
+  // CHECK-SAME: outs(%[[OUT]] : tensor<1x3x?x4x4xf32>)
+  %4 = torch.aten.max_pool3d %arg0, %kernel_size, %stride, %padding, %dilation, %true : !torch.vtensor<[1,3,?,10,10],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,?,4,4],f32>
+  return %4 : !torch.vtensor<[1,3,?,4,4],f32>
+}
+
+// -----
+
+// A unit stride has zero deficit at any extent, so no padding is needed.
+// CHECK-LABEL: func @forward_max_pool3d_ceil_mode_dynamic_dim_unit_stride
+func.func @forward_max_pool3d_ceil_mode_dynamic_dim_unit_stride(%arg0: !torch.vtensor<[1,3,?,10,10],f32>) -> !torch.vtensor<[1,3,?,4,4],f32> {
+  %int3 = torch.constant.int 3
+  %int1 = torch.constant.int 1
+  %int0 = torch.constant.int 0
+  %true = torch.constant.bool true
+  %kernel_size = torch.prim.ListConstruct %int1, %int3, %int3 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int1, %int3, %int3 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int0, %int0, %int0 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %int1, %int1, %int1 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[IN:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[1,3,?,10,10],f32> -> tensor<1x3x?x10x10xf32>
+  // CHECK: %[[NEUTRAL:.*]] = arith.constant 0xFF800000 : f32
+  // CHECK: %[[PADDED:.*]] = tensor.pad %[[IN]] low[0, 0, 0, 0, 0] high[0, 0, 0, 2, 2]
+  // CHECK:   tensor.yield %[[NEUTRAL]] : f32
+  // CHECK: } : tensor<1x3x?x10x10xf32> to tensor<1x3x?x12x12xf32>
+  // CHECK: %[[OUT:.*]] = linalg.fill ins(%[[NEUTRAL]] : f32) outs(%{{.*}} : tensor<1x3x?x4x4xf32>) -> tensor<1x3x?x4x4xf32>
+  // CHECK: %[[KERNEL:.*]] = tensor.empty() : tensor<1x3x3xf32>
+  // CHECK: linalg.generic
+  // CHECK-SAME: ins(%[[PADDED]], %[[KERNEL]] : tensor<1x3x?x12x12xf32>, tensor<1x3x3xf32>)
+  // CHECK-SAME: outs(%[[OUT]] : tensor<1x3x?x4x4xf32>)
+  %4 = torch.aten.max_pool3d %arg0, %kernel_size, %stride, %padding, %dilation, %true : !torch.vtensor<[1,3,?,10,10],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,?,4,4],f32>
+  return %4 : !torch.vtensor<[1,3,?,4,4],f32>
+}
+
+// -----
+
+// Explicit padding counts toward what the last window reads: the deficit is 1
+// on top of the requested 1, so high is 2 rather than the stride of 3.
+// CHECK-LABEL: func @forward_max_pool2d_ceil_mode_explicit_padding
+func.func @forward_max_pool2d_ceil_mode_explicit_padding(%arg0: !torch.vtensor<[1,3,7,7],f32>) -> !torch.vtensor<[1,3,3,3],f32> {
+  %int4 = torch.constant.int 4
+  %int3 = torch.constant.int 3
+  %int1 = torch.constant.int 1
+  %true = torch.constant.bool true
+  %kernel_size = torch.prim.ListConstruct %int4, %int4 : (!torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[IN:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[1,3,7,7],f32> -> tensor<1x3x7x7xf32>
+  // CHECK: %[[NEUTRAL:.*]] = arith.constant 0xFF800000 : f32
+  // CHECK: %[[PADDED:.*]] = tensor.pad %[[IN]] low[0, 0, 1, 1] high[0, 0, 2, 2]
+  // CHECK:   tensor.yield %[[NEUTRAL]] : f32
+  // CHECK: } : tensor<1x3x7x7xf32> to tensor<1x3x10x10xf32>
+  // CHECK: %[[OUT:.*]] = linalg.fill ins(%[[NEUTRAL]] : f32) outs(%{{.*}} : tensor<1x3x3x3xf32>) -> tensor<1x3x3x3xf32>
+  // CHECK: %[[KERNEL:.*]] = tensor.empty() : tensor<4x4xf32>
+  // CHECK: linalg.pooling_nchw_max {dilations = dense<1> : vector<2xi64>, strides = dense<3> : vector<2xi64>}
+  // CHECK-SAME: ins(%[[PADDED]], %[[KERNEL]] : tensor<1x3x10x10xf32>, tensor<4x4xf32>)
+  // CHECK-SAME: outs(%[[OUT]] : tensor<1x3x3x3xf32>)
+  %4 = torch.aten.max_pool2d %arg0, %kernel_size, %stride, %padding, %dilation, %true : !torch.vtensor<[1,3,7,7],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,3,3],f32>
+  return %4 : !torch.vtensor<[1,3,3,3],f32>
+}
+
+// -----
+
+// The window ceil division asks for is dropped when it starts past the input
+// plus low padding alone: kernel 3 stride 4 puts it at index 8, past 7 + 1, so
+// nothing is added beyond the requested padding of 1.
+// CHECK-LABEL: func @forward_max_pool2d_ceil_mode_dropped_window_with_padding
+func.func @forward_max_pool2d_ceil_mode_dropped_window_with_padding(%arg0: !torch.vtensor<[1,3,7,7],f32>) -> !torch.vtensor<[1,3,2,2],f32> {
+  %int4 = torch.constant.int 4
+  %int3 = torch.constant.int 3
+  %int1 = torch.constant.int 1
+  %true = torch.constant.bool true
+  %kernel_size = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int4, %int4 : (!torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[IN:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[1,3,7,7],f32> -> tensor<1x3x7x7xf32>
+  // CHECK: %[[NEUTRAL:.*]] = arith.constant 0xFF800000 : f32
+  // CHECK: %[[PADDED:.*]] = tensor.pad %[[IN]] low[0, 0, 1, 1] high[0, 0, 1, 1]
+  // CHECK:   tensor.yield %[[NEUTRAL]] : f32
+  // CHECK: } : tensor<1x3x7x7xf32> to tensor<1x3x9x9xf32>
+  // CHECK: %[[OUT:.*]] = linalg.fill ins(%[[NEUTRAL]] : f32) outs(%{{.*}} : tensor<1x3x2x2xf32>) -> tensor<1x3x2x2xf32>
+  // CHECK: %[[KERNEL:.*]] = tensor.empty() : tensor<3x3xf32>
+  // CHECK: linalg.pooling_nchw_max {dilations = dense<1> : vector<2xi64>, strides = dense<4> : vector<2xi64>}
+  // CHECK-SAME: ins(%[[PADDED]], %[[KERNEL]] : tensor<1x3x9x9xf32>, tensor<3x3xf32>)
+  // CHECK-SAME: outs(%[[OUT]] : tensor<1x3x2x2xf32>)
+  %4 = torch.aten.max_pool2d %arg0, %kernel_size, %stride, %padding, %dilation, %true : !torch.vtensor<[1,3,7,7],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,2,2],f32>
+  return %4 : !torch.vtensor<[1,3,2,2],f32>
+}
+
+// -----
+
+// A non-constant kernel size makes the deficit unknown, so both spatial dims
+// fall back to one stride of padding.
+// CHECK-LABEL: func @forward_max_pool2d_ceil_mode_dynamic_kernel
+func.func @forward_max_pool2d_ceil_mode_dynamic_kernel(%arg0: !torch.vtensor<[1,3,10,10],f32>, %arg1: !torch.int) -> !torch.vtensor<[1,3,?,?],f32> {
+  %int3 = torch.constant.int 3
+  %int1 = torch.constant.int 1
+  %int0 = torch.constant.int 0
+  %true = torch.constant.bool true
+  %kernel_size = torch.prim.ListConstruct %arg1, %arg1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[IN:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[1,3,10,10],f32> -> tensor<1x3x10x10xf32>
+  // CHECK: %[[NEUTRAL:.*]] = arith.constant 0xFF800000 : f32
+  // CHECK: %[[PADDED:.*]] = tensor.pad %[[IN]] low[0, 0, 0, 0] high[0, 0, 3, 3]
+  // CHECK:   tensor.yield %[[NEUTRAL]] : f32
+  // CHECK: } : tensor<1x3x10x10xf32> to tensor<1x3x13x13xf32>
+  %4 = torch.aten.max_pool2d %arg0, %kernel_size, %stride, %padding, %dilation, %true : !torch.vtensor<[1,3,10,10],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,?,?],f32>
+  return %4 : !torch.vtensor<[1,3,?,?],f32>
+}
+
+// -----
+
 // CHECK: #map = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>
 // CHECK-LABEL: func @forward_avg_pool2d
 func.func @forward_avg_pool2d(%arg0: !torch.vtensor<[1,3,64,56],f32>) -> !torch.vtensor<[1,3, 61,27],f32> {
@@ -266,7 +484,12 @@ func.func @forward_avg_pool1d_countincludepad_false(%arg0: !torch.vtensor<[1,512
 
 // CHECK-LABEL: func @forward_avgpool_2d_ceil
 func.func @forward_avgpool_2d_ceil(%arg0: !torch.vtensor<[1,1,4,4],f32>) -> !torch.vtensor<[1,1,2,2],f32> {
-  // CHECK: %[[POOL_OUT:.*]] = linalg.pooling_nchw_sum {dilations = dense<1> : vector<2xi64>, strides = dense<2> : vector<2xi64>} ins(%[[PADDED_IN:.*]], %[[KERNEL_IN:.*]] : tensor<1x1x6x6xf32>, tensor<3x3xf32>) outs(%[[OUT1:.*]] : tensor<1x1x2x2xf32>) -> tensor<1x1x2x2xf32>
+  // CHECK: %[[IN:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[1,1,4,4],f32> -> tensor<1x1x4x4xf32>
+  // CHECK: %[[PADDED:.*]] = tensor.pad %[[IN]] low[0, 0, 0, 0] high[0, 0, 1, 1]
+  // CHECK: } : tensor<1x1x4x4xf32> to tensor<1x1x5x5xf32>
+  // CHECK: %[[OUT1:.*]] = linalg.fill
+  // CHECK: %[[KERNEL_IN:.*]] = tensor.empty() : tensor<3x3xf32>
+  // CHECK: %[[POOL_OUT:.*]] = linalg.pooling_nchw_sum {dilations = dense<1> : vector<2xi64>, strides = dense<2> : vector<2xi64>} ins(%[[PADDED]], %[[KERNEL_IN]] : tensor<1x1x5x5xf32>, tensor<3x3xf32>) outs(%[[OUT1]] : tensor<1x1x2x2xf32>) -> tensor<1x1x2x2xf32>
   // CHECK: linalg.generic {indexing_maps = [#map1, #map1], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%[[POOL_OUT]] : tensor<1x1x2x2xf32>) outs(%[[GEN_OUT:.*]] : tensor<1x1x2x2xf32>) {
   // CHECK-NEXT:  ^bb0(%[[BIN1:.*]]: f32, %[[BOUT1:.*]]: f32):
   // CHECK-COUNT-3: arith.muli
@@ -297,8 +520,14 @@ func.func @forward_avgpool_2d_ceil(%arg0: !torch.vtensor<[1,1,4,4],f32>) -> !tor
 // CHECK: #[[$MAP:.*]] = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>
 // CHECK-LABEL: func @forward_avgpool_2d_ceil_dilated
 func.func @forward_avgpool_2d_ceil_dilated(%arg0: !torch.vtensor<[1,1,7,7],f32>) -> !torch.vtensor<[1,1,2,2],f32> {
-  // Sum pool uses dilation=2:
+  // Sum pool uses dilation=2, and ceil_mode pads by the dilated-kernel deficit
+  // of 1 rather than by the stride:
+  // CHECK: %[[IN:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[1,1,7,7],f32> -> tensor<1x1x7x7xf32>
+  // CHECK: %[[PADDED:.*]] = tensor.pad %[[IN]] low[0, 0, 0, 0] high[0, 0, 1, 1]
+  // CHECK: } : tensor<1x1x7x7xf32> to tensor<1x1x8x8xf32>
+  // CHECK: %[[KERNEL:.*]] = tensor.empty() : tensor<3x3xf32>
   // CHECK: linalg.pooling_nchw_sum {dilations = dense<2> : vector<2xi64>, strides = dense<3> : vector<2xi64>}
+  // CHECK-SAME: ins(%[[PADDED]], %[[KERNEL]] : tensor<1x1x8x8xf32>, tensor<3x3xf32>)
 
   // The divisor generic uses dilation to count valid taps per dim:
   // effectiveKernel = (3-1)*2+1 = 5, then ceildivsi to count valid taps.
@@ -392,4 +621,22 @@ func.func @forward_avgpool_2d_exclude_pad_dilated_edge(%arg0: !torch.vtensor<[1,
   %none = torch.constant.none
   %3 = torch.aten.avg_pool2d %arg0, %0, %2, %1, %false, %false_1, %none : !torch.vtensor<[1,1,11,11],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1,1,1],f32>
   return %3 : !torch.vtensor<[1,1,1,1],f32>
+}
+
+// -----
+
+// An unbatched input has no N dim, so the spatial dims do not start at index 2.
+// PyTorch accepts this, but the lowering does not: it must bail rather than
+// index past the end of the shape.
+func.func @forward_avgpool_2d_unbatched(%arg0: !torch.vtensor<[3,10,10],f32>) -> !torch.vtensor<[3,4,4],f32> {
+  %int3 = torch.constant.int 3
+  %int0 = torch.constant.int 0
+  %true = torch.constant.bool true
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.avg_pool2d'}}
+  %3 = torch.aten.avg_pool2d %arg0, %0, %1, %2, %true, %true, %none : !torch.vtensor<[3,10,10],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[3,4,4],f32>
+  return %3 : !torch.vtensor<[3,4,4],f32>
 }

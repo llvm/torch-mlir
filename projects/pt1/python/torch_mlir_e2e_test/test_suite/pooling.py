@@ -796,6 +796,33 @@ def MaxPool3dCeilModeTrueModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 20, 20, 20, low=0.5, high=1.0))
 
 
+class MaxPool3dStaticCeilModeUnitKernelDimModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.mp3d = torch.nn.MaxPool3d(
+            kernel_size=[7, 5, 1],
+            stride=[1, 1, 1],
+            padding=[0, 0, 0],
+            dilation=[1, 1, 1],
+            ceil_mode=True,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 3, 64, 33, 56], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.mp3d(x)
+
+
+@register_test_case(module_factory=lambda: MaxPool3dStaticCeilModeUnitKernelDimModule())
+def MaxPool3dStaticCeilModeUnitKernelDimModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 3, 64, 33, 56, low=0.5, high=1.0))
+
+
 class MaxPool3dSingleIntTupleDilationModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -2753,6 +2780,38 @@ class AvgPool2dCeilPadNonUnitaryStrides(torch.nn.Module):
 @register_test_case(module_factory=lambda: AvgPool2dCeilPadNonUnitaryStrides())
 def AvgPool2dCeilPadNonUnitaryStrides_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 4, 4, low=-1))
+
+
+class AvgPool2dCeilScalarKernelStride(torch.nn.Module):
+    # The kernel and stride are given as scalars rather than per-dimension
+    # lists. The extent 6 is not a multiple of the stride, so the trailing
+    # ceil_mode window reads one element past the input on both spatial dims.
+
+    def __init__(self):
+        super().__init__()
+        self.ap2d = torch.nn.AvgPool2d(
+            kernel_size=3,
+            stride=2,
+            padding=0,
+            ceil_mode=True,
+            count_include_pad=False,
+            divisor_override=None,
+        )
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 6, 6], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return self.ap2d(x)
+
+
+@register_test_case(module_factory=lambda: AvgPool2dCeilScalarKernelStride())
+def AvgPool2dCeilScalarKernelStride_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 6, 6, low=-1))
 
 
 class AvgPool2dCeilNoPadStridedIncludePadding(torch.nn.Module):

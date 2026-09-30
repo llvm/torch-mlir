@@ -115,6 +115,8 @@ static Value padInputTensor(Operation *op, ConversionPatternRewriter &rewriter,
                             Value self, bool ceilMode, int64_t dimensionality,
                             SmallVectorImpl<int64_t> &strideInts,
                             SmallVectorImpl<int64_t> &paddingInts,
+                            SmallVectorImpl<int64_t> &dilationInts,
+                            SmallVectorImpl<Value> &kernelSizeIntValues,
                             Value initValue) {
   SmallVector<int64_t> lowPaddingIncludingNC = {0, 0};
   SmallVector<int64_t> highPaddingIncludingNC = {0, 0};
@@ -135,8 +137,36 @@ static Value padInputTensor(Operation *op, ConversionPatternRewriter &rewriter,
   }
 
   if (ceilMode) {
+    ArrayRef<int64_t> inputShape =
+        cast<RankedTensorType>(self.getType()).getShape();
     for (int64_t i = 0; i < dimensionality; ++i) {
-      highPaddingIncludingNC[i + 2] += strideInts[i];
+      int64_t inputDim = inputShape[i + 2];
+      std::optional<int64_t> kernelSize =
+          getConstantIntValue(kernelSizeIntValues[i]);
+      int64_t stride = strideInts[i];
+      // A unit stride has zero deficit at any extent or kernel size, so this
+      // also covers dynamic dimensions.
+      if (stride == 1)
+        continue;
+      if (inputDim == ShapedType::kDynamic || !kernelSize) {
+        // Without static extents, pad by the largest deficit a window can have.
+        highPaddingIncludingNC[i + 2] += stride;
+        continue;
+      }
+      // Pad only up to what the last window reads. `lastWindowStart` mirrors
+      // torch_to_linalg::getOutputDimForPoolOps, including its drop of a window
+      // starting entirely inside the padded region.
+      int64_t totalPadding =
+          lowPaddingIncludingNC[i + 2] + highPaddingIncludingNC[i + 2];
+      int64_t dilatedKernel = dilationInts[i] * (*kernelSize - 1) + 1;
+      int64_t lastWindowStart =
+          llvm::divideCeilSigned(inputDim + totalPadding - dilatedKernel,
+                                 stride) *
+          stride;
+      if (lastWindowStart >= inputDim + lowPaddingIncludingNC[i + 2])
+        lastWindowStart -= stride;
+      highPaddingIncludingNC[i + 2] += std::max<int64_t>(
+          0, lastWindowStart + dilatedKernel - (inputDim + totalPadding));
     }
   }
 
@@ -163,8 +193,9 @@ static LogicalResult createPoolingOp(
   Value initValue =
       arith::ConstantOp::create(rewriter, loc, cast<TypedAttr>(initValueAttr));
 
-  paddedInput = padInputTensor(op, rewriter, self, ceilMode, dimensionality,
-                               strideInts, paddingInts, initValue);
+  paddedInput =
+      padInputTensor(op, rewriter, self, ceilMode, dimensionality, strideInts,
+                     paddingInts, dilationInts, kernelSizeIntValues, initValue);
 
   auto outTensorInitialized = computeOutputTensor(
       op, rewriter, self, dimensionality, ceilMode, strideInts, paddingInts,
@@ -453,8 +484,9 @@ private:
     Value initValue =
         arith::ConstantOp::create(rewriter, op->getLoc(), smallestFPValueAttr);
 
-    paddedInput = padInputTensor(op, rewriter, self, ceilMode, 3, strideInts,
-                                 paddingInts, initValue);
+    paddedInput =
+        padInputTensor(op, rewriter, self, ceilMode, 3, strideInts, paddingInts,
+                       dilationInts, kernelSizeIntValues, initValue);
 
     auto outTensorInitialized = computeOutputTensor(
         op, rewriter, self, 3, ceilMode, strideInts, paddingInts, dilationInts,
@@ -1139,8 +1171,13 @@ LogicalResult ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::matchAndRewrite(
   const TypeConverter *typeConverter = this->getTypeConverter();
   Value self = adaptor.getSelf();
 
-  Type inputElementType =
-      cast<RankedTensorType>(self.getType()).getElementType();
+  auto selfType = cast<RankedTensorType>(self.getType());
+  if (selfType.getRank() != Dim + 2)
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: only supports inputs with rank equal to the number "
+            "of spatial dimensions plus two");
+
+  Type inputElementType = selfType.getElementType();
   Type resultType = typeConverter->convertType(op.getType());
   Type resultElementType = cast<RankedTensorType>(resultType).getElementType();
 
