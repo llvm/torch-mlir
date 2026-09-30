@@ -160,7 +160,9 @@ class TensorLiteralTest(unittest.TestCase):
 
         imported = fx.export_and_import(Model(), torch.zeros(6, 1))
         self.assertTrue(imported.operation.verify())
-        self.assertEqual(resource_bytes(imported), [tensor.reshape(-1).numpy().tobytes()])
+        self.assertEqual(
+            resource_bytes(imported), [tensor.reshape(-1).numpy().tobytes()]
+        )
 
     @unittest.skipUnless(torch.cuda.is_available(), "requires CUDA")
     def test_cuda_literal_under_fake_mode(self):
