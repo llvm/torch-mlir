@@ -209,3 +209,22 @@ func.func @elementwise_bitwise_right_shift_tensor_unsigned(%arg0: !torch.vtensor
   %0 = torch.aten.bitwise_right_shift.Tensor %arg0, %arg1 : !torch.vtensor<[?],ui8>, !torch.vtensor<[?],ui8> -> !torch.vtensor<[?],ui8>
   return %0 : !torch.vtensor<[?],ui8>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_sinc(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[IN:.*]]: f32, %{{.*}}: f32):
+// CHECK-DAG:         %[[PI:.*]] = arith.constant 3.14159{{.*}} : f32
+// CHECK-DAG:         %[[ZERO:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK-DAG:         %[[ONE:.*]] = arith.constant 1.000000e+00 : f32
+// CHECK:             %[[PIX:.*]] = arith.mulf %[[IN]], %[[PI]] : f32
+// CHECK:             %[[SIN:.*]] = math.sin %[[PIX]] : f32
+// CHECK:             %[[DIV:.*]] = arith.divf %[[SIN]], %[[PIX]] : f32
+// CHECK:             %[[CMP:.*]] = arith.cmpf oeq, %[[IN]], %[[ZERO]] : f32
+// CHECK:             %[[SEL:.*]] = arith.select %[[CMP]], %[[ONE]], %[[DIV]] : f32
+// CHECK:             linalg.yield %[[SEL]] : f32
+func.func @elementwise_sinc(%arg0: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?],f32> {
+  %0 = torch.aten.sinc %arg0 : !torch.vtensor<[?],f32> -> !torch.vtensor<[?],f32>
+  return %0 : !torch.vtensor<[?],f32>
+}
