@@ -38,6 +38,9 @@ ONNX_E2E_TOSA_XFAIL_SET = {
     # OnnxAdd_f32_dynamicInput: TOSA -> linalg -> RefBackend fails to bufferize
     # a dynamic-shaped tensor ("bufferization.dealloc ... marked illegal").
     "OnnxAdd_f32_dynamicInput",
+    # OnnxAveragePool2d_countIncludePad_asymmetricPadsDilated: tosa.avg_pool2d
+    # has no dilation, so the torch -> tosa pooling lowering rejects it.
+    "OnnxAveragePool2d_countIncludePad_asymmetricPadsDilated",
 }
 
 ONNX_E2E_TOSA_CRASHING_SET = set()

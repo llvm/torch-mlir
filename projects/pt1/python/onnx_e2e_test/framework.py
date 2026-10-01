@@ -164,7 +164,9 @@ class OnnxTestCase:
     ``unique_name``.  ``graph`` returns ``(nodes, output_names[, initializers])``
     where ``output_names`` is the list of graph output tensor names.  The base
     infers each output's shape and dtype by running the model once through
-    ``onnx.reference`` — authors never declare output shapes.  Example::
+    ``onnx.reference`` — authors never declare output shapes.  A subclass that
+    needs an op version newer than the default opset overrides ``opset``.
+    Example::
 
         @register_onnx_test
         class OnnxAdd_f32_basic(OnnxTestCase):
@@ -175,6 +177,9 @@ class OnnxTestCase:
             def graph(self):
                 return [onnx.helper.make_node("Add", ["x", "y"], ["z"])], ["z"]
     """
+
+    # ONNX opset the model imports; the probe and final models share it.
+    opset: int = _DEFAULT_OPSET
 
     def graph(self):
         raise NotImplementedError
@@ -236,7 +241,12 @@ class OnnxTestCase:
             onnx.helper.make_empty_tensor_value_info(name) for name in output_names
         ]
         probe_model = build_model(
-            nodes, input_infos, probe_outputs, initializers=initializers, validate=False
+            nodes,
+            input_infos,
+            probe_outputs,
+            initializers=initializers,
+            opset=cls.opset,
+            validate=False,
         )
         numpy_inputs = materialize_inputs(cls.input_placeholders(), seed=0)
         feed = {
@@ -254,4 +264,6 @@ class OnnxTestCase:
             )
             for name, arr in zip(output_names, golden)
         ]
-        return build_model(nodes, input_infos, output_infos, initializers=initializers)
+        return build_model(
+            nodes, input_infos, output_infos, initializers=initializers, opset=cls.opset
+        )

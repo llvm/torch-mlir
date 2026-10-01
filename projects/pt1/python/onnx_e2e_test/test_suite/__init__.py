@@ -15,6 +15,7 @@ def register_all_tests():
     # Imported only to run their @register_onnx_test side effects.
     from . import elementwise  # noqa: F401
     from . import linear  # noqa: F401
+    from . import pooling  # noqa: F401
     from . import recurrent  # noqa: F401
     from . import signal  # noqa: F401
     from . import reduction  # noqa: F401
