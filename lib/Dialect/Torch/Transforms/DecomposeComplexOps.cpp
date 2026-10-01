@@ -13747,6 +13747,116 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.meshgrid.indexing` op into `aten.reshape` + `aten.broadcast_to`
+// For N input 1D tensors with sizes [L0, L1, ..., L(N-1)]:
+//   - With indexing="ij": output grid shape is [L0, L1, ..., L(N-1)]
+//     tensor i is reshaped to [1, ..., Li, ..., 1] (Li at position i)
+//     then broadcast to the full grid shape.
+//   - With indexing="xy": same as "ij" but the first two inputs are swapped
+//     in the grid (tensor 0 varies along dim 1, tensor 1 varies along dim 0).
+class DecomposeAtenMeshgridIndexingOp
+    : public OpRewritePattern<AtenMeshgridIndexingOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenMeshgridIndexingOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    MLIRContext *context = op.getContext();
+
+    SmallVector<Value> tensors;
+    if (!getListConstructElements(op.getTensors(), tensors))
+      return rewriter.notifyMatchFailure(op, "Unable to get tensors");
+
+    int64_t numTensors = tensors.size();
+    if (numTensors == 0) {
+      rewriter.replaceOpWithNewOp<PrimListConstructOp>(op, op.getType(),
+                                                       SmallVector<Value>{});
+      return success();
+    }
+
+    std::string indexing;
+    if (!matchPattern(op.getIndexing(), m_TorchConstantStr(indexing)))
+      return rewriter.notifyMatchFailure(op, "Unable to get indexing");
+
+    if (indexing != "ij" && indexing != "xy")
+      return rewriter.notifyMatchFailure(op, "Indexing must be 'ij' or 'xy'");
+
+    bool swapFirstTwo = (indexing == "xy" && numTensors >= 2);
+
+    // For "xy" indexing, swap the first two tensors so that in the grid,
+    // tensor 0 varies along dim 1 and tensor 1 varies along dim 0.
+    if (swapFirstTwo)
+      std::swap(tensors[0], tensors[1]);
+
+    // Compute the size of each input tensor (as SSA values and static sizes).
+    SmallVector<Value> tensorSizeValues;
+    SmallVector<int64_t> tensorStaticSizes;
+    tensorSizeValues.reserve(numTensors);
+    tensorStaticSizes.reserve(numTensors);
+
+    for (int64_t i = 0; i < numTensors; ++i) {
+      tensorSizeValues.push_back(
+          AtenNumelOp::create(rewriter, loc, tensors[i]));
+      auto tensorTy = dyn_cast<BaseTensorType>(tensors[i].getType());
+      if (tensorTy && tensorTy.hasSizes() && !tensorTy.getSizes().empty()) {
+        tensorStaticSizes.push_back(tensorTy.getSizes()[0]);
+      } else {
+        tensorStaticSizes.push_back(Torch::kUnknownSize);
+      }
+    }
+
+    // Build the grid shape list: [L0, L1, ..., L(N-1)]
+    Value gridShapeList = PrimListConstructOp::create(
+        rewriter, loc, ListType::get(IntType::get(context)), tensorSizeValues);
+
+    Value cstOne =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
+
+    SmallVector<Value> meshgrids;
+    for (int64_t i = 0; i < numTensors; ++i) {
+      auto tensorTy = dyn_cast<BaseTensorType>(tensors[i].getType());
+      if (!tensorTy)
+        return rewriter.notifyMatchFailure(op, "Expected BaseTensorType");
+      Type dtype = tensorTy.getOptionalDtype();
+
+      // Build reshape shape: [1, ..., Li, ..., 1] with Li at position i
+      SmallVector<Value> reshapeShapeValues(numTensors, cstOne);
+      reshapeShapeValues[i] = tensorSizeValues[i];
+      SmallVector<int64_t> reshapeStaticShape(numTensors, 1);
+      reshapeStaticShape[i] = tensorStaticSizes[i];
+
+      Value reshapeShapeList = PrimListConstructOp::create(
+          rewriter, loc, ListType::get(IntType::get(context)),
+          reshapeShapeValues);
+
+      Type reshapeType = ValueTensorType::get(
+          context, llvm::ArrayRef(reshapeStaticShape), dtype);
+      Type broadcastType = ValueTensorType::get(
+          context, llvm::ArrayRef(tensorStaticSizes), dtype);
+
+      // Reshape: [Li] -> [1, ..., Li, ..., 1]
+      Value reshaped = AtenReshapeOp::create(rewriter, loc, reshapeType,
+                                             tensors[i], reshapeShapeList);
+      // Broadcast: [1, ..., Li, ..., 1] -> [L0, L1, ..., L(N-1)]
+      Value broadcasted = AtenBroadcastToOp::create(
+          rewriter, loc, broadcastType, reshaped, gridShapeList);
+      meshgrids.push_back(broadcasted);
+    }
+
+    // For "xy" indexing, swap the first two results back
+    if (swapFirstTwo)
+      std::swap(meshgrids[0], meshgrids[1]);
+
+    // Construct output list
+    Value resultList = PrimListConstructOp::create(rewriter, loc, op.getType(),
+                                                   meshgrids);
+    rewriter.replaceOp(op, resultList);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenAbsoluteOp : public OpRewritePattern<AtenAbsoluteOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -13989,6 +14099,7 @@ public:
     addPatternIfTargetOpIsIllegal<
         DecomposeAtenAdaptivePool2dOp<AtenAdaptiveAvgPool2dOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBroadcastTensorsOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenMeshgridIndexingOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMaxOp>(patterns);

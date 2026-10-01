@@ -1807,3 +1807,48 @@ func.func @torch.aten.softplus(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtens
   %0 = torch.aten.softplus %arg0, %beta, %threshold : !torch.vtensor<[3,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[3,4],f32>
   return %0 : !torch.vtensor<[3,4],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.meshgrid.indexing$ij
+// CHECK-SAME: (%[[ARG0:.*]]: !torch.vtensor<[3],si64>, %[[ARG1:.*]]: !torch.vtensor<[4],si64>)
+// CHECK-DAG: %[[INT1:.*]] = torch.constant.int 1
+// CHECK-DAG: %[[NUMEL0:.*]] = torch.aten.numel %[[ARG0]] : !torch.vtensor<[3],si64> -> !torch.int
+// CHECK-DAG: %[[NUMEL1:.*]] = torch.aten.numel %[[ARG1]] : !torch.vtensor<[4],si64> -> !torch.int
+// CHECK: %[[GRID_SHAPE:.*]] = torch.prim.ListConstruct %[[NUMEL0]], %[[NUMEL1]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK: %[[VIEW0_SHAPE:.*]] = torch.prim.ListConstruct %[[NUMEL0]], %[[INT1]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK: %[[VIEW0:.*]] = torch.aten.view %[[ARG0]], %[[VIEW0_SHAPE]] : !torch.vtensor<[3],si64>, !torch.list<int> -> !torch.vtensor<[3,1],si64>
+// CHECK: %[[BROADCAST0:.*]] = torch.aten.broadcast_to %[[VIEW0]], %[[GRID_SHAPE]] : !torch.vtensor<[3,1],si64>, !torch.list<int> -> !torch.vtensor<[3,4],si64>
+// CHECK: %[[VIEW1_SHAPE:.*]] = torch.prim.ListConstruct %[[INT1]], %[[NUMEL1]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK: %[[VIEW1:.*]] = torch.aten.view %[[ARG1]], %[[VIEW1_SHAPE]] : !torch.vtensor<[4],si64>, !torch.list<int> -> !torch.vtensor<[1,4],si64>
+// CHECK: %[[BROADCAST1:.*]] = torch.aten.broadcast_to %[[VIEW1]], %[[GRID_SHAPE]] : !torch.vtensor<[1,4],si64>, !torch.list<int> -> !torch.vtensor<[3,4],si64>
+// CHECK: %[[LIST:.*]] = torch.prim.ListConstruct %[[BROADCAST0]], %[[BROADCAST1]]
+// CHECK: return %[[LIST]]
+func.func @torch.aten.meshgrid.indexing$ij(%arg0: !torch.vtensor<[3],si64>, %arg1: !torch.vtensor<[4],si64>) -> !torch.list<vtensor<[3,4],si64>> {
+  %str = torch.constant.str "ij"
+  %0 = torch.prim.ListConstruct %arg0, %arg1 : (!torch.vtensor<[3],si64>, !torch.vtensor<[4],si64>) -> !torch.list<vtensor>
+  %1 = torch.aten.meshgrid.indexing %0, %str : !torch.list<vtensor>, !torch.str -> !torch.list<vtensor<[3,4],si64>>
+  return %1 : !torch.list<vtensor<[3,4],si64>>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.meshgrid.indexing$xy
+// CHECK-SAME: (%[[ARG0:.*]]: !torch.vtensor<[3],si64>, %[[ARG1:.*]]: !torch.vtensor<[4],si64>)
+// CHECK-DAG: %[[INT1:.*]] = torch.constant.int 1
+// CHECK-DAG: %[[NUMEL_T0:.*]] = torch.aten.numel %[[ARG1]] : !torch.vtensor<[4],si64> -> !torch.int
+// CHECK-DAG: %[[NUMEL_T1:.*]] = torch.aten.numel %[[ARG0]] : !torch.vtensor<[3],si64> -> !torch.int
+// CHECK: %[[GRID_SHAPE:.*]] = torch.prim.ListConstruct %[[NUMEL_T0]], %[[NUMEL_T1]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK: %[[VIEW0:.*]] = torch.aten.view %[[ARG1]], {{.*}} : !torch.vtensor<[4],si64>, !torch.list<int> -> !torch.vtensor<[4,1],si64>
+// CHECK: %[[BROADCAST0:.*]] = torch.aten.broadcast_to %[[VIEW0]], %[[GRID_SHAPE]] : !torch.vtensor<[4,1],si64>, !torch.list<int> -> !torch.vtensor<[4,3],si64>
+// CHECK: %[[VIEW1:.*]] = torch.aten.view %[[ARG0]], {{.*}} : !torch.vtensor<[3],si64>, !torch.list<int> -> !torch.vtensor<[1,3],si64>
+// CHECK: %[[BROADCAST1:.*]] = torch.aten.broadcast_to %[[VIEW1]], %[[GRID_SHAPE]] : !torch.vtensor<[1,3],si64>, !torch.list<int> -> !torch.vtensor<[4,3],si64>
+// CHECK: %[[LIST:.*]] = torch.prim.ListConstruct %[[BROADCAST1]], %[[BROADCAST0]]
+// CHECK: return %[[LIST]]
+func.func @torch.aten.meshgrid.indexing$xy(%arg0: !torch.vtensor<[3],si64>, %arg1: !torch.vtensor<[4],si64>) -> !torch.list<vtensor<[4,3],si64>> {
+  %str = torch.constant.str "xy"
+  %0 = torch.prim.ListConstruct %arg0, %arg1 : (!torch.vtensor<[3],si64>, !torch.vtensor<[4],si64>) -> !torch.list<vtensor>
+  %1 = torch.aten.meshgrid.indexing %0, %str : !torch.list<vtensor>, !torch.str -> !torch.list<vtensor<[4,3],si64>>
+  return %1 : !torch.list<vtensor<[4,3],si64>>
+}
+
