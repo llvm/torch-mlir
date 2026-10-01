@@ -1807,3 +1807,59 @@ func.func @torch.aten.softplus(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtens
   %0 = torch.aten.softplus %arg0, %beta, %threshold : !torch.vtensor<[3,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[3,4],f32>
   return %0 : !torch.vtensor<[3,4],f32>
 }
+
+// -----
+
+// CHECK-LABEL:  func.func @torch.aten.multinomial$replacement_false(
+// CHECK-SAME:     %[[SELF:.*]]: !torch.vtensor<[4],f32>
+// CHECK:        %[[RAND:.*]] = torch.aten.rand_like %[[SELF]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[4],f32>, !torch.none, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[4],f32>
+// CHECK:        %[[LOGU:.*]] = torch.aten.log %[[RAND]] : !torch.vtensor<[4],f32> -> !torch.vtensor<[4],f32>
+// CHECK:        %[[KEYS:.*]] = torch.aten.div.Tensor %[[LOGU]], %[[SELF]] : !torch.vtensor<[4],f32>, !torch.vtensor<[4],f32> -> !torch.vtensor<[4],f32>
+// CHECK:        %[[VALUES:.*]], %[[INDICES:.*]] = torch.aten.topk %[[KEYS]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[4],f32>, !torch.int, !torch.int, !torch.bool, !torch.bool -> !torch.vtensor<[2],f32>, !torch.vtensor<[2],si64>
+// CHECK-NOT:    torch.aten.multinomial
+// CHECK:        return %[[INDICES]] : !torch.vtensor<[2],si64>
+func.func @torch.aten.multinomial$replacement_false(%arg0: !torch.vtensor<[4],f32>) -> !torch.vtensor<[2],si64> {
+  %num_samples = torch.constant.int 2
+  %replacement = torch.constant.bool false
+  %none = torch.constant.none
+  %0 = torch.aten.multinomial %arg0, %num_samples, %replacement, %none : !torch.vtensor<[4],f32>, !torch.int, !torch.bool, !torch.none -> !torch.vtensor<[2],si64>
+  return %0 : !torch.vtensor<[2],si64>
+}
+
+// -----
+
+// CHECK-LABEL:  func.func @torch.aten.multinomial$replacement_true(
+// CHECK-SAME:     %[[SELF:.*]]: !torch.vtensor<[4],f32>
+// CHECK:        %[[SIZE0:.*]] = torch.aten.size.int %[[SELF]], %{{.*}} : !torch.vtensor<[4],f32>, !torch.int -> !torch.int
+// CHECK:        %[[EXPAND_SHAPE:.*]] = torch.prim.ListConstruct %{{.*}}, %[[SIZE0]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:        %[[EXPAND:.*]] = torch.aten.expand %[[SELF]], %[[EXPAND_SHAPE]], %{{.*}} : !torch.vtensor<[4],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[3,4],f32>
+// CHECK:        %[[RAND:.*]] = torch.aten.rand_like %[[EXPAND]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[3,4],f32>, !torch.none, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[3,4],f32>
+// CHECK:        %[[LOGU:.*]] = torch.aten.log %[[RAND]] : !torch.vtensor<[3,4],f32> -> !torch.vtensor<[3,4],f32>
+// CHECK:        %[[KEYS:.*]] = torch.aten.div.Tensor %[[LOGU]], %[[EXPAND]] : !torch.vtensor<[3,4],f32>, !torch.vtensor<[3,4],f32> -> !torch.vtensor<[3,4],f32>
+// CHECK:        %[[INDICES:.*]] = torch.aten.argmax %[[KEYS]], %{{.*}}, %{{.*}} : !torch.vtensor<[3,4],f32>, !torch.int, !torch.bool -> !torch.vtensor<[3],si64>
+// CHECK-NOT:    torch.aten.multinomial
+// CHECK:        return %[[INDICES]] : !torch.vtensor<[3],si64>
+func.func @torch.aten.multinomial$replacement_true(%arg0: !torch.vtensor<[4],f32>) -> !torch.vtensor<[3],si64> {
+  %num_samples = torch.constant.int 3
+  %replacement = torch.constant.bool true
+  %none = torch.constant.none
+  %0 = torch.aten.multinomial %arg0, %num_samples, %replacement, %none : !torch.vtensor<[4],f32>, !torch.int, !torch.bool, !torch.none -> !torch.vtensor<[3],si64>
+  return %0 : !torch.vtensor<[3],si64>
+}
+
+// -----
+
+// CHECK-LABEL:  func.func @torch.aten.multinomial$rank2(
+// CHECK-SAME:     %[[SELF:.*]]: !torch.vtensor<[2,4],f32>
+// CHECK:        %[[UNSQUEEZE:.*]] = torch.aten.unsqueeze %[[SELF]], %{{.*}} : !torch.vtensor<[2,4],f32>, !torch.int -> !torch.vtensor<[2,1,4],f32>
+// CHECK:        %[[EXPAND:.*]] = torch.aten.expand %[[UNSQUEEZE]]
+// CHECK:        torch.aten.rand_like %[[EXPAND]]
+// CHECK:        torch.aten.argmax
+// CHECK-NOT:    torch.aten.multinomial
+func.func @torch.aten.multinomial$rank2(%arg0: !torch.vtensor<[2,4],f32>) -> !torch.vtensor<[2,3],si64> {
+  %num_samples = torch.constant.int 3
+  %replacement = torch.constant.bool true
+  %none = torch.constant.none
+  %0 = torch.aten.multinomial %arg0, %num_samples, %replacement, %none : !torch.vtensor<[2,4],f32>, !torch.int, !torch.bool, !torch.none -> !torch.vtensor<[2,3],si64>
+  return %0 : !torch.vtensor<[2,3],si64>
+}
