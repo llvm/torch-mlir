@@ -1807,3 +1807,18 @@ func.func @torch.aten.softplus(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtens
   %0 = torch.aten.softplus %arg0, %beta, %threshold : !torch.vtensor<[3,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[3,4],f32>
   return %0 : !torch.vtensor<[3,4],f32>
 }
+
+// CHECK-LABEL: func.func @torch.aten.upsample_nearest1d(
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[1,1,2],f32>
+// CHECK:         %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:         %[[STR:.*]] = torch.constant.str "nearest"
+// CHECK:         %[[NONE:.*]] = torch.constant.none
+// CHECK:         %[[RES:.*]] = torch.aten.__interpolate.size_list_scale_list %[[ARG0]], %{{.*}}, %[[NONE]], %[[STR]], %[[NONE]], %[[NONE]], %[[FALSE]]
+// CHECK:         return %[[RES]]
+func.func @torch.aten.upsample_nearest1d(%arg0: !torch.vtensor<[1,1,2],f32>) -> !torch.vtensor<[1,1,4],f32> {
+  %none = torch.constant.none
+  %int4 = torch.constant.int 4
+  %0 = torch.prim.ListConstruct %int4 : (!torch.int) -> !torch.list<int>
+  %1 = torch.aten.upsample_nearest1d %arg0, %0, %none : !torch.vtensor<[1,1,2],f32>, !torch.list<int>, !torch.none -> !torch.vtensor<[1,1,4],f32>
+  return %1 : !torch.vtensor<[1,1,4],f32>
+}

@@ -11309,6 +11309,156 @@ public:
   }
 };
 
+// Legalization for aten.upsample_nearest1d & aten.upsample_nearest1d.vec to
+// TOSA.
+//
+// Input Tensor Shape: [N, C, L_in]
+// Output Tensor Shape: [N, C, L_out]
+//
+// Algorithm & Formula:
+//   1. Scaling Factor: scale = L_out / L_in
+//   2. Target Indices Vector (along length dim L_out):
+//        target_indices[l_out] = floor(l_out / scale)
+//   3. Convert PyTorch-styled 1D index mapping to TensorFlow-styled GatherND
+//   indices
+//      using `tosa::convertTorchIndexToTfIndices` along dim (rank - 1).
+//   4. Execute `tosa::convertGatherNdOp` to extract values into rank-3 output
+//   tensor.
+//   5. Reshape to final result tensor type via `tosa::ReshapeOp`.
+template <typename AtenOpT>
+class ConvertUpsampleNearest1dForward
+    : public TorchToTosaOpConversionPattern<AtenOpT> {
+public:
+  using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
+    Value self;
+    if constexpr (std::is_same<AtenOpT, AtenUpsampleNearest1dOp>()) {
+      self = adaptor.getSelf();
+    } else if constexpr (std::is_same<AtenOpT, AtenUpsampleNearest1dVecOp>()) {
+      self = adaptor.getInput();
+    } else {
+      return rewriter.notifyMatchFailure(
+          op, "Expected either AtenUpsampleNearest1dOp or "
+              "AtenUpsampleNearest1dVecOp");
+    }
+
+    auto selfType = dyn_cast<TensorType>(self.getType());
+    if (!selfType)
+      return rewriter.notifyMatchFailure(op, "Only tensor types are supported");
+
+    auto selfShape = selfType.getShape();
+    auto selfRank = selfType.getRank();
+    auto selfElemTy = selfType.getElementType();
+
+    if (selfRank != 3)
+      return rewriter.notifyMatchFailure(op, "Expected rank 3 input tensor");
+
+    auto selfLength = selfShape[2];
+
+    auto resultType = dyn_cast<TensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
+    if (!resultType)
+      return rewriter.notifyMatchFailure(op, "Result is not a tensor type");
+
+    auto resultShape = resultType.getShape();
+    auto resultElemTy = resultType.getElementType();
+
+    SmallVector<int64_t> outputSize;
+    SmallVector<double> scaleFactors;
+    double scale;
+    int64_t outputLength;
+
+    if constexpr (std::is_same<AtenOpT, AtenUpsampleNearest1dOp>()) {
+      if (!matchPattern(op.getOutputSize(),
+                        m_TorchListOfConstantInts(outputSize)))
+        return rewriter.notifyMatchFailure(
+            op, "Non-constant output size not supported");
+
+      outputLength = outputSize[0];
+
+      if (isa<Torch::NoneType>(op.getScales().getType())) {
+        scale =
+            static_cast<double>(outputLength) / static_cast<double>(selfLength);
+      } else {
+        if (!matchPattern(op.getScales(), m_TorchConstantFloat(&scale)))
+          return rewriter.notifyMatchFailure(
+              op, "Non-constant scales not supported");
+
+        scale = std::ceil(scale);
+      }
+    } else if constexpr (std::is_same<AtenOpT, AtenUpsampleNearest1dVecOp>()) {
+      auto isOutputSizeNone =
+          isa<Torch::NoneType>(op.getOutputSize().getType());
+      auto isScaleFactorsNone =
+          isa<Torch::NoneType>(op.getScaleFactors().getType());
+
+      if ((isOutputSizeNone && isScaleFactorsNone) ||
+          (!isOutputSizeNone && !isScaleFactorsNone))
+        return rewriter.notifyMatchFailure(
+            op, "Must specify exactly one of output size and scale factors");
+
+      if (!isOutputSizeNone) {
+        if (!matchPattern(op.getOutputSize(),
+                          m_TorchListOfConstantInts(outputSize)))
+          return rewriter.notifyMatchFailure(
+              op, "Non-constant output size not supported");
+
+        outputLength = outputSize[0];
+        scale =
+            static_cast<double>(outputLength) / static_cast<double>(selfLength);
+      } else {
+        if (!matchPattern(op.getScaleFactors(),
+                          m_TorchListOfConstantFloats(scaleFactors)))
+          return rewriter.notifyMatchFailure(
+              op, "Non-constant scale factors not supported");
+
+        scale = std::ceil(scaleFactors[0]);
+        outputLength = static_cast<int64_t>(scale * selfLength);
+      }
+    }
+
+    SmallVector<int32_t> targetIndicesVec;
+    for (int64_t lenIdx = 0; lenIdx < outputLength; lenIdx++) {
+      targetIndicesVec.push_back(
+          static_cast<int32_t>(std::floor(lenIdx / scale)));
+    }
+
+    SmallVector<int64_t> targetIndicesShape(selfShape.begin(),
+                                            selfShape.end() - 1);
+    targetIndicesShape.push_back(outputLength);
+
+    auto targetIndicesTorch = tosa::getConstTensor<int32_t>(
+        rewriter, op, targetIndicesVec, targetIndicesShape);
+    if (!targetIndicesTorch)
+      return rewriter.notifyMatchFailure(
+          op, "Failed to create target indices tensor");
+
+    auto targetIndicesTF = tosa::convertTorchIndexToTfIndices(
+        rewriter, op, self, targetIndicesTorch.value(), selfRank - 1);
+    if (!targetIndicesTF)
+      return rewriter.notifyMatchFailure(
+          op,
+          "Convert PyTorch-styled indices to TensorFlow-styled indices failed");
+
+    auto gatherOp = tosa::convertGatherNdOp(
+        rewriter, op, RankedTensorType::get(targetIndicesShape, resultElemTy),
+        self, targetIndicesTF.value());
+    if (!gatherOp)
+      return rewriter.notifyMatchFailure(op, "Convert GatherNdOp failed");
+
+    auto result = tosa::ReshapeOp::create(
+        rewriter, op->getLoc(), resultType, gatherOp.value(),
+        tosa::getTosaConstShape(rewriter, op->getLoc(), resultShape));
+
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+
 // Legalization for aten.logit
 template <>
 LogicalResult ConvertAtenOp<AtenLogitOp>::matchAndRewriteImpl(
@@ -12809,6 +12959,14 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
   INSERT_UPSAMPLE_BILINEAR_2D_FORWARD_OP_PATTERN(AtenUpsampleBilinear2dOp);
   INSERT_UPSAMPLE_BILINEAR_2D_FORWARD_OP_PATTERN(AtenUpsampleBilinear2dVecOp);
 #undef INSERT_UPSAMPLE_BILINEAR_2D_FORWARD_OP_PATTERN
+
+#define INSERT_UPSAMPLE_NEAREST_1D_FORWARD_OP_PATTERN(AtenOp)                  \
+  illegalOps.insert(AtenOp::getOperationName());                               \
+  patterns.addWithLabel<ConvertUpsampleNearest1dForward<AtenOp>>(              \
+      AtenOp::getOperationName(), typeConverter, context);
+  INSERT_UPSAMPLE_NEAREST_1D_FORWARD_OP_PATTERN(AtenUpsampleNearest1dOp);
+  INSERT_UPSAMPLE_NEAREST_1D_FORWARD_OP_PATTERN(AtenUpsampleNearest1dVecOp);
+#undef INSERT_UPSAMPLE_NEAREST_1D_FORWARD_OP_PATTERN
 
 #define INSERT_UPSAMPLE_NEAREST_2D_FORWARD_OP_PATTERN(AtenOp)                  \
   illegalOps.insert(AtenOp::getOperationName());                               \
