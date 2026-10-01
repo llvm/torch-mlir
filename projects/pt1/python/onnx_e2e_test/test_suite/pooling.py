@@ -35,3 +35,27 @@ class OnnxAveragePool2d_countIncludePad_asymmetricPadsDilated(OnnxTestCase):
             count_include_pad=1,
         )
         return [node], ["y"]
+
+
+# ==============================================================================
+# AveragePool 1D
+#
+# The ONNX -> Torch importer encodes dilation into the trailing half of the
+# aten.avg_pool1d `stride` list, so this exercises the backends' decoding of
+# a two-element stride list for a single spatial dim.
+# ==============================================================================
+
+
+@register_onnx_test
+class OnnxAveragePool1d_stridedPadded_basic(OnnxTestCase):
+    @annotate_inputs([("x", torch.float32, [2, 3, 32])])
+    def graph(self):
+        node = onnx.helper.make_node(
+            "AveragePool",
+            ["x"],
+            ["y"],
+            kernel_shape=[3],
+            strides=[2],
+            pads=[1, 1],
+        )
+        return [node], ["y"]
