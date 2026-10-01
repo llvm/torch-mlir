@@ -212,3 +212,19 @@ func.func @torch.aten.diag_embed$positive_offset(%arg0: !torch.vtensor<[3],f32>)
   %0 = torch.aten.diag_embed %arg0, %int1, %int0, %int_neg1 : !torch.vtensor<[3],f32>, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,4],f32>
   return %0 : !torch.vtensor<[4,4],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.upsample_nearest1d(
+// CHECK-SAME:                                              %[[ARG0:.*]]: !torch.vtensor<[1,1,2],f32>) -> !torch.vtensor<[1,1,4],f32> {
+// CHECK:           %[[INPUT:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[1,1,2],f32> -> tensor<1x1x2xf32>
+// CHECK:           %[[GENERIC:.*]] = linalg.generic
+// CHECK:           %[[RES:.*]] = torch_c.from_builtin_tensor %[[GENERIC]] : tensor<1x1x4xf32> -> !torch.vtensor<[1,1,4],f32>
+// CHECK:           return %[[RES]] : !torch.vtensor<[1,1,4],f32>
+func.func @torch.aten.upsample_nearest1d(%arg0: !torch.vtensor<[1,1,2],f32>) -> !torch.vtensor<[1,1,4],f32> {
+  %none = torch.constant.none
+  %int4 = torch.constant.int 4
+  %0 = torch.prim.ListConstruct %int4 : (!torch.int) -> !torch.list<int>
+  %1 = torch.aten.upsample_nearest1d %arg0, %0, %none : !torch.vtensor<[1,1,2],f32>, !torch.list<int>, !torch.none -> !torch.vtensor<[1,1,4],f32>
+  return %1 : !torch.vtensor<[1,1,4],f32>
+}
