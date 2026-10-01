@@ -5604,6 +5604,48 @@ public:
     return success();
   }
 };
+
+// Decomposes `aten.upsample_nearest1d` into
+// `aten.__interpolate.size_list_scale_list`.
+//
+// Semantics & Mathematical Formula:
+//   Resizes a 1D spatial input tensor of shape (N, C, L_in) to (N, C, L_out)
+//   using nearest-neighbor interpolation along the length dimension:
+//     output[n, c, l_out] = input[n, c, floor(l_out / scale)]
+//
+// Decomposition Mapping:
+//   - `size`: op.getOutputSize()
+//   - `scale_factors`: [op.getScales()] if scales is present, otherwise None.
+//   - `mode`: "nearest"
+//   - `recompute_scale_factor`: None
+//   - `align_corners`: None
+//   - `antialias`: false
+class DecomposeAtenUpsampleNearest1dOp
+    : public OpRewritePattern<AtenUpsampleNearest1dOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenUpsampleNearest1dOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value scaleFactors;
+    if (isa<Torch::NoneType>(op.getScales().getType())) {
+      scaleFactors = Torch::ConstantNoneOp::create(rewriter, loc);
+    } else {
+      scaleFactors = PrimListConstructOp::create(
+          rewriter, loc,
+          Torch::ListType::get(Torch::FloatType::get(op.getContext())),
+          ValueRange{op.getScales()});
+    }
+    Value cstMode = Torch::ConstantStrOp::create(
+        rewriter, loc, rewriter.getStringAttr("nearest"));
+    Value cstNone = Torch::ConstantNoneOp::create(rewriter, loc);
+    Value cstAntialias = Torch::ConstantBoolOp::create(rewriter, loc, false);
+    rewriter.replaceOpWithNewOp<Aten__InterpolateSizeListScaleListOp>(
+        op, op.getType(), op.getSelf(), op.getOutputSize(), scaleFactors,
+        cstMode, cstNone, cstNone, cstAntialias);
+    return success();
+  }
+};
 } // namespace
 
 // Decompose aten.expand into aten.broadcast_to op.
@@ -13846,6 +13888,7 @@ public:
     addPatternIfTargetOpIsIllegal<
         DecomposeAtenUpsampleNearestVecOp<AtenUpsampleNearest2dVecOp>>(
         patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenUpsampleNearest1dOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenWhereScalarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenWhereScalarOtherOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenWhereScalarSelfOp>(patterns);
