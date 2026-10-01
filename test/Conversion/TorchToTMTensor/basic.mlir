@@ -16,7 +16,7 @@ func.func @sdpa_scale_none(%query: !torch.vtensor<[1,4,8,64],f32>, %key: !torch.
 
 // Test scale = 1/sqrt(64) = 0.125 which is the default PyTorch scale for headDim=64
 // CHECK-LABEL: @sdpa_scale_rsqrt_head_dim
-// CHECK: tm_tensor.attention {scale = {{(1\.250000e-01|0\.125)}} : f64}
+// CHECK: tm_tensor.attention <scale = {{(1\.250000e-01|0\.125)}}>
 func.func @sdpa_scale_rsqrt_head_dim(%query: !torch.vtensor<[1,4,8,64],f32>, %key: !torch.vtensor<[1,4,8,64],f32>, %value: !torch.vtensor<[1,4,8,64],f32>) -> !torch.vtensor<[1,4,8,64],f32> {
   %float0 = torch.constant.float 0.000000e+00
   // 1/sqrt(64) = 1/8 = 0.125
@@ -31,7 +31,7 @@ func.func @sdpa_scale_rsqrt_head_dim(%query: !torch.vtensor<[1,4,8,64],f32>, %ke
 
 // Test scale = 1/sqrt(128) ≈ 0.0883883 for headDim=128
 // CHECK-LABEL: @sdpa_scale_rsqrt_head_dim_128
-// CHECK: tm_tensor.attention {scale = 0.0883883{{[0-9]*}} : f64}
+// CHECK: tm_tensor.attention <scale = 0.0883883{{[0-9]*}}>
 func.func @sdpa_scale_rsqrt_head_dim_128(%query: !torch.vtensor<[1,4,8,128],f32>, %key: !torch.vtensor<[1,4,8,128],f32>, %value: !torch.vtensor<[1,4,8,128],f32>) -> !torch.vtensor<[1,4,8,128],f32> {
   %float0 = torch.constant.float 0.000000e+00
   // 1/sqrt(128) ≈ 0.0883883476483184
@@ -85,7 +85,7 @@ func.func @sdpa_gqa_independent_kv_heads(%query: !torch.vtensor<[1,8,10,64],f32>
 
 // Test that a constant scale with dynamic head dimension is propagated.
 // CHECK-LABEL: @sdpa_scale_dynamic_head_dim
-// CHECK: tm_tensor.attention {scale = {{(1\.250000e-01|0\.125)}} : f64}
+// CHECK: tm_tensor.attention <scale = {{(1\.250000e-01|0\.125)}}>
 func.func @sdpa_scale_dynamic_head_dim(%query: !torch.vtensor<[1,4,8,?],f32>, %key: !torch.vtensor<[1,4,8,?],f32>, %value: !torch.vtensor<[1,4,8,?],f32>) -> !torch.vtensor<[1,4,8,?],f32> {
   %float0 = torch.constant.float 0.000000e+00
   %scale = torch.constant.float 1.250000e-01
@@ -161,7 +161,7 @@ func.func @sdpa_bool_mask_4d_static_ones(%query: !torch.vtensor<[1,16,1,128],f16
 // -----
 
 // CHECK-LABEL: @scatter_src_i64_index
-// CHECK: tm_tensor.scatter {dimension_map = array<i64: 0, 1, 2>} unique_indices(false) ins(%{{.*}}, %{{.*}} : tensor<?xf32>, tensor<?x3xi64>) outs(%{{.*}} : tensor<10x8x6xf32>) {
+// CHECK: tm_tensor.scatter <dimension_map = [0, 1, 2]> unique_indices(false) ins(%{{.*}}, %{{.*}} : tensor<?xf32>, tensor<?x3xi64>) outs(%{{.*}} : tensor<10x8x6xf32>) {
 // CHECK:      ^bb0(%arg3: f32, %arg4: f32):
 // CHECK:        tm_tensor.yield %arg3 : f32
 // CHECK:      } -> tensor<10x8x6xf32>
@@ -175,7 +175,7 @@ func.func @scatter_src_i64_index(%arg0: !torch.vtensor<[10,8,6],f32>, %arg1: !to
 // -----
 
 // CHECK-LABEL: @scatter_src_i32_index
-// CHECK: tm_tensor.scatter {dimension_map = array<i64: 0, 1, 2>} unique_indices(false) ins(%{{.*}}, %{{.*}} : tensor<?xf32>, tensor<?x3xi32>) outs(%{{.*}} : tensor<10x8x6xf32>) {
+// CHECK: tm_tensor.scatter <dimension_map = [0, 1, 2]> unique_indices(false) ins(%{{.*}}, %{{.*}} : tensor<?xf32>, tensor<?x3xi32>) outs(%{{.*}} : tensor<10x8x6xf32>) {
 // CHECK:      ^bb0(%arg3: f32, %arg4: f32):
 // CHECK:        tm_tensor.yield %arg3 : f32
 // CHECK:      } -> tensor<10x8x6xf32>
@@ -188,7 +188,7 @@ func.func @scatter_src_i32_index(%arg0: !torch.vtensor<[10,8,6],f32>, %arg1: !to
 // -----
 
 // CHECK-LABEL: @scatter_src_dim2
-// CHECK: tm_tensor.scatter {dimension_map = array<i64: 0, 1, 2, 3>} unique_indices(false) ins(%{{.*}}, %{{.*}} : tensor<?xf32>, tensor<?x4xi64>) outs(%{{.*}} : tensor<2x2x5x8xf32>) {
+// CHECK: tm_tensor.scatter <dimension_map = [0, 1, 2, 3]> unique_indices(false) ins(%{{.*}}, %{{.*}} : tensor<?xf32>, tensor<?x4xi64>) outs(%{{.*}} : tensor<2x2x5x8xf32>) {
 // CHECK:      ^bb0(%arg3: f32, %arg4: f32):
 // CHECK:        tm_tensor.yield %arg3 : f32
 // CHECK:      } -> tensor<2x2x5x8xf32>
