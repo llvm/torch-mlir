@@ -8764,9 +8764,33 @@ static LogicalResult getOutputTypeAndPoolingParameters(
   // For 1D ops, expand to 2D vector shape
   expandPoolParams(op, kernelSizeInts, 1);
 
+  constexpr size_t spatialRank = (std::is_same<AtenOpT, AtenMaxPool1dOp>() ||
+                                  std::is_same<AtenOpT, AtenAvgPool1dOp>())
+                                     ? 1
+                                     : 2;
+
   if (!matchPattern(op.getStride(), m_TorchListOfConstantInts(strideInts)))
     return rewriter.notifyMatchFailure(
         op, "Non-const stride for pooling op unsupported");
+
+  // The ONNX-to-Torch importer encodes dilation into the trailing half of the
+  // `stride` arg (DefaultDomainAtoF.cpp `AveragePool` legalization). TOSA
+  // pooling has no dilation, so strip the encoded tail when it is all 1s and
+  // bail otherwise. Decode before the 1D -> 2D expansion below, which would
+  // otherwise append to the encoded list.
+  if constexpr (std::is_same<AtenOpT, AtenAvgPool1dOp>() ||
+                std::is_same<AtenOpT, AtenAvgPool2dOp>()) {
+    if (strideInts.size() == 2 * spatialRank) {
+      ArrayRef<int64_t> encodedDilation =
+          ArrayRef<int64_t>(strideInts).drop_front(spatialRank);
+      if (!llvm::all_of(encodedDilation, [](int64_t d) { return d == 1; }))
+        return rewriter.notifyMatchFailure(
+            op, "Non-unit dilation encoded in stride is unsupported for TOSA "
+                "pooling lowering");
+      strideInts.truncate(spatialRank);
+    }
+  }
+
   // If `stride` is not specified by the user, it is assigned the value of empty
   // list during import. For such a case, the stride value is the kernel size.
   // See:
@@ -8775,24 +8799,6 @@ static LogicalResult getOutputTypeAndPoolingParameters(
     strideInts.assign(kernelSizeInts);
   } else {
     expandPoolParams(op, strideInts, 1);
-  }
-
-  // The ONNX-to-Torch importer encodes dilation into the trailing half of the
-  // `stride` arg (DefaultDomainAtoF.cpp `AveragePool` legalization). TOSA
-  // pooling has no dilation, so strip the encoded tail when it is all 1s and
-  // bail otherwise.
-  if constexpr (std::is_same<AtenOpT, AtenAvgPool1dOp>() ||
-                std::is_same<AtenOpT, AtenAvgPool2dOp>()) {
-    const size_t expectedRank = kernelSizeInts.size();
-    if (strideInts.size() == 2 * expectedRank) {
-      ArrayRef<int64_t> encodedDilation =
-          ArrayRef<int64_t>(strideInts).drop_front(expectedRank);
-      if (!llvm::all_of(encodedDilation, [](int64_t d) { return d == 1; }))
-        return rewriter.notifyMatchFailure(
-            op, "Non-unit dilation encoded in stride is unsupported for TOSA "
-                "pooling lowering");
-      strideInts.truncate(expectedRank);
-    }
   }
 
   if (!matchPattern(op.getPadding(), m_TorchListOfConstantInts(paddingInts)))
@@ -8805,10 +8811,6 @@ static LogicalResult getOutputTypeAndPoolingParameters(
   // represent (see the `AveragePool` legalization in DefaultDomainAtoF.cpp).
   // Resolve both forms into explicit before/after extents so the rest of this
   // function is arity-agnostic.
-  constexpr size_t spatialRank = (std::is_same<AtenOpT, AtenMaxPool1dOp>() ||
-                                  std::is_same<AtenOpT, AtenAvgPool1dOp>())
-                                     ? 1
-                                     : 2;
   SmallVector<int64_t, 2> padBefore, padAfter;
   if (paddingInts.size() == spatialRank) {
     padBefore.assign(paddingInts.begin(), paddingInts.end());

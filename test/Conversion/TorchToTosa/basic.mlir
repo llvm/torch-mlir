@@ -7264,6 +7264,39 @@ func.func @torch.aten.avg_pool2d$encoded_stride_with_non_unit_dilation(%arg0: !t
 
 // -----
 
+// CHECK-LABEL: func.func @torch.aten.avg_pool1d$encoded_stride_with_unit_dilation
+// CHECK: tosa.avg_pool2d
+// CHECK-SAME: kernel = array<i64: 3, 1>
+// CHECK-SAME: stride = array<i64: 2, 1>
+func.func @torch.aten.avg_pool1d$encoded_stride_with_unit_dilation(%arg0: !torch.vtensor<[1,3,32],f32>) -> !torch.vtensor<[1,3,16],f32> {
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %false = torch.constant.bool false
+  %kernel = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int2, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int1 : (!torch.int) -> !torch.list<int>
+  %0 = torch.aten.avg_pool1d %arg0, %kernel, %stride, %padding, %false, %false : !torch.vtensor<[1,3,32],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool -> !torch.vtensor<[1,3,16],f32>
+  return %0 : !torch.vtensor<[1,3,16],f32>
+}
+
+// -----
+
+func.func @torch.aten.avg_pool1d$encoded_stride_with_non_unit_dilation(%arg0: !torch.vtensor<[1,3,32],f32>) -> !torch.vtensor<[1,3,14],f32> {
+  %int0 = torch.constant.int 0
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %false = torch.constant.bool false
+  %kernel = torch.prim.ListConstruct %int3 : (!torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int0 : (!torch.int) -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.avg_pool1d' that was explicitly marked illegal}}
+  %0 = torch.aten.avg_pool1d %arg0, %kernel, %stride, %padding, %false, %false : !torch.vtensor<[1,3,32],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool -> !torch.vtensor<[1,3,14],f32>
+  return %0 : !torch.vtensor<[1,3,14],f32>
+}
+
+// -----
+
 // The ord = 0 / +-inf vector norms are handled by
 // DecomposeAtenLinalgVectorNormOp; the generic (sum |x|^ord)^(1/ord) lowering
 // here is undefined for them. If the op reaches this pass undecomposed the
