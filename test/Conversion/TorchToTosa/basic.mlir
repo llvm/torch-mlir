@@ -3461,9 +3461,9 @@ func.func @torch.aten.index.Tensor_hacked_twin.dynamic_size(%arg0: !torch.vtenso
 // CHECK:           %[[VAL_2:.*]] = torch_c.to_builtin_tensor %[[VAL_1]] : !torch.vtensor<[4],si64> -> tensor<4xi64>
 // CHECK:           %[[VAL_3:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[4],si64> -> tensor<4xi64>
 // CHECK:           %[[VAL_4:.*]] = torch.constant.int 1
-// CHECK:           %[[VAL_5:.*]] = "tosa.const"() <{values = dense<1> : tensor<4xi64>}> : () -> tensor<4xi64>
+// CHECK:           %[[VAL_5:.*]] = "tosa.const"() <{values = dense<1> : tensor<1xi64>}> : () -> tensor<1xi64>
 // CHECK:           %[[VAL_6:.*]] = "tosa.const"() <{values = dense<0> : tensor<i64>}> : () -> tensor<i64>
-// CHECK:           %[[VAL_7:.*]] = tosa.greater_equal %[[VAL_5]], %[[VAL_2]] : (tensor<4xi64>, tensor<4xi64>) -> tensor<4xi1>
+// CHECK:           %[[VAL_7:.*]] = tosa.greater_equal %[[VAL_5]], %[[VAL_2]] : (tensor<1xi64>, tensor<4xi64>) -> tensor<4xi1>
 // CHECK:           %[[VAL_8:.*]] = tosa.const_shape  {values = dense<1> : tensor<1xindex>} : () -> !tosa.shape<1>
 // CHECK:           %[[VAL_9:.*]] = tosa.reshape %[[VAL_6]], %[[VAL_8]] : (tensor<i64>, !tosa.shape<1>) -> tensor<1xi64>
 // CHECK:           %[[VAL_10:.*]] = tosa.select %[[VAL_7]], %[[VAL_9]], %[[VAL_3]] : (tensor<4xi1>, tensor<1xi64>, tensor<4xi64>) -> tensor<4xi64>
@@ -3474,6 +3474,33 @@ func.func @torch.aten.threshold_backward$basic(%arg0: !torch.vtensor<[4],si64>, 
   %int1 = torch.constant.int 1
   %0 = torch.aten.threshold_backward %arg0, %arg1, %int1 : !torch.vtensor<[4],si64>, !torch.vtensor<[4],si64>, !torch.int -> !torch.vtensor<[4],si64>
   return %0 : !torch.vtensor<[4],si64>
+}
+
+// -----
+
+// Regression test: threshold_backward with a dynamic input shape used to
+// crash ("SmallVector unable to grow") because the threshold scalar constant
+// was built with the (possibly dynamic) input shape instead of an all-ones
+// shape.
+// CHECK-LABEL:   func.func @torch.aten.threshold_backward$dynamic(
+// CHECK-SAME:                                                     %[[VAL_0:.*]]: !torch.vtensor<[?],f32>,
+// CHECK-SAME:                                                     %[[VAL_1:.*]]: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?],f32> {
+// CHECK:           %[[VAL_2:.*]] = torch_c.to_builtin_tensor %[[VAL_1]] : !torch.vtensor<[?],f32> -> tensor<?xf32>
+// CHECK:           %[[VAL_3:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[?],f32> -> tensor<?xf32>
+// CHECK:           %[[VAL_4:.*]] = torch.constant.float 1.000000e+00
+// CHECK:           %[[VAL_5:.*]] = "tosa.const"() <{values = dense<1.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
+// CHECK:           %[[VAL_6:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<f32>}> : () -> tensor<f32>
+// CHECK:           %[[VAL_7:.*]] = tosa.greater_equal %[[VAL_5]], %[[VAL_2]] : (tensor<1xf32>, tensor<?xf32>) -> tensor<?xi1>
+// CHECK:           %[[VAL_8:.*]] = tosa.const_shape  {values = dense<1> : tensor<1xindex>} : () -> !tosa.shape<1>
+// CHECK:           %[[VAL_9:.*]] = tosa.reshape %[[VAL_6]], %[[VAL_8]] : (tensor<f32>, !tosa.shape<1>) -> tensor<1xf32>
+// CHECK:           %[[VAL_10:.*]] = tosa.select %[[VAL_7]], %[[VAL_9]], %[[VAL_3]] : (tensor<?xi1>, tensor<1xf32>, tensor<?xf32>) -> tensor<?xf32>
+// CHECK:           %[[VAL_11:.*]] = torch_c.from_builtin_tensor %[[VAL_10]] : tensor<?xf32> -> !torch.vtensor<[?],f32>
+// CHECK:           return %[[VAL_11]] : !torch.vtensor<[?],f32>
+// CHECK:         }
+func.func @torch.aten.threshold_backward$dynamic(%arg0: !torch.vtensor<[?],f32>, %arg1: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?],f32> {
+  %float1 = torch.constant.float 1.0
+  %0 = torch.aten.threshold_backward %arg0, %arg1, %float1 : !torch.vtensor<[?],f32>, !torch.vtensor<[?],f32>, !torch.float -> !torch.vtensor<[?],f32>
+  return %0 : !torch.vtensor<[?],f32>
 }
 
 // -----
