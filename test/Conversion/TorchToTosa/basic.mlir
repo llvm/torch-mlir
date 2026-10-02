@@ -7266,8 +7266,8 @@ func.func @torch.aten.avg_pool2d$encoded_stride_with_non_unit_dilation(%arg0: !t
 
 // CHECK-LABEL: func.func @torch.aten.avg_pool1d$encoded_stride_with_unit_dilation
 // CHECK: tosa.avg_pool2d
-// CHECK-SAME: kernel = array<i64: 3, 1>
-// CHECK-SAME: stride = array<i64: 2, 1>
+// CHECK-SAME: kernel([3, 1])
+// CHECK-SAME: stride([2, 1])
 func.func @torch.aten.avg_pool1d$encoded_stride_with_unit_dilation(%arg0: !torch.vtensor<[1,3,32],f32>) -> !torch.vtensor<[1,3,16],f32> {
   %int1 = torch.constant.int 1
   %int2 = torch.constant.int 2
