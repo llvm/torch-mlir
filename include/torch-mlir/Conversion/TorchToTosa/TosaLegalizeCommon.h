@@ -22,7 +22,7 @@ namespace tosa {
 std::optional<Value>
 createOneDimTfIndices(PatternRewriter &rewriter, Operation *op,
                       SmallVector<int64_t> indiceOneDimShape, int32_t dim,
-                      ArrayRef<int64_t> indexShape);
+                      ArrayRef<int64_t> indexShape, Type indexElementType);
 
 // Default function to create TOSA op with shift value
 mlir::tosa::MulOp createMulOpAndCast(PatternRewriter &rewriter, Operation *op,

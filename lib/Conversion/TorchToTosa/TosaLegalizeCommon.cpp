@@ -21,11 +21,34 @@
 
 #include "mlir/Dialect/Tensor/IR/Tensor.h" // from @llvm-project
 #include "llvm/Support/FormatVariadic.h"
+#include "llvm/Support/MathExtras.h"
 
 namespace mlir {
 namespace tosa {
 
 using namespace mlir::torch::Torch;
+
+static std::optional<Value> getIndexConstTensor(PatternRewriter &rewriter,
+                                                Operation *op,
+                                                ArrayRef<int64_t> values,
+                                                ArrayRef<int64_t> shape,
+                                                Type elementType) {
+  if (elementType.isInteger(64))
+    return getConstTensor<int64_t>(rewriter, op, values, shape);
+
+  assert(elementType.isInteger(32) && "expected i32 or i64 index constants");
+  SmallVector<int32_t> valuesI32;
+  valuesI32.reserve(values.size());
+  for (int64_t value : values) {
+    if (!llvm::isInt<32>(value)) {
+      (void)rewriter.notifyMatchFailure(op,
+                                        "index constant does not fit in i32");
+      return std::nullopt;
+    }
+    valuesI32.push_back(static_cast<int32_t>(value));
+  }
+  return getConstTensor<int32_t>(rewriter, op, valuesI32, shape);
+}
 
 // This function is a helper for `convertTorchIndexToTfIndices`.
 //
@@ -39,21 +62,12 @@ using namespace mlir::torch::Torch;
 std::optional<Value>
 createOneDimTfIndices(PatternRewriter &rewriter, Operation *op,
                       SmallVector<int64_t> indicesOneDimShape, int32_t dim,
-                      ArrayRef<int64_t> indexShape) {
-  unsigned indexRank = indexShape.size();
-  SmallVector<int32_t> indicesVec;         // input vec to create tosaConstant
-  SmallVector<int32_t> indicesMetaElement; // torch.meshgrid inputs
+                      ArrayRef<int64_t> indexShape, Type indexElementType) {
+  int indexRank = indexShape.size();
+  SmallVector<int64_t> indicesVec; // input vec to create tosaConstant
 
-  // Create torch.meshgrid inputs
-  // Example: indexShape=[1,4,2]
-  // dim0: indicesMetaElement = torch.arange(0, 1) = [0]
-  // dim1: indicesMetaElement = torch.arange(0, 4) = [0,1,2,3]
-  // dim2: indicesMetaElement = torch.arange(0, 2) = [0,1]
-  for (int i = 0; i < indexShape[dim]; i++)
-    indicesMetaElement.push_back(i);
-
-  int preDimMetaElementRepeatTimes = 1;
-  int postDimMetaElementRepeatTimes = 1;
+  int64_t preDimMetaElementRepeatTimes = 1;
+  int64_t postDimMetaElementRepeatTimes = 1;
 
   // Compute total number of times meta element range should repeat
   // = product(indexShape[0:dim])
@@ -68,7 +82,7 @@ createOneDimTfIndices(PatternRewriter &rewriter, Operation *op,
   // dim0: postDimMetaElementRepeatTimes = 4 x 2 = 8
   // dim1: postDimMetaElementRepeatTimes = 2
   // dim2: postDimMetaElementRepeatTimes = 1
-  for (int i = dim + 1; i < static_cast<int>(indexRank); i++)
+  for (int i = dim + 1; i < indexRank; i++)
     postDimMetaElementRepeatTimes *= indexShape[i];
 
   // Example using dim1:
@@ -85,14 +99,13 @@ createOneDimTfIndices(PatternRewriter &rewriter, Operation *op,
   // => preDimMetaElementRepeatTimes = 3
   //    postDimMetaElementRepeatTimes = 2
   // Using postDimMetaElementRepeatTimes, we get the meta element range:
-  // [0 0 1 1 2 2]
+  // [0 0 1 1 2 2 3 3]
   // Using preDimMetaElementRepeatTimes, we get the full one dim indices:
-  // [0 0 1 1 2 2 0 0 1 1 2 2 0 0 1 1 2 2]
-  for (int i = 0; i < preDimMetaElementRepeatTimes; i++) {
-    for (size_t elementId = 0; elementId < indicesMetaElement.size();
-         elementId++) {
-      for (int j = 0; j < postDimMetaElementRepeatTimes; j++) {
-        indicesVec.push_back(indicesMetaElement[elementId]);
+  // [0 0 1 1 2 2 3 3 0 0 1 1 2 2 3 3 0 0 1 1 2 2 3 3]
+  for (int64_t i = 0; i < preDimMetaElementRepeatTimes; i++) {
+    for (int64_t coordinate = 0; coordinate < indexShape[dim]; coordinate++) {
+      for (int64_t j = 0; j < postDimMetaElementRepeatTimes; j++) {
+        indicesVec.push_back(coordinate);
       }
     }
   }
@@ -111,10 +124,8 @@ createOneDimTfIndices(PatternRewriter &rewriter, Operation *op,
   //		                   	[ [0], [1] ],
   //			            	[ [0], [1] ],
   //		    	        	[ [0], [1] ], ]]) 1*4*2*1
-  auto indicesDim = getConstTensor<int32_t>(rewriter, op,
-                                            /*vec=*/indicesVec,
-                                            /*shape=*/indicesOneDimShape);
-  return indicesDim;
+  return getIndexConstTensor(rewriter, op, indicesVec, indicesOneDimShape,
+                             indexElementType);
 }
 
 // Default function to create TOSA op with shift value
@@ -199,9 +210,12 @@ std::optional<Value> convertTorchIndexToTfIndices(PatternRewriter &rewriter,
   SmallVector<Value> concatInputs;
   for (auto dim = 0; dim < paramsRank; dim++) {
     if (dim != axis) {
-      auto indices = createOneDimTfIndices(rewriter, op, indicesOneDimShape,
-                                           dim, indexShape);
-      concatInputs.push_back(indices.value());
+      auto indices =
+          createOneDimTfIndices(rewriter, op, indicesOneDimShape, dim,
+                                indexShape, indexType.getElementType());
+      if (!indices)
+        return std::nullopt;
+      concatInputs.push_back(*indices);
     } else {
       // the chosen axis indices will be replaced by index[i][j][k]
       concatInputs.push_back(indicesChosenAxis.getResult());
@@ -219,7 +233,7 @@ std::optional<Value> convertTorchIndexToTfIndices(PatternRewriter &rewriter,
   // ]]
   auto indicesTf = tosa::CreateOpAndInfer<tosa::ConcatOp>(
       rewriter, op->getLoc(),
-      GetTypeFromTensorShape(indicesShape, rewriter.getIntegerType(32)),
+      GetTypeFromTensorShape(indicesShape, indexType.getElementType()),
       concatInputs, indexRank);
 
   return indicesTf.getResult();
@@ -308,7 +322,8 @@ std::optional<Value> convertGatherNdOp(PatternRewriter &rewriter, Operation *op,
   // Detail algorithm visualization:
   // https://gist.github.com/AmosLewis/bb6e3a0ad9fd1705c9f9d42a2eefbb88
 
-  int N = 1, W = 1, K = 1, C = 1, ND = 1;
+  int64_t N = 1, W = 1, K = 1, C = 1;
+  int ND = 1;
 
   int paramsRank = paramsType.getShape().size();   // 3
   int indicesRank = indicesType.getShape().size(); // 4
@@ -366,7 +381,7 @@ std::optional<Value> convertGatherNdOp(PatternRewriter &rewriter, Operation *op,
       indicesValue,
       tosa::getTosaConstShape(rewriter, op->getLoc(), indicesMatrixShape));
 
-  SmallVector<int32_t> flattenedCoeffVec; //  [12,3,1]
+  SmallVector<int64_t> flattenedCoeffVec; //  [12,3,1]
   // flattenedCoeffVec = [4,3,1]
   for (int i = 1; i < ND; i++) {
     flattenedCoeffVec.push_back(paramsType.getShape()[i]);
@@ -382,8 +397,9 @@ std::optional<Value> convertGatherNdOp(PatternRewriter &rewriter, Operation *op,
   // %4 = "tosa.const"() {value = dense<[12, 3, 1]> : tensor<3xi32>} : () ->
   // tensor<3xi32>
   auto flattenedCoeffValue =
-      getConstTensor<int32_t>(rewriter, op, flattenedCoeffVec,
-                              {static_cast<int64_t>(flattenedCoeffVec.size())});
+      getIndexConstTensor(rewriter, op, flattenedCoeffVec,
+                          {static_cast<int64_t>(flattenedCoeffVec.size())},
+                          indicesType.getElementType());
 
   if (!flattenedCoeffValue)
     return std::nullopt;
@@ -522,7 +538,8 @@ std::optional<Value> convertScatterNdOp(PatternRewriter &rewriter,
   //    !torch.vtensor<[1,4],si64>
   // Detail algorithm visualization:
 
-  int N = 1, W = 1, K = 1, C = 1, ND = 1;
+  int64_t N = 1, W = 1, K = 1, C = 1;
+  int ND = 1;
 
   int paramsRank = paramsType.getShape().size();   // 2
   int indicesRank = indicesType.getShape().size(); // 2
@@ -660,7 +677,7 @@ std::optional<Value> convertScatterNdOp(PatternRewriter &rewriter,
       indicesValue,
       tosa::getTosaConstShape(rewriter, op->getLoc(), indicesMatrixShape));
 
-  SmallVector<int32_t> flattenedCoeffVec; //  [4,1]
+  SmallVector<int64_t> flattenedCoeffVec; //  [4,1]
   // flattenedCoeffVec = [4,1]
   for (int i = 1; i < ND; i++) {
     flattenedCoeffVec.push_back(paramsType.getShape()[i]);
@@ -676,8 +693,9 @@ std::optional<Value> convertScatterNdOp(PatternRewriter &rewriter,
   // %12 = "tosa.const"() {value = dense<[4, 1]> : tensor<2xi32>} : () ->
   // tensor<2xi32>
   auto flattenedCoeffValue =
-      getConstTensor<int32_t>(rewriter, op, flattenedCoeffVec,
-                              {static_cast<int64_t>(flattenedCoeffVec.size())});
+      getIndexConstTensor(rewriter, op, flattenedCoeffVec,
+                          {static_cast<int64_t>(flattenedCoeffVec.size())},
+                          indicesType.getElementType());
 
   if (!flattenedCoeffValue)
     return std::nullopt;
