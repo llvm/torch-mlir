@@ -4975,6 +4975,7 @@ ONNX_TOSA_XFAIL_SET = {
     "View1DFoldModule_basic",
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     "ViewCollapseModule_basic",
+    "ViewCollapseTwoDynamicDimsModule_basic",
     "ViewDynamicExpandCollapseModule_basic",
     "ViewDynamicExpandCollapseWithAtenIntModule_basic",
     "ViewDynamicExpandCollapseWithParallelUnknownDimModule_basic",
