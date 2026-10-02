@@ -2221,6 +2221,21 @@ class GraphNodeImporter:
                     loc=loc,
                 )
 
+    def _import_get_attr(self, loc: Location, node: Node) -> None:
+        """Bind an attribute once, resolving its qualified path from the module."""
+        # Use the same (Node, result_index) key as bind_node_value and
+        # resolve_node_value; one get_attr may feed multiple operations.
+        if (node, 0) in self._v:
+            return
+        obj = node.graph.owning_module
+        for component in node.target.split("."):
+            assert hasattr(
+                obj, component
+            ), f"Attempting to retrieve attribute '{node.target}' from module, but no such attribute exists"
+            obj = getattr(obj, component)
+        with loc:
+            self.bind_node_value(node, self._import_literal(obj))
+
     def _import_argument(
         self, loc: Location, arg: NodeArgument, expected_jit_type=None
     ) -> Value:
@@ -2231,15 +2246,8 @@ class GraphNodeImporter:
             if arg in self._multi_result_nodes:
                 raise RuntimeError(f"Attempt to de-reference a multi-result node")
 
-            # catch references to dynamically created constant attributes and make sure they have an origin in our module
-            if arg.op == "get_attr" and (arg.target, 0) not in self._v:
-                gm = arg.graph.owning_module
-                assert hasattr(
-                    gm, arg.target
-                ), f"Attempting to retrieve attribute '{arg.target}' from module, but no such attribute exists"
-                obj = getattr(gm, arg.target)
-                with loc:
-                    self.bind_node_value(arg, self._import_literal(obj))
+            if arg.op == "get_attr":
+                self._import_get_attr(loc, arg)
 
             argument_value = self.resolve_node_value(arg)
         elif isinstance(arg, torch_fx.immutable_collections.immutable_list):
@@ -2397,14 +2405,8 @@ class GraphNodeImporter:
             if isinstance(operand, Node):
                 if operand in self._multi_result_nodes:
                     raise RuntimeError(f"Attempt to de-reference a multi-result node")
-                if operand.op == "get_attr" and (operand, 0) not in self._v:
-                    gm = operand.graph.owning_module
-                    assert hasattr(
-                        gm, operand.target
-                    ), f"Attempting to retrieve attribute '{operand.target}' from module, but no such attribute exists"
-                    obj = getattr(gm, operand.target)
-                    with loc:
-                        self.bind_node_value(operand, self._import_literal(obj))
+                if operand.op == "get_attr":
+                    self._import_get_attr(loc, operand)
                 val = self.resolve_node_value(operand)
                 val_type = str(val.type)
                 assert (
