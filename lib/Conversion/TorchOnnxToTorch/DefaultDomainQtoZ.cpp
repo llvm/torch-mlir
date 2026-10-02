@@ -1239,16 +1239,13 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         int64_t inputRank = inputType.getSizes().size();
         int64_t resultRank = resultType.getSizes().size();
         int64_t rankDiff = resultRank - inputRank;
-        if (rankDiff == 0) {
-          // In this case, no dimension is unsqueezed. Hence just replace the op
-          // with input.
-          rewriter.replaceOp(binder.op, data);
-          return success();
-        }
-
         SmallVector<int64_t> unsqueezeDims;
         SmallVector<int64_t> inputShape(inputType.getSizes());
-        if (inputType.areAllSizesKnown() && resultType.areAllSizesKnown()) {
+        // rankDiff == 0 means no dimension is unsqueezed; the loop below
+        // simply doesn't run and `result` falls through to `data`, still
+        // going through the type-mismatch cast check at the end.
+        if (rankDiff != 0 && inputType.areAllSizesKnown() &&
+            resultType.areAllSizesKnown()) {
           // If the input shape and result shape is statically known then the
           // list of dims to be squeezed can be derived from those shapes. As a
           // result, we don't have to wait for the dim values to be known at
@@ -1286,10 +1283,10 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           result = Torch::AtenUnsqueezeOp::create(rewriter, loc, unsqueezeType,
                                                   result, cstDim);
         }
-        if (result.getType() != resultType &&
-            Torch::isValidSubtype(result.getType(), resultType)) {
-          // "downcast" if the unsqueeze result type is strictly less precise
-          // than the input type
+        if (result.getType() != resultType) {
+          // Cast regardless of which side is more precise; a type mismatch
+          // left on the replaced value causes an unresolved materialization
+          // error downstream.
           result = Torch::TensorStaticInfoCastOp::create(rewriter, loc,
                                                          resultType, result);
         }
