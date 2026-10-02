@@ -336,6 +336,280 @@ def QuantizedDecomposedQuantizePerTensorUnsigned_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class QuantizedDecomposedQuantizePerTensorTensor(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 8], torch.float32, True),
+            ([], torch.float32, True),
+            ([], torch.int32, True),
+        ]
+    )
+    def forward(self, x, scale, zero_point):
+        return torch.ops.quantized_decomposed.quantize_per_tensor.tensor(
+            x, scale, zero_point, -128, 127, torch.int8
+        )
+
+
+@register_test_case(module_factory=lambda: QuantizedDecomposedQuantizePerTensorTensor())
+def QuantizedDecomposedQuantizePerTensorTensor_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(4, 8),
+        torch.tensor(0.03, dtype=torch.float32),
+        torch.tensor(-10, dtype=torch.int32),
+    )
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedQuantizePerTensorTensor2(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 8], torch.float32, True),
+            ([], torch.float32, True),
+            ([], torch.int32, True),
+            ([], torch.int32, True),
+            ([], torch.int32, True),
+        ]
+    )
+    def forward(self, x, scale, zero_point, qmin, qmax):
+        return torch.ops.quantized_decomposed.quantize_per_tensor.tensor2(
+            x, scale, zero_point, qmin, qmax, torch.int8
+        )
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedQuantizePerTensorTensor2()
+)
+def QuantizedDecomposedQuantizePerTensorTensor2_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(4, 8),
+        torch.tensor(0.03, dtype=torch.float32),
+        torch.tensor(-10, dtype=torch.int32),
+        torch.tensor(-128, dtype=torch.int32),
+        torch.tensor(127, dtype=torch.int32),
+    )
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedDequantizePerTensorTensor(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 8], torch.int8, True),
+            ([], torch.float32, True),
+            ([], torch.int32, True),
+        ]
+    )
+    def forward(self, x, scale, zero_point):
+        return torch.ops.quantized_decomposed.dequantize_per_tensor.tensor(
+            x, scale, zero_point, -128, 127, torch.int8
+        )
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedDequantizePerTensorTensor()
+)
+def QuantizedDecomposedDequantizePerTensorTensor_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(4, 8, low=-128, high=127).to(torch.int8),
+        torch.tensor(0.03, dtype=torch.float32),
+        torch.tensor(-10, dtype=torch.int32),
+    )
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedDequantizePerTensorTensor2(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 8], torch.int8, True),
+            ([], torch.float32, True),
+            ([], torch.int32, True),
+            ([], torch.int32, True),
+            ([], torch.int32, True),
+        ]
+    )
+    def forward(self, x, scale, zero_point, qmin, qmax):
+        return torch.ops.quantized_decomposed.dequantize_per_tensor.tensor2(
+            x, scale, zero_point, qmin, qmax, torch.int8
+        )
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedDequantizePerTensorTensor2()
+)
+def QuantizedDecomposedDequantizePerTensorTensor2_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(4, 8, low=-128, high=127).to(torch.int8),
+        torch.tensor(0.03, dtype=torch.float32),
+        torch.tensor(-10, dtype=torch.int32),
+        torch.tensor(-128, dtype=torch.int32),
+        torch.tensor(127, dtype=torch.int32),
+    )
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedChooseQparamsTensor(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 8], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        scale, zp = torch.ops.quantized_decomposed.choose_qparams.tensor(
+            x, -128, 127, 1e-8, torch.int8
+        )
+        return scale, zp
+
+
+@register_test_case(module_factory=lambda: QuantizedDecomposedChooseQparamsTensor())
+def QuantizedDecomposedChooseQparamsTensor_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 8))
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedChooseQparamsSymmetricTensor(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 8], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        scale, zp = torch.ops.quantized_decomposed.choose_qparams_symmetric.tensor(
+            x, -128, 127, 1e-8, torch.int8
+        )
+        return scale, zp
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedChooseQparamsSymmetricTensor()
+)
+def QuantizedDecomposedChooseQparamsSymmetricTensor_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 8))
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedChooseQparamsSymmetricTensorUint8(torch.nn.Module):
+    """Exercise the zp=128 path: dtype=torch.uint8 triggers the unsigned 8-bit
+    branch in the symmetric choose_qparams lowering."""
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 8], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        scale, zp = torch.ops.quantized_decomposed.choose_qparams_symmetric.tensor(
+            x, 0, 255, 1e-8, torch.uint8
+        )
+        return scale, zp
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedChooseQparamsSymmetricTensorUint8()
+)
+def QuantizedDecomposedChooseQparamsSymmetricTensorUint8_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 8))
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedDynamicQuantFlowSymmetric(torch.nn.Module):
+    """Symmetric dynamic quantization flow with tensor2:
+    choose_qparams_symmetric -> quantize_per_tensor.tensor2 -> dequantize_per_tensor.tensor2
+    """
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 8], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        scale, zp = torch.ops.quantized_decomposed.choose_qparams_symmetric.tensor(
+            x, -128, 127, 1e-8, torch.int8
+        )
+        qmin = torch.tensor(-128, dtype=torch.int32)
+        qmax = torch.tensor(127, dtype=torch.int32)
+        xq = torch.ops.quantized_decomposed.quantize_per_tensor.tensor2(
+            x, scale, zp, qmin, qmax, torch.int8
+        )
+        xdq = torch.ops.quantized_decomposed.dequantize_per_tensor.tensor2(
+            xq, scale, zp, qmin, qmax, torch.int8
+        )
+        return xdq
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedDynamicQuantFlowSymmetric()
+)
+def QuantizedDecomposedDynamicQuantFlowSymmetric_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 8))
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedDynamicQuantFlowAsymmetric(torch.nn.Module):
+    """Asymmetric dynamic quantization flow:
+    choose_qparams -> quantize_per_tensor -> dequantize_per_tensor.
+    """
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 8], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        scale, zp = torch.ops.quantized_decomposed.choose_qparams.tensor(
+            x, -128, 127, 1e-8, torch.int8
+        )
+        xq = torch.ops.quantized_decomposed.quantize_per_tensor.tensor(
+            x, scale, zp, -128, 127, torch.int8
+        )
+        xdq = torch.ops.quantized_decomposed.dequantize_per_tensor.tensor(
+            xq, scale, zp, -128, 127, torch.int8
+        )
+        return xdq
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedDynamicQuantFlowAsymmetric()
+)
+def QuantizedDecomposedDynamicQuantFlowAsymmetric_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 8))
+
+
+# ==============================================================================
+
+
 class QuantizedDecomposedDequantizePerChannel(torch.nn.Module):
     @export
     @annotate_args(

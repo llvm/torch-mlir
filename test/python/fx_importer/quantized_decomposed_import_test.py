@@ -98,6 +98,138 @@ def test_dq_mm_q_chain():
 
 
 @run
+# CHECK-LABEL: test_quantize_per_tensor_tensor
+# CHECK: func.func @test_quantize_per_tensor_tensor
+# CHECK: torch.quantized_decomposed.quantize_per_tensor.tensor
+# CHECK-NOT: torch.operator
+def test_quantize_per_tensor_tensor():
+    class QuantizePerTensorTensor(nn.Module):
+        def forward(self, x, scale, zero_point):
+            return torch.ops.quantized_decomposed.quantize_per_tensor.tensor(
+                x, scale, zero_point, -128, 127, torch.int8
+            )
+
+    m = fx.export_and_import(
+        QuantizePerTensorTensor(),
+        torch.randn(4, 8),
+        torch.tensor(0.03, dtype=torch.float32),
+        torch.tensor(-10, dtype=torch.int32),
+        func_name="test_quantize_per_tensor_tensor",
+    )
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_quantize_per_tensor_tensor2
+# CHECK: func.func @test_quantize_per_tensor_tensor2
+# CHECK: torch.quantized_decomposed.quantize_per_tensor.tensor2
+# CHECK-NOT: torch.operator
+def test_quantize_per_tensor_tensor2():
+    class QuantizePerTensorTensor2(nn.Module):
+        def forward(self, x, scale, zero_point, qmin, qmax):
+            return torch.ops.quantized_decomposed.quantize_per_tensor.tensor2(
+                x, scale, zero_point, qmin, qmax, torch.int8
+            )
+
+    m = fx.export_and_import(
+        QuantizePerTensorTensor2(),
+        torch.randn(4, 8),
+        torch.tensor(0.03, dtype=torch.float32),
+        torch.tensor(-10, dtype=torch.int32),
+        torch.tensor(-128, dtype=torch.int32),
+        torch.tensor(127, dtype=torch.int32),
+        func_name="test_quantize_per_tensor_tensor2",
+    )
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_dequantize_per_tensor_tensor
+# CHECK: func.func @test_dequantize_per_tensor_tensor
+# CHECK: torch.quantized_decomposed.dequantize_per_tensor.tensor
+# CHECK-NOT: torch.operator
+def test_dequantize_per_tensor_tensor():
+    class DequantizePerTensorTensor(nn.Module):
+        def forward(self, x, scale, zero_point):
+            return torch.ops.quantized_decomposed.dequantize_per_tensor.tensor(
+                x, scale, zero_point, -128, 127, torch.int8
+            )
+
+    m = fx.export_and_import(
+        DequantizePerTensorTensor(),
+        torch.zeros(4, 8, dtype=torch.int8),
+        torch.tensor(0.03, dtype=torch.float32),
+        torch.tensor(-10, dtype=torch.int32),
+        func_name="test_dequantize_per_tensor_tensor",
+    )
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_dequantize_per_tensor_tensor2
+# CHECK: func.func @test_dequantize_per_tensor_tensor2
+# CHECK: torch.quantized_decomposed.dequantize_per_tensor.tensor2
+# CHECK-NOT: torch.operator
+def test_dequantize_per_tensor_tensor2():
+    class DequantizePerTensorTensor2(nn.Module):
+        def forward(self, x, scale, zero_point, qmin, qmax):
+            return torch.ops.quantized_decomposed.dequantize_per_tensor.tensor2(
+                x, scale, zero_point, qmin, qmax, torch.int8
+            )
+
+    m = fx.export_and_import(
+        DequantizePerTensorTensor2(),
+        torch.zeros(4, 8, dtype=torch.int8),
+        torch.tensor(0.03, dtype=torch.float32),
+        torch.tensor(-10, dtype=torch.int32),
+        torch.tensor(-128, dtype=torch.int32),
+        torch.tensor(127, dtype=torch.int32),
+        func_name="test_dequantize_per_tensor_tensor2",
+    )
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_choose_qparams_tensor
+# CHECK: torch.quantized_decomposed.choose_qparams.tensor
+# CHECK-NOT: torch.operator
+def test_choose_qparams_tensor():
+    class ChooseQparamsTensor(nn.Module):
+        def forward(self, x):
+            scale, zp = torch.ops.quantized_decomposed.choose_qparams.tensor(
+                x, -128, 127, 1e-8, torch.int8
+            )
+            return scale, zp
+
+    m = fx.export_and_import(
+        ChooseQparamsTensor(),
+        torch.randn(4, 8),
+        func_name="test_choose_qparams_tensor",
+    )
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_choose_qparams_symmetric_tensor
+# CHECK: torch.quantized_decomposed.choose_qparams_symmetric.tensor
+# CHECK-NOT: torch.operator
+def test_choose_qparams_symmetric_tensor():
+    class ChooseQparamsSymmetricTensor(nn.Module):
+        def forward(self, x):
+            scale, zp = torch.ops.quantized_decomposed.choose_qparams_symmetric.tensor(
+                x, -128, 127, 1e-8, torch.int8
+            )
+            return scale, zp
+
+    m = fx.export_and_import(
+        ChooseQparamsSymmetricTensor(),
+        torch.randn(4, 8),
+        func_name="test_choose_qparams_symmetric_tensor",
+    )
+    print(m)
+
+
+@run
 # CHECK-LABEL: test_quantize_per_channel
 # CHECK: torch.quantized_decomposed.quantize_per_channel
 # CHECK-NOT: torch.operator
