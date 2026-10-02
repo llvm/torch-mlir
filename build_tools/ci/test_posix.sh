@@ -7,6 +7,12 @@ repo_root="$(cd $this_dir/../.. && pwd)"
 torch_version="${1:-unknown}"
 
 export PYTHONPATH="$repo_root/build/tools/torch-mlir/python_packages/torch_mlir:$repo_root/projects/pt1"
+export MLIR_C_RUNNER_UTILS="$repo_root/build/lib/libmlir_c_runner_utils.so"
+
+if [ ! -f "$MLIR_C_RUNNER_UTILS" ]; then
+  echo "Missing MLIR C runner library: $MLIR_C_RUNNER_UTILS" >&2
+  exit 1
+fi
 
 echo "::group::Run ONNX exported from torch authored op e2e integration tests"
 python3 -m e2e_testing.main --config=onnx -v
