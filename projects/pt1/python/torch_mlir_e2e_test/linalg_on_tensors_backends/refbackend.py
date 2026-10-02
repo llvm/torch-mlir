@@ -4,6 +4,7 @@
 # Also available under a BSD-style license. See LICENSE.
 
 import ctypes
+import os
 import numpy as np
 
 from torch_mlir.ir import *
@@ -92,7 +93,10 @@ def get_ctype_func(func_name):
 
 class RefBackendInvoker:
     def __init__(self, module):
-        self.ee = ExecutionEngine(module)
+        runner_utils = os.environ.get("MLIR_C_RUNNER_UTILS")
+        self.ee = ExecutionEngine(
+            module, shared_libs=[runner_utils] if runner_utils else []
+        )
         self.result = None
 
         return_funcs = get_return_funcs(module)
