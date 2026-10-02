@@ -21,6 +21,13 @@ def ConvertTorchOnnxToTorch : Pass<"convert-torch-onnx-to-torch", "func::FuncOp"
     }];
 
     let constructor = "mlir::torch::onnx_c::createTorchOnnxToTorchPass()";
+    let options = [
+      Option<"gruSplitGatesMinElements", "gru-split-gates-min-elements",
+             "int64_t", /*default=*/"0",
+             "When batch > 1, split a packed GRU gate matmul with at least "
+             "this many result elements into one matmul per gate. 0 never "
+             "splits.">
+    ];
 }
 
 #endif  // TORCHMLIR_CONVERSION_TORCHONNX_TO_TORCH_PASSES

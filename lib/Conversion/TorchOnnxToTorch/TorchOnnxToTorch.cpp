@@ -22,6 +22,7 @@ using namespace mlir::torch;
 using namespace mlir::torch::onnx_c;
 namespace mlir::torch::onnx_c {
 
+#define GEN_PASS_DECL_CONVERTTORCHONNXTOTORCH
 #define GEN_PASS_DEF_CONVERTTORCHONNXTOTORCH
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Passes.h.inc"
 
@@ -44,7 +45,8 @@ int64_t getDefaultOpsetVersion(Operation *containerOp) {
 class ConvertTorchOnnxToTorch
     : public impl::ConvertTorchOnnxToTorchBase<ConvertTorchOnnxToTorch> {
 public:
-  ConvertTorchOnnxToTorch() = default;
+  using impl::ConvertTorchOnnxToTorchBase<
+      ConvertTorchOnnxToTorch>::ConvertTorchOnnxToTorchBase;
   void runOnOperation() override {
     MLIRContext *context = &getContext();
 
@@ -60,7 +62,8 @@ public:
     auto defaultDomainPatterns =
         std::make_unique<OnnxCustomOpConversionPattern>(
             context, "onnx.",
-            /*domainVersion=*/defaultOpsetVersion);
+            /*domainVersion=*/defaultOpsetVersion,
+            OnnxConversionOptions{gruSplitGatesMinElements});
     populateComMicrosoftDomain(*defaultDomainPatterns);
     populateDefaultDomainAtoF(*defaultDomainPatterns);
     populateDefaultDomainGtoP(*defaultDomainPatterns);
@@ -89,6 +92,12 @@ public:
 
 std::unique_ptr<OperationPass<func::FuncOp>> createTorchOnnxToTorchPass() {
   return std::make_unique<ConvertTorchOnnxToTorch>();
+}
+
+std::unique_ptr<OperationPass<func::FuncOp>>
+createTorchOnnxToTorchPass(const OnnxConversionOptions &options) {
+  return std::make_unique<ConvertTorchOnnxToTorch>(
+      ConvertTorchOnnxToTorchOptions{options.gruSplitGatesMinElements});
 }
 
 } // namespace mlir::torch::onnx_c

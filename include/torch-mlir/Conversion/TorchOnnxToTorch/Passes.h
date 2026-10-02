@@ -17,7 +17,17 @@
 
 namespace mlir::torch::onnx_c {
 
+/// Target-dependent choices that some conversions consult. The defaults keep
+/// the target-independent lowering.
+struct OnnxConversionOptions {
+  /// See the gru-split-gates-min-elements option of
+  /// convert-torch-onnx-to-torch.
+  int64_t gruSplitGatesMinElements = 0;
+};
+
 std::unique_ptr<OperationPass<func::FuncOp>> createTorchOnnxToTorchPass();
+std::unique_ptr<OperationPass<func::FuncOp>>
+createTorchOnnxToTorchPass(const OnnxConversionOptions &options);
 
 /// Registers all torch-mlir conversion passes.
 void registerTorchOnnxToTorchPasses();

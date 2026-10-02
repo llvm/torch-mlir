@@ -32,7 +32,7 @@ LogicalResult OnnxCustomOpConversionPattern::matchAndRewrite(
                         << ", for domainVersion=" << domainVersion << "\n");
       continue;
     }
-    if (succeeded(reg.callback(OpBinder(op), rewriter))) {
+    if (succeeded(reg.callback(OpBinder(op, options), rewriter))) {
       return success();
     } else {
       LLVM_DEBUG(dbgs() << ": conversion failed to apply: " << foundIt->first

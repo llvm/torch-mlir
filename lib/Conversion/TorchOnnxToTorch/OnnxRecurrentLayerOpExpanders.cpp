@@ -1091,30 +1091,24 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   return success();
 }
 
-// W[zrh] - W parameter weight matrix for update, reset, and hidden gates
-// R[zrh] - R recurrence weight matrix for update, reset, and hidden gates
-// Wb[zrh] - W bias vectors for update, reset, and hidden gates
-// Rb[zrh] - R bias vectors for update, reset, and hidden gates
-// backwards currently not supported
+// ONNX GRU for one direction, with activations f (default Sigmoid) and g
+// (default Tanh). W, R and both halves of B hold the gates in z, r, n order.
+//   z  = f(Xt.Wz^T + Wbz + H.Rz^T + Rbz)
+//   r  = f(Xt.Wr^T + Wbr + H.Rr^T + Rbr)
+//   n  = g(Xt.Wn^T + Wbn + r * (H.Rn^T + Rbn))    linear_before_reset != 0
+//   n  = g(Xt.Wn^T + Wbn + (r * H).Rn^T + Rbn)    linear_before_reset == 0
+//   H' = (1 - z) * n + z * H
 
 struct GruWeights {
-  Value Wz;
-  Value Wr;
-  Value Wh;
-  Value Rz;
-  Value Rr;
-  Value Rh;
-  Value Wbz;
-  Value Wbr;
-  Value Wbh;
-  Value Rbz;
-  Value Rbr;
-  Value Rbh;
+  Value W;  // [3 * hidden_size, input_size]
+  Value R;  // [3 * hidden_size, hidden_size]
+  Value Wb; // [3 * hidden_size]
+  Value Rb; // [3 * hidden_size]
 };
 
 struct GruLayerOutput {
-  Value Y;
-  Value Y_h;
+  Value Y;   // [seq_len, batch_size, hidden_size]
+  Value Y_h; // [batch_size, hidden_size]
 };
 
 struct GruActivations {
@@ -1122,72 +1116,148 @@ struct GruActivations {
   std::string g;
 };
 
-Value gru_cell(ImplicitLocOpBuilder &b, Value Xt, Value H_prev,
-               GruWeights weights, GruActivations activations,
-               bool linear_before_reset) {
+// Gates that share one matmul. Each gate is a column slice of its result.
+struct GruPacking {
+  // X.W^T + Wb of the three gates, one matmul for all timesteps
+  bool input;
+  // H.R^T + Rb of the gates that do not need r, one matmul per timestep
+  bool recurrence;
+};
+
+static Value gruSlice(ImplicitLocOpBuilder &b, Value value, int64_t dim,
+                      int64_t start, int64_t end) {
+  auto valueTy = cast<ValueTensorType>(value.getType());
+  SmallVector<int64_t> shape(valueTy.getSizes());
+  shape[dim] = end - start;
+  auto intType = b.getType<IntType>();
+  return AtenSliceTensorOp::create(
+      b, b.getType<ValueTensorType>(shape, valueTy.getDtype()), value,
+      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(dim)),
+      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(start)),
+      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(end)),
+      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(1)));
+}
+
+static Value gruReshape(ImplicitLocOpBuilder &b, Value value,
+                        ArrayRef<int64_t> shape) {
+  auto intType = b.getType<IntType>();
+  SmallVector<Value> sizes = llvm::map_to_vector(shape, [&](int64_t size) {
+    return (Value)ConstantIntOp::create(b, intType, b.getI64IntegerAttr(size));
+  });
+  Value sizeList =
+      PrimListConstructOp::create(b, b.getType<ListType>(intType), sizes);
+  auto dtype = cast<ValueTensorType>(value.getType()).getDtype();
+  return AtenReshapeOp::create(b, b.getType<ValueTensorType>(shape, dtype),
+                               value, sizeList);
+}
+
+// input: [N, K], weight: [O, K], bias: [O] -> [N, O]
+static Value gruLinear(ImplicitLocOpBuilder &b, Value input, Value weight,
+                       Value bias) {
+  auto inputTy = cast<ValueTensorType>(input.getType());
+  int64_t rows = inputTy.getSizes()[0];
+  int64_t cols = cast<ValueTensorType>(weight.getType()).getSizes()[0];
+  return AtenLinearOp::create(
+      b,
+      b.getType<ValueTensorType>(SmallVector<int64_t>{rows, cols},
+                                 inputTy.getDtype()),
+      input, weight, bias);
+}
+
+// One timestep. XtProj holds Xt.W^T + Wb: one [batch_size, 3 * hidden_size]
+// tensor when the input projection is packed, otherwise one
+// [batch_size, hidden_size] tensor per gate.
+Value gru_cell(ImplicitLocOpBuilder &b, ArrayRef<Value> XtProj, Value H_prev,
+               const GruWeights &weights, const GruActivations &activations,
+               bool linear_before_reset, bool packRecurrence) {
   auto hTy = cast<ValueTensorType>(H_prev.getType());
+  int64_t hidden_size = hTy.getSizes()[1];
 
   auto intType = b.getType<IntType>();
   Value cstOne = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(1));
 
-  Value z_w = AtenLinearOp::create(b, hTy, Xt, weights.Wz, weights.Wbz);
-  Value z_r = AtenLinearOp::create(b, hTy, H_prev, weights.Rz, weights.Rbz);
-  Value z_pre = AtenAddTensorOp::create(b, hTy, z_w, z_r, cstOne);
-  Value zt = createActivationByName(b, activations.f, z_pre);
+  // Xt.W^T + Wb of count gates from first
+  auto inputGates = [&](int64_t first, int64_t count) {
+    if (XtProj.size() == 3) {
+      assert(count == 1 && "unpacked input projection holds one gate each");
+      return XtProj[first];
+    }
+    return gruSlice(b, XtProj[0], 1, first * hidden_size,
+                    (first + count) * hidden_size);
+  };
+  // input.R^T + Rb of count gates from first
+  auto recurrentGates = [&](Value input, int64_t first, int64_t count) {
+    int64_t begin = first * hidden_size, end = (first + count) * hidden_size;
+    return gruLinear(b, input, gruSlice(b, weights.R, 0, begin, end),
+                     gruSlice(b, weights.Rb, 0, begin, end));
+  };
 
-  Value r_w = AtenLinearOp::create(b, hTy, Xt, weights.Wr, weights.Wbr);
-  Value r_r = AtenLinearOp::create(b, hTy, H_prev, weights.Rr, weights.Rbr);
-  Value r_pre = AtenAddTensorOp::create(b, hTy, r_w, r_r, cstOne);
-  Value rt = createActivationByName(b, activations.f, r_pre);
+  // With linear_before_reset, H.Rn^T does not need r and joins the z and r
+  // matmul.
+  Value hR = packRecurrence
+                 ? recurrentGates(H_prev, 0, linear_before_reset ? 3 : 2)
+                 : Value();
+  auto recurrentGate = [&](int64_t gate) {
+    return hR ? gruSlice(b, hR, 1, gate * hidden_size, (gate + 1) * hidden_size)
+              : recurrentGates(H_prev, gate, 1);
+  };
 
-  Value h_w = AtenLinearOp::create(b, hTy, Xt, weights.Wh, weights.Wbh);
+  Value zt, rt;
+  if (XtProj.size() == 1 && hR) {
+    // The z and r pre-activations are adjacent columns, so they share one f.
+    Value zr_in = inputGates(0, 2);
+    Value zr_pre =
+        AtenAddTensorOp::create(b, zr_in.getType(), zr_in,
+                                gruSlice(b, hR, 1, 0, 2 * hidden_size), cstOne);
+    Value zr = createActivationByName(b, activations.f, zr_pre);
+    zt = gruSlice(b, zr, 1, 0, hidden_size);
+    rt = gruSlice(b, zr, 1, hidden_size, 2 * hidden_size);
+  } else {
+    Value z_pre = AtenAddTensorOp::create(b, hTy, inputGates(0, 1),
+                                          recurrentGate(0), cstOne);
+    zt = createActivationByName(b, activations.f, z_pre);
+    Value r_pre = AtenAddTensorOp::create(b, hTy, inputGates(1, 1),
+                                          recurrentGate(1), cstOne);
+    rt = createActivationByName(b, activations.f, r_pre);
+  }
+
   Value h_r;
   if (linear_before_reset) {
-    // when linear_before_reset = 1, multiply r with H_prev to reset
-    // before applying linear layer
-    Value h_linear =
-        AtenLinearOp::create(b, hTy, H_prev, weights.Rh, weights.Rbh);
-    h_r = AtenMulTensorOp::create(b, hTy, h_linear, rt);
+    // multiply r with the linear layer output to reset
+    h_r = AtenMulTensorOp::create(b, hTy, recurrentGate(2), rt);
   } else {
-    // otherwise, multiply first and then apply linear layer
+    // multiply r with H_prev first and then apply the linear layer
     Value h_reset = AtenMulTensorOp::create(b, hTy, H_prev, rt);
-    h_r = AtenLinearOp::create(b, hTy, h_reset, weights.Rh, weights.Rbh);
+    h_r = recurrentGates(h_reset, 2, 1);
   }
-  Value h_pre = AtenAddTensorOp::create(b, hTy, h_w, h_r, cstOne);
+  Value h_pre = AtenAddTensorOp::create(b, hTy, inputGates(2, 1), h_r, cstOne);
   Value ht = createActivationByName(b, activations.g, h_pre);
 
-  // Create a constant tensor filled with ones, matching the shape of zt
-  Value cstNone = ConstantNoneOp::create(b);
-  int64_t typeInt = (int64_t)getScalarTypeForType(hTy.getDtype());
-  Value dtype = ConstantIntOp::create(b, b.getI64IntegerAttr(typeInt));
-  Value ones = Torch::AtenOnesLikeOp::create(
-      b, hTy, zt, dtype, /*layout=*/cstNone,
-      /*device=*/cstNone, /*pin_memory=*/cstNone, /*memory_format=*/cstNone);
-
-  Value one_minus_zt = AtenSubTensorOp::create(b, hTy, ones, zt, cstOne);
+  // Keep the ONNX form of the update. In bf16 the shorter n + z * (H - n)
+  // loses precision to the rounding of H - n.
+  Value one_minus_zt =
+      AtenRsubScalarOp::create(b, hTy, zt, cstOne, /*alpha=*/cstOne);
   Value ht_scaled = AtenMulTensorOp::create(b, hTy, one_minus_zt, ht);
   Value H_prev_zt = AtenMulTensorOp::create(b, hTy, H_prev, zt);
-  Value H_new = AtenAddTensorOp::create(b, hTy, ht_scaled, H_prev_zt, cstOne);
-
-  return H_new;
+  return AtenAddTensorOp::create(b, hTy, ht_scaled, H_prev_zt, cstOne);
 }
 
+// X: [seq_len, batch_size, input_size], initial_h: [batch_size, hidden_size].
+// A reverse layer reads X and writes Y from the last timestep to the first.
 GruLayerOutput gru_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
-                         GruWeights weights, GruActivations activations,
-                         bool linear_before_reset) {
+                         const GruWeights &weights,
+                         const GruActivations &activations,
+                         bool linear_before_reset, bool reverse,
+                         GruPacking packing) {
   Location loc = b.getLoc();
 
   auto xTy = cast<ValueTensorType>(X.getType());
   auto hTy = cast<ValueTensorType>(initial_h.getType());
 
-  // Get sizes and store them in intermediate variables
-  auto xTySizes = xTy.getSizes();
-  auto hTySizes = hTy.getSizes();
-
-  int64_t seq_len = xTySizes[0];
-  int64_t batch_size = xTySizes[1];
-  int64_t input_size = xTySizes[2];
-  int64_t hidden_size = hTySizes[1];
+  int64_t seq_len = xTy.getSizes()[0];
+  int64_t batch_size = xTy.getSizes()[1];
+  int64_t input_size = xTy.getSizes()[2];
+  int64_t hidden_size = hTy.getSizes()[1];
 
   auto intType = b.getType<IntType>();
 
@@ -1196,10 +1266,30 @@ GruLayerOutput gru_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
   Value cstOne = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(1));
   Value cstSeqLen =
       ConstantIntOp::create(b, intType, b.getI64IntegerAttr(seq_len));
+  Value cstLastStep =
+      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(seq_len - 1));
   Value cstBatchSize =
       ConstantIntOp::create(b, intType, b.getI64IntegerAttr(batch_size));
   Value cstHiddenSize =
       ConstantIntOp::create(b, intType, b.getI64IntegerAttr(hidden_size));
+
+  // X.W^T + Wb does not depend on H, so compute it for all timesteps before
+  // the loop.
+  Value X_rows = gruReshape(b, X, {seq_len * batch_size, input_size});
+  auto inputProjection = [&](int64_t first, int64_t count) {
+    int64_t begin = first * hidden_size, end = (first + count) * hidden_size;
+    Value projection =
+        gruLinear(b, X_rows, gruSlice(b, weights.W, 0, begin, end),
+                  gruSlice(b, weights.Wb, 0, begin, end));
+    return gruReshape(b, projection,
+                      {seq_len, batch_size, count * hidden_size});
+  };
+  SmallVector<Value, 3> XProj;
+  if (packing.input)
+    XProj.push_back(inputProjection(0, 3));
+  else
+    XProj = {inputProjection(0, 1), inputProjection(1, 1),
+             inputProjection(2, 1)};
 
   auto yTy = b.getType<ValueTensorType>(
       SmallVector<int64_t>{seq_len, batch_size, hidden_size}, hTy.getDtype());
@@ -1234,23 +1324,30 @@ GruLayerOutput gru_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
     Value Y_prev = loopBody->getArgument(1);
     Value H_prev = loopBody->getArgument(2);
 
-    auto XtType = b.getType<ValueTensorType>(
-        llvm::SmallVector<int64_t>{batch_size, input_size}, xTy.getDtype());
+    Value time = reverse ? (Value)AtenSubIntOp::create(b, intType, cstLastStep,
+                                                       loopIndex)
+                         : loopIndex;
 
-    Value Xt = AtenSelectIntOp::create(b, XtType, X, cstZero, loopIndex);
+    SmallVector<Value, 3> XtProj;
+    for (Value projection : XProj) {
+      auto projTy = cast<ValueTensorType>(projection.getType());
+      auto XtProjTy = b.getType<ValueTensorType>(projTy.getSizes().drop_front(),
+                                                 projTy.getDtype());
+      XtProj.push_back(
+          AtenSelectIntOp::create(b, XtProjTy, projection, cstZero, time));
+    }
 
-    Value H_new =
-        gru_cell(b, Xt, H_prev, weights, activations, linear_before_reset);
+    Value H_new = gru_cell(b, XtProj, H_prev, weights, activations,
+                           linear_before_reset, packing.recurrence);
 
     Type hTyUnsqueezed = b.getType<ValueTensorType>(
         llvm::SmallVector<int64_t>{1, batch_size, hidden_size}, hTy.getDtype());
     Value H_new_unsqueezed =
         AtenUnsqueezeOp::create(b, hTyUnsqueezed, H_new, cstZero);
 
-    auto loopIndexPlusOne = AtenAddIntOp::create(b, intType, loopIndex, cstOne);
-    Value Y_new =
-        AtenSliceScatterOp::create(b, yTy, Y_prev, H_new_unsqueezed, cstZero,
-                                   loopIndex, loopIndexPlusOne, cstOne);
+    auto timePlusOne = AtenAddIntOp::create(b, intType, time, cstOne);
+    Value Y_new = AtenSliceScatterOp::create(
+        b, yTy, Y_prev, H_new_unsqueezed, cstZero, time, timePlusOne, cstOne);
 
     PrimLoopConditionOp::create(b, loopConditionTrue,
                                 ValueRange({Y_new, H_new}));
@@ -1299,20 +1396,33 @@ LogicalResult OnnxGruExpander(OpBinder binder,
 
   auto xTy = cast<ValueTensorType>(X.getType());
   auto wTy = cast<ValueTensorType>(W.getType());
+  if (!xTy.areAllSizesKnown() || !wTy.areAllSizesKnown())
+    return rewriter.notifyMatchFailure(binder.op,
+                                       "Only static shapes are supported");
 
-  // Setting up activations
-  GruActivations activations;
-  activations.f = "Sigmoid";
-  activations.g = "Tanh";
+  std::string direction;
+  if (!binder.customOpNameStringAttr(direction, "direction", "forward") &&
+      direction != "forward" && direction != "reverse" &&
+      direction != "bidirectional")
+    return rewriter.notifyMatchFailure(binder.op,
+                                       "Unsupported direction attribute value");
+  int64_t num_directions = direction == "bidirectional" ? 2 : 1;
 
+  // Setting up activations, f and g for each direction
+  SmallVector<GruActivations, 2> activations(num_directions,
+                                             GruActivations{"Sigmoid", "Tanh"});
   llvm::SmallVector<std::string> activationsList;
   if (!binder.stringArrayAttr(activationsList, "activations") &&
-      activationsList.size() == 2) {
-    activations.f = activationsList[0];
-    activations.g = activationsList[1];
-  } else if (activationsList.size() > 0) {
-    return rewriter.notifyMatchFailure(
-        binder.op, "Unsupported number of activation functions");
+      !activationsList.empty()) {
+    if (activationsList.size() != 2 * static_cast<size_t>(num_directions))
+      return rewriter.notifyMatchFailure(
+          binder.op, "Unsupported number of activation functions");
+    for (const std::string &name : activationsList)
+      if (name != "Sigmoid" && name != "Tanh" && name != "Relu")
+        return rewriter.notifyMatchFailure(
+            binder.op, "Unsupported activation function " + name);
+    for (int64_t d = 0; d < num_directions; ++d)
+      activations[d] = {activationsList[2 * d], activationsList[2 * d + 1]};
   }
 
   // Other attributes
@@ -1321,13 +1431,6 @@ LogicalResult OnnxGruExpander(OpBinder binder,
     return rewriter.notifyMatchFailure(binder.op,
                                        "Unsupported layout attribute type.");
 
-  std::string direction;
-  if (!binder.customOpNameStringAttr(direction, "direction", "forward") &&
-      direction != "forward")
-    return rewriter.notifyMatchFailure(binder.op,
-                                       "Unsupported direction attribute value");
-
-  int64_t num_directions = direction == "bidirectional" ? 2 : 1;
   // Validations
   auto XShape = xTy.getSizes();
   int64_t batch_size = (layout == 0) ? XShape[1] : XShape[0];
@@ -1336,9 +1439,9 @@ LogicalResult OnnxGruExpander(OpBinder binder,
 
   std::ostringstream oss;
 
-  if (num_directions != 1) {
-    oss << "Expected num_directions to be 1, but got " << num_directions
-        << ". ";
+  if (wTy.getSizes()[0] != num_directions) {
+    oss << "Expected dim 0 of W to be num_directions " << num_directions
+        << ", but got " << wTy.getSizes()[0] << ". ";
   }
 
   if (hidden_size * 3 != wTy.getSizes()[1]) {
@@ -1379,8 +1482,15 @@ LogicalResult OnnxGruExpander(OpBinder binder,
     }
   }
 
-  if (binder.tensorOperandAtIndex(sequence_lens, 4))
-    sequence_lens = ConstantNoneOp::create(b);
+  // The expansion runs every sequence to seq_len, so it only supports
+  // sequence_lens that hold seq_len for all batch entries.
+  if (!binder.tensorOperandAtIndex(sequence_lens, 4)) {
+    SmallVector<int64_t> lens;
+    if (!matchPattern(sequence_lens, m_OnnxListOfConstantInts(lens)) ||
+        !llvm::all_of(lens, [&](int64_t len) { return len == seq_len; }))
+      return rewriter.notifyMatchFailure(
+          binder.op, "Only sequence_lens equal to seq_length is supported");
+  }
 
   float clip;
   if (!binder.f32FloatAttr(clip, "clip") && clip != 0.0f)
@@ -1408,101 +1518,78 @@ LogicalResult OnnxGruExpander(OpBinder binder,
                                    cstNone, cstNone);
   }
 
-  Value W_forward = getDirection(b, 0, W);
-  Value R_forward = getDirection(b, 0, R);
-  Value B_forward = getDirection(b, 0, B);
-  Value initial_h_forward = getDirection(b, 0, initial_h);
-
-  GruWeights weights;
-
-  // Slice a tensor into numSlices slices of size sliceSize
-  // This is used for slicing the weights & biases into the individual gates
-  auto sliceTensor = [&](Value tensor, int64_t sliceSize, int64_t numSlices,
-                         ValueTensorType sliceType) {
-    SmallVector<Value> slices;
-    for (int64_t i = 0; i < numSlices; ++i) {
-      Value start =
-          ConstantIntOp::create(b, intType, b.getI64IntegerAttr(i * sliceSize));
-      Value end = ConstantIntOp::create(
-          b, intType, b.getI64IntegerAttr((i + 1) * sliceSize));
-
-      Value slice = AtenSliceTensorOp::create(b, sliceType, tensor,
-                                              cstZero, // dim to slice on
-                                              start, end,
-                                              cstOne // step
-      );
-
-      slices.push_back(slice);
-    }
-    return slices;
+  // A gate of a packed matmul is a column slice of its result. The slice is
+  // contiguous for batch 1 and strided otherwise. A target can ask to split
+  // larger packed results into one matmul per gate.
+  int64_t splitMin = binder.options.gruSplitGatesMinElements;
+  auto packs = [&](int64_t elements) {
+    return batch_size == 1 || splitMin == 0 || elements < splitMin;
   };
-
-  // Slice W
-  auto wSliceType = b.getType<ValueTensorType>(
-      llvm::SmallVector<int64_t>{hidden_size, input_size}, wTy.getDtype());
-  auto W_slices = sliceTensor(W_forward, hidden_size, 3, wSliceType);
-  std::tie(weights.Wz, weights.Wr, weights.Wh) =
-      std::make_tuple(W_slices[0], W_slices[1], W_slices[2]);
-
-  // Slice R
-  auto rSliceType = b.getType<ValueTensorType>(
-      llvm::SmallVector<int64_t>{hidden_size, hidden_size}, wTy.getDtype());
-  auto R_slices = sliceTensor(R_forward, hidden_size, 3, rSliceType);
-  std::tie(weights.Rz, weights.Rr, weights.Rh) =
-      std::make_tuple(R_slices[0], R_slices[1], R_slices[2]);
-
-  // Slice B
-  auto bSliceType = b.getType<ValueTensorType>(
-      llvm::SmallVector<int64_t>{hidden_size}, wTy.getDtype());
-  auto B_slices = sliceTensor(B_forward, hidden_size, 6, bSliceType);
-  std::tie(weights.Wbz, weights.Wbr, weights.Wbh, weights.Rbz, weights.Rbr,
-           weights.Rbh) =
-      std::make_tuple(B_slices[0], B_slices[1], B_slices[2], B_slices[3],
-                      B_slices[4], B_slices[5]);
+  GruPacking packing;
+  packing.input = packs(seq_len * batch_size * 3 * hidden_size);
+  packing.recurrence =
+      packs(batch_size * (linear_before_reset ? 3 : 2) * hidden_size);
 
   // Process inputs based on layout
   if (layout == 1) {
     X = StaticTranspose(b, X, 0, 1);
   }
 
-  // Weights and biases ready. Calling GRU layer to insert the actual ops.
-  GruLayerOutput gruLayerOutput = gru_layer(b, X, initial_h_forward, weights,
-                                            activations, linear_before_reset);
+  // Run one layer per direction. Direction 1 of a bidirectional GRU is the
+  // reverse one.
+  SmallVector<Value, 2> Y_directions, Y_h_directions;
+  for (int64_t d = 0; d < num_directions; ++d) {
+    Value B_direction = getDirection(b, d, B);
+    GruWeights weights;
+    weights.W = getDirection(b, d, W);
+    weights.R = getDirection(b, d, R);
+    weights.Wb = gruSlice(b, B_direction, 0, 0, 3 * hidden_size);
+    weights.Rb = gruSlice(b, B_direction, 0, 3 * hidden_size, 6 * hidden_size);
+
+    bool reverse = direction == "reverse" || d == 1;
+    GruLayerOutput layerOutput =
+        gru_layer(b, X, getDirection(b, d, initial_h), weights, activations[d],
+                  linear_before_reset, reverse, packing);
+
+    // Add the num_directions dim: dim 1 of Y, dim 0 of Y_h.
+    Type yDirTy = b.getType<ValueTensorType>(
+        SmallVector<int64_t>{seq_len, 1, batch_size, hidden_size},
+        xTy.getDtype());
+    Y_directions.push_back(
+        AtenUnsqueezeOp::create(b, yDirTy, layerOutput.Y, cstOne));
+    Type y_hDirTy = b.getType<ValueTensorType>(
+        SmallVector<int64_t>{1, batch_size, hidden_size}, xTy.getDtype());
+    Y_h_directions.push_back(
+        AtenUnsqueezeOp::create(b, y_hDirTy, layerOutput.Y_h, cstZero));
+  }
+
+  auto concat = [&](ArrayRef<Value> values, int64_t dim) {
+    if (values.size() == 1)
+      return values.front();
+    auto valueTy = cast<ValueTensorType>(values.front().getType());
+    SmallVector<int64_t> shape(valueTy.getSizes());
+    shape[dim] *= values.size();
+    Value list =
+        PrimListConstructOp::create(b, b.getType<ListType>(valueTy), values);
+    return (Value)AtenCatOp::create(
+        b, b.getType<ValueTensorType>(shape, valueTy.getDtype()), list,
+        ConstantIntOp::create(b, intType, b.getI64IntegerAttr(dim)));
+  };
+  // Y: [seq_len, num_directions, batch_size, hidden_size]
+  Value Y_result = concat(Y_directions, 1);
+  // Y_h: [num_directions, batch_size, hidden_size]
+  Value Y_h_result = concat(Y_h_directions, 0);
 
   // Process outputs based on layout
-  Value Y_final;
-  if (binder.tensorResultTypeAtIndex(yTy, 0)) {
-    Y_final = cstNone;
-  } else {
-    if (layout == 0) {
-      Y_final = AtenUnsqueezeOp::create(b, yTy, gruLayerOutput.Y, cstOne);
-    } else {
-      Type yTy_original = b.getType<ValueTensorType>(
-          llvm::SmallVector<int64_t>{seq_len, 1, batch_size, hidden_size},
-          yTy.getDtype());
-      Y_final =
-          AtenUnsqueezeOp::create(b, yTy_original, gruLayerOutput.Y, cstOne);
-      Y_final = StaticTranspose(b, Y_final, 1, 2);
-      Y_final = StaticTranspose(b, Y_final, 0, 1);
-    }
+  if (layout == 1) {
+    Y_result = StaticTranspose(b, Y_result, 1, 2);
+    Y_result = StaticTranspose(b, Y_result, 0, 1);
+    Y_h_result = StaticTranspose(b, Y_h_result, 0, 1);
   }
 
-  Value Y_h_final;
-  if (binder.tensorResultTypeAtIndex(Y_hType, 1)) {
-    Y_h_final = cstNone;
-  } else {
-    if (layout == 0) {
-      Y_h_final =
-          AtenUnsqueezeOp::create(b, Y_hType, gruLayerOutput.Y_h, cstZero);
-    } else {
-      Type y_hTy_original = b.getType<ValueTensorType>(
-          llvm::SmallVector<int64_t>{1, batch_size, hidden_size},
-          Y_hType.getDtype());
-      Y_h_final = AtenUnsqueezeOp::create(b, y_hTy_original, gruLayerOutput.Y_h,
-                                          cstZero);
-      Y_h_final = StaticTranspose(b, Y_h_final, 0, 1);
-    }
-  }
+  Value Y_final = binder.tensorResultTypeAtIndex(yTy, 0) ? cstNone : Y_result;
+  Value Y_h_final =
+      binder.tensorResultTypeAtIndex(Y_hType, 1) ? cstNone : Y_h_result;
 
   rewriter.replaceOp(binder.op, mlir::ValueRange{Y_final, Y_h_final});
   return success();
