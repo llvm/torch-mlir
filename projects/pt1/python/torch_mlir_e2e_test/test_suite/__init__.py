@@ -45,6 +45,7 @@ def register_all_tests():
     from . import spectral
     from . import nll_loss
     from . import index_select
+    from . import im2col
     from . import linalg_algorithms
     from . import as_strided
     from . import arange
