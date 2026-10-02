@@ -7818,6 +7818,135 @@ public:
   }
 };
 
+// Decompose aten.multinomial using the Exponential random variable trick:
+// Key = log(U) / W where U ~ Uniform(0, 1)
+// replacement = false -> topk(Keys, num_samples, dim=-1)
+// replacement = true  -> argmax(Keys, dim=-1)
+//
+// Reference implementation from PyTorch native C++ kernel:
+// https://github.com/pytorch/pytorch/blob/main/aten/src/ATen/native/Distributions.cpp#L552-L645
+class DecomposeAtenMultinomialOp : public OpRewritePattern<AtenMultinomialOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenMultinomialOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value generator = op.getGenerator();
+
+    if (!isa<Torch::NoneType>(generator.getType()))
+      return rewriter.notifyMatchFailure(
+          op, "The generator has to be None because only global default "
+              "generator is supported");
+
+    auto selfType = dyn_cast<ValueTensorType>(self.getType());
+    if (!selfType || !selfType.hasSizes() || !selfType.hasDtype())
+      return rewriter.notifyMatchFailure(
+          op, "expected self to have sizes and dtype");
+
+    if (!isa<mlir::FloatType>(selfType.getDtype()))
+      return rewriter.notifyMatchFailure(
+          op, "multinomial expects float tensor for weights");
+
+    ArrayRef<int64_t> selfShape = selfType.getSizes();
+    int64_t rank = selfShape.size();
+    if (rank != 1 && rank != 2)
+      return rewriter.notifyMatchFailure(
+          op, "multinomial expects rank 1 or 2 tensor");
+
+    bool replacement = false;
+    if (!matchPattern(op.getReplacement(), m_TorchConstantBool(&replacement)))
+      return rewriter.notifyMatchFailure(op,
+                                         "replacement must be constant bool");
+
+    Value none = ConstantNoneOp::create(rewriter, loc);
+    Value constZero =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
+    Value constOneInt =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
+    Value constMinusOne =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(-1));
+    Value constTrue = ConstantBoolOp::create(rewriter, loc, true);
+    Value constFalse = ConstantBoolOp::create(rewriter, loc, false);
+
+    // Exponential key helper: Key = log(U) / W where U ~ Uniform(0, 1)
+    auto computeExponentialKeys = [&](Value weights) -> Value {
+      Value u = AtenRandLikeOp::create(
+          rewriter, loc, weights.getType(), weights, /*dtype=*/none,
+          /*layout=*/none, /*device=*/none, /*pinMemory=*/none,
+          /*memoryFormat=*/none);
+      Value logU = AtenLogOp::create(rewriter, loc, weights.getType(), u);
+      return AtenDivTensorOp::create(rewriter, loc, weights.getType(), logU,
+                                     weights);
+    };
+
+    if (!replacement) {
+      // Sampling without replacement: Exponential Top-K (Efraimidis-Spirakis)
+      Value keys = computeExponentialKeys(self);
+
+      BaseTensorType selfTensorType = cast<BaseTensorType>(self.getType());
+      BaseTensorType resultTensorType = cast<BaseTensorType>(op.getType());
+      Type valuesType = resultTensorType.getWithSizesAndDtype(
+          resultTensorType.getOptionalSizes(),
+          selfTensorType.getOptionalDtype());
+
+      auto topk = AtenTopkOp::create(rewriter, loc, valuesType, op.getType(),
+                                     keys, op.getNumSamples(), constMinusOne,
+                                     /*largest=*/constTrue,
+                                     /*sorted=*/constTrue);
+      rewriter.replaceOp(op, topk.getIndices());
+      return success();
+    }
+
+    // Sampling with replacement: expand along sample dimension and argmax
+    Value numSamples = op.getNumSamples();
+    Value targetTensor;
+    if (rank == 1) {
+      Value catDimVal = AtenSizeIntOp::create(rewriter, loc, self, constZero);
+      SmallVector<int64_t> expandedShape = {ShapedType::kDynamic, selfShape[0]};
+      int64_t numSamplesInt;
+      if (matchPattern(numSamples, m_TorchConstantInt(&numSamplesInt)))
+        expandedShape[0] = numSamplesInt;
+
+      BaseTensorType expandedTy = rewriter.getType<ValueTensorType>(
+          expandedShape, selfType.getOptionalDtype());
+      Value shapeList = PrimListConstructOp::create(
+          rewriter, loc, ListType::get(IntType::get(op.getContext())),
+          SmallVector<Value>{numSamples, catDimVal});
+      targetTensor = AtenExpandOp::create(rewriter, loc, expandedTy, self,
+                                          shapeList, constFalse);
+    } else {
+      Value bVal = AtenSizeIntOp::create(rewriter, loc, self, constZero);
+      Value cVal = AtenSizeIntOp::create(rewriter, loc, self, constOneInt);
+      SmallVector<int64_t> unsqueezedShape = {selfShape[0], 1, selfShape[1]};
+      BaseTensorType unsqueezedTy = rewriter.getType<ValueTensorType>(
+          unsqueezedShape, selfType.getOptionalDtype());
+      Value selfUnsqueezed = AtenUnsqueezeOp::create(
+          rewriter, loc, unsqueezedTy, self, constOneInt);
+
+      SmallVector<int64_t> expandedShape = {selfShape[0], ShapedType::kDynamic,
+                                            selfShape[1]};
+      int64_t numSamplesInt;
+      if (matchPattern(numSamples, m_TorchConstantInt(&numSamplesInt)))
+        expandedShape[1] = numSamplesInt;
+
+      BaseTensorType expandedTy = rewriter.getType<ValueTensorType>(
+          expandedShape, selfType.getOptionalDtype());
+      Value shapeList = PrimListConstructOp::create(
+          rewriter, loc, ListType::get(IntType::get(op.getContext())),
+          SmallVector<Value>{bVal, numSamples, cVal});
+      targetTensor = AtenExpandOp::create(
+          rewriter, loc, expandedTy, selfUnsqueezed, shapeList, constFalse);
+    }
+
+    Value keys = computeExponentialKeys(targetTensor);
+
+    rewriter.replaceOpWithNewOp<AtenArgmaxOp>(
+        op, op.getType(), keys, constMinusOne, /*keepdim=*/constFalse);
+    return success();
+  }
+};
+
 // aten.bernoulli.float(x, p) = (randLike(float(x)) < tensor(p)).cast(type(x)).
 // Since the input x can be an integer tensor, it's important to cast it to
 // float type before passing it to the `aten.randLike` op.
@@ -14032,6 +14161,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposePrimsVarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposePrimsSqrtOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenMultinomialOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandnOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandnGeneratorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRandnLikeOp>(patterns);
