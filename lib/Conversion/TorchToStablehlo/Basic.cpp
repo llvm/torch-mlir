@@ -1729,11 +1729,35 @@ LogicalResult ConvertAtenOp<AtenClampTensorOp>::matchAndRewrite(
     }
     maxValue = *maxInfo;
   }
-  if (inputType.hasStaticShape()) {
-    minValue =
-        hlo::promoteAndBroadcast(rewriter, minValue, inputType, std::nullopt);
-    maxValue =
-        hlo::promoteAndBroadcast(rewriter, maxValue, inputType, std::nullopt);
+  // `promoteAndBroadcast` only needs to run when the rank of min/max differs
+  // from the rank of the input (e.g. a rank-1 scalar-ish bound broadcasting
+  // onto a rank-N input) -- same-rank min/max are already accepted as-is by
+  // stablehlo::ClampOp with implicit shape-compatible broadcasting, static or
+  // dynamic. Only take the explicit broadcast path in the differing-rank
+  // case, since promoteAndBroadcast rejects a same-rank pair where the
+  // input's shape is dynamic (it cannot statically prove compatibility).
+  auto minType = cast<RankedTensorType>(minValue.getType());
+  auto maxType = cast<RankedTensorType>(maxValue.getType());
+  bool needsMinBroadcast = minType.getRank() != inputType.getRank();
+  bool needsMaxBroadcast = maxType.getRank() != inputType.getRank();
+  if (needsMinBroadcast || needsMaxBroadcast) {
+    std::optional<Value> bcastSizeTensor = std::nullopt;
+    if (!inputType.hasStaticShape()) {
+      auto inputShapeInfo = hlo::getDimSizesOfTensor(rewriter, op, input,
+                                                     options.dimSizeIndexBits);
+      if (failed(inputShapeInfo)) {
+        return rewriter.notifyMatchFailure(
+            op, "failed to get dimension sizes of the input");
+      }
+      bcastSizeTensor = tensor::FromElementsOp::create(rewriter, op->getLoc(),
+                                                       *inputShapeInfo);
+    }
+    if (needsMinBroadcast)
+      minValue = hlo::promoteAndBroadcast(rewriter, minValue, inputType,
+                                          bcastSizeTensor);
+    if (needsMaxBroadcast)
+      maxValue = hlo::promoteAndBroadcast(rewriter, maxValue, inputType,
+                                          bcastSizeTensor);
   }
   rewriter.replaceOpWithNewOp<stablehlo::ClampOp>(op, minValue, input,
                                                   maxValue);

@@ -687,3 +687,49 @@ func.func @torch.aten.polar$dynamic(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !to
   %0 = torch.aten.polar %arg0, %arg1 : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],f32> -> !torch.vtensor<[?,?],complex<f32>>
   return %0 : !torch.vtensor<[?,?],complex<f32>>
 }
+
+// -----
+
+// CHECK-LABEL:  func.func @torch.aten.clamp.Tensor$dynamic(
+// CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[?,?],f32>,
+// CHECK-SAME:         %[[ARG1:.*]]: !torch.vtensor<[1],f32>,
+// CHECK-SAME:         %[[ARG2:.*]]: !torch.vtensor<[1],f32>) -> !torch.vtensor<[?,?],f32> {
+// CHECK:           %[[MAX:.*]] = torch_c.to_builtin_tensor %[[ARG2]] : !torch.vtensor<[1],f32> -> tensor<1xf32>
+// CHECK:           %[[MIN:.*]] = torch_c.to_builtin_tensor %[[ARG1]] : !torch.vtensor<[1],f32> -> tensor<1xf32>
+// CHECK:           %[[SELF:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
+// CHECK:           %[[C0:.*]] = arith.constant 0 : index
+// CHECK:           %[[DIM0:.*]] = tensor.dim %[[SELF]], %[[C0]] : tensor<?x?xf32>
+// CHECK:           %[[DIM0_I64:.*]] = arith.index_cast %[[DIM0]] : index to i64
+// CHECK:           %[[C1:.*]] = arith.constant 1 : index
+// CHECK:           %[[DIM1:.*]] = tensor.dim %[[SELF]], %[[C1]] : tensor<?x?xf32>
+// CHECK:           %[[DIM1_I64:.*]] = arith.index_cast %[[DIM1]] : index to i64
+// CHECK:           %[[SHAPE:.*]] = tensor.from_elements %[[DIM0_I64]], %[[DIM1_I64]] : tensor<2xi64>
+// CHECK:           %[[MIN_BCAST:.*]] = stablehlo.dynamic_broadcast_in_dim %[[MIN]], %[[SHAPE]], dims = [1] : (tensor<1xf32>, tensor<2xi64>) -> tensor<?x?xf32>
+// CHECK:           %[[MAX_BCAST:.*]] = stablehlo.dynamic_broadcast_in_dim %[[MAX]], %[[SHAPE]], dims = [1] : (tensor<1xf32>, tensor<2xi64>) -> tensor<?x?xf32>
+// CHECK:           %[[CLAMP:.*]] = stablehlo.clamp %[[MIN_BCAST]], %[[SELF]], %[[MAX_BCAST]] : tensor<?x?xf32>
+// CHECK:           %[[OUT:.*]] = torch_c.from_builtin_tensor %[[CLAMP]] : tensor<?x?xf32> -> !torch.vtensor<[?,?],f32>
+// CHECK:           return %[[OUT]] : !torch.vtensor<[?,?],f32>
+func.func @torch.aten.clamp.Tensor$dynamic(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.vtensor<[1],f32>, %arg2: !torch.vtensor<[1],f32>) -> !torch.vtensor<[?,?],f32> {
+  %0 = torch.aten.clamp.Tensor %arg0, %arg1, %arg2 : !torch.vtensor<[?,?],f32>, !torch.vtensor<[1],f32>, !torch.vtensor<[1],f32> -> !torch.vtensor<[?,?],f32>
+  return %0 : !torch.vtensor<[?,?],f32>
+}
+
+// -----
+
+// Same-rank min/max is left untouched by the differing-rank broadcast fix
+// above: stablehlo.clamp already accepts a shape-compatible same-rank pair
+// (static min/max, dynamic self) without an explicit broadcast.
+// CHECK-LABEL:  func.func @torch.aten.clamp.Tensor$dynamic_samerank(
+// CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[?,?],f32>,
+// CHECK-SAME:         %[[ARG1:.*]]: !torch.vtensor<[3,5],f32>,
+// CHECK-SAME:         %[[ARG2:.*]]: !torch.vtensor<[3,5],f32>) -> !torch.vtensor<[?,?],f32> {
+// CHECK:           %[[MAX:.*]] = torch_c.to_builtin_tensor %[[ARG2]] : !torch.vtensor<[3,5],f32> -> tensor<3x5xf32>
+// CHECK:           %[[MIN:.*]] = torch_c.to_builtin_tensor %[[ARG1]] : !torch.vtensor<[3,5],f32> -> tensor<3x5xf32>
+// CHECK:           %[[SELF:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
+// CHECK:           %[[CLAMP:.*]] = stablehlo.clamp %[[MIN]], %[[SELF]], %[[MAX]] : (tensor<3x5xf32>, tensor<?x?xf32>, tensor<3x5xf32>) -> tensor<?x?xf32>
+// CHECK:           %[[OUT:.*]] = torch_c.from_builtin_tensor %[[CLAMP]] : tensor<?x?xf32> -> !torch.vtensor<[?,?],f32>
+// CHECK:           return %[[OUT]] : !torch.vtensor<[?,?],f32>
+func.func @torch.aten.clamp.Tensor$dynamic_samerank(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.vtensor<[3,5],f32>, %arg2: !torch.vtensor<[3,5],f32>) -> !torch.vtensor<[?,?],f32> {
+  %0 = torch.aten.clamp.Tensor %arg0, %arg1, %arg2 : !torch.vtensor<[?,?],f32>, !torch.vtensor<[3,5],f32>, !torch.vtensor<[3,5],f32> -> !torch.vtensor<[?,?],f32>
+  return %0 : !torch.vtensor<[?,?],f32>
+}
