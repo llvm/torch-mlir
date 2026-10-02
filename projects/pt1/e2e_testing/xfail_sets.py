@@ -578,7 +578,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "SliceCopyEndGreaterThanDimSize_Module_basic",
     "SliceCopyNegative_Module_basic",
     "SliceCopyNonZeroDim_Module_basic",
-    "SliceCopyStartGreaterThanDimSize_Module_basic",
     "SliceCopy_Module_basic",
     "SliceScatterModule_basic",
     "SliceScatterNegativeDimModule_basic",
@@ -3243,8 +3242,6 @@ ONNX_XFAIL_SET = {
     "AtenSymConstrainRange_basic",
     "AtenSymConstrainRangeForSize_basic",
     "Aten_AssertScalar_basic",
-    # JIT session error: Symbols not found: [ memrefCopy ]
-    "SplitWithSizes_Module_basic",
     # RuntimeError: Given input size: (1x1x1). Calculated output size: (1x0x0). Output size is too small
     "AvgPool2dWithoutPadFullDimIndivisibleByStrideModule_basic",
     "MaxPool2dWithoutPadFullDimIndivisibleByStrideModule_basic",
