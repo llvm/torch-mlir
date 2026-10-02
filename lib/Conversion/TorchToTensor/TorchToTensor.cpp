@@ -62,7 +62,7 @@ public:
 
     if (isa<mlir::FloatType>(extractTy) && !extractTy.isF64()) {
       extract = arith::ExtFOp::create(rewriter, op.getLoc(),
-                                      rewriter.getF64Type(), extract);
+                                      rewriter.getF64Type(), extract, {});
     }
 
     rewriter.replaceOp(op, extract);
