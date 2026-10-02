@@ -7195,26 +7195,32 @@ verifyScaledMmV2MatrixShapes(Aten_ScaledMmV2Op op) {
       selfType.hasDtype() && isa<Float4E2M1FNType>(selfType.getDtype());
   bool mat2IsFp4 =
       mat2Type.hasDtype() && isa<Float4E2M1FNType>(mat2Type.getDtype());
-  // `k` is the statically visible storage dimension. For FP4, the
-  // float4_e2m1fn_x2 representation packs two logical FP4 values into each
-  // storage element. PyTorch _scaled_mm_v2 applies that packed-K multiplier
-  // only when both matrix operands are FP4.
+  // TorchAO imports FP4 operands in float4_e2m1fn_x2 storage, where each
+  // visible element packs two logical FP4 values. After activation fusion,
+  // self may already expose logical K while mat2 remains packed.
   info.logicalK = info.k;
   int64_t mat2LogicalK = mat2K;
   if (selfIsFp4 && mat2IsFp4) {
-    if (info.k != kUnknownSize)
-      info.logicalK = info.k * 2;
     if (mat2K != kUnknownSize)
       mat2LogicalK = mat2K * 2;
+    if (info.k != kUnknownSize) {
+      if (mat2LogicalK != kUnknownSize && info.k == mat2LogicalK)
+        info.logicalK = info.k;
+      else
+        info.logicalK = info.k * 2;
+    }
   }
 
   if (hasStaticContractionDims) {
-    int64_t selfContractionSize = hasExplicitContractionDims
-                                      ? selfShape[selfContractionDim]
-                                      : info.logicalK;
-    int64_t mat2ContractionSize = hasExplicitContractionDims
-                                      ? mat2Shape[mat2ContractionDim]
-                                      : mat2LogicalK;
+    bool usesDefaultContractionDims =
+        !hasExplicitContractionDims ||
+        (selfContractionDim == 1 && mat2ContractionDim == 0);
+    int64_t selfContractionSize = usesDefaultContractionDims
+                                      ? info.logicalK
+                                      : selfShape[selfContractionDim];
+    int64_t mat2ContractionSize = usesDefaultContractionDims
+                                      ? mat2LogicalK
+                                      : mat2Shape[mat2ContractionDim];
     if (selfContractionSize != kUnknownSize &&
         mat2ContractionSize != kUnknownSize &&
         selfContractionSize != mat2ContractionSize) {
@@ -7276,7 +7282,6 @@ verifyScaledMmV2ScaleNumel(Aten_ScaledMmV2Op op,
     return success();
 
   int64_t m = matrixInfo.m;
-  int64_t k = matrixInfo.k;
   int64_t n = matrixInfo.n;
   int64_t logicalK = matrixInfo.logicalK;
   ScaledMmV2RecipeMode mode = recipeInfo.mode;
@@ -7353,7 +7358,9 @@ verifyScaledMmV2ScaleNumel(Aten_ScaledMmV2Op op,
 
   int64_t blockSizeMN = 128;
   int64_t blockSizeK = 32;
-  int64_t numKBlocks = llvm::divideCeil(k, blockSizeK);
+  // MX blockwise scales are defined over the logical contracting dimension.
+  // For packed FP4 this is twice the visible storage K.
+  int64_t numKBlocks = llvm::divideCeil(logicalK, blockSizeK);
   int64_t paddedNumKBlocks = llvm::divideCeil(numKBlocks, int64_t{4}) * 4;
   int64_t expectedScaleANumel =
       blockSizeMN * llvm::divideCeil(m, blockSizeMN) * paddedNumKBlocks;
