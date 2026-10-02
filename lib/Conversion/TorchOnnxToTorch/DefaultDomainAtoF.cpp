@@ -2652,15 +2652,19 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
       "DequantizeLinear", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
-        llvm::SmallVector<Value> operands;
-        if (binder.tensorOperands(operands, 3) ||
+        Value operand, scale, zeropoint;
+        if (binder.getNumOperands() < 2 || binder.getNumOperands() > 3 ||
+            binder.tensorOperandAtIndex(operand, 0) ||
+            binder.tensorOperandAtIndex(scale, 1) ||
             binder.tensorResultType(resultType))
           return failure();
 
         auto loc = binder.getLoc();
-        Value operand = operands[0];
-        Value scale = operands[1];
-        Value zeropoint = operands[2];
+        if (binder.getNumOperands() == 3 &&
+            !isa<Torch::NoneType>(binder.op->getOperand(2).getType())) {
+          if (binder.tensorOperandAtIndex(zeropoint, 2))
+            return failure();
+        }
 
         auto operandTy = cast<Torch::ValueTensorType>(operand.getType());
         auto scaleTy = dyn_cast<Torch::ValueTensorType>(scale.getType());
@@ -2675,13 +2679,14 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           return rewriter.notifyMatchFailure(
               binder.op, "unimplemented: only per-tensor or per-axis "
                          "quantization supported");
-        auto qTensorTy = getQTorchTypeFromTorchIntType(operandTy);
-        if (!qTensorTy) {
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "unsupported result dtype");
-        }
 
+        if (!operandTy.hasDtype())
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "requires known input dtype");
         auto operandETy = operandTy.getDtype();
+        if (!isSupportedQuantizeDequantizeLinearDtype(operandETy))
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented: unsupported quantized input dtype");
         bool fpOperand = isa<mlir::FloatType>(operandETy);
         bool isPerTensorQuantization = false;
         if (scaleRank == 0 ||
@@ -2698,19 +2703,38 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           scale = Torch::AtenItemOp::create(
               rewriter, loc, rewriter.getType<Torch::FloatType>(), scale);
 
-          Type zeropointTy = rewriter.getType<Torch::IntType>();
-          if (fpOperand)
-            zeropointTy = rewriter.getType<Torch::FloatType>();
-          zeropoint =
-              Torch::AtenItemOp::create(rewriter, loc, zeropointTy, zeropoint);
+          if (zeropoint) {
+            Type zeropointTy = rewriter.getType<Torch::IntType>();
+            if (fpOperand)
+              zeropointTy = rewriter.getType<Torch::FloatType>();
+            zeropoint = Torch::AtenItemOp::create(rewriter, loc, zeropointTy,
+                                                  zeropoint);
+          } else {
+            zeropoint = Torch::ConstantIntOp::create(rewriter, loc, 0);
+          }
+        } else if (!zeropoint) {
+          // dequantize_per_channel uses None for a default zero point of zero.
+          zeropoint = Torch::ConstantNoneOp::create(rewriter, loc);
         }
 
+        auto resultETy = resultType.getDtype();
+        Value resultETyConst =
+            Torch::getDtypeIntValueForType(rewriter, loc, resultETy);
+
+        Value operandETyConst =
+            Torch::getDtypeIntValueForType(rewriter, loc, operandETy);
+
         if (!fpOperand) {
-          Value quantize;
+          auto [minInt, maxInt] = createQuantizationBounds(
+              rewriter, loc, cast<IntegerType>(operandETy));
+
+          Value dequantize;
           // Case 1: Per-Tensor Quantization for non-floating point input.
           if (isPerTensorQuantization) {
-            quantize = Torch::Aten_MakePerTensorQuantizedTensorOp::create(
-                rewriter, loc, qTensorTy, operand, scale, zeropoint);
+            dequantize =
+                Torch::QuantizedDecomposedDequantizePerTensorOp::create(
+                    rewriter, loc, resultType, operand, scale, zeropoint,
+                    minInt, maxInt, operandETyConst, resultETyConst);
           } else {
             // Case 2: Per-Channel Quantization for non-floating point input.
             int64_t axis;
@@ -2719,22 +2743,21 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
 
             Value cstAxis = Torch::ConstantIntOp::create(
                 rewriter, loc, rewriter.getI64IntegerAttr(axis));
-            quantize = Torch::Aten_MakePerChannelQuantizedTensorOp::create(
-                rewriter, loc, qTensorTy, operand, scale, zeropoint, cstAxis);
+
+            dequantize =
+                Torch::QuantizedDecomposedDequantizePerChannelOp::create(
+                    rewriter, loc, resultType, operand, scale, zeropoint,
+                    cstAxis, minInt, maxInt, operandETyConst, resultETyConst);
           }
-          rewriter.replaceOpWithNewOp<Torch::AtenDequantizeSelfOp>(
-              binder.op, resultType, quantize);
+          rewriter.replaceOp(binder.op, dequantize);
           return success();
         }
 
         // Case 3: Per-Tensor Quantization for floating point input.
         Value none = Torch::ConstantNoneOp::create(rewriter, loc);
         Value cstFalse = Torch::ConstantBoolOp::create(rewriter, loc, false);
-        auto tyVal = Torch::getScalarTypeForType(resultType.getDtype());
-        Value tyConst = Torch::ConstantIntOp::create(
-            rewriter, loc, rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                    static_cast<int64_t>(tyVal)));
+        Value tyConst =
+            Torch::getDtypeIntValueForType(rewriter, loc, resultETy);
         Value toDtype = Torch::AtenToDtypeOp::create(
             rewriter, loc, resultType, operand, tyConst,
             /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
