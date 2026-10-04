@@ -1807,3 +1807,35 @@ func.func @torch.aten.softplus(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtens
   %0 = torch.aten.softplus %arg0, %beta, %threshold : !torch.vtensor<[3,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[3,4],f32>
   return %0 : !torch.vtensor<[3,4],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.scatter.reduce$add(
+// CHECK-SAME:      %[[SELF:.*]]: !torch.vtensor<[4,4],f32>, %[[INDEX:.*]]: !torch.vtensor<[2,4],si64>, %[[SRC:.*]]: !torch.vtensor<[2,4],f32>
+// CHECK-DAG:     %[[DIM:.*]] = torch.constant.int 0
+// CHECK-DAG:     %[[SUM:.*]] = torch.constant.str "sum"
+// CHECK-DAG:     %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:         %[[RES:.*]] = torch.aten.scatter_reduce.two %[[SELF]], %[[DIM]], %[[INDEX]], %[[SRC]], %[[SUM]], %[[TRUE]]
+// CHECK-NOT:     torch.aten.scatter.reduce
+// CHECK:         return %[[RES]]
+func.func @torch.aten.scatter.reduce$add(%self: !torch.vtensor<[4,4],f32>, %index: !torch.vtensor<[2,4],si64>, %src: !torch.vtensor<[2,4],f32>) -> !torch.vtensor<[4,4],f32> {
+  %int0 = torch.constant.int 0
+  %str = torch.constant.str "add"
+  %0 = torch.aten.scatter.reduce %self, %int0, %index, %src, %str : !torch.vtensor<[4,4],f32>, !torch.int, !torch.vtensor<[2,4],si64>, !torch.vtensor<[2,4],f32>, !torch.str -> !torch.vtensor<[4,4],f32>
+  return %0 : !torch.vtensor<[4,4],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.scatter.reduce$multiply(
+// CHECK-DAG:     %[[PROD:.*]] = torch.constant.str "prod"
+// CHECK-DAG:     %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:         %[[RES:.*]] = torch.aten.scatter_reduce.two %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %[[PROD]], %[[TRUE]]
+// CHECK-NOT:     torch.aten.scatter.reduce
+// CHECK:         return %[[RES]]
+func.func @torch.aten.scatter.reduce$multiply(%self: !torch.vtensor<[4,4],f32>, %index: !torch.vtensor<[2,4],si64>, %src: !torch.vtensor<[2,4],f32>) -> !torch.vtensor<[4,4],f32> {
+  %int0 = torch.constant.int 0
+  %str = torch.constant.str "multiply"
+  %0 = torch.aten.scatter.reduce %self, %int0, %index, %src, %str : !torch.vtensor<[4,4],f32>, !torch.int, !torch.vtensor<[2,4],si64>, !torch.vtensor<[2,4],f32>, !torch.str -> !torch.vtensor<[4,4],f32>
+  return %0 : !torch.vtensor<[4,4],f32>
+}

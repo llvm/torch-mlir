@@ -7240,6 +7240,44 @@ public:
 };
 } // namespace
 
+// `aten.scatter.reduce` is the deprecated spelling of a scatter-with-reduction.
+// It is equivalent to `aten.scatter_reduce.two` with `include_self=true`, once
+// the reduction name is translated ("add" -> "sum", "multiply" -> "prod").
+namespace {
+class DecomposeAtenScatterReduceOp
+    : public OpRewritePattern<AtenScatterReduceOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenScatterReduceOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+
+    std::string reduceType;
+    if (!matchPattern(op.getReduce(), m_TorchConstantStr(reduceType)))
+      return rewriter.notifyMatchFailure(
+          op, "reduce type must be a constant string");
+
+    // `aten.scatter.reduce` only accepts these two reductions.
+    StringRef reduceTypeTwo;
+    if (reduceType == "add")
+      reduceTypeTwo = "sum";
+    else if (reduceType == "multiply")
+      reduceTypeTwo = "prod";
+    else
+      return rewriter.notifyMatchFailure(
+          op, "reduce type must be either 'add' or 'multiply'");
+
+    Value reduce = ConstantStrOp::create(rewriter, loc, reduceTypeTwo);
+    Value includeSelf = ConstantBoolOp::create(rewriter, loc, true);
+
+    rewriter.replaceOpWithNewOp<AtenScatterReduceTwoOp>(
+        op, op.getType(), op.getSelf(), op.getDim(), op.getIndex(), op.getSrc(),
+        reduce, includeSelf);
+    return success();
+  }
+};
+} // namespace
+
 // Silu(x) = sigmoid(x) * x
 namespace {
 class DecomposeAtenSiluOp : public OpRewritePattern<AtenSiluOp> {
@@ -13949,6 +13987,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenTraceOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHardswishOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSoftplusOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenScatterReduceOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSiluOp>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeConstantTensorNewLikeOp<AtenNewZerosOp, AtenZerosOp>>(
