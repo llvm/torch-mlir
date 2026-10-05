@@ -5655,6 +5655,18 @@ def AtenEmbeddingBagLastBagBoundaryModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class CumsumScalarModule(torch.nn.Module):
+    @export
+    @annotate_args([None, ([], torch.float32, True)])
+    def forward(self, val):
+        return torch.ops.aten.cumsum(val, 0), torch.ops.aten.cumsum(val, -1)
+
+
+@register_test_case(module_factory=lambda: CumsumScalarModule())
+def CumsumScalarModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand())
+
+
 class CumsumModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

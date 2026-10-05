@@ -745,7 +745,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::permute : (Tensor, int[]) -> (Tensor)", has_verifier=True)
     emit("aten::movedim.int : (Tensor, int, int) -> (Tensor)")
     emit("aten::bmm : (Tensor, Tensor) -> (Tensor)")
-    emit("aten::cumsum : (Tensor, int, int?) -> (Tensor)")
+    emit("aten::cumsum : (Tensor, int, int?) -> (Tensor)", has_folder=True)
     emit("aten::cumprod : (Tensor, int, int?) -> (Tensor)")
     emit("aten::logcumsumexp : (Tensor, int) -> (Tensor)")
     emit("aten::floor_divide.Scalar : (Tensor, Scalar) -> (Tensor)")
