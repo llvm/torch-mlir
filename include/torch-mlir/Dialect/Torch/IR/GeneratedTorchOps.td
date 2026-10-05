@@ -8998,7 +8998,6 @@ def Torch_AtenCumsumOp : Torch_Op<"aten.cumsum", [
   let results = (outs
     AnyTorchOptionalTensorType:$result
   );
-  let hasFolder = 1;
   let hasCustomAssemblyFormat = 1;
   let extraClassDefinition = [{
     ParseResult AtenCumsumOp::parse(OpAsmParser &parser, OperationState &result) {
@@ -9008,6 +9007,7 @@ def Torch_AtenCumsumOp : Torch_Op<"aten.cumsum", [
       printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenCumprodOp : Torch_Op<"aten.cumprod", [
