@@ -1424,6 +1424,50 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenGatherOp : public OpRewritePattern<AtenGatherOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenGatherOp op,
+                                PatternRewriter &rewriter) const override {
+    auto inputType = dyn_cast<ValueTensorType>(op.getSelf().getType());
+    auto indexType = dyn_cast<ValueTensorType>(op.getIndex().getType());
+    if (!inputType || !indexType || !inputType.hasSizes() ||
+        !indexType.hasSizes() || !inputType.getSizes().empty() ||
+        !indexType.getSizes().empty())
+      return rewriter.notifyMatchFailure(op, "expected scalar input and index");
+    if (op.getType() != inputType)
+      return rewriter.notifyMatchFailure(
+          op, "expected matching scalar input and result types");
+
+    int64_t dim;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)) ||
+        (dim != 0 && dim != -1))
+      return rewriter.notifyMatchFailure(
+          op, "expected scalar gather dimension 0 or -1");
+
+    // Keep the runtime index in a rank-one gather, then restore scalar shape.
+    Location loc = op.getLoc();
+    Value zero =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
+    SmallVector<int64_t> shape{1};
+    Type input1DType =
+        inputType.getWithSizesAndDtype(shape, inputType.getOptionalDtype());
+    Type index1DType =
+        indexType.getWithSizesAndDtype(shape, indexType.getOptionalDtype());
+    Value input =
+        AtenUnsqueezeOp::create(rewriter, loc, input1DType, op.getSelf(), zero);
+    Value index = AtenUnsqueezeOp::create(rewriter, loc, index1DType,
+                                          op.getIndex(), zero);
+    Value gathered = AtenGatherOp::create(rewriter, loc, input1DType, input,
+                                          zero, index, op.getSparseGrad());
+    rewriter.replaceOpWithNewOp<AtenSqueezeDimOp>(op, op.getType(), gathered,
+                                                  zero);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenSelectIntOp : public OpRewritePattern<AtenSelectIntOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -13863,6 +13907,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenStftCenterOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenGatherOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSelectIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMatmulOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMvOp>(patterns);

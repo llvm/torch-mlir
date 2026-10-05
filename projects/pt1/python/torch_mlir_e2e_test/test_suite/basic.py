@@ -1768,6 +1768,21 @@ def ColumnStack0dModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class GatherScalarModule(torch.nn.Module):
+    @export
+    @annotate_args([None, ([], torch.float32, True), ([], torch.int64, True)])
+    def forward(self, tensor, index):
+        return torch.gather(tensor, 0, index), torch.gather(tensor, -1, index)
+
+
+@register_test_case(module_factory=lambda: GatherScalarModule())
+def GatherScalarModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor(-3.25), torch.tensor(0, dtype=torch.int64))
+
+
+# ==============================================================================
+
+
 class GatherModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
