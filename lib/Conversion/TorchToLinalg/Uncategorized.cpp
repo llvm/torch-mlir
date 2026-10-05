@@ -2781,6 +2781,13 @@ public:
         getTypeConverter()->convertType(op.getResult().getType()));
     Value alignCorners = adaptor.getAlignCorners();
     Value interMode = adaptor.getInterpolationMode();
+    int64_t interpolationMode, paddingMode;
+    bool nearestZeros =
+        matchPattern(op.getInterpolationMode(),
+                     m_TorchConstantInt(&interpolationMode)) &&
+        interpolationMode == 1 &&
+        matchPattern(op.getPaddingMode(), m_TorchConstantInt(&paddingMode)) &&
+        paddingMode == 0;
     SmallVector<Value> dynamicSizes{};
     if (resultType.isDynamicDim(0))
       dynamicSizes.push_back(tensor::DimOp::create(rewriter, loc, input, 0));
@@ -2798,6 +2805,90 @@ public:
         [&](OpBuilder &b, Location loc, ValueRange args) {
           Value gr0 = args[1];
           Value gr1 = args[0];
+          if (nearestZeros) {
+            auto unnormalize = [&](Value coord, Value size,
+                                   Value sizeMinusOne) {
+              Value plusOne = arith::AddFOp::create(b, loc, coord, oneFloat);
+              Value half = arith::DivFOp::create(b, loc, plusOne, twoFloat);
+              Value aligned = arith::MulFOp::create(b, loc, half, sizeMinusOne);
+              Value sizeInt =
+                  arith::IndexCastOp::create(b, loc, int64type, size);
+              Value sizeFloat =
+                  arith::SIToFPOp::create(b, loc, floatType, sizeInt);
+              // Preserve PyTorch's arithmetic order: reassociation can
+              // move a coordinate across a nearest-neighbor rounding tie.
+              Value scaled = arith::MulFOp::create(b, loc, plusOne, sizeFloat);
+              Value shifted = arith::SubFOp::create(b, loc, scaled, oneFloat);
+              Value unaligned =
+                  arith::DivFOp::create(b, loc, shifted, twoFloat);
+              return arith::SelectOp::create(b, loc, alignCorners, aligned,
+                                             unaligned)
+                  .getResult();
+            };
+            // Round before testing bounds, including -0.5 -> 0 at the boundary.
+            Value row = math::RoundEvenOp::create(
+                b, loc, unnormalize(gr0, innerDim0a, innerDim0d));
+            Value col = math::RoundEvenOp::create(
+                b, loc, unnormalize(gr1, innerDim1a, innerDim1d));
+            // Guard conversion with 0 <= coord < 2^63, then check integer bounds.
+            // Converting dimension bounds to f32 may round them up.
+            Value int64Limit =
+                arith::ConstantOp::create(b, loc, b.getF32FloatAttr(0x1p63));
+            Value rowLower = arith::CmpFOp::create(
+                b, loc, arith::CmpFPredicate::OGE, row, zeroFloat);
+            Value rowUpper = arith::CmpFOp::create(
+                b, loc, arith::CmpFPredicate::OLT, row, int64Limit);
+            Value colLower = arith::CmpFOp::create(
+                b, loc, arith::CmpFPredicate::OGE, col, zeroFloat);
+            Value colUpper = arith::CmpFOp::create(
+                b, loc, arith::CmpFPredicate::OLT, col, int64Limit);
+            Value rowValid = arith::AndIOp::create(b, loc, rowLower, rowUpper);
+            Value colValid = arith::AndIOp::create(b, loc, colLower, colUpper);
+            Value convertible =
+                arith::AndIOp::create(b, loc, rowValid, colValid);
+            Value n = linalg::IndexOp::create(b, loc, 0);
+            Value c = linalg::IndexOp::create(b, loc, 1);
+            Value sampled =
+                scf::IfOp::create(
+                    b, loc, convertible,
+                    [&](OpBuilder &b, Location loc) {
+                      Value rowInt =
+                          arith::FPToSIOp::create(b, loc, int64type, row);
+                      Value colInt =
+                          arith::FPToSIOp::create(b, loc, int64type, col);
+                      Value rowInBounds = arith::CmpIOp::create(
+                          b, loc, arith::CmpIPredicate::sle, rowInt,
+                          innerDim0c);
+                      Value colInBounds = arith::CmpIOp::create(
+                          b, loc, arith::CmpIPredicate::sle, colInt,
+                          innerDim1c);
+                      Value inBounds = arith::AndIOp::create(
+                          b, loc, rowInBounds, colInBounds);
+                      Value pixel =
+                          scf::IfOp::create(
+                              b, loc, inBounds,
+                              [&](OpBuilder &b, Location loc) {
+                                Value rowIndex = arith::IndexCastOp::create(
+                                    b, loc, b.getIndexType(), rowInt);
+                                Value colIndex = arith::IndexCastOp::create(
+                                    b, loc, b.getIndexType(), colInt);
+                                Value value = lambdaExtract(b, loc, input, n, c,
+                                                            rowIndex, colIndex);
+                                scf::YieldOp::create(b, loc, value);
+                              },
+                              [&](OpBuilder &b, Location loc) {
+                                scf::YieldOp::create(b, loc, zeroFloat);
+                              })
+                              .getResult(0);
+                      scf::YieldOp::create(b, loc, pixel);
+                    },
+                    [&](OpBuilder &b, Location loc) {
+                      scf::YieldOp::create(b, loc, zeroFloat);
+                    })
+                    .getResult(0);
+            linalg::YieldOp::create(b, loc, sampled);
+            return;
+          }
           Value gr0Half = arith::DivFOp::create(b, loc, gr0, twoFloat);
           Value gr1Half = arith::DivFOp::create(b, loc, gr1, twoFloat);
           Value gr0HalfSelect =
