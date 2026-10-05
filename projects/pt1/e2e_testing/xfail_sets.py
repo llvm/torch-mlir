@@ -1860,6 +1860,7 @@ TOSA_PASS_SET = {
     "ReflectionPad2dModule_Right",
     "ReflectionPad2dModule_Top",
     "ReflectionPad2dModule_basic",
+    "ReplicationPad1dStaticModule_basic",
     "ReplicationPad2dModule_basic",
     "ReplicationPad2dModule_bottom0",
     "ReplicationPad2dModule_left0",
