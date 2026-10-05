@@ -48,3 +48,56 @@ class OnnxGemm_withWeights_basic(OnnxTestCase):
             onnx.numpy_helper.from_array(self._b, name="b"),
         ]
         return [node], ["y"], initializers
+
+
+# ==============================================================================
+# Gemm with non-unit alpha and no bias (C omitted): y = alpha * (x @ W)
+#
+#   x [4, 8]  --\
+#                >--> Gemm(alpha=0.5) --> y [4, 16]
+#   W [8, 16] --/
+# ==============================================================================
+
+
+@register_onnx_test
+class OnnxGemm_alphaNoBias_basic(OnnxTestCase):
+    def __init__(self):
+        self._W = np.random.default_rng(44).standard_normal((8, 16)).astype(np.float32)
+
+    @annotate_inputs([("x", torch.float32, [4, 8])])
+    def graph(self):
+        node = onnx.helper.make_node(
+            "Gemm",
+            ["x", "W"],
+            ["y"],
+            alpha=0.5,
+            transA=0,
+            transB=0,
+        )
+        initializers = [onnx.numpy_helper.from_array(self._W, name="W")]
+        return [node], ["y"], initializers
+
+
+# ==============================================================================
+# Gemm with non-unit alpha and C passed as an empty optional input ("").
+# The importer materializes the empty name as torch.constant.none.
+# ==============================================================================
+
+
+@register_onnx_test
+class OnnxGemm_alphaEmptyBias_basic(OnnxTestCase):
+    def __init__(self):
+        self._W = np.random.default_rng(45).standard_normal((8, 16)).astype(np.float32)
+
+    @annotate_inputs([("x", torch.float32, [4, 8])])
+    def graph(self):
+        node = onnx.helper.make_node(
+            "Gemm",
+            ["x", "W", ""],
+            ["y"],
+            alpha=0.5,
+            transA=0,
+            transB=0,
+        )
+        initializers = [onnx.numpy_helper.from_array(self._W, name="W")]
+        return [node], ["y"], initializers
