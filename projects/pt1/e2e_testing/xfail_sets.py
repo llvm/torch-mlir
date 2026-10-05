@@ -1917,6 +1917,7 @@ TOSA_PASS_SET = {
     "RandModule_basic",
     "ReduceL3NormAllDimsModule_basic",
     "ReduceL3NormKeepDimModule_basic",
+    "LinalgVectorNormScalarInfiniteModule_basic",
     "SliceCopy_Module_basic",
     "Threshold1dIntModule_basic",
     "Threshold2dIntModule_basic",
