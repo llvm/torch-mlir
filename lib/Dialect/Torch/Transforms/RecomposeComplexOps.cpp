@@ -10,6 +10,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
@@ -833,9 +834,14 @@ public:
     patterns.add<RecomposeChunkListUnpack>(context);
     patterns.add<RecomposeMeshgridIndexingListUnpack>(context);
 
+    wrapPatternsWithForwarding(patterns);
+
+    static std::unique_ptr<RewriterBase::Listener> listener =
+        createConversionForwardingListener();
     GreedyRewriteConfig config;
     config.setUseTopDownTraversal(true);
     config.setMaxIterations(GreedyRewriteConfig::kNoLimit);
+    config.setListener(listener.get());
 
     if (failed(applyPatternsGreedily(getOperation(), std::move(patterns),
                                      config))) {

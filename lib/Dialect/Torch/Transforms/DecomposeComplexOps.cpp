@@ -14312,9 +14312,12 @@ public:
     // from source operations to newly created operations during decomposition.
     wrapPatternsWithForwarding(patterns);
 
+    static std::unique_ptr<RewriterBase::Listener> listener =
+        createConversionForwardingListener();
     GreedyRewriteConfig config;
     config.setUseTopDownTraversal(true);
     config.setMaxIterations(GreedyRewriteConfig::kNoLimit);
+    config.setListener(listener.get());
 
     if (failed(applyPatternsGreedily(getOperation(), std::move(patterns),
                                      config))) {

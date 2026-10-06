@@ -11,6 +11,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "llvm/ADT/StringExtras.h"
@@ -474,8 +475,15 @@ struct ReduceOpVariantsPass
       return true;
     });
 
+    wrapPatternsWithForwarding(patterns);
+
+    static std::unique_ptr<RewriterBase::Listener> listener =
+        createConversionForwardingListener();
+    ConversionConfig config;
+    config.listener = listener.get();
+
     if (failed(applyPartialConversion(getOperation(), target,
-                                      std::move(patterns)))) {
+                                      std::move(patterns), config))) {
       return signalPassFailure();
     }
   }
