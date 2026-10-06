@@ -9007,6 +9007,7 @@ def Torch_AtenCumsumOp : Torch_Op<"aten.cumsum", [
       printDefaultTorchOp(printer, *this, 3, 1);
     }
   }];
+  let hasFolder = 1;
 }
 
 def Torch_AtenCumprodOp : Torch_Op<"aten.cumprod", [

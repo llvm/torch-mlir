@@ -3960,3 +3960,155 @@ func.func @torch.aten._int_mm(%arg0: !torch.vtensor<[3,4],si8>, %arg1: !torch.vt
   %0 = torch.aten._int_mm %arg0, %arg1 : !torch.vtensor<[3,4],si8>, !torch.vtensor<[4,3],si8> -> !torch.vtensor<[3,3],si32>
   return %0 : !torch.vtensor<[3,3],si32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @cumsum_scalar_floating_types(
+// CHECK-SAME: %[[F32:.*]]: !torch.vtensor<[],f32>, %[[F16:.*]]: !torch.vtensor<[],f16>, %[[BF16:.*]]: !torch.vtensor<[],bf16>, %[[F64:.*]]: !torch.vtensor<[],f64>)
+// CHECK-NEXT: return %[[F32]], %[[F16]], %[[BF16]], %[[F64]] : !torch.vtensor<[],f32>, !torch.vtensor<[],f16>, !torch.vtensor<[],bf16>, !torch.vtensor<[],f64>
+func.func @cumsum_scalar_floating_types(%f32: !torch.vtensor<[],f32>, %f16: !torch.vtensor<[],f16>, %bf16: !torch.vtensor<[],bf16>, %f64: !torch.vtensor<[],f64>) -> (!torch.vtensor<[],f32>, !torch.vtensor<[],f16>, !torch.vtensor<[],bf16>, !torch.vtensor<[],f64>) {
+  %zero = torch.constant.int 0
+  %negative_one = torch.constant.int -1
+  %bfloat16 = torch.constant.int 15
+  %none = torch.constant.none
+  %0 = torch.aten.cumsum %f32, %zero, %none : !torch.vtensor<[],f32>, !torch.int, !torch.none -> !torch.vtensor<[],f32>
+  %1 = torch.aten.cumsum %f16, %negative_one, %none : !torch.vtensor<[],f16>, !torch.int, !torch.none -> !torch.vtensor<[],f16>
+  %2 = torch.aten.cumsum %bf16, %zero, %bfloat16 : !torch.vtensor<[],bf16>, !torch.int, !torch.int -> !torch.vtensor<[],bf16>
+  %3 = torch.aten.cumsum %f64, %negative_one, %none : !torch.vtensor<[],f64>, !torch.int, !torch.none -> !torch.vtensor<[],f64>
+  return %0, %1, %2, %3 : !torch.vtensor<[],f32>, !torch.vtensor<[],f16>, !torch.vtensor<[],bf16>, !torch.vtensor<[],f64>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @cumsum_integer_promotion(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[],si32>)
+// CHECK-DAG: %[[ZERO:.*]] = torch.constant.int 0{{$}}
+// CHECK-DAG: %[[NONE:.*]] = torch.constant.none
+// CHECK: %[[RESULT:.*]] = torch.aten.cumsum %[[INPUT]], %[[ZERO]], %[[NONE]] : !torch.vtensor<[],si32>, !torch.int, !torch.none -> !torch.vtensor<[],si64>
+// CHECK-NEXT: return %[[RESULT]] : !torch.vtensor<[],si64>
+func.func @cumsum_integer_promotion(%input: !torch.vtensor<[],si32>) -> !torch.vtensor<[],si64> {
+  %zero = torch.constant.int 0
+  %none = torch.constant.none
+  %0 = torch.aten.cumsum %input, %zero, %none : !torch.vtensor<[],si32>, !torch.int, !torch.none -> !torch.vtensor<[],si64>
+  return %0 : !torch.vtensor<[],si64>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @cumsum_changed_dtype(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[],f32>)
+// CHECK-DAG: %[[ZERO:.*]] = torch.constant.int 0{{$}}
+// CHECK-DAG: %[[FLOAT64:.*]] = torch.constant.int 7{{$}}
+// CHECK: %[[RESULT:.*]] = torch.aten.cumsum %[[INPUT]], %[[ZERO]], %[[FLOAT64]] : !torch.vtensor<[],f32>, !torch.int, !torch.int -> !torch.vtensor<[],f64>
+// CHECK-NEXT: return %[[RESULT]] : !torch.vtensor<[],f64>
+func.func @cumsum_changed_dtype(%input: !torch.vtensor<[],f32>) -> !torch.vtensor<[],f64> {
+  %zero = torch.constant.int 0
+  %float64 = torch.constant.int 7
+  %0 = torch.aten.cumsum %input, %zero, %float64 : !torch.vtensor<[],f32>, !torch.int, !torch.int -> !torch.vtensor<[],f64>
+  return %0 : !torch.vtensor<[],f64>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @cumsum_runtime_dtype(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[],f32>, %[[DTYPE:.*]]: !torch.optional<int>)
+// CHECK: %[[ZERO:.*]] = torch.constant.int 0{{$}}
+// CHECK: %[[RESULT:.*]] = torch.aten.cumsum %[[INPUT]], %[[ZERO]], %[[DTYPE]] : !torch.vtensor<[],f32>, !torch.int, !torch.optional<int> -> !torch.vtensor<[],f32>
+// CHECK-NEXT: return %[[RESULT]] : !torch.vtensor<[],f32>
+func.func @cumsum_runtime_dtype(%input: !torch.vtensor<[],f32>, %dtype: !torch.optional<int>) -> !torch.vtensor<[],f32> {
+  %zero = torch.constant.int 0
+  %0 = torch.aten.cumsum %input, %zero, %dtype : !torch.vtensor<[],f32>, !torch.int, !torch.optional<int> -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @cumsum_unknown_element_type(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[],unk>)
+// CHECK-DAG: %[[ZERO:.*]] = torch.constant.int 0{{$}}
+// CHECK-DAG: %[[NONE:.*]] = torch.constant.none
+// CHECK: %[[RESULT:.*]] = torch.aten.cumsum %[[INPUT]], %[[ZERO]], %[[NONE]] : !torch.vtensor<[],unk>, !torch.int, !torch.none -> !torch.vtensor<[],unk>
+// CHECK-NEXT: return %[[RESULT]] : !torch.vtensor<[],unk>
+func.func @cumsum_unknown_element_type(%input: !torch.vtensor<[],unk>) -> !torch.vtensor<[],unk> {
+  %zero = torch.constant.int 0
+  %none = torch.constant.none
+  %0 = torch.aten.cumsum %input, %zero, %none : !torch.vtensor<[],unk>, !torch.int, !torch.none -> !torch.vtensor<[],unk>
+  return %0 : !torch.vtensor<[],unk>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @cumsum_invalid_dimensions(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[],f32>)
+// CHECK-DAG: %[[ONE:.*]] = torch.constant.int 1{{$}}
+// CHECK-DAG: %[[NEGATIVE_TWO:.*]] = torch.constant.int -2{{$}}
+// CHECK-DAG: %[[NONE:.*]] = torch.constant.none
+// CHECK: %[[POSITIVE:.*]] = torch.aten.cumsum %[[INPUT]], %[[ONE]], %[[NONE]] : !torch.vtensor<[],f32>, !torch.int, !torch.none -> !torch.vtensor<[],f32>
+// CHECK-NEXT: %[[NEGATIVE:.*]] = torch.aten.cumsum %[[INPUT]], %[[NEGATIVE_TWO]], %[[NONE]] : !torch.vtensor<[],f32>, !torch.int, !torch.none -> !torch.vtensor<[],f32>
+// CHECK-NEXT: return %[[POSITIVE]], %[[NEGATIVE]] : !torch.vtensor<[],f32>, !torch.vtensor<[],f32>
+func.func @cumsum_invalid_dimensions(%input: !torch.vtensor<[],f32>) -> (!torch.vtensor<[],f32>, !torch.vtensor<[],f32>) {
+  %one = torch.constant.int 1
+  %negative_two = torch.constant.int -2
+  %none = torch.constant.none
+  %0 = torch.aten.cumsum %input, %one, %none : !torch.vtensor<[],f32>, !torch.int, !torch.none -> !torch.vtensor<[],f32>
+  %1 = torch.aten.cumsum %input, %negative_two, %none : !torch.vtensor<[],f32>, !torch.int, !torch.none -> !torch.vtensor<[],f32>
+  return %0, %1 : !torch.vtensor<[],f32>, !torch.vtensor<[],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @cumsum_runtime_dimension(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[],f32>, %[[DIM:.*]]: !torch.int)
+// CHECK: %[[NONE:.*]] = torch.constant.none
+// CHECK: %[[RESULT:.*]] = torch.aten.cumsum %[[INPUT]], %[[DIM]], %[[NONE]] : !torch.vtensor<[],f32>, !torch.int, !torch.none -> !torch.vtensor<[],f32>
+// CHECK-NEXT: return %[[RESULT]] : !torch.vtensor<[],f32>
+func.func @cumsum_runtime_dimension(%input: !torch.vtensor<[],f32>, %dim: !torch.int) -> !torch.vtensor<[],f32> {
+  %none = torch.constant.none
+  %0 = torch.aten.cumsum %input, %dim, %none : !torch.vtensor<[],f32>, !torch.int, !torch.none -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @cumsum_nonvalue_tensor(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.tensor<[],f32>)
+// CHECK-DAG: %[[ZERO:.*]] = torch.constant.int 0{{$}}
+// CHECK-DAG: %[[NONE:.*]] = torch.constant.none
+// CHECK: %[[RESULT:.*]] = torch.aten.cumsum %[[INPUT]], %[[ZERO]], %[[NONE]] : !torch.tensor<[],f32>, !torch.int, !torch.none -> !torch.tensor<[],f32>
+// CHECK-NEXT: return %[[RESULT]] : !torch.tensor<[],f32>
+func.func @cumsum_nonvalue_tensor(%input: !torch.tensor<[],f32>) -> !torch.tensor<[],f32> {
+  %zero = torch.constant.int 0
+  %none = torch.constant.none
+  %0 = torch.aten.cumsum %input, %zero, %none : !torch.tensor<[],f32>, !torch.int, !torch.none -> !torch.tensor<[],f32>
+  return %0 : !torch.tensor<[],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @cumsum_nonscalar_tensor(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[1],f32>)
+// CHECK-DAG: %[[ZERO:.*]] = torch.constant.int 0{{$}}
+// CHECK-DAG: %[[NONE:.*]] = torch.constant.none
+// CHECK: %[[RESULT:.*]] = torch.aten.cumsum %[[INPUT]], %[[ZERO]], %[[NONE]] : !torch.vtensor<[1],f32>, !torch.int, !torch.none -> !torch.vtensor<[1],f32>
+// CHECK-NEXT: return %[[RESULT]] : !torch.vtensor<[1],f32>
+func.func @cumsum_nonscalar_tensor(%input: !torch.vtensor<[1],f32>) -> !torch.vtensor<[1],f32> {
+  %zero = torch.constant.int 0
+  %none = torch.constant.none
+  %0 = torch.aten.cumsum %input, %zero, %none : !torch.vtensor<[1],f32>, !torch.int, !torch.none -> !torch.vtensor<[1],f32>
+  return %0 : !torch.vtensor<[1],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @cumsum_unknown_rank(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<*,f32>)
+// CHECK-DAG: %[[ZERO:.*]] = torch.constant.int 0{{$}}
+// CHECK-DAG: %[[NONE:.*]] = torch.constant.none
+// CHECK: %[[RESULT:.*]] = torch.aten.cumsum %[[INPUT]], %[[ZERO]], %[[NONE]] : !torch.vtensor<*,f32>, !torch.int, !torch.none -> !torch.vtensor<*,f32>
+// CHECK-NEXT: return %[[RESULT]] : !torch.vtensor<*,f32>
+func.func @cumsum_unknown_rank(%input: !torch.vtensor<*,f32>) -> !torch.vtensor<*,f32> {
+  %zero = torch.constant.int 0
+  %none = torch.constant.none
+  %0 = torch.aten.cumsum %input, %zero, %none : !torch.vtensor<*,f32>, !torch.int, !torch.none -> !torch.vtensor<*,f32>
+  return %0 : !torch.vtensor<*,f32>
+}

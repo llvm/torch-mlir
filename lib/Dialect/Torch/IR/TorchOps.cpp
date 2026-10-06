@@ -3265,6 +3265,37 @@ void AtenMaskedFillTensorOp::getCanonicalizationPatterns(
 }
 
 //===----------------------------------------------------------------------===//
+// AtenCumsumOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenCumsumOp::fold(FoldAdaptor adaptor) {
+  auto inputType = dyn_cast<ValueTensorType>(getSelf().getType());
+  if (!inputType || inputType != getType() || !inputType.hasSizes() ||
+      !inputType.getSizes().empty() || !inputType.hasDtype())
+    return {};
+
+  // Floating-point scalar cumsum is an identity unless dtype changes.
+  // Integer inputs can be promoted even when dtype is None.
+  if (!isa<Float16Type, BFloat16Type, Float32Type, Float64Type>(
+          inputType.getDtype()))
+    return {};
+
+  int64_t dim;
+  if (!matchPattern(getDim(), m_TorchConstantInt(&dim)) ||
+      (dim != 0 && dim != -1))
+    return {};
+
+  if (!isa<Torch::NoneType>(getDtype().getType())) {
+    int64_t dtype;
+    if (!matchPattern(getDtype(), m_TorchConstantInt(&dtype)) ||
+        dtype !=
+            static_cast<int64_t>(getScalarTypeForType(inputType.getDtype())))
+      return {};
+  }
+  return getSelf();
+}
+
+//===----------------------------------------------------------------------===//
 // AtenCloneOp
 //===----------------------------------------------------------------------===//
 
