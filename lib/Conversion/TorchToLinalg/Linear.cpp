@@ -759,10 +759,6 @@ public:
           op, "expected both operands to aten.bmm to be rank 3");
     }
 
-    ValueTensorType lhsTorchType =
-        cast<ValueTensorType>(op.getSelf().getType());
-    ValueTensorType rhsTorchType =
-        cast<ValueTensorType>(op.getMat2().getType());
     Value lhsZeroPoint, rhsZeroPoint;
     getZeroPoint(op.getSelf(), lhsZeroPoint);
     getZeroPoint(op.getMat2(), rhsZeroPoint);
@@ -770,12 +766,15 @@ public:
       return rewriter.notifyMatchFailure(
           op, "unsupported: aten.bmm with mixed quantization");
     }
+    if (lhsZeroPoint && (!isa<Torch::IntType>(lhsZeroPoint.getType()) ||
+                         !isa<Torch::IntType>(rhsZeroPoint.getType()))) {
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: aten.bmm requires scalar integer zero points");
+    }
     if (lhsZeroPoint && lhsElementType != rhsElementType) {
       return rewriter.notifyMatchFailure(
           op, "unsupported: aten.bmm with mixed quantized integer widths");
     }
-    bool lhsIsUnsigned = torch_to_linalg::isUnsignedTorchType(lhsTorchType);
-    bool rhsIsUnsigned = torch_to_linalg::isUnsignedTorchType(rhsTorchType);
 
     // Preserve the input widths for quantized matmul and its zero points.
     // Convert mixed non-quantized inputs to a common element type.
@@ -814,6 +813,10 @@ public:
 
     Value bmm;
     if (lhsZeroPoint) {
+      bool lhsIsUnsigned =
+          torch_to_linalg::isUnsignedTorchType(op.getSelf().getType());
+      bool rhsIsUnsigned =
+          torch_to_linalg::isUnsignedTorchType(op.getMat2().getType());
       lhsZeroPoint = typeConverter->materializeTargetConversion(
           rewriter, loc,
           getTypeConverter()->convertType(lhsZeroPoint.getType()),

@@ -157,6 +157,16 @@ func.func @torch.aten.matmul$generic_f16(%arg0: !torch.vtensor<[?,?,8,16],f16>, 
 
 // -----
 
+// Nonquantized complex inputs must not be checked for integer signedness.
+// CHECK-LABEL: func.func @torch.aten.bmm$complex
+// CHECK: linalg.batch_matmul ins(%{{.*}}, %{{.*}} : tensor<2x2x4xcomplex<f32>>, tensor<2x4x3xcomplex<f32>>) outs(%{{.*}} : tensor<2x2x3xcomplex<f32>>) -> tensor<2x2x3xcomplex<f32>>
+func.func @torch.aten.bmm$complex(%arg0: !torch.vtensor<[2,2,4],complex<f32>>, %arg1: !torch.vtensor<[2,4,3],complex<f32>>) -> !torch.vtensor<[2,2,3],complex<f32>> {
+  %0 = torch.aten.bmm %arg0, %arg1 : !torch.vtensor<[2,2,4],complex<f32>>, !torch.vtensor<[2,4,3],complex<f32>> -> !torch.vtensor<[2,2,3],complex<f32>>
+  return %0 : !torch.vtensor<[2,2,3],complex<f32>>
+}
+
+// -----
+
 // Verify that aten.bmm(si8, si8) -> si32 uses i32 accumulator (not i64),
 // enabling downstream i8 HW intrinsics.
 // CHECK-LABEL: func.func @torch.aten.bmm$i8
@@ -370,6 +380,34 @@ func.func @torch.aten.bmm$quantized_rhs_only(%arg0: !torch.vtensor<[2,2,4],si8>,
   %quantized = torch.aten._make_per_tensor_quantized_tensor %arg1, %scale, %zp : !torch.vtensor<[2,4,3],si8>, !torch.float, !torch.int -> !torch.vtensor<[2,4,3],!torch.qint8>
   // expected-error@+1 {{failed to legalize operation 'torch.aten.bmm'}}
   %result = torch.aten.bmm %arg0, %quantized : !torch.vtensor<[2,2,4],si8>, !torch.vtensor<[2,4,3],!torch.qint8> -> !torch.vtensor<[2,2,3],si32>
+  return %result : !torch.vtensor<[2,2,3],si32>
+}
+
+// -----
+
+// Reject per-channel zero points on the LHS before scalar truncation.
+func.func @torch.aten.bmm$per_channel_lhs(%arg0: !torch.vtensor<[2,2,4],si8>, %arg1: !torch.vtensor<[2,4,3],si8>, %scales: !torch.vtensor<[2],f32>, %zero_points: !torch.vtensor<[2],si64>) -> !torch.vtensor<[2,2,3],si32> {
+  %axis = torch.constant.int 0
+  %scale = torch.constant.float 1.000000e-02
+  %zp = torch.constant.int 3
+  %per_channel = torch.aten._make_per_channel_quantized_tensor %arg0, %scales, %zero_points, %axis : !torch.vtensor<[2,2,4],si8>, !torch.vtensor<[2],f32>, !torch.vtensor<[2],si64>, !torch.int -> !torch.vtensor<[2,2,4],!torch.qint8>
+  %per_tensor = torch.aten._make_per_tensor_quantized_tensor %arg1, %scale, %zp : !torch.vtensor<[2,4,3],si8>, !torch.float, !torch.int -> !torch.vtensor<[2,4,3],!torch.qint8>
+  // expected-error@+1 {{failed to legalize operation 'torch.aten.bmm'}}
+  %result = torch.aten.bmm %per_channel, %per_tensor : !torch.vtensor<[2,2,4],!torch.qint8>, !torch.vtensor<[2,4,3],!torch.qint8> -> !torch.vtensor<[2,2,3],si32>
+  return %result : !torch.vtensor<[2,2,3],si32>
+}
+
+// -----
+
+// Reject per-channel zero points on the RHS before scalar truncation.
+func.func @torch.aten.bmm$per_channel_rhs(%arg0: !torch.vtensor<[2,2,4],si8>, %arg1: !torch.vtensor<[2,4,3],si8>, %scales: !torch.vtensor<[2],f32>, %zero_points: !torch.vtensor<[2],si64>) -> !torch.vtensor<[2,2,3],si32> {
+  %axis = torch.constant.int 0
+  %scale = torch.constant.float 1.000000e-02
+  %zp = torch.constant.int 3
+  %per_channel = torch.aten._make_per_channel_quantized_tensor %arg1, %scales, %zero_points, %axis : !torch.vtensor<[2,4,3],si8>, !torch.vtensor<[2],f32>, !torch.vtensor<[2],si64>, !torch.int -> !torch.vtensor<[2,4,3],!torch.qint8>
+  %per_tensor = torch.aten._make_per_tensor_quantized_tensor %arg0, %scale, %zp : !torch.vtensor<[2,2,4],si8>, !torch.float, !torch.int -> !torch.vtensor<[2,2,4],!torch.qint8>
+  // expected-error@+1 {{failed to legalize operation 'torch.aten.bmm'}}
+  %result = torch.aten.bmm %per_tensor, %per_channel : !torch.vtensor<[2,2,4],!torch.qint8>, !torch.vtensor<[2,4,3],!torch.qint8> -> !torch.vtensor<[2,2,3],si32>
   return %result : !torch.vtensor<[2,2,3],si32>
 }
 
