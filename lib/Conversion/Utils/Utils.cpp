@@ -887,11 +887,6 @@ namespace {
 class ConversionForwardingListener : public RewriterBase::Listener {
 public:
   void notifyOperationReplaced(Operation *op, ValueRange replacement) override {
-    // Only forward from Torch dialect operations
-    StringRef dialectNamespace = op->getName().getDialectNamespace();
-    if (dialectNamespace != "torch")
-      return;
-
     // Check if the operation has user attributes to forward
     auto userAttr = op->getAttrOfType<ArrayAttr>(kUserAttrPrefix);
     if (!userAttr)

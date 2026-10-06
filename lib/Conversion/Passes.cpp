@@ -13,6 +13,7 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/Transforms/Passes.h"
 #include "mlir/Pass/PassManager.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
 #include "torch-mlir/Conversion/TorchConversionToMLProgram/TorchConversionToMLProgram.h"
 #include "torch-mlir/Conversion/TorchToArith/TorchToArith.h"
@@ -20,6 +21,7 @@
 #include "torch-mlir/Conversion/TorchToSCF/TorchToSCF.h"
 #include "torch-mlir/Conversion/TorchToTMTensor/TorchToTMTensor.h"
 #include "torch-mlir/Conversion/TorchToTensor/TorchToTensor.h"
+#include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h"
 
@@ -35,6 +37,16 @@ using namespace mlir::tosa;
 
 using namespace mlir;
 using namespace mlir::torch;
+
+namespace {
+std::unique_ptr<Pass> createCanonicalizerPassWithForwarding() {
+  static std::unique_ptr<RewriterBase::Listener> listener =
+      torch::Torch::createConversionForwardingListener();
+  GreedyRewriteConfig config;
+  config.setListener(listener.get());
+  return createCanonicalizerPass(config);
+}
+} // namespace
 
 //===----------------------------------------------------------------------===//
 // Pass registration
@@ -94,10 +106,10 @@ void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
   // and those constants get somewhat obscured by TorchToArith.
   pm.addNestedPass<func::FuncOp>(
       createConvertTorchToTMTensorPass(options.allowNonFinites));
-  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPassWithForwarding());
   pm.addNestedPass<func::FuncOp>(
       createConvertTorchToLinalgPass(options.allowNonFinites));
-  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPassWithForwarding());
   pm.addNestedPass<func::FuncOp>(createConvertTorchToSCFPass());
   pm.addNestedPass<func::FuncOp>(createConvertTorchToArithPass());
   pm.addNestedPass<func::FuncOp>(createConvertTorchToTensorPass());
@@ -105,7 +117,7 @@ void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
   pm.addNestedPass<func::FuncOp>(memref::createExpandOpsPass());
 
   // Clean up any non-canonical code introduced above..
-  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPassWithForwarding());
   // Resolve `dim` ops on tensors (which currently live in the `memref`
   // dialect for some reason -- we don't have memrefs at this level).
   pm.addNestedPass<func::FuncOp>(
@@ -116,7 +128,7 @@ void TorchConversion::createTorchBackendToLinalgOnTensorsBackendPipeline(
   // Finish the type conversion from `torch` types to the types of the
   // linalg-on-tensors backend contract.
   pm.addPass(TorchConversion::createFuncBackendTypeConversionPass());
-  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPassWithForwarding());
   pm.addNestedPass<func::FuncOp>(
       TorchConversion::createFinalizingBackendTypeConversionPass());
 
@@ -148,14 +160,14 @@ void TorchConversion::createTorchBackendToTosaBackendPipeline(
   pm.addNestedPass<func::FuncOp>(createTosaMakeBroadcastablePass());
 
   // Clean up any non-canonical code introduced above..
-  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPassWithForwarding());
   // The resolution of `dim` ops tends to create identical ops. CSE them.
   pm.addNestedPass<func::FuncOp>(createCSEPass());
 
   // Finish the type conversion from `torch` types to the types of the
   // TOSA backend contract.
   pm.addPass(TorchConversion::createFuncBackendTypeConversionPass());
-  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPassWithForwarding());
   pm.addNestedPass<func::FuncOp>(
       TorchConversion::createFinalizingBackendTypeConversionPass());
 
@@ -181,7 +193,7 @@ void TorchConversion::createTorchBackendToStablehloBackendPipeline(
   pm.addNestedPass<func::FuncOp>(createConvertTorchToArithPass());
 
   // Clean up any non-canonical code introduced above..
-  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPassWithForwarding());
   // The resolution of `dim` ops tends to create identical ops. CSE them.
   pm.addNestedPass<func::FuncOp>(createCSEPass());
 
@@ -189,7 +201,7 @@ void TorchConversion::createTorchBackendToStablehloBackendPipeline(
   // StableHLO backend contract.
   pm.addPass(
       TorchConversion::createFuncBackendTypeConversionForStablehloPass());
-  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPassWithForwarding());
   pm.addNestedPass<func::FuncOp>(
       TorchConversion::createFinalizingBackendTypeConversionForStablehloPass());
 
@@ -199,18 +211,18 @@ void TorchConversion::createTorchBackendToStablehloBackendPipeline(
   // Canonicalize Stablehlo dynamic ops to static ops
   pm.addNestedPass<func::FuncOp>(
       stablehlo::createStablehloCanonicalizeDynamismPass());
-  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPassWithForwarding());
   pm.addPass(stablehlo::createStablehloRefineShapesPass());
-  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPassWithForwarding());
   pm.addNestedPass<func::FuncOp>(
       stablehlo::createStablehloCanonicalizeDynamismPass());
-  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  pm.addNestedPass<func::FuncOp>(createCanonicalizerPassWithForwarding());
 
   // Legalize deprecated ops to Stablehlo ops
   stablehlo::StablehloLegalizeDeprecatedOpsPassOptions stablehloOptions;
   stablehloOptions.failOnUnusedOps = false;
   pm.addNestedPass<func::FuncOp>(
       stablehlo::createStablehloLegalizeDeprecatedOpsPass(stablehloOptions));
-  pm.addPass(createCanonicalizerPass());
+  pm.addPass(createCanonicalizerPassWithForwarding());
 }
 #endif
