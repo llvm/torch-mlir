@@ -57,7 +57,7 @@ cmake -S "$repo_root/externals/llvm-project/llvm" -B "$build_dir" \
 echo "::endgroup::"
 
 echo "::group::Build"
-cmake --build "$build_dir" --target tools/torch-mlir/all -- -k 0
+cmake --build "$build_dir" --target tools/torch-mlir/all mlir_c_runner_utils -- -k 0
 echo "::endgroup::"
 
 echo "::group::Unit tests"

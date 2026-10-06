@@ -213,8 +213,9 @@ def lower_mlir_module(verbose, output_type, module, backend_options=None):
             print(module)
         return module
 
+    allow_non_finites = str(backend_options.allow_non_finites).lower()
     if output_type == OutputType.LINALG_ON_TENSORS:
-        pipeline = f"builtin.module(torch-backend-to-linalg-on-tensors-backend-pipeline{{allow-non-finites={backend_options.allow_non_finites}}})"
+        pipeline = f"builtin.module(torch-backend-to-linalg-on-tensors-backend-pipeline{{allow-non-finites={allow_non_finites}}})"
         run_pipeline_with_repro_report(
             module,
             pipeline,
@@ -227,7 +228,7 @@ def lower_mlir_module(verbose, output_type, module, backend_options=None):
         return module
 
     elif output_type == OutputType.STABLEHLO:
-        pipeline = f"builtin.module(torch-backend-to-stablehlo-backend-pipeline{{allow-non-finites={backend_options.allow_non_finites}}})"
+        pipeline = f"builtin.module(torch-backend-to-stablehlo-backend-pipeline{{allow-non-finites={allow_non_finites}}})"
         run_pipeline_with_repro_report(
             module,
             pipeline,

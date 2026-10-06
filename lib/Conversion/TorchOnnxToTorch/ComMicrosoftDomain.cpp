@@ -1376,8 +1376,6 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         // Creating Onnx.AveragePool op.
         llvm::SmallVector<Value> newOperands = {x};
         llvm::SmallVector<NamedAttribute> newAttributes;
-        newAttributes.push_back(rewriter.getNamedAttr(
-            "name", rewriter.getStringAttr("onnx.AveragePool")));
         for (auto namedAttr : binder.op->getAttrDictionary()) {
           if (namedAttr.getName().getValue().compare("name") == 0)
             continue;
@@ -1386,10 +1384,13 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
 
         auto yTy = rewriter.getType<Torch::ValueTensorType>(
             resultType.getOptionalSizes(), rewriter.getF32Type());
-        Value averagePool = Torch::OperatorOp::create(
-                                rewriter, binder.getLoc(), yTy, newOperands,
-                                newAttributes, binder.op->getRegions().size())
-                                .getResult(0);
+        Torch::OperatorOp::Properties properties;
+        properties.name = rewriter.getStringAttr("onnx.AveragePool");
+        Value averagePool =
+            Torch::OperatorOp::create(rewriter, binder.getLoc(), yTy,
+                                      newOperands, properties, newAttributes,
+                                      binder.op->getRegions().size())
+                .getResult(0);
 
         // Quantizing the result of AveragePool op.
         yTy = dyn_cast<Torch::ValueTensorType>(
