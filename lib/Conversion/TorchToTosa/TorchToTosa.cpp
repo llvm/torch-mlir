@@ -734,19 +734,28 @@ static LogicalResult rewriteScaledMmToMatMulOp(
   Value scaledMatmul = tosa::createMulOpAndCast(
       rewriter, op, scaledMatmulTy, matmulF32, combinedScale, /*shift=*/0);
 
-  auto reshapedTy = RankedTensorType::get(resultTy.getShape(), f32Ty);
-  Value result =
-      tosa::ReshapeOp::create(
-          rewriter, loc, reshapedTy, scaledMatmul,
-          tosa::getTosaConstShape(rewriter, loc, getTensorShape(resultTy)))
-          .getResult();
+  // Add the bias while the accumulator is still rank 3.
   auto resultWithBiasOr =
-      addBiasToScaledMmAccumulator(result, bias, n, rewriter, loc);
+      addBiasToScaledMmAccumulator(scaledMatmul, bias, n, rewriter, loc);
+
   if (failed(resultWithBiasOr))
     return rewriter.notifyMatchFailure(
         op, "aten._scaled_mm expects bias to be a rank-1 tensor with N "
             "elements");
-  result = castScaledMmResultToType(*resultWithBiasOr, resultTy, rewriter);
+
+  // Keep the rank-3 shape, but use the requested output datatype.
+  auto epilogueResultTy = RankedTensorType::get(scaledMatmulTy.getShape(),
+                                                resultTy.getElementType());
+
+  Value result =
+      castScaledMmResultToType(*resultWithBiasOr, epilogueResultTy, rewriter);
+
+  // aten._scaled_mm still promises a rank-2 result, so reshape only at the end.
+  result = tosa::ReshapeOp::create(
+               rewriter, loc, resultTy, result,
+               tosa::getTosaConstShape(rewriter, loc, getTensorShape(resultTy)))
+               .getResult();
+
   rewriter.replaceOp(op, {result});
   return success();
 }
