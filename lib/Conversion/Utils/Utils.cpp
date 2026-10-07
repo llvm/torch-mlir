@@ -14,6 +14,7 @@
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Interfaces/FunctionInterfaces.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/ScopeExit.h"
@@ -677,19 +678,18 @@ void forwardUserDiscardableAttrs(Operation *from, Operation *to) {
   }
 }
 
-// Look through cast operations to find the actual operation that produces a
-// value. This handles tensor.cast, unrealized_conversion_cast, and other
-// cast-like ops that may be eliminated by canonicalization.
-static Operation *lookThroughCasts(Value value) {
-  // A replacement value may be null, e.g. when a pattern drops an unused
-  // result via `rewriter.replaceOp(op, {realValue, Value()})`. Calling
-  // `getDefiningOp()` on a null Value asserts inside `dyn_cast<OpResult>`.
+// Look through cast operations to find the actual value that produces a
+// replacement. This handles tensor.cast, unrealized_conversion_cast, and other
+// cast-like ops that may be eliminated by canonicalization, while preserving
+// whether the underlying value is an OpResult (with its result index) or a
+// BlockArgument.
+static Value lookThroughCasts(Value value) {
   if (!value)
-    return nullptr;
+    return Value();
 
   Operation *defOp = value.getDefiningOp();
   if (!defOp)
-    return nullptr;
+    return value;
 
   // Look through tensor.cast
   if (auto castOp = dyn_cast<tensor::CastOp>(defOp)) {
@@ -702,67 +702,123 @@ static Operation *lookThroughCasts(Value value) {
       return lookThroughCasts(castOp.getInputs()[0]);
   }
 
-  return defOp;
+  return value;
 }
 
-// Forward user-discardable attributes for a specific result index.
-// This extracts attributes from the array-of-dictionaries representation
-// (mlir.user = [{attrs for result 0}, {attrs for result 1}, ...])
-// and copies them to the destination operation.
-static void forwardResultUserAttrs(Operation *from, unsigned resultIndex,
-                                   Operation *to) {
-  // Look for the mlir.user attribute (array of dicts)
+// Merge `incomingDict` into `existingDict`, with keys already present on
+// `existingDict` taking precedence on conflict so that folding a downstream
+// identity op does not overwrite annotations explicitly placed on an upstream
+// producer or function argument.
+static DictionaryAttr mergeUserAttrDicts(MLIRContext *context,
+                                         DictionaryAttr existingDict,
+                                         DictionaryAttr incomingDict) {
+  if (!existingDict || existingDict.empty())
+    return incomingDict;
+  if (!incomingDict || incomingDict.empty())
+    return existingDict;
+
+  NamedAttrList merged(existingDict);
+  for (NamedAttribute attr : incomingDict) {
+    if (!merged.get(attr.getName()))
+      merged.set(attr.getName(), attr.getValue());
+  }
+  return merged.getDictionary(context);
+}
+
+// Forward user-discardable attributes for a specific source result index onto
+// the destination value `toValue` (after looking through casts).
+//
+// - If `toValue` is a `BlockArgument` of the entry block of a
+//   `FunctionOpInterface`, the source result's `mlir.user` dictionary is merged
+//   into the argument's `mlir.user` dictionary attribute (existing keys win).
+// - If `toValue` is an `OpResult`, the source result's `mlir.user` dictionary
+//   is merged into slot `opResult.getResultNumber()` of the defining op's
+//   `mlir.user` array-of-dictionaries attribute, preserving any dictionaries on
+//   other result slots and giving existing keys on the target slot precedence.
+static void forwardResultUserAttrs(Operation *from, unsigned srcResultIndex,
+                                   Value toValue) {
   auto userAttr = from->getAttrOfType<ArrayAttr>(kUserAttrPrefix);
-  if (!userAttr)
+  if (!userAttr || srcResultIndex >= userAttr.size())
     return;
 
-  if (resultIndex >= userAttr.size())
+  auto incomingDict = llvm::dyn_cast<DictionaryAttr>(userAttr[srcResultIndex]);
+  if (!incomingDict || incomingDict.empty())
     return;
 
-  auto resultDict = llvm::dyn_cast<DictionaryAttr>(userAttr[resultIndex]);
-  if (!resultDict || resultDict.empty())
+  MLIRContext *context = from->getContext();
+
+  if (auto blockArg = dyn_cast<BlockArgument>(toValue)) {
+    Block *ownerBlock = blockArg.getOwner();
+    if (!ownerBlock || !ownerBlock->isEntryBlock())
+      return;
+    auto funcOp =
+        dyn_cast_or_null<FunctionOpInterface>(ownerBlock->getParentOp());
+    if (!funcOp)
+      return;
+
+    unsigned argIndex = blockArg.getArgNumber();
+    auto existingDict =
+        funcOp.getArgAttrOfType<DictionaryAttr>(argIndex, kUserAttrPrefix);
+    DictionaryAttr mergedDict =
+        mergeUserAttrDicts(context, existingDict, incomingDict);
+    funcOp.setArgAttr(argIndex, kUserAttrPrefix, mergedDict);
+    return;
+  }
+
+  auto opResult = dyn_cast<OpResult>(toValue);
+  if (!opResult)
     return;
 
-  // Preserve the array-of-dicts format by setting mlir.user = [{...}]
-  // where the array contains a single dictionary for this operation
-  SmallVector<Attribute> arrayElements;
-  arrayElements.push_back(resultDict);
+  Operation *to = opResult.getDefiningOp();
+  unsigned dstResultIndex = opResult.getResultNumber();
+  unsigned numResults = to->getNumResults();
+
+  auto existingArray = to->getAttrOfType<ArrayAttr>(kUserAttrPrefix);
+  DictionaryAttr emptyDict = DictionaryAttr::get(context, {});
+
+  unsigned targetSize = std::max(
+      dstResultIndex + 1,
+      existingArray ? static_cast<unsigned>(existingArray.size()) : 1u);
+  targetSize = std::min(targetSize, std::max(numResults, dstResultIndex + 1));
+
+  SmallVector<Attribute> arrayElements(targetSize, emptyDict);
+  if (existingArray) {
+    for (unsigned i = 0,
+                  e = std::min<unsigned>(existingArray.size(), targetSize);
+         i < e; ++i) {
+      if (auto dict = llvm::dyn_cast<DictionaryAttr>(existingArray[i]))
+        arrayElements[i] = dict;
+    }
+  }
+
+  auto existingSlotDict =
+      llvm::dyn_cast<DictionaryAttr>(arrayElements[dstResultIndex]);
+  arrayElements[dstResultIndex] =
+      mergeUserAttrDicts(context, existingSlotDict, incomingDict);
+
   to->setDiscardableAttr(kUserAttrPrefix,
-                         ArrayAttr::get(to->getContext(), arrayElements));
+                         ArrayAttr::get(context, arrayElements));
+}
+
+// Forward the source op's per-result user attributes onto the values (op
+// results or function entry-block arguments) that replace each result.
+static void forwardUserAttrs(Operation *from, ValueRange replacement) {
+  if (!from->hasAttrOfType<ArrayAttr>(kUserAttrPrefix))
+    return;
+
+  for (unsigned i = 0; i < from->getNumResults() && i < replacement.size();
+       ++i) {
+    Value targetValue = lookThroughCasts(replacement[i]);
+    if (!targetValue)
+      continue;
+
+    forwardResultUserAttrs(from, i, targetValue);
+  }
 }
 
 namespace {
 class ForwardingListener : public RewriterBase::ForwardingListener {
   Operation *sourceOp;
-
-  // Forward the source op's per-result user attributes onto the operations
-  // defining the corresponding replacement values.
-  void forwardUserAttrs(Operation *op, ValueRange replacement) {
-    if (op != sourceOp)
-      return;
-
-    // For each result of the source operation, forward its attributes
-    // to the operation that defines the corresponding replacement value
-    for (unsigned i = 0; i < op->getNumResults() && i < replacement.size();
-         ++i) {
-      Value replacementValue = replacement[i];
-      // Patterns may pass a null Value for results they know are unused.
-      if (!replacementValue)
-        continue;
-
-      // Get the operation that defines this replacement value, looking through
-      // cast operations that may be eliminated by canonicalization
-      Operation *defOp = lookThroughCasts(replacementValue);
-      if (!defOp) {
-        // Replacement is a block argument. Only some block arguments have
-        // sensible attribute mechanisms, such as a func.func's argattrs. We
-        // skip these for now.
-        continue;
-      }
-
-      forwardResultUserAttrs(sourceOp, i, defOp);
-    }
-  }
 
 public:
   ForwardingListener(OpBuilder::Listener *parent, Operation *op)
@@ -770,7 +826,8 @@ public:
 
   void notifyOperationReplaced(Operation *op, ValueRange replacement) override {
     RewriterBase::ForwardingListener::notifyOperationReplaced(op, replacement);
-    forwardUserAttrs(op, replacement);
+    if (op == sourceOp)
+      forwardUserAttrs(op, replacement);
   }
 };
 
@@ -887,26 +944,7 @@ namespace {
 class ConversionForwardingListener : public RewriterBase::Listener {
 public:
   void notifyOperationReplaced(Operation *op, ValueRange replacement) override {
-    // Check if the operation has user attributes to forward
-    auto userAttr = op->getAttrOfType<ArrayAttr>(kUserAttrPrefix);
-    if (!userAttr)
-      return;
-
-    // Forward to each replacement value's defining op
-    for (unsigned i = 0; i < op->getNumResults() && i < replacement.size();
-         ++i) {
-      Value replacementValue = replacement[i];
-      if (!replacementValue)
-        continue;
-
-      // Look through cast operations (tensor.cast, unrealized_conversion_cast,
-      // etc.) to find the actual operation that produces the value
-      Operation *targetOp = lookThroughCasts(replacementValue);
-      if (!targetOp)
-        continue;
-
-      forwardResultUserAttrs(op, i, targetOp);
-    }
+    forwardUserAttrs(op, replacement);
   }
 };
 } // namespace

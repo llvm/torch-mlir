@@ -78,3 +78,83 @@ func.func @test_null_replacement_for_unused_result(%arg0: !torch.vtensor<[1,512,
   %values, %indices = torch.aten.adaptive_max_pool1d %arg0, %0 {mlir.user = [{my.tag = "values"}, {my.tag = "indices"}]} : !torch.vtensor<[1,512,7],f32>, !torch.list<int> -> !torch.vtensor<[1,512,1],f32>, !torch.vtensor<[1,512,1],si64>
   return %values : !torch.vtensor<[1,512,1],f32>
 }
+
+// -----
+
+// When an annotated op is replaced directly with a function entry-block
+// argument (e.g. a no-op `aten.dropout` with `train = false`), its `mlir.user`
+// dictionary is forwarded to the argument's `mlir.user` attribute.
+// CHECK-LABEL:   func.func @test_identity_dropout_to_block_arg(
+// CHECK-SAME:      %arg0: !torch.vtensor<[1,4],f32> {mlir.user = {my.tag = "from_dropout"}}) -> !torch.vtensor<[1,4],f32> {
+// CHECK:           return %arg0 : !torch.vtensor<[1,4],f32>
+func.func @test_identity_dropout_to_block_arg(%arg0: !torch.vtensor<[1,4],f32>) -> !torch.vtensor<[1,4],f32> {
+  %p = torch.constant.float 5.000000e-01
+  %false = torch.constant.bool false
+  %0 = torch.aten.dropout %arg0, %p, %false {mlir.user = [{my.tag = "from_dropout"}]} : !torch.vtensor<[1,4],f32>, !torch.float, !torch.bool -> !torch.vtensor<[1,4],f32>
+  return %0 : !torch.vtensor<[1,4],f32>
+}
+
+// -----
+
+// When the target block argument already carries `mlir.user`, non-conflicting
+// keys are merged and existing keys on the target take precedence on conflict.
+// CHECK-LABEL:   func.func @test_identity_dropout_to_block_arg_merge_and_conflict(
+// CHECK-SAME:      %arg0: !torch.vtensor<[1,4],f32> {mlir.user = {my.existing = "keep", my.new = "added", my.tag = "arg_wins"}}) -> !torch.vtensor<[1,4],f32> {
+// CHECK:           return %arg0 : !torch.vtensor<[1,4],f32>
+func.func @test_identity_dropout_to_block_arg_merge_and_conflict(%arg0: !torch.vtensor<[1,4],f32> {mlir.user = {my.existing = "keep", my.tag = "arg_wins"}}) -> !torch.vtensor<[1,4],f32> {
+  %p = torch.constant.float 5.000000e-01
+  %false = torch.constant.bool false
+  %0 = torch.aten.dropout %arg0, %p, %false {mlir.user = [{my.new = "added", my.tag = "dropout_loses"}]} : !torch.vtensor<[1,4],f32>, !torch.float, !torch.bool -> !torch.vtensor<[1,4],f32>
+  return %0 : !torch.vtensor<[1,4],f32>
+}
+
+// -----
+
+// When an annotated op is replaced with result #1 of an existing multi-result
+// op, the forwarded dictionary is placed at slot #1 of the target op's
+// `mlir.user` array rather than overwriting slot #0.
+// CHECK-LABEL:   func.func @test_identity_dropout_to_existing_op_nonzero_result(
+// CHECK:           %[[VALUES:.*]], %[[INDICES:.*]] = torch.aten.sort {{.*}} {mlir.user = [{}, {my.tag = "from_dropout"}]}
+// CHECK:           return %[[VALUES]], %[[INDICES]]
+func.func @test_identity_dropout_to_existing_op_nonzero_result(%arg0: !torch.vtensor<[1,4],f32>) -> (!torch.vtensor<[1,4],f32>, !torch.vtensor<[1,4],si64>) {
+  %int-1 = torch.constant.int -1
+  %false = torch.constant.bool false
+  %values, %indices = torch.aten.sort %arg0, %int-1, %false : !torch.vtensor<[1,4],f32>, !torch.int, !torch.bool -> !torch.vtensor<[1,4],f32>, !torch.vtensor<[1,4],si64>
+  %p = torch.constant.float 5.000000e-01
+  %out_indices = torch.aten.dropout %indices, %p, %false {mlir.user = [{my.tag = "from_dropout"}]} : !torch.vtensor<[1,4],si64>, !torch.float, !torch.bool -> !torch.vtensor<[1,4],si64>
+  return %values, %out_indices : !torch.vtensor<[1,4],f32>, !torch.vtensor<[1,4],si64>
+}
+
+// -----
+
+// When the existing multi-result op already has `mlir.user` annotations,
+// forwarding into result #1 preserves result #0's dictionary and merges into
+// result #1's dictionary with existing keys taking precedence on conflict.
+// CHECK-LABEL:   func.func @test_identity_dropout_to_existing_op_nonzero_result_merge_and_conflict(
+// CHECK:           %[[VALUES:.*]], %[[INDICES:.*]] = torch.aten.sort {{.*}} {mlir.user = [{my.res0 = "keep_res0"}, {my.existing = "keep_res1", my.new = "added_res1", my.tag = "sort_wins"}]}
+// CHECK:           return %[[VALUES]], %[[INDICES]]
+func.func @test_identity_dropout_to_existing_op_nonzero_result_merge_and_conflict(%arg0: !torch.vtensor<[1,4],f32>) -> (!torch.vtensor<[1,4],f32>, !torch.vtensor<[1,4],si64>) {
+  %int-1 = torch.constant.int -1
+  %false = torch.constant.bool false
+  %values, %indices = torch.aten.sort %arg0, %int-1, %false {mlir.user = [{my.res0 = "keep_res0"}, {my.existing = "keep_res1", my.tag = "sort_wins"}]} : !torch.vtensor<[1,4],f32>, !torch.int, !torch.bool -> !torch.vtensor<[1,4],f32>, !torch.vtensor<[1,4],si64>
+  %p = torch.constant.float 5.000000e-01
+  %out_indices = torch.aten.dropout %indices, %p, %false {mlir.user = [{my.new = "added_res1", my.tag = "dropout_loses"}]} : !torch.vtensor<[1,4],si64>, !torch.float, !torch.bool -> !torch.vtensor<[1,4],si64>
+  return %values, %out_indices : !torch.vtensor<[1,4],f32>, !torch.vtensor<[1,4],si64>
+}
+
+// -----
+
+// When an annotated `aten.pad` with `mode = "reflect"` and all-zero padding is
+// folded to `%arg0` by `DecomposeAtenPadOp`, its `mlir.user` dictionary is
+// forwarded onto `%arg0`.
+// CHECK-LABEL:   func.func @test_identity_pad_to_block_arg(
+// CHECK-SAME:      %arg0: !torch.vtensor<[1,4],f32> {mlir.user = {my.tag = "from_pad"}}) -> !torch.vtensor<[1,4],f32> {
+// CHECK:           return %arg0 : !torch.vtensor<[1,4],f32>
+func.func @test_identity_pad_to_block_arg(%arg0: !torch.vtensor<[1,4],f32>) -> !torch.vtensor<[1,4],f32> {
+  %int0 = torch.constant.int 0
+  %pad = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %mode = torch.constant.str "reflect"
+  %none = torch.constant.none
+  %0 = torch.aten.pad %arg0, %pad, %mode, %none {mlir.user = [{my.tag = "from_pad"}]} : !torch.vtensor<[1,4],f32>, !torch.list<int>, !torch.str, !torch.none -> !torch.vtensor<[1,4],f32>
+  return %0 : !torch.vtensor<[1,4],f32>
+}
