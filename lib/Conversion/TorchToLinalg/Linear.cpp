@@ -841,9 +841,8 @@ public:
                 ValueRange{lhs, rhs, lhsZeroPoint, rhsZeroPoint}, initTensor0)
                 .getResult(0);
     } else {
-      bmm = linalg::BatchMatmulOp::create(
-                rewriter, loc, initTensor0.getType(), ValueRange{lhs, rhs},
-                initTensor0)
+      bmm = linalg::BatchMatmulOp::create(rewriter, loc, initTensor0.getType(),
+                                          ValueRange{lhs, rhs}, initTensor0)
                 .getResult(0);
     }
 
