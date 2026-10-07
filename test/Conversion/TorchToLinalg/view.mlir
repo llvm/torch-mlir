@@ -314,10 +314,14 @@ func.func @gather_graph(%arg0: !torch.vtensor<[5,3],f32>, %arg1: !torch.vtensor<
 // CHECK-LABEL: func.func @torch.aten.view$dynamicBatchSeqCollapse(
 // CHECK-SAME:      %[[ARG:.*]]: !torch.vtensor<[?,?,8,8],f32>) -> !torch.vtensor<[?,64],f32>
 // CHECK:        %[[BUILTIN_TENSOR:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[?,?,8,8],f32> -> tensor<?x?x8x8xf32>
+// CHECK:        %[[HAS_INFERRED_DIM:.*]] = arith.cmpi sgt
+// CHECK:        %[[DIVISOR:.*]] = arith.select %[[HAS_INFERRED_DIM]],
+// CHECK:        arith.divsi %{{.*}}, %[[DIVISOR]] : i64
 // CHECK-NOT:    tensor.cast
 // CHECK:        %[[RESHAPE:.*]] = tensor.reshape %[[BUILTIN_TENSOR]]
 // CHECK:        %[[BUILTIN_TENSOR_CAST:.*]] = torch_c.from_builtin_tensor %[[RESHAPE]] : tensor<?x64xf32> -> !torch.vtensor<[?,64],f32>
 // CHECK:        return %[[BUILTIN_TENSOR_CAST]] : !torch.vtensor<[?,64],f32>
+
 func.func @torch.aten.view$dynamicBatchSeqCollapse(%arg0: !torch.vtensor<[?,?,8,8],f32>) -> !torch.vtensor<[?,64],f32> {
   %int0 = torch.constant.int 0
   %int1 = torch.constant.int 1
@@ -339,6 +343,7 @@ func.func @torch.aten.view$dynamicBatchSeqCollapse(%arg0: !torch.vtensor<[?,?,8,
 // CHECK:        %[[RESHAPE:.*]] = tensor.reshape %[[BUILTIN_TENSOR]]
 // CHECK:        %[[BUILTIN_TENSOR_CAST:.*]] = torch_c.from_builtin_tensor %[[RESHAPE]] : tensor<?x64xf32> -> !torch.vtensor<[?,64],f32>
 // CHECK:        return %[[BUILTIN_TENSOR_CAST]] : !torch.vtensor<[?,64],f32>
+
 func.func @torch.aten.view$dynamicBatchSeqCollapseStrict(%arg0: !torch.vtensor<[?,?,8,8],f32>) -> !torch.vtensor<[?,64],f32>
   attributes {torch.assume_strict_symbolic_shapes}
 {
