@@ -2788,6 +2788,16 @@ public:
         interpolationMode == 1 &&
         matchPattern(op.getPaddingMode(), m_TorchConstantInt(&paddingMode)) &&
         paddingMode == 0;
+    Value heightFloat, widthFloat;
+    if (nearestZeros) {
+      Value heightInt =
+          arith::IndexCastOp::create(rewriter, loc, int64type, innerDim0a);
+      Value widthInt =
+          arith::IndexCastOp::create(rewriter, loc, int64type, innerDim1a);
+      heightFloat =
+          arith::SIToFPOp::create(rewriter, loc, floatType, heightInt);
+      widthFloat = arith::SIToFPOp::create(rewriter, loc, floatType, widthInt);
+    }
     SmallVector<Value> dynamicSizes{};
     if (resultType.isDynamicDim(0))
       dynamicSizes.push_back(tensor::DimOp::create(rewriter, loc, input, 0));
@@ -2811,13 +2821,9 @@ public:
               Value plusOne = arith::AddFOp::create(b, loc, coord, oneFloat);
               Value half = arith::DivFOp::create(b, loc, plusOne, twoFloat);
               Value aligned = arith::MulFOp::create(b, loc, half, sizeMinusOne);
-              Value sizeInt =
-                  arith::IndexCastOp::create(b, loc, int64type, size);
-              Value sizeFloat =
-                  arith::SIToFPOp::create(b, loc, floatType, sizeInt);
-              // Preserve PyTorch's arithmetic order: reassociation can
-              // move a coordinate across a nearest-neighbor rounding tie.
-              Value scaled = arith::MulFOp::create(b, loc, plusOne, sizeFloat);
+              // Preserve PyTorch's scalar unnormalization arithmetic order:
+              // reassociation can move a coordinate across a rounding tie.
+              Value scaled = arith::MulFOp::create(b, loc, plusOne, size);
               Value shifted = arith::SubFOp::create(b, loc, scaled, oneFloat);
               Value unaligned =
                   arith::DivFOp::create(b, loc, shifted, twoFloat);
@@ -2827,13 +2833,13 @@ public:
             };
             // Round before testing bounds, including -0.5 -> 0 at the boundary.
             Value row = math::RoundEvenOp::create(
-                b, loc, unnormalize(gr0, innerDim0a, innerDim0d));
+                b, loc, unnormalize(gr0, heightFloat, innerDim0d));
             Value col = math::RoundEvenOp::create(
-                b, loc, unnormalize(gr1, innerDim1a, innerDim1d));
-            // Guard conversion with 0 <= coord < 2^63, then check integer bounds.
-            // Converting dimension bounds to f32 may round them up.
-            Value int64Limit =
-                arith::ConstantOp::create(b, loc, b.getF32FloatAttr(0x1p63));
+                b, loc, unnormalize(gr1, widthFloat, innerDim1d));
+            // Guard conversion with 0 <= coord < 2^63, then check integer
+            // bounds. Converting dimension bounds to f32 may round them up.
+            Value int64Limit = arith::ConstantOp::create(
+                b, loc, b.getFloatAttr(floatType, 0x1p63));
             Value rowLower = arith::CmpFOp::create(
                 b, loc, arith::CmpFPredicate::OGE, row, zeroFloat);
             Value rowUpper = arith::CmpFOp::create(
