@@ -1807,3 +1807,18 @@ func.func @torch.aten.softplus(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtens
   %0 = torch.aten.softplus %arg0, %beta, %threshold : !torch.vtensor<[3,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[3,4],f32>
   return %0 : !torch.vtensor<[3,4],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @test_masked_select(
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[2,1,4],f32>, %[[ARG1:.*]]: !torch.vtensor<[3,4],i1>) -> !torch.vtensor<[?],f32> {
+// CHECK:           %[[LIST:.*]] = torch.prim.ListConstruct
+// CHECK:           %[[BCAST0:.*]] = torch.aten.broadcast_to %[[ARG0]], %[[LIST]]
+// CHECK:           %[[BCAST1:.*]] = torch.aten.broadcast_to %[[ARG1]], %[[LIST]]
+// CHECK:           %[[RES:.*]] = torch.aten.index_select %{{.*}}, %{{.*}}, %{{.*}}
+// CHECK:           return %[[RES]]
+func.func @test_masked_select(%arg0: !torch.vtensor<[2,1,4],f32>, %arg1: !torch.vtensor<[3,4],i1>) -> !torch.vtensor<[?],f32> {
+  %0 = torch.aten.masked_select %arg0, %arg1 : !torch.vtensor<[2,1,4],f32>, !torch.vtensor<[3,4],i1> -> !torch.vtensor<[?],f32>
+  return %0 : !torch.vtensor<[?],f32>
+}
+
