@@ -5998,6 +5998,75 @@ public:
     return success();
   }
 };
+
+class DecomposeAtenMaskedSelectOp
+    : public OpRewritePattern<AtenMaskedSelectOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenMaskedSelectOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value mask = op.getMask();
+    auto selfType = cast<ValueTensorType>(self.getType());
+    auto resultType = cast<ValueTensorType>(op.getType());
+
+    // 2. Constants for dims and flattening
+    Value zero =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
+    Value negOne =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(-1));
+    Value one =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
+
+    // 3. Compute and apply broadcast shape
+    SmallVector<int64_t> broadcastShape;
+    SmallVector<Value> broadcastShapeValue;
+    computeBroadcastShape(rewriter, loc, {self, mask}, broadcastShape,
+                          broadcastShapeValue);
+
+    auto selfBcastType = ValueTensorType::get(
+        op.getContext(), llvm::ArrayRef(broadcastShape), selfType.getDtype());
+    auto maskBcastType = ValueTensorType::get(
+        op.getContext(), llvm::ArrayRef(broadcastShape), rewriter.getI1Type());
+
+    Value bcastShapeTorchList = PrimListConstructOp::create(
+        rewriter, loc,
+        Torch::ListType::get(Torch::IntType::get(op.getContext())),
+        broadcastShapeValue);
+
+    Value selfBcast = AtenBroadcastToOp::create(
+        rewriter, loc, selfBcastType, self, bcastShapeTorchList);
+    Value maskBcast = AtenBroadcastToOp::create(
+        rewriter, loc, maskBcastType, mask, bcastShapeTorchList);
+
+    // 4. Flatten both tensors to 1-D
+    auto flatSelfType = rewriter.getType<ValueTensorType>(
+        ArrayRef<int64_t>{Torch::kUnknownSize}, selfType.getDtype());
+    auto flatMaskType = rewriter.getType<ValueTensorType>(
+        ArrayRef<int64_t>{Torch::kUnknownSize}, rewriter.getI1Type());
+
+    Value selfFlat = AtenFlattenUsingIntsOp::create(
+        rewriter, loc, flatSelfType, selfBcast, zero, negOne);
+    Value maskFlat = AtenFlattenUsingIntsOp::create(
+        rewriter, loc, flatMaskType, maskBcast, zero, negOne);
+
+    // 5. Extract indices of True elements using nonzero + squeeze
+    auto si64Ty = rewriter.getIntegerType(64, /*isSigned=*/true);
+    auto nzType = rewriter.getType<ValueTensorType>(
+        ArrayRef<int64_t>{Torch::kUnknownSize, 1}, si64Ty);
+    Value nz = AtenNonzeroOp::create(rewriter, loc, nzType, maskFlat);
+
+    auto idxType = rewriter.getType<ValueTensorType>(
+        ArrayRef<int64_t>{Torch::kUnknownSize}, si64Ty);
+    Value indices = AtenSqueezeDimOp::create(rewriter, loc, idxType, nz, one);
+
+    // 6. Gather elements from flattened input at valid indices
+    rewriter.replaceOpWithNewOp<AtenIndexSelectOp>(
+        op, resultType, selfFlat, zero, indices);
+    return success();
+  }
+};
 } // namespace
 
 // Decompose aten.conv1d to aten.convolution
@@ -14113,6 +14182,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAten_AssertScalarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRoundDecimalsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAbsoluteOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenMaskedSelectOp>(patterns);
 
     GreedyRewriteConfig config;
     config.setUseTopDownTraversal(true);
