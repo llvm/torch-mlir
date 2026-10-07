@@ -2852,6 +2852,44 @@ public:
 };
 } // namespace
 
+namespace {
+class DecomposeAtenMaxDimOp : public OpRewritePattern<AtenMaxDimOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenMaxDimOp op,
+                                PatternRewriter &rewriter) const override {
+    auto inputType = dyn_cast<ValueTensorType>(op.getSelf().getType());
+    auto indicesType = dyn_cast<ValueTensorType>(op.getIndices().getType());
+    if (!inputType || !inputType.hasSizes() || !inputType.getSizes().empty() ||
+        inputType.getOptionalSparsity() ||
+        !isa_and_nonnull<mlir::FloatType, IntegerType>(
+            inputType.getOptionalDtype()) ||
+        op.getValues().getType() != inputType || !indicesType ||
+        !indicesType.hasSizes() || !indicesType.getSizes().empty() ||
+        indicesType.getOptionalSparsity() || !indicesType.hasDtype() ||
+        !indicesType.getDtype().isSignedInteger(64))
+      return rewriter.notifyMatchFailure(op, "expected a scalar maximum");
+
+    int64_t dim;
+    bool keepDim;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)) ||
+        (dim != 0 && dim != -1) ||
+        !matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepDim)))
+      return rewriter.notifyMatchFailure(op,
+                                         "expected a valid constant dimension");
+
+    // Scalar max accepts dim 0 and -1. Both results stay scalar even with
+    // keepdim; forwarding the input also preserves NaNs and signed zero.
+    Value index = ValueTensorLiteralOp::create(
+        rewriter, op.getLoc(), indicesType,
+        DenseIntElementsAttr::get(indicesType.toBuiltinTensor(),
+                                  ArrayRef<int64_t>{0}));
+    rewriter.replaceOp(op, {op.getSelf(), index});
+    return success();
+  }
+};
+} // namespace
+
 // Decompose `AtenArgMaxOp` into `AtenMaxDimOp` as well as `AtenArgMinOp` into
 // `AtenMinDimOp`
 namespace {
@@ -13903,6 +13941,7 @@ public:
         DecomposeAtenAminAmaxOp<AtenAmaxOp, AtenMaxDimOp>>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeAtenAminAmaxOp<AtenAminOp, AtenMinDimOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenMaxDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeAtenArgMinMaxOp<AtenArgmaxOp, AtenMaxDimOp>>(patterns);
     addPatternIfTargetOpIsIllegal<
