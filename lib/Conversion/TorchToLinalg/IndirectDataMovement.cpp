@@ -1079,6 +1079,118 @@ public:
 };
 } // namespace
 
+namespace {
+// Converts `torch.aten.index_put.hacked_twin` to `linalg.generic`.
+//
+// Mathematical / Indexing Logic:
+// `index_put` updates elements of `self` using a tuple of index tensors `indices`
+// and replacement values `values`.
+//
+// For each spatial coordinate (i_0, i_1, ..., i_{N-1}) in `self`:
+//   match_cond = AND_k ( i_{dim_k} == indices[k][i_{dim_k}] )
+//   updated_val = values[i_0, i_1, ..., i_{N-1}]
+//   out[i_0, ..., i_{N-1}] = match_cond ? (accumulate ? self[...] + updated_val : updated_val) : self[...]
+//
+// Note: In-place `aten.index_put_` is decomposed into `aten.index_put.hacked_twin` with
+// explicit `copy.to_vtensor` / `copy.to_tensor` boundary adapters.
+class ConvertAtenIndexPutHackedTwinOp
+    : public OpConversionPattern<AtenIndexPutHackedTwinOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenIndexPutHackedTwinOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    Value self = adaptor.getSelf();
+    Value values = adaptor.getValues();
+
+    Type resultType = getTypeConverter()->convertType(op.getResult().getType());
+    auto selfType = cast<RankedTensorType>(self.getType());
+    auto valuesType = cast<RankedTensorType>(values.getType());
+
+    bool accumulate = false;
+    if (!matchPattern(op.getAccumulate(), m_TorchConstantBool(&accumulate)))
+      return rewriter.notifyMatchFailure(op, "accumulate must be a constant bool");
+
+    SmallVector<Value> indicesTorch;
+    if (!getListConstructElements(op.getIndices(), indicesTorch))
+      return rewriter.notifyMatchFailure(op, "indices list is not from ListConstruct");
+
+    SmallVector<Value> indices = getTypeConvertedValues(
+        rewriter, loc, getTypeConverter(), indicesTorch);
+
+    SmallVector<int64_t> indexDims;
+    SmallVector<Value> indexTensors;
+    for (size_t i = 0; i < indices.size(); ++i) {
+      if (indices[i] && !isa<Torch::NoneType>(indices[i].getType())) {
+        indexDims.push_back(i);
+        indexTensors.push_back(indices[i]);
+      }
+    }
+
+    if (indexTensors.empty())
+      return rewriter.notifyMatchFailure(op, "No valid index tensors found");
+
+    int64_t selfRank = selfType.getRank();
+    Type elementType = selfType.getElementType();
+
+    SmallVector<Value> selfSizes = getTensorSizes(rewriter, loc, self);
+    Value initTensor = createZeroInitTensor(
+        rewriter, loc, castIntVectorToIndexVector(rewriter, loc, selfSizes), elementType);
+
+    SmallVector<AffineMap> maps(2, rewriter.getMultiDimIdentityMap(selfRank));
+    SmallVector<utils::IteratorType> iterTypes(selfRank, utils::IteratorType::parallel);
+
+    Value finalRes =
+        linalg::GenericOp::create(
+            rewriter, loc, initTensor.getType(), ValueRange{self}, ValueRange{initTensor},
+            maps, iterTypes,
+            [&](OpBuilder &b, Location loc, ValueRange args) {
+              Value val = args[0];
+              Value matchCond = arith::ConstantOp::create(b, loc, b.getIntegerAttr(b.getI1Type(), 1));
+
+              for (size_t k = 0; k < indexTensors.size(); ++k) {
+                int64_t dimIdx = indexDims[k];
+                Value currDimIdx = linalg::IndexOp::create(b, loc, dimIdx);
+                Value currDimIdxI64 = castIndexToInt64(b, loc, currDimIdx);
+
+                Value targetIdx = tensor::ExtractOp::create(
+                    b, loc, indexTensors[k], ValueRange{currDimIdx});
+                targetIdx = makeIndexValuePositive(b, loc, targetIdx, self, dimIdx);
+
+                Value isMatch = arith::CmpIOp::create(
+                    b, loc, arith::CmpIPredicate::eq, currDimIdxI64, targetIdx);
+                matchCond = arith::AndIOp::create(b, loc, matchCond, isMatch);
+              }
+
+              SmallVector<Value> valuesExtractIndices;
+              for (int64_t d = 0; d < valuesType.getRank(); ++d) {
+                valuesExtractIndices.push_back(linalg::IndexOp::create(b, loc, d));
+              }
+              Value updateVal = tensor::ExtractOp::create(b, loc, values, valuesExtractIndices);
+
+              Value finalVal;
+              if (accumulate) {
+                if (isa<mlir::FloatType>(elementType)) {
+                  finalVal = arith::AddFOp::create(b, loc, val, updateVal);
+                } else {
+                  finalVal = arith::AddIOp::create(b, loc, val, updateVal);
+                }
+              } else {
+                finalVal = updateVal;
+              }
+
+              Value resVal = arith::SelectOp::create(b, loc, matchCond, finalVal, val);
+              linalg::YieldOp::create(b, loc, resVal);
+            })
+            ->getResult(0);
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, finalRes);
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::
     populateIndirectDataMovementPatternsAndLegality(
         TypeConverter &typeConverter, RewritePatternSet &patterns,
@@ -1092,6 +1204,8 @@ void mlir::torch::torch_to_linalg::
   patterns.add<ConvertAtenIndexSelectOp>(typeConverter, context);
   target.addIllegalOp<AtenIndexTensorHackedTwinOp>();
   patterns.add<ConvertAtenIndexTensorHackedTwinOp>(typeConverter, context);
+  target.addIllegalOp<AtenIndexPutHackedTwinOp>();
+  patterns.add<ConvertAtenIndexPutHackedTwinOp>(typeConverter, context);
   target.addIllegalOp<AtenEmbeddingBagPaddingIdxOp>();
   patterns.add<ConvertAtenEmbeddingBagPaddingIdxOp>(typeConverter, context);
   target.addIllegalOp<AtenUpsampleNearest2dOp>();

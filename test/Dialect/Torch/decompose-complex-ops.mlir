@@ -1807,3 +1807,19 @@ func.func @torch.aten.softplus(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtens
   %0 = torch.aten.softplus %arg0, %beta, %threshold : !torch.vtensor<[3,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[3,4],f32>
   return %0 : !torch.vtensor<[3,4],f32>
 }
+
+// CHECK-LABEL: func.func @torch.aten.index_put_(
+// CHECK-SAME:      %[[INPUT:.*]]: !torch.tensor<[4,4],f32>, %[[IDX:.*]]: !torch.vtensor<[2],si64>, %[[VALS:.*]]: !torch.tensor<[2,4],f32>
+// CHECK:         %[[FALSE:.*]] = torch.constant.bool false
+// CHECK:         %[[INPUT_VTENSOR:.*]] = torch.copy.to_vtensor %[[INPUT]]
+// CHECK:         %[[VALS_VTENSOR:.*]] = torch.copy.to_vtensor %[[VALS]]
+// CHECK:         %[[LIST:.*]] = torch.prim.ListConstruct %[[IDX]]
+// CHECK:         %[[RES_VTENSOR:.*]] = torch.aten.index_put.hacked_twin %[[INPUT_VTENSOR]], %[[LIST]], %[[VALS_VTENSOR]], %[[FALSE]]
+// CHECK:         %[[RES:.*]] = torch.copy.to_tensor %[[RES_VTENSOR]]
+// CHECK:         return %[[RES]]
+func.func @torch.aten.index_put_(%input: !torch.tensor<[4,4],f32>, %idx: !torch.vtensor<[2],si64>, %vals: !torch.tensor<[2,4],f32>) -> !torch.tensor<[4,4],f32> {
+  %false = torch.constant.bool false
+  %indices = torch.prim.ListConstruct %idx : (!torch.vtensor<[2],si64>) -> !torch.list<optional<vtensor>>
+  %result = torch.aten.index_put_ %input, %indices, %vals, %false : !torch.tensor<[4,4],f32>, !torch.list<optional<vtensor>>, !torch.tensor<[2,4],f32>, !torch.bool -> !torch.tensor<[4,4],f32>
+  return %result : !torch.tensor<[4,4],f32>
+}
