@@ -1757,7 +1757,7 @@ def Torch_QuantizedDecomposedChooseQparamsTensorOp : Torch_Op<
     Computes per-tensor affine quantization parameters (scale and zero_point)
     from a floating-point activation tensor at runtime:
     ```
-    scale = max((min(min_val,0) - max(max_val,0)) / quant_range, eps)
+    scale = max((max(max_val,0) - min(min_val,0)) / quant_range, eps)
     zp = clamp(qmin - round(min(min_val,0) / scale), quant_min, quant_max)
     ```
     Returns scale as a 1-element float tensor and zero_point as a 1-element
