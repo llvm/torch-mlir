@@ -12135,6 +12135,62 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.kthvalue` op into `aten.sort` and `aten.select.int` or
+// `aten.slice.Tensor` op.
+class DecomposeAtenKthvalueOp : public OpRewritePattern<AtenKthvalueOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenKthvalueOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    auto context = op.getContext();
+
+    bool keepDim;
+    if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepDim)))
+      return rewriter.notifyMatchFailure(
+          op, "Expected a constant boolean value for keepdim");
+
+    Value self = op.getSelf();
+    Value dim = op.getDim();
+    auto selfType = cast<BaseTensorType>(self.getType());
+    auto sortIndicesType = selfType.getWithSizesAndDtype(
+        selfType.getOptionalSizes(),
+        IntegerType::get(context, 64, IntegerType::Signed));
+    Value cstFalse = Torch::ConstantBoolOp::create(rewriter, loc, false);
+    auto sortOpResult = AtenSortOp::create(rewriter, loc, self.getType(),
+                                           sortIndicesType, self, dim,
+                                           /*descending=*/cstFalse);
+
+    Value cstOne = Torch::ConstantIntOp::create(rewriter, loc,
+                                                rewriter.getI64IntegerAttr(1));
+    Value kIndex = AtenSubIntOp::create(rewriter, loc, op.getK(), cstOne);
+
+    Value resultVal, resultIdx;
+    if (!keepDim) {
+      resultVal =
+          AtenSelectIntOp::create(rewriter, loc, op.getType(0),
+                                  sortOpResult->getResult(0), dim, kIndex);
+      resultIdx =
+          AtenSelectIntOp::create(rewriter, loc, op.getType(1),
+                                  sortOpResult->getResult(1), dim, kIndex);
+    } else {
+      resultVal = AtenSliceTensorOp::create(rewriter, loc, op.getType(0),
+                                            sortOpResult->getResult(0), dim,
+                                            /*start=*/kIndex, /*end=*/op.getK(),
+                                            /*step=*/cstOne);
+      resultIdx = AtenSliceTensorOp::create(rewriter, loc, op.getType(1),
+                                            sortOpResult->getResult(1), dim,
+                                            /*start=*/kIndex, /*end=*/op.getK(),
+                                            /*step=*/cstOne);
+    }
+
+    rewriter.replaceOp(op, {resultVal, resultIdx});
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 
 /// Creates coefficients based on DFT definition, see
 /// https://en.wikipedia.org/wiki/Discrete_Fourier_transform.
@@ -14062,6 +14118,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarMeanDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenTopkOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenArgsortOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenKthvalueOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenFftRfftOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenHannWindowPeriodicOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenScalarTensor>(patterns);
