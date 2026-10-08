@@ -34,11 +34,20 @@ config.test_exec_root = os.path.join(config.torch_mlir_obj_root, "test")
 
 config.substitutions.append(("%PATH%", config.environment["PATH"]))
 config.substitutions.append(("%shlibext", config.llvm_shlib_ext))
+config.substitutions.append(("%mlir_lib_dir", config.llvm_shlib_dir))
 
 # Register optional-backend availability as lit features so tests that exercise a
 # specific backend contract can guard themselves with `// REQUIRES: <backend>`.
 if getattr(config, "enable_stablehlo", False):
     config.available_features.add("stablehlo")
+
+# Tests that execute IR need `mlir-runner` plus the runner support libraries. A
+# build configured for torch-mlir alone need not have produced them, so gate
+# those tests with `// REQUIRES: mlir-runner` rather than failing.
+if os.path.isfile(
+    os.path.join(config.llvm_shlib_dir, "libmlir_runner_utils" + config.llvm_shlib_ext)
+) and lit.util.which("mlir-runner", config.llvm_tools_dir):
+    config.available_features.add("mlir-runner")
 
 llvm_config.with_system_environment(["HOME", "INCLUDE", "LIB", "TMP", "TEMP"])
 
@@ -97,6 +106,12 @@ tool_dirs = [
 ]
 tools = [
     "torch-mlir-opt",
+    # Used by tests that need an upstream pass torch-mlir-opt does not register,
+    # e.g. --one-shot-bufferize.
+    "mlir-opt",
+    # Used by tests that execute the lowered IR. Guarded by `REQUIRES:
+    # mlir-runner`.
+    "mlir-runner",
     ToolSubst("%PYTHON", config.python_executable, unresolved="ignore"),
 ]
 
