@@ -10763,6 +10763,80 @@ LogicalResult ConvertAtenOp<AtenReflectionPad3dOp>::matchAndRewriteImpl(
   return success();
 }
 
+// Legalization for aten.replication_pad1d
+template <>
+LogicalResult ConvertAtenOp<AtenReplicationPad1dOp>::matchAndRewriteImpl(
+    AtenReplicationPad1dOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Value self = adaptor.getSelf();
+  auto selfType = dyn_cast<RankedTensorType>(self.getType());
+  auto resultType =
+      dyn_cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  if (!selfType || !selfType.hasStaticShape() || !resultType ||
+      !resultType.hasStaticShape() ||
+      (selfType.getRank() != 2 && selfType.getRank() != 3))
+    return rewriter.notifyMatchFailure(
+        op, "expected static rank-2 or rank-3 input and static result");
+  if (llvm::any_of(selfType.getShape(), [](int64_t size) { return size == 0; }))
+    return rewriter.notifyMatchFailure(op, "empty inputs are not supported");
+
+  SmallVector<int64_t> padding;
+  if (!matchPattern(op.getPadding(), m_TorchListOfConstantInts(padding)) ||
+      padding.size() != 2)
+    return rewriter.notifyMatchFailure(op,
+                                       "expected two constant padding values");
+  if (padding[0] < 0 || padding[1] < 0)
+    return rewriter.notifyMatchFailure(op, "negative padding is not supported");
+
+  SmallVector<int64_t> resultShape(selfType.getShape());
+  int64_t paddedLength;
+  if (llvm::AddOverflow(resultShape.back(), padding[0], paddedLength) ||
+      llvm::AddOverflow(paddedLength, padding[1], paddedLength))
+    return rewriter.notifyMatchFailure(op, "padded length overflows int64");
+  resultShape.back() = paddedLength;
+  if (resultType.getShape() != ArrayRef<int64_t>(resultShape) ||
+      resultType.getElementType() != selfType.getElementType())
+    return rewriter.notifyMatchFailure(op,
+                                       "inconsistent replication pad result");
+  if (padding[0] == 0 && padding[1] == 0) {
+    rewriter.replaceOp(op, self);
+    return success();
+  }
+
+  Location loc = op.getLoc();
+  int64_t rank = selfType.getRank();
+  SmallVector<Value> pieces;
+  // Tile each edge once, avoiding a concat operand for every padded element.
+  auto appendEdge = [&](int64_t offset, int64_t count) {
+    if (count == 0)
+      return;
+    SmallVector<int64_t> start(rank, 0);
+    SmallVector<int64_t> size(selfType.getShape());
+    start.back() = offset;
+    size.back() = 1;
+    auto edgeType = RankedTensorType::get(size, selfType.getElementType());
+    Value edge =
+        tosa::SliceOp::create(rewriter, loc, edgeType, self,
+                              tosa::getTosaConstShape(rewriter, loc, start),
+                              tosa::getTosaConstShape(rewriter, loc, size));
+    if (count != 1) {
+      SmallVector<int64_t> multiples(rank, 1);
+      multiples.back() = count;
+      size.back() = count;
+      auto tiledType = RankedTensorType::get(size, selfType.getElementType());
+      edge = tosa::TileOp::create(
+          rewriter, loc, tiledType, edge,
+          tosa::getTosaConstShape(rewriter, loc, multiples));
+    }
+    pieces.push_back(edge);
+  };
+  appendEdge(0, padding[0]);
+  pieces.push_back(self);
+  appendEdge(selfType.getShape().back() - 1, padding[1]);
+  rewriter.replaceOpWithNewOp<tosa::ConcatOp>(op, resultType, pieces, rank - 1);
+  return success();
+}
+
 // Legalization for aten.replication_pad2d
 template <>
 LogicalResult ConvertAtenOp<AtenReplicationPad2dOp>::matchAndRewriteImpl(
@@ -12897,6 +12971,7 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
   INSERT_ATENOP_PATTERN(AtenReflectionPad1dOp);
   INSERT_ATENOP_PATTERN(AtenReflectionPad2dOp);
   INSERT_ATENOP_PATTERN(AtenReflectionPad3dOp);
+  INSERT_ATENOP_PATTERN(AtenReplicationPad1dOp);
   INSERT_ATENOP_PATTERN(AtenReplicationPad2dOp);
   INSERT_ATENOP_PATTERN(PrimsSplitDimOp);
   INSERT_ATENOP_PATTERN(AtenOuterOp);

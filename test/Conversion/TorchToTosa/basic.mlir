@@ -3768,6 +3768,165 @@ func.func @torch.aten.reflection_pad3d$basic(%arg0: !torch.vtensor<[4,5,7,3,4],f
 
 // -----
 
+// CHECK-LABEL: func.func @torch.aten.replication_pad1d$asymmetric_rank2(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[2,3],f32>) -> !torch.vtensor<[2,6],f32>
+// CHECK: %[[BUILTIN:.*]] = torch_c.to_builtin_tensor %[[INPUT]] : !torch.vtensor<[2,3],f32> -> tensor<2x3xf32>
+// CHECK-DAG: %[[LEFT_START:.*]] = tosa.const_shape {values = dense<0> : tensor<2xindex>} : () -> !tosa.shape<2>
+// CHECK-DAG: %[[LEFT_SIZE:.*]] = tosa.const_shape {values = dense<[2, 1]> : tensor<2xindex>} : () -> !tosa.shape<2>
+// CHECK: %[[LEFT:.*]] = tosa.slice %[[BUILTIN]], %[[LEFT_START]], %[[LEFT_SIZE]] : (tensor<2x3xf32>, !tosa.shape<2>, !tosa.shape<2>) -> tensor<2x1xf32>
+// CHECK-DAG: %[[RIGHT_START:.*]] = tosa.const_shape {values = dense<[0, 2]> : tensor<2xindex>} : () -> !tosa.shape<2>
+// CHECK-DAG: %[[RIGHT_SIZE:.*]] = tosa.const_shape {values = dense<[2, 1]> : tensor<2xindex>} : () -> !tosa.shape<2>
+// CHECK: %[[RIGHT:.*]] = tosa.slice %[[BUILTIN]], %[[RIGHT_START]], %[[RIGHT_SIZE]] : (tensor<2x3xf32>, !tosa.shape<2>, !tosa.shape<2>) -> tensor<2x1xf32>
+// CHECK: %[[MULTIPLES:.*]] = tosa.const_shape {values = dense<[1, 2]> : tensor<2xindex>} : () -> !tosa.shape<2>
+// CHECK: %[[RIGHT_PAD:.*]] = tosa.tile %[[RIGHT]], %[[MULTIPLES]] : (tensor<2x1xf32>, !tosa.shape<2>) -> tensor<2x2xf32>
+// CHECK: %[[PADDED:.*]] = tosa.concat %[[LEFT]], %[[BUILTIN]], %[[RIGHT_PAD]] {axis = 1 : i32} : (tensor<2x1xf32>, tensor<2x3xf32>, tensor<2x2xf32>) -> tensor<2x6xf32>
+// CHECK: %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[PADDED]] : tensor<2x6xf32> -> !torch.vtensor<[2,6],f32>
+// CHECK: return %[[RESULT]] : !torch.vtensor<[2,6],f32>
+func.func @torch.aten.replication_pad1d$asymmetric_rank2(%input: !torch.vtensor<[2,3],f32>) -> !torch.vtensor<[2,6],f32> {
+  %one = torch.constant.int 1
+  %two = torch.constant.int 2
+  %pads = torch.prim.ListConstruct %one, %two : (!torch.int, !torch.int) -> !torch.list<int>
+  %result = torch.aten.replication_pad1d %input, %pads : !torch.vtensor<[2,3],f32>, !torch.list<int> -> !torch.vtensor<[2,6],f32>
+  return %result : !torch.vtensor<[2,6],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.replication_pad1d$right_only_rank3_f16(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[1,2,3],f16>) -> !torch.vtensor<[1,2,7],f16>
+// CHECK: %[[BUILTIN:.*]] = torch_c.to_builtin_tensor %[[INPUT]] : !torch.vtensor<[1,2,3],f16> -> tensor<1x2x3xf16>
+// CHECK-DAG: %[[START:.*]] = tosa.const_shape {values = dense<[0, 0, 2]> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK-DAG: %[[SIZE:.*]] = tosa.const_shape {values = dense<[1, 2, 1]> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK: %[[EDGE:.*]] = tosa.slice %[[BUILTIN]], %[[START]], %[[SIZE]] : (tensor<1x2x3xf16>, !tosa.shape<3>, !tosa.shape<3>) -> tensor<1x2x1xf16>
+// CHECK: %[[MULTIPLES:.*]] = tosa.const_shape {values = dense<[1, 1, 4]> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK: %[[RIGHT_PAD:.*]] = tosa.tile %[[EDGE]], %[[MULTIPLES]] : (tensor<1x2x1xf16>, !tosa.shape<3>) -> tensor<1x2x4xf16>
+// CHECK: %[[PADDED:.*]] = tosa.concat %[[BUILTIN]], %[[RIGHT_PAD]] {axis = 2 : i32} : (tensor<1x2x3xf16>, tensor<1x2x4xf16>) -> tensor<1x2x7xf16>
+// CHECK: %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[PADDED]] : tensor<1x2x7xf16> -> !torch.vtensor<[1,2,7],f16>
+// CHECK: return %[[RESULT]] : !torch.vtensor<[1,2,7],f16>
+func.func @torch.aten.replication_pad1d$right_only_rank3_f16(%input: !torch.vtensor<[1,2,3],f16>) -> !torch.vtensor<[1,2,7],f16> {
+  %zero = torch.constant.int 0
+  %four = torch.constant.int 4
+  %pads = torch.prim.ListConstruct %zero, %four : (!torch.int, !torch.int) -> !torch.list<int>
+  %result = torch.aten.replication_pad1d %input, %pads : !torch.vtensor<[1,2,3],f16>, !torch.list<int> -> !torch.vtensor<[1,2,7],f16>
+  return %result : !torch.vtensor<[1,2,7],f16>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.replication_pad1d$left_only_bf16(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[2,3],bf16>) -> !torch.vtensor<[2,7],bf16>
+// CHECK: %[[BUILTIN:.*]] = torch_c.to_builtin_tensor %[[INPUT]] : !torch.vtensor<[2,3],bf16> -> tensor<2x3xbf16>
+// CHECK-DAG: %[[START:.*]] = tosa.const_shape {values = dense<0> : tensor<2xindex>} : () -> !tosa.shape<2>
+// CHECK-DAG: %[[SIZE:.*]] = tosa.const_shape {values = dense<[2, 1]> : tensor<2xindex>} : () -> !tosa.shape<2>
+// CHECK: %[[EDGE:.*]] = tosa.slice %[[BUILTIN]], %[[START]], %[[SIZE]] : (tensor<2x3xbf16>, !tosa.shape<2>, !tosa.shape<2>) -> tensor<2x1xbf16>
+// CHECK: %[[MULTIPLES:.*]] = tosa.const_shape {values = dense<[1, 4]> : tensor<2xindex>} : () -> !tosa.shape<2>
+// CHECK: %[[LEFT_PAD:.*]] = tosa.tile %[[EDGE]], %[[MULTIPLES]] : (tensor<2x1xbf16>, !tosa.shape<2>) -> tensor<2x4xbf16>
+// CHECK: %[[PADDED:.*]] = tosa.concat %[[LEFT_PAD]], %[[BUILTIN]] {axis = 1 : i32} : (tensor<2x4xbf16>, tensor<2x3xbf16>) -> tensor<2x7xbf16>
+// CHECK: %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[PADDED]] : tensor<2x7xbf16> -> !torch.vtensor<[2,7],bf16>
+// CHECK: return %[[RESULT]] : !torch.vtensor<[2,7],bf16>
+func.func @torch.aten.replication_pad1d$left_only_bf16(%input: !torch.vtensor<[2,3],bf16>) -> !torch.vtensor<[2,7],bf16> {
+  %zero = torch.constant.int 0
+  %four = torch.constant.int 4
+  %pads = torch.prim.ListConstruct %four, %zero : (!torch.int, !torch.int) -> !torch.list<int>
+  %result = torch.aten.replication_pad1d %input, %pads : !torch.vtensor<[2,3],bf16>, !torch.list<int> -> !torch.vtensor<[2,7],bf16>
+  return %result : !torch.vtensor<[2,7],bf16>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.replication_pad1d$identity(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[2,3],f32>
+// CHECK-NOT: tosa.
+// CHECK: return %[[INPUT]] : !torch.vtensor<[2,3],f32>
+func.func @torch.aten.replication_pad1d$identity(%input: !torch.vtensor<[2,3],f32>) -> !torch.vtensor<[2,3],f32> {
+  %zero = torch.constant.int 0
+  %pads = torch.prim.ListConstruct %zero, %zero : (!torch.int, !torch.int) -> !torch.list<int>
+  %result = torch.aten.replication_pad1d %input, %pads : !torch.vtensor<[2,3],f32>, !torch.list<int> -> !torch.vtensor<[2,3],f32>
+  return %result : !torch.vtensor<[2,3],f32>
+}
+
+// -----
+
+func.func @torch.aten.replication_pad1d$negative_padding(%input: !torch.vtensor<[2,3],f32>) -> !torch.vtensor<[2,4],f32> {
+  %minus_one = torch.constant.int -1
+  %two = torch.constant.int 2
+  %pads = torch.prim.ListConstruct %minus_one, %two : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @below {{failed to legalize operation 'torch.aten.replication_pad1d' that was explicitly marked illegal}}
+  %result = torch.aten.replication_pad1d %input, %pads : !torch.vtensor<[2,3],f32>, !torch.list<int> -> !torch.vtensor<[2,4],f32>
+  return %result : !torch.vtensor<[2,4],f32>
+}
+
+// -----
+
+func.func @torch.aten.replication_pad1d$dynamic_shape(%input: !torch.vtensor<[?,3],f32>) -> !torch.vtensor<[?,5],f32> {
+  %one = torch.constant.int 1
+  %pads = torch.prim.ListConstruct %one, %one : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @below {{failed to legalize operation 'torch.aten.replication_pad1d' that was explicitly marked illegal}}
+  %result = torch.aten.replication_pad1d %input, %pads : !torch.vtensor<[?,3],f32>, !torch.list<int> -> !torch.vtensor<[?,5],f32>
+  return %result : !torch.vtensor<[?,5],f32>
+}
+
+// -----
+
+func.func @torch.aten.replication_pad1d$runtime_padding(%input: !torch.vtensor<[2,3],f32>, %pads: !torch.list<int>) -> !torch.vtensor<[2,5],f32> {
+  // expected-error @below {{failed to legalize operation 'torch.aten.replication_pad1d' that was explicitly marked illegal}}
+  %result = torch.aten.replication_pad1d %input, %pads : !torch.vtensor<[2,3],f32>, !torch.list<int> -> !torch.vtensor<[2,5],f32>
+  return %result : !torch.vtensor<[2,5],f32>
+}
+
+// -----
+
+func.func @torch.aten.replication_pad1d$malformed_padding(%input: !torch.vtensor<[2,3],f32>) -> !torch.vtensor<[2,5],f32> {
+  %two = torch.constant.int 2
+  %pads = torch.prim.ListConstruct %two : (!torch.int) -> !torch.list<int>
+  // expected-error @below {{failed to legalize operation 'torch.aten.replication_pad1d' that was explicitly marked illegal}}
+  %result = torch.aten.replication_pad1d %input, %pads : !torch.vtensor<[2,3],f32>, !torch.list<int> -> !torch.vtensor<[2,5],f32>
+  return %result : !torch.vtensor<[2,5],f32>
+}
+
+// -----
+
+func.func @torch.aten.replication_pad1d$zero_dimension(%input: !torch.vtensor<[0,2,3],f32>) -> !torch.vtensor<[0,2,5],f32> {
+  %one = torch.constant.int 1
+  %pads = torch.prim.ListConstruct %one, %one : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @below {{failed to legalize operation 'torch.aten.replication_pad1d' that was explicitly marked illegal}}
+  %result = torch.aten.replication_pad1d %input, %pads : !torch.vtensor<[0,2,3],f32>, !torch.list<int> -> !torch.vtensor<[0,2,5],f32>
+  return %result : !torch.vtensor<[0,2,5],f32>
+}
+
+// -----
+
+func.func @torch.aten.replication_pad1d$invalid_rank(%input: !torch.vtensor<[3],f32>) -> !torch.vtensor<[5],f32> {
+  %one = torch.constant.int 1
+  %pads = torch.prim.ListConstruct %one, %one : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @below {{failed to legalize operation 'torch.aten.replication_pad1d' that was explicitly marked illegal}}
+  %result = torch.aten.replication_pad1d %input, %pads : !torch.vtensor<[3],f32>, !torch.list<int> -> !torch.vtensor<[5],f32>
+  return %result : !torch.vtensor<[5],f32>
+}
+
+// -----
+
+func.func @torch.aten.replication_pad1d$padding_overflow(%input: !torch.vtensor<[2,3],f32>) -> !torch.vtensor<[2,3],f32> {
+  %max_int = torch.constant.int 9223372036854775807
+  %one = torch.constant.int 1
+  %pads = torch.prim.ListConstruct %max_int, %one : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @below {{failed to legalize operation 'torch.aten.replication_pad1d' that was explicitly marked illegal}}
+  %result = torch.aten.replication_pad1d %input, %pads : !torch.vtensor<[2,3],f32>, !torch.list<int> -> !torch.vtensor<[2,3],f32>
+  return %result : !torch.vtensor<[2,3],f32>
+}
+
+// -----
+
+func.func @torch.aten.replication_pad1d$mismatched_result_shape(%input: !torch.vtensor<[2,3],f32>) -> !torch.vtensor<[2,6],f32> {
+  %one = torch.constant.int 1
+  %pads = torch.prim.ListConstruct %one, %one : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @below {{failed to legalize operation 'torch.aten.replication_pad1d' that was explicitly marked illegal}}
+  %result = torch.aten.replication_pad1d %input, %pads : !torch.vtensor<[2,3],f32>, !torch.list<int> -> !torch.vtensor<[2,6],f32>
+  return %result : !torch.vtensor<[2,6],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.replication_pad2d$basic(
 // CHECK-SAME:                                                  %[[VAL_0:.*]]: !torch.vtensor<[1,1,3,3],f32>) -> !torch.vtensor<[1,1,10,6],f32> {
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,1,3,3],f32> -> tensor<1x1x3x3xf32>
