@@ -7289,3 +7289,115 @@ func.func @torch.aten.linalg_vector_norm$zero_int(%arg0: !torch.vtensor<[5],f32>
   %0 = torch.aten.linalg_vector_norm %arg0, %ord, %dim, %keepdim, %dtype : !torch.vtensor<[5],f32>, !torch.int, !torch.none, !torch.bool, !torch.none -> !torch.vtensor<[],f32>
   return %0 : !torch.vtensor<[],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @avg_pool3d_f16_fp32_compute
+// CHECK: %[[PROMOTED:.*]] = tosa.cast %{{.*}} : (tensor<1x2x4x4x4xf16>) -> tensor<1x2x4x4x4xf32>
+// CHECK: tosa.avg_pool2d {{.*}}acc_type = f32{{.*}} -> tensor<4x3x3x2xf32>
+// CHECK: tosa.avg_pool2d {{.*}}acc_type = f32{{.*}} -> tensor<9x3x1x2xf32>
+// CHECK: tosa.mul {{.*}} -> tensor<1x2x3x3x3xf32>
+// CHECK: tosa.mul {{.*}} -> tensor<1x2x3x3x3xf32>
+// CHECK: tosa.mul {{.*}} -> tensor<1x2x3x3x3xf32>
+// CHECK: %[[RESTORED:.*]] = tosa.cast %{{.*}} : (tensor<1x2x3x3x3xf32>) -> tensor<1x2x3x3x3xf16>
+// CHECK: return %{{.*}} : !torch.vtensor<[1,2,3,3,3],f16>
+func.func @avg_pool3d_f16_fp32_compute(%arg0: !torch.vtensor<[1,2,4,4,4],f16>) -> !torch.vtensor<[1,2,3,3,3],f16> {
+  %one = torch.constant.int 1
+  %two = torch.constant.int 2
+  %three = torch.constant.int 3
+  %true = torch.constant.bool true
+  %none = torch.constant.none
+  %kernel = torch.prim.ListConstruct %three, %three, %three : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %two, %two, %two : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %one, %one, %one : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %result = torch.aten.avg_pool3d %arg0, %kernel, %stride, %padding, %true, %true, %none : !torch.vtensor<[1,2,4,4,4],f16>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,2,3,3,3],f16>
+  return %result : !torch.vtensor<[1,2,3,3,3],f16>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @avg_pool3d_bf16_fp32_compute
+// CHECK: %[[PROMOTED:.*]] = tosa.cast %{{.*}} : (tensor<2x4x4x4xbf16>) -> tensor<2x4x4x4xf32>
+// CHECK: tosa.avg_pool2d {{.*}}acc_type = f32{{.*}} -> tensor<4x3x3x2xf32>
+// CHECK: tosa.avg_pool2d {{.*}}acc_type = f32{{.*}} -> tensor<9x3x1x2xf32>
+// CHECK: tosa.mul {{.*}} -> tensor<1x2x3x3x3xf32>
+// CHECK: tosa.mul {{.*}} -> tensor<1x2x3x3x3xf32>
+// CHECK: tosa.mul {{.*}} -> tensor<1x2x3x3x3xf32>
+// CHECK: %[[RESTORED:.*]] = tosa.cast %{{.*}} : (tensor<2x3x3x3xf32>) -> tensor<2x3x3x3xbf16>
+// CHECK: return %{{.*}} : !torch.vtensor<[2,3,3,3],bf16>
+func.func @avg_pool3d_bf16_fp32_compute(%arg0: !torch.vtensor<[2,4,4,4],bf16>) -> !torch.vtensor<[2,3,3,3],bf16> {
+  %one = torch.constant.int 1
+  %two = torch.constant.int 2
+  %three = torch.constant.int 3
+  %true = torch.constant.bool true
+  %none = torch.constant.none
+  %divisor = torch.constant.int -2
+  %kernel = torch.prim.ListConstruct %three, %three, %three : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %two, %two, %two : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %one, %one, %one : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %result = torch.aten.avg_pool3d %arg0, %kernel, %stride, %padding, %true, %true, %divisor : !torch.vtensor<[2,4,4,4],bf16>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.int -> !torch.vtensor<[2,3,3,3],bf16>
+  return %result : !torch.vtensor<[2,3,3,3],bf16>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @avg_pool3d_f32_non_global
+// CHECK-SAME: (%[[ARG:.*]]: !torch.vtensor<[1,2,4,5,6],f32>)
+// CHECK: %[[INPUT:.*]] = torch_c.to_builtin_tensor %[[ARG]]
+// CHECK: %[[NDHWC:.*]] = tosa.transpose %[[INPUT]] {perms = array<i32: 0, 2, 3, 4, 1>}
+// CHECK: %[[HW_INPUT:.*]] = tosa.reshape %[[NDHWC]], %{{.*}} : (tensor<1x4x5x6x2xf32>, !tosa.shape<4>) -> tensor<4x5x6x2xf32>
+// CHECK: %[[HW:.*]] = tosa.avg_pool2d %[[HW_INPUT]], %{{.*}}, %{{.*}} {acc_type = f32, kernel = array<i64: 3, 2>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 2, 2>} : (tensor<4x5x6x2xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<4x2x3x2xf32>
+// CHECK: %[[HW_5D:.*]] = tosa.reshape %[[HW]],
+// CHECK: %[[DEPTH_LAYOUT:.*]] = tosa.transpose %[[HW_5D]] {perms = array<i32: 0, 2, 3, 1, 4>}
+// CHECK: %[[DEPTH_INPUT:.*]] = tosa.reshape %[[DEPTH_LAYOUT]], %{{.*}} : (tensor<1x2x3x4x2xf32>, !tosa.shape<4>) -> tensor<6x4x1x2xf32>
+// CHECK: %[[DEPTH:.*]] = tosa.avg_pool2d %[[DEPTH_INPUT]], %{{.*}}, %{{.*}} {acc_type = f32, kernel = array<i64: 2, 1>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 1, 1>} : (tensor<6x4x1x2xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<6x3x1x2xf32>
+// CHECK: %[[RESULT_5D:.*]] = tosa.reshape %[[DEPTH]],
+// CHECK: %[[NCDHW:.*]] = tosa.transpose %[[RESULT_5D]] {perms = array<i32: 0, 4, 3, 1, 2>}
+// CHECK-NEXT: %[[CAST:.*]] = tensor.cast %[[NCDHW]] : tensor<1x2x3x2x3xf32> to tensor<1x2x3x2x3xf32>
+// CHECK-NEXT: %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[CAST]]
+// CHECK-NEXT: return %[[RESULT]] : !torch.vtensor<[1,2,3,2,3],f32>
+func.func @avg_pool3d_f32_non_global(%arg0: !torch.vtensor<[1,2,4,5,6],f32>) -> !torch.vtensor<[1,2,3,2,3],f32> {
+  %zero = torch.constant.int 0
+  %one = torch.constant.int 1
+  %two = torch.constant.int 2
+  %three = torch.constant.int 3
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %kernel = torch.prim.ListConstruct %two, %three, %two : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %one, %two, %two : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %zero, %zero, %zero : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %result = torch.aten.avg_pool3d %arg0, %kernel, %stride, %padding, %false, %false, %none : !torch.vtensor<[1,2,4,5,6],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,2,3,2,3],f32>
+  return %result : !torch.vtensor<[1,2,3,2,3],f32>
+}
+
+// -----
+
+// Requested padding counts in the divisor; the extra ceil-mode padding does not.
+// Depth windows have (valid, counted) sizes (2, 3), (3, 3), (1, 2).
+// CHECK-LABEL: func.func @avg_pool3d_ceil_divisor_correction
+// CHECK: %[[HW:.*]] = tosa.avg_pool2d %{{.*}} {acc_type = f32, kernel = array<i64: 1, 1>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 1, 1>}
+// CHECK: %[[HW_5D:.*]] = tosa.reshape %[[HW]],
+// CHECK: %[[DEPTH_LAYOUT:.*]] = tosa.transpose %[[HW_5D]]
+// CHECK: %[[DEPTH_INPUT:.*]] = tosa.reshape %[[DEPTH_LAYOUT]],
+// CHECK: %[[DEPTH:.*]] = tosa.avg_pool2d %[[DEPTH_INPUT]], %{{.*}}, %{{.*}} {acc_type = f32, kernel = array<i64: 3, 1>, pad = array<i64: 1, 2, 0, 0>, stride = array<i64: 2, 1>} : (tensor<1x4x1x1xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x3x1x1xf32>
+// CHECK: %[[RESULT_5D:.*]] = tosa.reshape %[[DEPTH]],
+// CHECK: %[[NCDHW:.*]] = tosa.transpose %[[RESULT_5D]]
+// CHECK: %[[SCALE:.*]] = "tosa.const"() <{values = dense<{{\[\[\[\[\[}}0.666666686]], {{\[\[}}1.000000e+00]], {{\[\[}}5.000000e-01]]]]]> : tensor<1x1x3x1x1xf32>}> : () -> tensor<1x1x3x1x1xf32>
+// CHECK: %[[SHIFT:.*]] = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
+// CHECK-NEXT: %[[SCALED:.*]] = tosa.mul %[[NCDHW]], %[[SCALE]], %[[SHIFT]] : (tensor<1x1x3x1x1xf32>, tensor<1x1x3x1x1xf32>, tensor<1xi8>) -> tensor<1x1x3x1x1xf32>
+// CHECK-NEXT: %[[CAST:.*]] = tensor.cast %[[SCALED]] : tensor<1x1x3x1x1xf32> to tensor<1x1x3x1x1xf32>
+// CHECK-NEXT: %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[CAST]]
+// CHECK-NEXT: return %[[RESULT]] : !torch.vtensor<[1,1,3,1,1],f32>
+func.func @avg_pool3d_ceil_divisor_correction(%arg0: !torch.vtensor<[1,1,4,1,1],f32>) -> !torch.vtensor<[1,1,3,1,1],f32> {
+  %zero = torch.constant.int 0
+  %one = torch.constant.int 1
+  %two = torch.constant.int 2
+  %three = torch.constant.int 3
+  %true = torch.constant.bool true
+  %none = torch.constant.none
+  %kernel = torch.prim.ListConstruct %three, %one, %one : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %two, %one, %one : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %one, %zero, %zero : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %result = torch.aten.avg_pool3d %arg0, %kernel, %stride, %padding, %true, %true, %none : !torch.vtensor<[1,1,4,1,1],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1,3,1,1],f32>
+  return %result : !torch.vtensor<[1,1,3,1,1],f32>
+}

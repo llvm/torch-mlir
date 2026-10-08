@@ -9176,6 +9176,253 @@ private:
   }
 };
 
+// Lower AvgPool3d as two AvgPool2d stages: first over HxW, then over depth.
+// TOSA excludes implicit padding from the divisor, so apply an explicit
+// correction for count_include_pad and divisor_override semantics.
+class ConvertAtenAvgPool3dOp
+    : public TorchToTosaOpConversionPattern<AtenAvgPool3dOp> {
+public:
+  using TorchToTosaOpConversionPattern<
+      AtenAvgPool3dOp>::TorchToTosaOpConversionPattern;
+  using OpAdaptor = AtenAvgPool3dOp::Adaptor;
+
+  LogicalResult
+  matchAndRewriteImpl(AtenAvgPool3dOp op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    // 1. Validate the input and pooling parameters.
+    Value input = adaptor.getSelf();
+    auto inputTy = dyn_cast<RankedTensorType>(input.getType());
+    if (!inputTy || (inputTy.getRank() != 4 && inputTy.getRank() != 5))
+      return rewriter.notifyMatchFailure(
+          op, "AvgPool3d requires a rank 4 or rank 5 tensor input");
+    if (!inputTy.hasStaticShape())
+      return rewriter.notifyMatchFailure(
+          op, "AvgPool3d currently requires a statically shaped input");
+
+    Type originalElementTy = inputTy.getElementType();
+    if ((!originalElementTy.isF32() && !originalElementTy.isF16() &&
+         !originalElementTy.isBF16()) ||
+        !llvm::all_of(inputTy.getShape(), [](int64_t dim) { return dim > 0; }))
+      return rewriter.notifyMatchFailure(
+          op, "AvgPool3d requires f32, f16 or bf16 input with positive static "
+              "dimensions");
+
+    SmallVector<int64_t, 3> kernel, stride, padding;
+    if (!matchPattern(op.getKernelSize(), m_TorchListOfConstantInts(kernel)) ||
+        !matchPattern(op.getStride(), m_TorchListOfConstantInts(stride)) ||
+        !matchPattern(op.getPadding(), m_TorchListOfConstantInts(padding)))
+      return rewriter.notifyMatchFailure(
+          op, "AvgPool3d requires constant pooling parameters");
+
+    auto expandTo3d = [](SmallVectorImpl<int64_t> &values) {
+      if (values.size() == 1)
+        values.resize(3, values.front());
+    };
+    expandTo3d(kernel);
+    expandTo3d(padding);
+
+    if (stride.empty())
+      stride.assign(kernel.begin(), kernel.end());
+    else
+      expandTo3d(stride);
+
+    if (kernel.size() != 3 || stride.size() != 3 || padding.size() != 3)
+      return rewriter.notifyMatchFailure(
+          op, "AvgPool3d pooling parameters must have one or three values");
+    for (unsigned axis = 0; axis < 3; ++axis)
+      if (kernel[axis] <= 0 || stride[axis] <= 0 || padding[axis] < 0 ||
+          padding[axis] > kernel[axis] / 2)
+        return rewriter.notifyMatchFailure(op, "invalid AvgPool3d parameters");
+
+    bool ceilMode, countIncludePad;
+    if (!matchPattern(op.getCeilMode(), m_TorchConstantBool(&ceilMode)) ||
+        !matchPattern(op.getCountIncludePad(),
+                      m_TorchConstantBool(&countIncludePad)))
+      return rewriter.notifyMatchFailure(
+          op, "AvgPool3d requires constant ceil_mode and count_include_pad");
+    const bool hasOverride =
+        !isa<Torch::NoneType>(op.getDivisorOverride().getType());
+    int64_t divisor = 1;
+    if (hasOverride &&
+        (!matchPattern(op.getDivisorOverride(), m_TorchConstantInt(&divisor)) ||
+         divisor == 0))
+      return rewriter.notifyMatchFailure(
+          op, "AvgPool3d requires None or a nonzero constant divisor_override");
+
+    // TOSA excludes implicit padding from its average. Correct that average
+    // using per-axis counts from the original input and requested padding.
+    // In particular, extra padding for ceil mode must not enter the divisor.
+    SmallVector<SmallVector<float>> scales(3);
+    auto spatialShape = inputTy.getShape().take_back(3);
+    SmallVector<int64_t, 3> outputShape;
+    for (unsigned axis = 0; axis < 3; ++axis) {
+      int64_t length = spatialShape[axis];
+      int64_t span = length + 2 * padding[axis] - kernel[axis];
+      int64_t out =
+          (ceilMode ? llvm::divideCeilSigned(span, stride[axis])
+                    : llvm::divideFloorSigned(span, stride[axis])) + 1;
+      if (ceilMode && (out - 1) * stride[axis] >= length + padding[axis])
+        --out;
+      if (out <= 0)
+        return rewriter.notifyMatchFailure(
+            op, "AvgPool3d output must be positive");
+      outputShape.push_back(out);
+      if (!hasOverride && !countIncludePad)
+        continue;
+      for (int64_t index = 0; index < out; ++index) {
+        int64_t begin = index * stride[axis] - padding[axis];
+        int64_t end = std::min(begin + kernel[axis], length + padding[axis]);
+        int64_t valid = std::min(end, length) - std::max(begin, int64_t{0});
+        if (valid <= 0)
+          return rewriter.notifyMatchFailure(
+              op, "AvgPool3d window must be nonempty");
+        double denominator =
+            hasOverride ? (axis == 0 ? divisor : 1) : end - begin;
+        scales[axis].push_back(static_cast<float>(valid / denominator));
+      }
+    }
+    auto expectedResultTy = dyn_cast<RankedTensorType>(
+        this->getTypeConverter()->convertType(op.getType()));
+    if (!expectedResultTy ||
+        expectedResultTy.getElementType() != originalElementTy ||
+        expectedResultTy.getRank() != inputTy.getRank())
+      return rewriter.notifyMatchFailure(
+          op, "AvgPool3d requires matching input and result element types");
+    SmallVector<int64_t> resultShape(inputTy.getShape());
+    std::copy(outputShape.begin(), outputShape.end(), resultShape.end() - 3);
+    for (auto [actual, expected] :
+         llvm::zip(resultShape, expectedResultTy.getShape()))
+      if (!ShapedType::isDynamic(expected) && actual != expected)
+        return rewriter.notifyMatchFailure(op, "AvgPool3d result shape mismatch");
+
+    SmallVector<int64_t> inputShape(inputTy.getShape());
+    const bool hasBatch = inputTy.getRank() == 5;
+    // Keep both pooling stages and divisor corrections in FP32; round only
+    // once when converting the final result back to the original dtype.
+    Type elementTy = rewriter.getF32Type();
+    if (originalElementTy != elementTy) {
+      auto promoted = tosa::tosaCastTensorToType(
+          rewriter, input, inputTy.clone(elementTy));
+      if (!promoted)
+        return rewriter.notifyMatchFailure(op, "failed to promote AvgPool3d input");
+      input = *promoted;
+    }
+
+    // 2. Normalize to NCDHW, then pool HxW independently for every depth plane
+    // by folding N and D together.
+    if (!hasBatch) {
+      inputShape.insert(inputShape.begin(), 1);
+      input = reshapeTensor(input, inputShape, elementTy, rewriter, loc);
+    }
+
+    const int64_t n = inputShape[0];
+    const int64_t c = inputShape[1];
+    const int64_t d = inputShape[2];
+    const int64_t h = inputShape[3];
+    const int64_t w = inputShape[4];
+
+    input = transposeTensor(input, {n, c, d, h, w}, elementTy, {0, 2, 3, 4, 1},
+                            this->getTypeConverter(), rewriter, loc);
+    input = reshapeTensor(input, {n * d, h, w, c}, elementTy, rewriter, loc);
+
+    auto hwPooled =
+        createAvgPool2d(input, {kernel[1], kernel[2]}, {stride[1], stride[2]},
+                        {padding[1], padding[2]}, ceilMode, rewriter, loc);
+
+    // 3. Pool D as Dx1 by folding N and the already-pooled OH and OW
+    // dimensions together.
+    Value depthInput = reshapeTensor(
+        hwPooled.value, {n, d, hwPooled.height, hwPooled.width, c}, elementTy,
+        rewriter, loc);
+    depthInput = transposeTensor(
+        depthInput, {n, d, hwPooled.height, hwPooled.width, c}, elementTy,
+        {0, 2, 3, 1, 4}, this->getTypeConverter(), rewriter, loc);
+    int64_t depthBatch = n * hwPooled.height * hwPooled.width;
+    depthInput = reshapeTensor(depthInput, {depthBatch, d, 1, c}, elementTy,
+                               rewriter, loc);
+
+    auto depthPooled =
+        createAvgPool2d(depthInput, {kernel[0], 1}, {stride[0], 1},
+                        {padding[0], 0}, ceilMode, rewriter, loc);
+
+    // 4. Restore NCDHW and remove the synthetic batch for a CDHW input.
+    Value result = reshapeTensor(
+        depthPooled.value,
+        {n, hwPooled.height, hwPooled.width, depthPooled.height, c}, elementTy,
+        rewriter, loc);
+    result = transposeTensor(
+        result, {n, hwPooled.height, hwPooled.width, depthPooled.height, c},
+        elementTy, {0, 4, 3, 1, 2}, this->getTypeConverter(), rewriter, loc);
+    // Each factor broadcasts across batch/channels and the other two axes.
+    // Without an override: (sum / valid) * (valid / padded_count).
+    // With an override: (sum / valid) * (valid / divisor).
+    for (unsigned axis = 0; axis < 3; ++axis) {
+      if (scales[axis].empty() ||
+          llvm::all_of(scales[axis], [](float scale) { return scale == 1.0f; }))
+        continue;
+      SmallVector<int64_t, 5> scaleShape(5, 1);
+      scaleShape[axis + 2] = outputShape[axis];
+      auto scaleTy = RankedTensorType::get(scaleShape, elementTy);
+      Value scale = tosa::ConstOp::create(
+          rewriter, loc, scaleTy,
+          DenseElementsAttr::get(scaleTy, ArrayRef<float>(scales[axis])));
+      result = tosa::createMulOpAndCast(
+          rewriter, op, cast<RankedTensorType>(result.getType()), result, scale, 0);
+    }
+    if (!hasBatch)
+      result = reshapeTensor(
+          result, {c, depthPooled.height, hwPooled.height, hwPooled.width},
+          elementTy, rewriter, loc);
+    if (originalElementTy != elementTy) {
+      auto casted = tosa::tosaCastTensorToType(
+          rewriter, result,
+          cast<RankedTensorType>(result.getType()).clone(originalElementTy));
+      if (!casted)
+        return rewriter.notifyMatchFailure(op, "failed to cast AvgPool3d result");
+      result = *casted;
+    }
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, expectedResultTy, result);
+    return success();
+  }
+
+private:
+  struct Pool2dResult {
+    Value value;
+    int64_t height;
+    int64_t width;
+  };
+
+  // Emit one 2D pooling stage. The input is NHWC, and kernel, stride, and
+  // padding are ordered as H, W.
+  static Pool2dResult createAvgPool2d(Value input, ArrayRef<int64_t> kernel,
+                                    ArrayRef<int64_t> stride,
+                                    ArrayRef<int64_t> padding, bool ceilMode,
+                                    ConversionPatternRewriter &rewriter,
+                                    Location loc) {
+    auto inputTy = cast<RankedTensorType>(input.getType());
+    ArrayRef<int64_t> inputShape = inputTy.getShape();
+    Type elementTy = inputTy.getElementType();
+
+    auto kernelAttr = rewriter.getDenseI64ArrayAttr(kernel);
+    auto strideAttr = rewriter.getDenseI64ArrayAttr(stride);
+    auto padAttr = rewriter.getDenseI64ArrayAttr(
+        {padding[0], padding[0], padding[1], padding[1]});
+    auto prepared = preparePoolingInput(rewriter, loc, input, kernelAttr,
+                                        strideAttr, padAttr, {1, 1}, ceilMode);
+
+    auto outputTy =
+        RankedTensorType::get({inputShape[0], prepared.outputShape[0],
+                               prepared.outputShape[1], inputShape[3]},
+                              elementTy);
+    // Input and output are FP32, so the accumulator is FP32 as well.
+    Value result = tosa::AvgPool2dOp::create(
+        rewriter, loc, outputTy, prepared.input, kernelAttr, strideAttr, padAttr,
+        TypeAttr::get(elementTy));
+    return {result, prepared.outputShape[0], prepared.outputShape[1]};
+  }
+};
+
 class ConvertAtenAvgPool2dOp
     : public ConvertAtenPoolingBaseOp<AtenAvgPool2dOp, tosa::AvgPool2dOp> {
 public:
@@ -12756,6 +13003,10 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
   illegalOps.insert(AtenMaxPool3dOp::getOperationName());
   patterns.addWithLabel<ConvertAtenMaxPool3dOp>(
       AtenMaxPool3dOp::getOperationName(), typeConverter, context);
+
+  illegalOps.insert(AtenAvgPool3dOp::getOperationName());
+  patterns.addWithLabel<ConvertAtenAvgPool3dOp>(
+      AtenAvgPool3dOp::getOperationName(), typeConverter, context);
 
   illegalOps.insert(AtenAvgPool2dOp::getOperationName());
   patterns.addWithLabel<ConvertAtenAvgPool2dOp>(
