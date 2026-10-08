@@ -1807,3 +1807,47 @@ func.func @torch.aten.softplus(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtens
   %0 = torch.aten.softplus %arg0, %beta, %threshold : !torch.vtensor<[3,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[3,4],f32>
   return %0 : !torch.vtensor<[3,4],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.kthvalue$keepdim_false(
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[2],f32>, !torch.vtensor<[2],si64>) {
+// CHECK-DAG:     %[[K:.*]] = torch.constant.int 2
+// CHECK-DAG:     %[[DIM:.*]] = torch.constant.int 1
+// CHECK-DAG:     %[[C1:.*]] = torch.constant.int 1
+// CHECK-DAG:     %[[DESCENDING:.*]] = torch.constant.bool false
+// CHECK:         %[[VALUES:.*]], %[[INDICES:.*]] = torch.aten.sort %[[ARG0]], %[[DIM]], %[[DESCENDING]] : !torch.vtensor<[2,3],f32>, !torch.int, !torch.bool -> !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],si64>
+// CHECK:         %[[K_IDX:.*]] = torch.aten.sub.int %[[K]], %[[C1]] : !torch.int, !torch.int -> !torch.int
+// CHECK:         %[[VAL:.*]] = torch.aten.select.int %[[VALUES]], %[[DIM]], %[[K_IDX]] : !torch.vtensor<[2,3],f32>, !torch.int, !torch.int -> !torch.vtensor<[2],f32>
+// CHECK:         %[[IDX:.*]] = torch.aten.select.int %[[INDICES]], %[[DIM]], %[[K_IDX]] : !torch.vtensor<[2,3],si64>, !torch.int, !torch.int -> !torch.vtensor<[2],si64>
+// CHECK-NOT:     torch.aten.kthvalue
+// CHECK:         return %[[VAL]], %[[IDX]] : !torch.vtensor<[2],f32>, !torch.vtensor<[2],si64>
+func.func @torch.aten.kthvalue$keepdim_false(%arg0: !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[2],f32>, !torch.vtensor<[2],si64>) {
+  %int2 = torch.constant.int 2
+  %int1 = torch.constant.int 1
+  %false = torch.constant.bool false
+  %values, %indices = torch.aten.kthvalue %arg0, %int2, %int1, %false : !torch.vtensor<[2,3],f32>, !torch.int, !torch.int, !torch.bool -> !torch.vtensor<[2],f32>, !torch.vtensor<[2],si64>
+  return %values, %indices : !torch.vtensor<[2],f32>, !torch.vtensor<[2],si64>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.kthvalue$keepdim_true(
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[1,3],f32>, !torch.vtensor<[1,3],si64>) {
+// CHECK-DAG:     %[[K:.*]] = torch.constant.int 1
+// CHECK-DAG:     %[[DIM:.*]] = torch.constant.int 0
+// CHECK-DAG:     %[[C1:.*]] = torch.constant.int 1
+// CHECK-DAG:     %[[DESCENDING:.*]] = torch.constant.bool false
+// CHECK:         %[[VALUES:.*]], %[[INDICES:.*]] = torch.aten.sort %[[ARG0]], %[[DIM]], %[[DESCENDING]] : !torch.vtensor<[2,3],f32>, !torch.int, !torch.bool -> !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],si64>
+// CHECK:         %[[K_IDX:.*]] = torch.aten.sub.int %[[K]], %[[C1]] : !torch.int, !torch.int -> !torch.int
+// CHECK:         %[[VAL:.*]] = torch.aten.slice.Tensor %[[VALUES]], %[[DIM]], %[[K_IDX]], %[[K]], %[[C1]] : !torch.vtensor<[2,3],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[1,3],f32>
+// CHECK:         %[[IDX:.*]] = torch.aten.slice.Tensor %[[INDICES]], %[[DIM]], %[[K_IDX]], %[[K]], %[[C1]] : !torch.vtensor<[2,3],si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[1,3],si64>
+// CHECK-NOT:     torch.aten.kthvalue
+// CHECK:         return %[[VAL]], %[[IDX]] : !torch.vtensor<[1,3],f32>, !torch.vtensor<[1,3],si64>
+func.func @torch.aten.kthvalue$keepdim_true(%arg0: !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[1,3],f32>, !torch.vtensor<[1,3],si64>) {
+  %int1 = torch.constant.int 1
+  %int0 = torch.constant.int 0
+  %true = torch.constant.bool true
+  %values, %indices = torch.aten.kthvalue %arg0, %int1, %int0, %true : !torch.vtensor<[2,3],f32>, !torch.int, !torch.int, !torch.bool -> !torch.vtensor<[1,3],f32>, !torch.vtensor<[1,3],si64>
+  return %values, %indices : !torch.vtensor<[1,3],f32>, !torch.vtensor<[1,3],si64>
+}
