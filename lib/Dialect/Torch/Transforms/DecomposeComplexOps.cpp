@@ -1424,10 +1424,11 @@ public:
 } // namespace
 
 namespace {
-class DecomposeAtenSelectIntOp : public OpRewritePattern<AtenSelectIntOp> {
+template <typename OpTy>
+class DecomposeAtenSelectIntOp : public OpRewritePattern<OpTy> {
 public:
-  using OpRewritePattern::OpRewritePattern;
-  LogicalResult matchAndRewrite(AtenSelectIntOp op,
+  using OpRewritePattern<OpTy>::OpRewritePattern;
+  LogicalResult matchAndRewrite(OpTy op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
     Value start = op.getIndex();
@@ -13863,7 +13864,10 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenStftCenterOp>(patterns);
-    addPatternIfTargetOpIsIllegal<DecomposeAtenSelectIntOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenSelectIntOp<AtenSelectIntOp>>(
+        patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenSelectIntOp<AtenSelectCopyIntOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMatmulOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMvOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenRenormOp>(patterns);
