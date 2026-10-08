@@ -2287,7 +2287,7 @@ public:
               Value value = createQuantizePayload(
                   b, bodyLoc, getTypeConverter(), args[0], args[1], args[2],
                   qmin, qmax, outputType, resultIsUnsigned,
-                  /*roundBeforeAdd=*/false);
+                  /*roundBeforeAdd=*/false, getZeroPointDtype(zeroPoints));
               linalg::YieldOp::create(b, bodyLoc, value);
             })
             .getResult(0);
