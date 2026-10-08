@@ -39,6 +39,14 @@ def assert_arg_type_is_supported(ty):
     ), f"Only numpy arrays with dtypes in {SUPPORTED} are supported, but got {ty}"
 
 
+def with_identity_layout_strides(arg):
+    # NumPy strides are arbitrary on size-1 dims and in zero-size arrays.
+    strides = [arg.itemsize] * arg.ndim
+    for i in reversed(range(arg.ndim - 1)):
+        strides[i] = strides[i + 1] * arg.shape[i + 1]
+    return np.lib.stride_tricks.as_strided(arg, strides=strides)
+
+
 memref_type_to_np_dtype = {
     "mrf16": np.float16,
     "mrf32": np.float32,
@@ -123,6 +131,8 @@ class RefBackendInvoker:
             ffi_args = []
             for arg in args:
                 assert_arg_type_is_supported(arg.dtype)
+                if arg.flags.c_contiguous:
+                    arg = with_identity_layout_strides(arg)
                 ffi_args.append(
                     ctypes.pointer(ctypes.pointer(get_unranked_memref_descriptor(arg)))
                 )
