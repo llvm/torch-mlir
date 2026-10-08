@@ -12926,16 +12926,44 @@ public:
       return isa<Torch::BaseTensorType>(v.getType());
     };
 
+    // Convert non-value tensor operands to value-tensors for AtenIndexPutHackedTwinOp
+    Value vInput = input;
+    if (isa<NonValueTensorType>(input.getType())) {
+      vInput = CopyToValueTensorOp::create(
+          rewriter, loc, cast<BaseTensorType>(input.getType()).getWithValueSemantics(), input);
+    }
+    Value vValues = op.getValues();
+    if (isa<NonValueTensorType>(vValues.getType())) {
+      vValues = CopyToValueTensorOp::create(
+          rewriter, loc, cast<BaseTensorType>(vValues.getType()).getWithValueSemantics(), vValues);
+    }
+    Type resValType = op.getType();
+    if (isa<NonValueTensorType>(resValType)) {
+      resValType = cast<BaseTensorType>(resValType).getWithValueSemantics();
+    }
+
     // directly replace current op with aten.index_put.hacked_twin
     if (llvm::all_of(indices, isTensor)) {
-      // By default, we regard the first index type as the list element type.
-      auto indexElemType = cast<BaseTensorType>(indices[0].getType())
+      SmallVector<Value> vIndices;
+      for (Value idx : indices) {
+        auto btt = cast<BaseTensorType>(idx.getType());
+        if (isa<NonValueTensorType>(btt)) {
+          vIndices.push_back(CopyToValueTensorOp::create(rewriter, loc, btt.getWithValueSemantics(), idx));
+        } else {
+          vIndices.push_back(idx);
+        }
+      }
+      auto indexElemType = cast<BaseTensorType>(vIndices[0].getType())
                                .getWithSizesAndDtype(std::nullopt, nullptr);
       auto newIndex = PrimListConstructOp::create(
-          rewriter, loc, Torch::ListType::get(indexElemType), indices);
-      rewriter.replaceOpWithNewOp<AtenIndexPutHackedTwinOp>(
-          op, op.getType(), input, newIndex, op.getValues(),
+          rewriter, loc, Torch::ListType::get(indexElemType), vIndices);
+      Value newOp = AtenIndexPutHackedTwinOp::create(
+          rewriter, loc, resValType, vInput, newIndex, vValues,
           op.getAccumulate());
+      if (isa<NonValueTensorType>(op.getType())) {
+        newOp = CopyToNonValueTensorOp::create(rewriter, loc, op.getType(), newOp);
+      }
+      rewriter.replaceOp(op, newOp);
       return success();
     }
 
@@ -12949,9 +12977,13 @@ public:
     if (failed(newIndicesInfo)) {
       return rewriter.notifyMatchFailure(op, "failed to replace `None` index");
     }
-    rewriter.replaceOpWithNewOp<AtenIndexPutHackedTwinOp>(
-        op, op.getType(), input, *newIndicesInfo, op.getValues(),
+    Value newOp = AtenIndexPutHackedTwinOp::create(
+        rewriter, loc, resValType, vInput, *newIndicesInfo, vValues,
         op.getAccumulate());
+    if (isa<NonValueTensorType>(op.getType())) {
+      newOp = CopyToNonValueTensorOp::create(rewriter, loc, op.getType(), newOp);
+    }
+    rewriter.replaceOp(op, newOp);
     return success();
   }
 };
@@ -13973,9 +14005,15 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenIndexPutLikeOp<AtenIndexPutOp>>(
         patterns);
     addPatternIfTargetOpIsIllegal<
+        DecomposeAtenIndexPutLikeOp<AtenIndexPut_Op>>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenIndexPutLikeOp<AtenIndexPut_HackedTwinOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<
         DecomposeAtenIndexPutLikeOp<Aten_UnsafeIndexPutHackedTwinOp>>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeAtenIndexPutLikeOp<Aten_IndexPutImplOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeAtenIndexPutLikeOp<Aten_IndexPutImpl_Op>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenPadOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenToDtypeLayoutOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenToDeviceOp>(patterns);
