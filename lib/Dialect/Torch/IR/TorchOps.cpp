@@ -408,6 +408,58 @@ LogicalResult HigherOrderFlexAttentionOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// QuantizedDecomposedChooseQparams{,Symmetric}TensorOp
+//===----------------------------------------------------------------------===//
+
+template <typename OpTy> static LogicalResult verifyChooseQparamsOp(OpTy op) {
+  // Input dtype must be float32, float16, or bfloat16 (matches the Python
+  // reference's AssertionError on input.dtype).
+  auto inputType = dyn_cast<ValueTensorType>(op.getInput().getType());
+  if (inputType && inputType.hasDtype()) {
+    Type dtype = inputType.getDtype();
+    if (!isa<mlir::Float32Type, mlir::Float16Type, mlir::BFloat16Type>(dtype))
+      return op.emitOpError()
+             << "expected input dtype to be float32, float16, or bfloat16";
+  }
+
+  // The torch.dtype operand must be a constant and must resolve to an
+  // integer builtin type (i.e. a quantized integer dtype).
+  int64_t dtypeInt;
+  if (!matchPattern(op.getDtype(), m_TorchConstantInt(&dtypeInt)))
+    return op.emitOpError() << "expected dtype to be a constant integer";
+  FailureOr<Type> maybeDType = Torch::getTypeForScalarType(
+      op->getContext(), static_cast<torch_upstream::ScalarType>(dtypeInt));
+  if (failed(maybeDType) || !isa<IntegerType>(*maybeDType))
+    return op.emitOpError() << "expected dtype to be a quantized integer dtype";
+
+  // validate_qmin_qmax: quant_min/quant_max must be constants, 0 must lie in
+  // [quant_min, quant_max], and quant_min must be strictly less than
+  // quant_max.
+  int64_t qminInt, qmaxInt;
+  if (!matchPattern(op.getQuantMin(), m_TorchConstantInt(&qminInt)) ||
+      !matchPattern(op.getQuantMax(), m_TorchConstantInt(&qmaxInt)))
+    return op.emitOpError()
+           << "expected quant_min and quant_max to be constants";
+  if (!(qminInt <= 0 && 0 <= qmaxInt))
+    return op.emitOpError() << "quantization range must include 0 (got ["
+                            << qminInt << ", " << qmaxInt << "])";
+  if (qminInt >= qmaxInt)
+    return op.emitOpError()
+           << "quant_min must be strictly less than quant_max (got " << qminInt
+           << " and " << qmaxInt << ")";
+
+  return success();
+}
+
+LogicalResult QuantizedDecomposedChooseQparamsTensorOp::verify() {
+  return verifyChooseQparamsOp(*this);
+}
+
+LogicalResult QuantizedDecomposedChooseQparamsSymmetricTensorOp::verify() {
+  return verifyChooseQparamsOp(*this);
+}
+
+//===----------------------------------------------------------------------===//
 // MethodOp
 //===----------------------------------------------------------------------===//
 

@@ -13157,6 +13157,95 @@ public:
 } // namespace
 
 namespace {
+// Decompose the quantized_decomposed.quantize_per_tensor.{tensor,tensor2} and
+// dequantize_per_tensor.{tensor,tensor2} into the scalar-qparam
+// quantized_decomposed.quantize_per_tensor / dequantize_per_tensor ops.
+
+static Value extractScalarItem(PatternRewriter &rewriter, Location loc,
+                               Value tensor, Type scalarTy) {
+  return Torch::AtenItemOp::create(rewriter, loc, scalarTy, tensor);
+}
+
+class DecomposeQuantizedDecomposedQuantizePerTensorTensorOp
+    : public OpRewritePattern<QuantizedDecomposedQuantizePerTensorTensorOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(QuantizedDecomposedQuantizePerTensorTensorOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Type floatTy = rewriter.getType<Torch::FloatType>();
+    Type intTy = rewriter.getType<Torch::IntType>();
+    Value scale = extractScalarItem(rewriter, loc, op.getScale(), floatTy);
+    Value zp = extractScalarItem(rewriter, loc, op.getZeroPoint(), intTy);
+    rewriter.replaceOpWithNewOp<QuantizedDecomposedQuantizePerTensorOp>(
+        op, op.getType(), op.getInput(), scale, zp, op.getQuantMin(),
+        op.getQuantMax(), op.getDtype());
+    return success();
+  }
+};
+
+class DecomposeQuantizedDecomposedQuantizePerTensorTensor2Op
+    : public OpRewritePattern<QuantizedDecomposedQuantizePerTensorTensor2Op> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult
+  matchAndRewrite(QuantizedDecomposedQuantizePerTensorTensor2Op op,
+                  PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Type floatTy = rewriter.getType<Torch::FloatType>();
+    Type intTy = rewriter.getType<Torch::IntType>();
+    Value scale = extractScalarItem(rewriter, loc, op.getScale(), floatTy);
+    Value zp = extractScalarItem(rewriter, loc, op.getZeroPoint(), intTy);
+    Value qmin = extractScalarItem(rewriter, loc, op.getQuantMin(), intTy);
+    Value qmax = extractScalarItem(rewriter, loc, op.getQuantMax(), intTy);
+    rewriter.replaceOpWithNewOp<QuantizedDecomposedQuantizePerTensorOp>(
+        op, op.getType(), op.getInput(), scale, zp, qmin, qmax, op.getDtype());
+    return success();
+  }
+};
+
+class DecomposeQuantizedDecomposedDequantizePerTensorTensorOp
+    : public OpRewritePattern<QuantizedDecomposedDequantizePerTensorTensorOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult
+  matchAndRewrite(QuantizedDecomposedDequantizePerTensorTensorOp op,
+                  PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Type floatTy = rewriter.getType<Torch::FloatType>();
+    Type intTy = rewriter.getType<Torch::IntType>();
+    Value scale = extractScalarItem(rewriter, loc, op.getScale(), floatTy);
+    Value zp = extractScalarItem(rewriter, loc, op.getZeroPoint(), intTy);
+    rewriter.replaceOpWithNewOp<QuantizedDecomposedDequantizePerTensorOp>(
+        op, op.getType(), op.getInput(), scale, zp, op.getQuantMin(),
+        op.getQuantMax(), op.getDtype(), op.getOutDtype());
+    return success();
+  }
+};
+
+class DecomposeQuantizedDecomposedDequantizePerTensorTensor2Op
+    : public OpRewritePattern<QuantizedDecomposedDequantizePerTensorTensor2Op> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult
+  matchAndRewrite(QuantizedDecomposedDequantizePerTensorTensor2Op op,
+                  PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Type floatTy = rewriter.getType<Torch::FloatType>();
+    Type intTy = rewriter.getType<Torch::IntType>();
+    Value scale = extractScalarItem(rewriter, loc, op.getScale(), floatTy);
+    Value zp = extractScalarItem(rewriter, loc, op.getZeroPoint(), intTy);
+    Value qmin = extractScalarItem(rewriter, loc, op.getQuantMin(), intTy);
+    Value qmax = extractScalarItem(rewriter, loc, op.getQuantMax(), intTy);
+    rewriter.replaceOpWithNewOp<QuantizedDecomposedDequantizePerTensorOp>(
+        op, op.getType(), op.getInput(), scale, zp, qmin, qmax, op.getDtype(),
+        op.getOutDtype());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 // Decompose aten.fake_quantize_per_channel_affine_cachemask
 // into aten.fake_quantize_per_channel_affine
 // when the second result is unused.
@@ -14084,6 +14173,14 @@ public:
         patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeAtenFakeQuantizePerChannelAffineCachemaskOp>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeQuantizedDecomposedQuantizePerTensorTensorOp>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeQuantizedDecomposedQuantizePerTensorTensor2Op>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeQuantizedDecomposedDequantizePerTensorTensorOp>(patterns);
+    addPatternIfTargetOpIsIllegal<
+        DecomposeQuantizedDecomposedDequantizePerTensorTensor2Op>(patterns);
     // More specific conv ops
     addPatternIfTargetOpIsIllegal<DecomposeAtenConvTbcOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenConv1dOp>(patterns);
