@@ -62,6 +62,24 @@ elemental_type_to_ctype = {
 CONSUME_RETURN_FUNC_PREFIX = "refbackend_consume_func_return_"
 
 
+def _canonicalize_zero_element_strides(array):
+    if array.size != 0:
+        return array
+
+    element_strides = [1] * array.ndim
+    for dim in range(array.ndim - 2, -1, -1):
+        element_strides[dim] = element_strides[dim + 1] * array.shape[dim + 1]
+
+    # NumPy reports zero strides for empty arrays converted from PyTorch.
+    # Empty arrays have no addressable elements, so presenting the canonical
+    # contiguous strides at the memref ABI boundary is semantics-preserving.
+    return np.lib.stride_tricks.as_strided(
+        array,
+        shape=array.shape,
+        strides=tuple(stride * array.itemsize for stride in element_strides),
+    )
+
+
 def get_return_funcs(module):
     return_prefix_len = len(CONSUME_RETURN_FUNC_PREFIX)
     return_funcs = []
@@ -123,6 +141,7 @@ class RefBackendInvoker:
             ffi_args = []
             for arg in args:
                 assert_arg_type_is_supported(arg.dtype)
+                arg = _canonicalize_zero_element_strides(arg)
                 ffi_args.append(
                     ctypes.pointer(ctypes.pointer(get_unranked_memref_descriptor(arg)))
                 )

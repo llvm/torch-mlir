@@ -76,12 +76,6 @@ LINALG_CRASHING_SET = {
     "GridSamplerBasic2_basic",
     "GridSamplerBasic3_basic",
     "GridSamplerBasic4_basic",
-    # Runtime op verification: stride mismatch in memref.cast
-    "ReduceAllDimEmpty_basic",
-    "TraceUnsignedIntModule_empty",
-    "TraceModule_empty",
-    # Crashes due to copy to a smaller destination buffer than the source buffer.
-    "SliceCopyStartGreaterThanDimSize_Module_basic",
     # unimplemented: for conversion to byte or char type dstOriginalDtype has to be passed to convertScalarToDtype
     "AtenMmInt8Types_basic",
     "AtenMmInt8ZeroK_basic",
@@ -3140,6 +3134,7 @@ ONNX_XFAIL_SET = {
     "SignAndLogarithmOfDeterminantModule_F32",
     "SignAndLogarithmOfDeterminantBatchedModule_F32",
     "SignAndLogarithmOfDeterminantDynamicModule_F32",
+    "SliceCopyStartGreaterThanDimSize_Module_basic",
     "SliceEndSleStartModule_basic",
     "SliceOutOfUpperBoundIndexModule_basic",
     "SliceStartEqEndModule_basic",
@@ -3169,8 +3164,6 @@ ONNX_XFAIL_SET = {
     "TorchPrimLoopWhileLikeModule_basic",
     # RuntimeError: Detected that you are using FX to torch.jit.trace a dynamo-optimized function
     "TorchPrimLoopWhileLikeHOPModule_basic",
-    "TraceModule_empty",
-    "TraceUnsignedIntModule_empty",
     "TransposedConv1dNegativePaddingUnitStrideDyn_basic",
     "UniformModule_basic",
     "UniformNoCorrelationModule_basic",
