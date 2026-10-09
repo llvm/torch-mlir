@@ -640,8 +640,7 @@ getBroadcastShape(Location loc, llvm::ArrayRef<Value> indices, OpBuilder b) {
       Value isOneInt = Torch::AtenIntBoolOp::create(b, loc, isOne);
       Value diff = Torch::AtenSubIntOp::create(b, loc, acc, sizeOp);
       Value scaled = Torch::AtenMulIntOp::create(b, loc, isOneInt, diff);
-      broadcastSizes[idx] =
-          Torch::AtenAddIntOp::create(b, loc, sizeOp, scaled);
+      broadcastSizes[idx] = Torch::AtenAddIntOp::create(b, loc, sizeOp, scaled);
 
       if (size == Torch::kUnknownSize ||
           broadcastShape[idx] == Torch::kUnknownSize)
