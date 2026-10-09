@@ -4021,6 +4021,24 @@ func.func @torch.aten.upsample_nearest2d.vec$basic(%arg0: !torch.vtensor<[1,1,4,
 
 // -----
 
+// CHECK-LABEL:   func.func @torch.aten.upsample_nearest1d$basic(
+// CHECK-SAME:                                                    %[[ARG0:.*]]: !torch.vtensor<[1,1,2],f32>) -> !torch.vtensor<[1,1,4],f32> {
+// CHECK:           %[[BUILTIN:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[1,1,2],f32> -> tensor<1x1x2xf32>
+// CHECK:           %[[CONST:.*]] = "tosa.const"() <{values = dense<{{\[\[\[0, 0, 1, 1\]\]\]}}> : tensor<1x1x4xi32>}> : () -> tensor<1x1x4xi32>
+// CHECK:           %[[GATHER:.*]] = tosa.gather
+// CHECK:           %[[RES:.*]] = torch_c.from_builtin_tensor %{{.*}} : tensor<1x1x4xf32> -> !torch.vtensor<[1,1,4],f32>
+// CHECK:           return %[[RES]] : !torch.vtensor<[1,1,4],f32>
+// CHECK:         }
+func.func @torch.aten.upsample_nearest1d$basic(%arg0: !torch.vtensor<[1,1,2],f32>) -> !torch.vtensor<[1,1,4],f32> {
+  %none = torch.constant.none
+  %int4 = torch.constant.int 4
+  %0 = torch.prim.ListConstruct %int4 : (!torch.int) -> !torch.list<int>
+  %1 = torch.aten.upsample_nearest1d %arg0, %0, %none : !torch.vtensor<[1,1,2],f32>, !torch.list<int>, !torch.none -> !torch.vtensor<[1,1,4],f32>
+  return %1 : !torch.vtensor<[1,1,4],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.gelu$none(
 // CHECK-SAME:                                    %[[VAL_0:.*]]: !torch.vtensor<[1,1500,1536],f32>) -> !torch.vtensor<[1,1500,1536],f32> {
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,1500,1536],f32> -> tensor<1x1500x1536xf32>

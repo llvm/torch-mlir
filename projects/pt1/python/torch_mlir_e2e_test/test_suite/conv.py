@@ -1325,6 +1325,26 @@ def UpSampleNearest2dVecNoneScales_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 6, 12).to(torch.float64))
 
 
+class UpSampleNearest1dModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, input):
+        return torch.ops.aten.upsample_nearest1d(input, [12], None)
+
+
+@register_test_case(module_factory=lambda: UpSampleNearest1dModule())
+def UpSampleNearest1dModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 1, 6))
+
+
 class UpSampleNearest1dVecNoneShape(torch.nn.Module):
     def __init__(self):
         super().__init__()
