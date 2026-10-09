@@ -3103,6 +3103,7 @@ ONNX_XFAIL_SET = {
     "SignAndLogarithmOfDeterminantModule_F32",
     "SignAndLogarithmOfDeterminantBatchedModule_F32",
     "SignAndLogarithmOfDeterminantDynamicModule_F32",
+    "SliceCopyStartGreaterThanDimSize_Module_basic",
     "SliceEndSleStartModule_basic",
     "SliceOutOfUpperBoundIndexModule_basic",
     "SliceStartEqEndModule_basic",
@@ -3132,8 +3133,6 @@ ONNX_XFAIL_SET = {
     "TorchPrimLoopWhileLikeModule_basic",
     # RuntimeError: Detected that you are using FX to torch.jit.trace a dynamo-optimized function
     "TorchPrimLoopWhileLikeHOPModule_basic",
-    "TraceModule_empty",
-    "TraceUnsignedIntModule_empty",
     "TransposedConv1dNegativePaddingUnitStrideDyn_basic",
     "UniformModule_basic",
     "UniformNoCorrelationModule_basic",
