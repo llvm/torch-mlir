@@ -355,6 +355,11 @@ def ViewCollapseTwoDynamicDimsModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 8, 8))
 
 
+@register_test_case(module_factory=lambda: ViewCollapseTwoDynamicDimsModule())
+def ViewCollapseTwoDynamicDimsModule_empty(module, tu: TestUtils):
+    module.forward(tu.rand(2, 0, 8, 8))
+
+
 # ==============================================================================
 
 
