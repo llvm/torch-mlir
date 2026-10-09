@@ -1697,11 +1697,6 @@ STABLEHLO_CRASHING_SET = {
     "IndexPutWithNoneAndBroadcastModule_basic",
     "ReduceMaxAlongDimUnsignedInt_basic",
     "ReduceMinAlongDimUnsignedInt_basic",
-    # LLVM ERROR: Failed to infer result type(s)
-    "ElementwiseClampMinTensorFloatModule_basic",
-    "ElementwiseClampMinTensorIntModule_basic",
-    "ElementwiseClampTensorFloatModule_basic",
-    "ElementwiseClampTensorIntModule_basic",
     # Hanging tests:
     "ConvolutionBackwardModule2DDilated_basic",
     "ConvolutionBackwardModule2DStridedPaddedDilatedGrouped_basic",
