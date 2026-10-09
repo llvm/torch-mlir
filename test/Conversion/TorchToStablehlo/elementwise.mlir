@@ -716,9 +716,10 @@ func.func @torch.aten.clamp.Tensor$dynamic(%arg0: !torch.vtensor<[?,?],f32>, %ar
 
 // -----
 
-// Same-rank min/max is left untouched by the differing-rank broadcast fix
-// above: stablehlo.clamp already accepts a shape-compatible same-rank pair
-// (static min/max, dynamic self) without an explicit broadcast.
+// With a dynamic self, same-rank min/max is left untouched by the
+// differing-rank broadcast above: `promoteAndBroadcast` cannot prove a
+// same-rank pair compatible against a dynamic shape, and stablehlo.clamp's
+// verifier accepts the pair as-is.
 // CHECK-LABEL:  func.func @torch.aten.clamp.Tensor$dynamic_samerank(
 // CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[?,?],f32>,
 // CHECK-SAME:         %[[ARG1:.*]]: !torch.vtensor<[3,5],f32>,
@@ -732,4 +733,26 @@ func.func @torch.aten.clamp.Tensor$dynamic(%arg0: !torch.vtensor<[?,?],f32>, %ar
 func.func @torch.aten.clamp.Tensor$dynamic_samerank(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.vtensor<[3,5],f32>, %arg2: !torch.vtensor<[3,5],f32>) -> !torch.vtensor<[?,?],f32> {
   %0 = torch.aten.clamp.Tensor %arg0, %arg1, %arg2 : !torch.vtensor<[?,?],f32>, !torch.vtensor<[3,5],f32>, !torch.vtensor<[3,5],f32> -> !torch.vtensor<[?,?],f32>
   return %0 : !torch.vtensor<[?,?],f32>
+}
+
+// -----
+
+// Static self with same-rank min/max that need expansion: stablehlo.clamp
+// requires min/max to be a scalar or exactly the operand's shape, so the
+// `[1, 5]` bounds must be explicitly broadcast to `[4, 5]`.
+// CHECK-LABEL:  func.func @torch.aten.clamp.Tensor$static_samerank_broadcast(
+// CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[4,5],f32>,
+// CHECK-SAME:         %[[ARG1:.*]]: !torch.vtensor<[1,5],f32>,
+// CHECK-SAME:         %[[ARG2:.*]]: !torch.vtensor<[1,5],f32>) -> !torch.vtensor<[4,5],f32> {
+// CHECK:           %[[MAX:.*]] = torch_c.to_builtin_tensor %[[ARG2]] : !torch.vtensor<[1,5],f32> -> tensor<1x5xf32>
+// CHECK:           %[[MIN:.*]] = torch_c.to_builtin_tensor %[[ARG1]] : !torch.vtensor<[1,5],f32> -> tensor<1x5xf32>
+// CHECK:           %[[SELF:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[4,5],f32> -> tensor<4x5xf32>
+// CHECK:           %[[MIN_BCAST:.*]] = stablehlo.broadcast_in_dim %[[MIN]], dims = [0, 1] : (tensor<1x5xf32>) -> tensor<4x5xf32>
+// CHECK:           %[[MAX_BCAST:.*]] = stablehlo.broadcast_in_dim %[[MAX]], dims = [0, 1] : (tensor<1x5xf32>) -> tensor<4x5xf32>
+// CHECK:           %[[CLAMP:.*]] = stablehlo.clamp %[[MIN_BCAST]], %[[SELF]], %[[MAX_BCAST]] : tensor<4x5xf32>
+// CHECK:           %[[OUT:.*]] = torch_c.from_builtin_tensor %[[CLAMP]] : tensor<4x5xf32> -> !torch.vtensor<[4,5],f32>
+// CHECK:           return %[[OUT]] : !torch.vtensor<[4,5],f32>
+func.func @torch.aten.clamp.Tensor$static_samerank_broadcast(%arg0: !torch.vtensor<[4,5],f32>, %arg1: !torch.vtensor<[1,5],f32>, %arg2: !torch.vtensor<[1,5],f32>) -> !torch.vtensor<[4,5],f32> {
+  %0 = torch.aten.clamp.Tensor %arg0, %arg1, %arg2 : !torch.vtensor<[4,5],f32>, !torch.vtensor<[1,5],f32>, !torch.vtensor<[1,5],f32> -> !torch.vtensor<[4,5],f32>
+  return %0 : !torch.vtensor<[4,5],f32>
 }

@@ -1729,17 +1729,19 @@ LogicalResult ConvertAtenOp<AtenClampTensorOp>::matchAndRewrite(
     }
     maxValue = *maxInfo;
   }
-  // `promoteAndBroadcast` only needs to run when the rank of min/max differs
-  // from the rank of the input (e.g. a rank-1 scalar-ish bound broadcasting
-  // onto a rank-N input) -- same-rank min/max are already accepted as-is by
-  // stablehlo::ClampOp with implicit shape-compatible broadcasting, static or
-  // dynamic. Only take the explicit broadcast path in the differing-rank
-  // case, since promoteAndBroadcast rejects a same-rank pair where the
-  // input's shape is dynamic (it cannot statically prove compatibility).
+  // stablehlo.clamp requires min/max to be a scalar or to have exactly the
+  // operand's shape, so torch's broadcasting semantics (e.g. `[1, 5]` bounds
+  // on a `[4, 5]` input) must be materialized explicitly. For a static input
+  // always broadcast, as `promoteAndBroadcast` can prove the shapes
+  // compatible. For a dynamic input only broadcast when the rank differs:
+  // `promoteAndBroadcast` cannot prove a same-rank pair compatible against a
+  // dynamic shape and would fail, while the bounds are left as-is in that case.
   auto minType = cast<RankedTensorType>(minValue.getType());
   auto maxType = cast<RankedTensorType>(maxValue.getType());
-  bool needsMinBroadcast = minType.getRank() != inputType.getRank();
-  bool needsMaxBroadcast = maxType.getRank() != inputType.getRank();
+  bool needsMinBroadcast =
+      inputType.hasStaticShape() || minType.getRank() != inputType.getRank();
+  bool needsMaxBroadcast =
+      inputType.hasStaticShape() || maxType.getRank() != inputType.getRank();
   if (needsMinBroadcast || needsMaxBroadcast) {
     std::optional<Value> bcastSizeTensor = std::nullopt;
     if (!inputType.hasStaticShape()) {
