@@ -16,6 +16,13 @@ set(TORCH_MLIR_TEST_DEPENDS
         TorchMLIRPythonModules
         torch-mlir-opt
         torch-mlir-capi-torch-test
+        # Needed by tests whose RUN lines reach for upstream tooling:
+        # --one-shot-bufferize is not registered in torch-mlir-opt, and the
+        # numeric regression tests execute the lowered IR.
+        mlir-opt
+        mlir-runner
+        mlir_runner_utils
+        mlir_c_runner_utils
         )
 
 add_lit_testsuite(check-torch-mlir "Running the torch-mlir regression tests"
