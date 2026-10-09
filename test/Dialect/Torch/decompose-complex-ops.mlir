@@ -1807,3 +1807,39 @@ func.func @torch.aten.softplus(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtens
   %0 = torch.aten.softplus %arg0, %beta, %threshold : !torch.vtensor<[3,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[3,4],f32>
   return %0 : !torch.vtensor<[3,4],f32>
 }
+
+// -----
+
+// CHECK-LABEL:  func.func @torch.aten.select_copy.int(
+// CHECK-SAME:     %[[ARG0:.*]]: !torch.vtensor<[3,4],f32>
+// CHECK-DAG:    %[[C0:.*]] = torch.constant.int 0
+// CHECK-DAG:    %[[C1:.*]] = torch.constant.int 1
+// CHECK-DAG:    %[[C2:.*]] = torch.constant.int 2
+// CHECK:        %[[SLICE:.*]] = torch.aten.slice.Tensor %[[ARG0]], %[[C0]], %[[C1]], %[[C2]], %[[C1]] : !torch.vtensor<[3,4],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[1,4],f32>
+// CHECK:        %[[OUT:.*]] = torch.aten.squeeze.dim %[[SLICE]], %[[C0]] : !torch.vtensor<[1,4],f32>, !torch.int -> !torch.vtensor<[4],f32>
+// CHECK-NOT:    torch.aten.select_copy.int
+// CHECK:        return %[[OUT]] : !torch.vtensor<[4],f32>
+func.func @torch.aten.select_copy.int(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[4],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %0 = torch.aten.select_copy.int %arg0, %int0, %int1 : !torch.vtensor<[3,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[4],f32>
+  return %0 : !torch.vtensor<[4],f32>
+}
+
+// -----
+
+// CHECK-LABEL:  func.func @torch.aten.select_copy.int$dim1(
+// CHECK-SAME:     %[[ARG0:.*]]: !torch.vtensor<[3,4],f32>
+// CHECK-DAG:    %[[C1:.*]] = torch.constant.int 1
+// CHECK-DAG:    %[[C2:.*]] = torch.constant.int 2
+// CHECK-DAG:    %[[C3:.*]] = torch.constant.int 3
+// CHECK:        %[[SLICE:.*]] = torch.aten.slice.Tensor %[[ARG0]], %[[C1]], %[[C2]], %[[C3]], %[[C1]] : !torch.vtensor<[3,4],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[3,1],f32>
+// CHECK:        %[[OUT:.*]] = torch.aten.squeeze.dim %[[SLICE]], %[[C1]] : !torch.vtensor<[3,1],f32>, !torch.int -> !torch.vtensor<[3],f32>
+// CHECK-NOT:    torch.aten.select_copy.int
+// CHECK:        return %[[OUT]] : !torch.vtensor<[3],f32>
+func.func @torch.aten.select_copy.int$dim1(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3],f32> {
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %0 = torch.aten.select_copy.int %arg0, %int1, %int2 : !torch.vtensor<[3,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[3],f32>
+  return %0 : !torch.vtensor<[3],f32>
+}
