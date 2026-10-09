@@ -1729,11 +1729,37 @@ LogicalResult ConvertAtenOp<AtenClampTensorOp>::matchAndRewrite(
     }
     maxValue = *maxInfo;
   }
-  if (inputType.hasStaticShape()) {
-    minValue =
-        hlo::promoteAndBroadcast(rewriter, minValue, inputType, std::nullopt);
-    maxValue =
-        hlo::promoteAndBroadcast(rewriter, maxValue, inputType, std::nullopt);
+  // stablehlo.clamp requires min/max to be a scalar or to have exactly the
+  // operand's shape, so torch's broadcasting semantics (e.g. `[1, 5]` bounds
+  // on a `[4, 5]` input) must be materialized explicitly. For a static input
+  // always broadcast, as `promoteAndBroadcast` can prove the shapes
+  // compatible. For a dynamic input only broadcast when the rank differs:
+  // `promoteAndBroadcast` cannot prove a same-rank pair compatible against a
+  // dynamic shape and would fail, while the bounds are left as-is in that case.
+  auto minType = cast<RankedTensorType>(minValue.getType());
+  auto maxType = cast<RankedTensorType>(maxValue.getType());
+  bool needsMinBroadcast =
+      inputType.hasStaticShape() || minType.getRank() != inputType.getRank();
+  bool needsMaxBroadcast =
+      inputType.hasStaticShape() || maxType.getRank() != inputType.getRank();
+  if (needsMinBroadcast || needsMaxBroadcast) {
+    std::optional<Value> bcastSizeTensor = std::nullopt;
+    if (!inputType.hasStaticShape()) {
+      auto inputShapeInfo = hlo::getDimSizesOfTensor(rewriter, op, input,
+                                                     options.dimSizeIndexBits);
+      if (failed(inputShapeInfo)) {
+        return rewriter.notifyMatchFailure(
+            op, "failed to get dimension sizes of the input");
+      }
+      bcastSizeTensor = tensor::FromElementsOp::create(rewriter, op->getLoc(),
+                                                       *inputShapeInfo);
+    }
+    if (needsMinBroadcast)
+      minValue = hlo::promoteAndBroadcast(rewriter, minValue, inputType,
+                                          bcastSizeTensor);
+    if (needsMaxBroadcast)
+      maxValue = hlo::promoteAndBroadcast(rewriter, maxValue, inputType,
+                                          bcastSizeTensor);
   }
   rewriter.replaceOpWithNewOp<stablehlo::ClampOp>(op, minValue, input,
                                                   maxValue);
