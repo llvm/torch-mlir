@@ -13746,6 +13746,177 @@ public:
 };
 } // namespace
 
+
+// Example case
+// x=​ [ 1   2    shape = (4,2), dim=0, return_indices=True, return_count=True
+//      1   2
+//      3   4
+//      3   5]
+
+namespace {
+// Decompose `aten.unique_consecutive` into primitive Torch ops:
+// 1. dim is None -> flatten to 1-D (if rank != 1) and use dim 0.
+// 2. diff   = any(x[1:] != x[:-1]) over all dims except `dim`   (length N-1)
+// 3. starts = pad(diff, [1, 0], True)    True where a run starts  (length N)
+//    ends   = pad(diff, [0, 1], True)    True where a run ends    (length N)
+// 4. idx    = nonzero(starts);  output = index_select(x, dim, idx)
+// 5. inverse = cumsum(starts) - 1  (dim None, rank != 1: reshape to input shape)
+// 6. counts  = nonzero(ends) + 1 - idx
+
+class DecomposeAtenUniqueConsecutiveOp
+    : public OpRewritePattern<AtenUniqueConsecutiveOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenUniqueConsecutiveOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    MLIRContext *ctx = op.getContext();
+
+    Value self = op.getSelf(); // input tensor x
+    auto selfType = dyn_cast<BaseTensorType>(self.getType());  // !torch.vtensor<[4, 2], si64>
+    if (!selfType || !selfType.hasSizes())   // false since valid tensor
+      return rewriter.notifyMatchFailure(op, "expected a ranked tensor");
+    Type dtype = selfType.getOptionalDtype();  // si64
+    Type i64Ty = rewriter.getIntegerType(64, /*signed=*/true);
+    Type i1Ty = rewriter.getI1Type();
+    Type intListTy = Torch::ListType::get(Torch::IntType::get(ctx));
+
+    // ---- small builders --------------------------------------------------
+    auto cInt = [&](int64_t v) -> Value {
+      return ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(v));
+    };
+    auto intList = [&](ArrayRef<Value> v) -> Value {
+      return PrimListConstructOp::create(rewriter, loc, intListTy, v);
+    };
+    Value zero = cInt(0), one = cInt(1);
+    Value cFalse = ConstantBoolOp::create(rewriter, loc, false);
+    Value none = ConstantNoneOp::create(rewriter, loc);
+
+    // ---- pick the tensor / dim to work on --------------------------------
+    Value dim = op.getDim();  // 0
+    bool isDimNone = isa<Torch::NoneType>(dim.getType());  // false
+    int64_t inputRank = selfType.getSizes().size();   // rank=2
+    Value target = self;   // input tensor
+    BaseTensorType targetType = selfType;  // !torch.vtensor<[4, 2], si64>
+    int64_t targetDim = 0;
+    auto tyOf = [&](ArrayRef<int64_t> sizes, Type elemTy) {
+      return targetType.getWithSizesAndDtype(sizes, elemTy);
+    };
+    if (!isDimNone) {
+      if (!matchPattern(dim, m_TorchConstantInt(&targetDim)))  // 0
+        return rewriter.notifyMatchFailure(op, "unimplemented: non-constant dim");
+      targetDim = toPositiveDim(targetDim, inputRank);  // 0
+      if (!isValidDim(targetDim, inputRank))
+        return rewriter.notifyMatchFailure(op, "invalid dim");
+    } else if (inputRank != 1) { // flatten to 1-D
+      int64_t flatN = 1;
+      for (int64_t s : selfType.getSizes())
+        flatN = (flatN == kUnknownSize || s == kUnknownSize) ? kUnknownSize
+                                                             : flatN * s;
+      targetType = cast<BaseTensorType>(tyOf({flatN}, dtype));
+      target = AtenReshapeOp::create(rewriter, loc, targetType, self,
+                                     intList({cInt(-1)}));
+    }
+    Value dimV = cInt(targetDim);
+    int64_t rank = targetType.getSizes().size();   // rank of current after flattening = 2
+    int64_t staticN = targetType.getSizes()[targetDim];   // tensor has four rows along dim0
+
+    // ---- outputs: None / empty 1-D tensor means \"not requested\" ----------
+    Type res0Ty = op.getResult0().getType();
+    Type res1Ty = op.getResult1().getType();
+    Type res2Ty = op.getResult2().getType();
+    bool wantInv = false, wantCounts = false;
+    if (!matchPattern(op.getReturnInverse(), m_TorchConstantBool(&wantInv)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: non-constant return_inverse");
+    if (!matchPattern(op.getReturnCounts(), m_TorchConstantBool(&wantCounts)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: non-constant return_counts");
+
+    auto placeholder = [&](Type t) -> Value {
+      if (isa<Torch::NoneType>(t))
+        return none;
+      return AtenZerosOp::create(rewriter, loc, t, intList({zero}), none, none,
+                                 none, none);
+    };
+    // ---- diff[i] = x[i+1] differs from x[i] ------------------------------
+    SmallVector<int64_t> sizes(targetType.getSizes());  // [4,2]
+    sizes[targetDim] = staticN == kUnknownSize ? kUnknownSize : staticN - 1;  // 4-1=3, sizes = [3,2]
+    Type sliceTy = tyOf(sizes, dtype);  // !torch.vtensor<[3, 2], si64>
+    Value hi = AtenSliceTensorOp::create(rewriter, loc, sliceTy, target, dimV,
+                                         one, none, one);
+    Value lo = AtenSliceTensorOp::create(rewriter, loc, sliceTy, target, dimV,
+                                         zero, cInt(-1), one);
+    Value diff = AtenNeTensorOp::create(rewriter, loc, tyOf(sizes, i1Ty), hi, lo);
+    // Row 1 vs Row 0: [1, 2] != [1, 2] -> [False, False]
+    // Row 2 vs Row 1: [3, 4] != [1, 2] -> [True,  True ]
+    // Row 3 vs Row 2: [3, 5] != [3, 4] -> [False, True ]
+    // Reduce every dim except targetDim. Going from the last dim down with
+    // keepdim=false keeps the remaining dim indices valid and ends up 1-D.
+    for (int64_t d = rank - 1; d >= 0; --d) {  // rank=2, d=1 and d=0
+      if (d == targetDim)  
+        continue;
+      sizes.erase(sizes.begin() + d);  // erases dim 1, sizes = 3
+      diff = AtenAnyDimOp::create(rewriter, loc, tyOf(sizes, i1Ty), diff,
+                                  cInt(d), cFalse);    // diff=[False,True,True]
+    }
+
+    // ---- run starts / ends -----------------------------------------------
+    Type idxTy = tyOf({kUnknownSize}, i64Ty); // !torch.vtensor<[?], si64>
+    // diff with one True added on the left / right.
+    auto padTrue = [&](Value left, Value right) -> Value {
+      return AtenConstantPadNdOp::create(rewriter, loc, tyOf({staticN}, i1Ty),
+                                         diff, intList({left, right}), one);
+    };
+    // Indices of the True entries of a 1-D mask.
+    auto positions = [&](Value mask) -> Value {
+      Value nz = AtenNonzeroOp::create(
+          rewriter, loc, tyOf({kUnknownSize, 1}, i64Ty), mask);
+      return AtenSqueezeDimOp::create(rewriter, loc, idxTy, nz, one);
+    };
+
+    Value starts = padTrue(one, zero); // starts=[True,False,True,True](shape [4], type i1)
+    Value idx = positions(starts); // idx = (0, 2, 3) , true value indices
+    Value output =
+        AtenIndexSelectOp::create(rewriter, loc, res0Ty, target, dimV, idx);   // 0,2,3 rows from input
+
+    // ---- inverse indices: cumsum(starts) - 1 -----------------------------
+    Value inv;
+    if (wantInv) {
+      Type i64MaskTy = tyOf({staticN}, i64Ty); // staticN = 4 
+      Value s64 = AtenToDtypeOp::create(
+          rewriter, loc, i64MaskTy, starts,   // s64 = [1, 0, 1, 1]
+          getDtypeIntValueForType(rewriter, loc, i64Ty), cFalse, cFalse, none);  // (starts -> input boolean being cast, getdtype -> target dtype, cFalse -> nonblocking, cFlase -> copy and none for memory format)
+      Value cs = AtenCumsumOp::create(rewriter, loc, i64MaskTy, s64, zero, none); // cs = [1,1,2,3]
+      inv = AtenSubScalarOp::create(rewriter, loc, i64MaskTy, cs, one, one);  // inv = [0,0,1,2]
+      if (isDimNone && inputRank != 1)  // false since worked on explicit dim
+        inv = AtenReshapeOp::create(
+            rewriter, loc, res1Ty, inv,
+            AtenSizeOp::create(rewriter, loc, intListTy, self));
+      else if (inv.getType() != res1Ty)
+        inv = TensorStaticInfoCastOp::create(rewriter, loc, res1Ty, inv);  
+    } else {
+      inv = placeholder(res1Ty);
+    }
+
+    // ---- counts: last index of each run + 1 - first index ----------------
+    Value counts;
+    if (wantCounts) {
+      Value ends = positions(padTrue(zero, one));  // padtrue(zero,one) = [False, True, True, True], ends = [1,2,3]
+      Value endsPlusOne =
+          AtenAddScalarOp::create(rewriter, loc, idxTy, ends, one, one);
+      counts = AtenSubTensorOp::create(rewriter, loc, res2Ty, endsPlusOne, idx,
+                                       one);   // endsplusone = [2,3,4]
+    } else {
+      counts = placeholder(res2Ty);
+    }
+
+    rewriter.replaceOp(op, {output, inv, counts});
+    return success();
+  }
+};
+} // namespace
+
 namespace {
 class DecomposeAtenAbsoluteOp : public OpRewritePattern<AtenAbsoluteOp> {
 public:
@@ -13989,6 +14160,7 @@ public:
     addPatternIfTargetOpIsIllegal<
         DecomposeAtenAdaptivePool2dOp<AtenAdaptiveAvgPool2dOp>>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenBroadcastTensorsOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenUniqueConsecutiveOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMinTensorOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenClampMaxOp>(patterns);
