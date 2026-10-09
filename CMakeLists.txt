@@ -46,6 +46,9 @@ endif()
 
 set(TORCH_MLIR_TABLEGEN_FLAGS "")
 
+set(TORCH_MLIR_PYTHON_PACKAGE_PREFIX "torch_mlir" CACHE STRING
+    "Python package prefix used by the torch-mlir native Python bindings")
+
 option(TORCH_MLIR_ENABLE_STABLEHLO "Add stablehlo dialect" ON)
 if(TORCH_MLIR_ENABLE_STABLEHLO)
   add_definitions(-DTORCH_MLIR_ENABLE_STABLEHLO)
