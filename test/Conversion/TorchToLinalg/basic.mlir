@@ -1204,3 +1204,59 @@ func.func @torch.aten.min.dim$bool(%arg0: !torch.vtensor<[3,4],i1>) -> !torch.vt
   %values, %indices = torch.aten.min.dim %arg0, %int1, %false : !torch.vtensor<[3,4],i1>, !torch.int, !torch.bool -> !torch.vtensor<[3],i1>, !torch.vtensor<[3],si64>
   return %values : !torch.vtensor<[3],i1>
 }
+
+// -----
+// CHECK-LABEL: func.func @torch.aten._scaled_mm$tensorwise
+// CHECK:         arith.extf %{{.*}} : f8E4M3FN to f32
+// CHECK:         linalg.matmul
+// CHECK:         tensor.extract %{{.*}}[] : tensor<f32>
+// CHECK:         linalg.generic
+// CHECK:         arith.mulf
+// CHECK:         arith.mulf
+// CHECK:         arith.truncf %{{.*}} : f32 to bf16
+func.func @torch.aten._scaled_mm$tensorwise(%lhs: !torch.vtensor<[16,16],f8E4M3FN>,
+                                            %rhs: !torch.vtensor<[16,16],f8E4M3FN>,
+                                            %scaleA: !torch.vtensor<[],f32>,
+                                            %scaleB: !torch.vtensor<[],f32>) -> !torch.vtensor<[16,16],bf16> {
+  %none = torch.constant.none
+  %int15 = torch.constant.int 15
+  %false = torch.constant.bool false
+  %0 = torch.aten._scaled_mm %lhs, %rhs, %scaleA, %scaleB, %none, %none, %int15, %false : !torch.vtensor<[16,16],f8E4M3FN>, !torch.vtensor<[16,16],f8E4M3FN>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.none, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[16,16],bf16>
+  return %0 : !torch.vtensor<[16,16],bf16>
+}
+
+// -----
+// CHECK-LABEL: func.func @torch.aten._scaled_mm$bias
+// CHECK:         linalg.matmul
+// CHECK:         arith.extf %{{.*}} : bf16 to f32
+// CHECK:         linalg.generic
+// CHECK:         arith.mulf
+// CHECK:         arith.mulf
+// CHECK:         arith.addf
+// CHECK:         arith.truncf %{{.*}} : f32 to bf16
+func.func @torch.aten._scaled_mm$bias(%lhs: !torch.vtensor<[16,16],f8E4M3FN>,
+                                      %rhs: !torch.vtensor<[16,16],f8E4M3FN>,
+                                      %scaleA: !torch.vtensor<[],f32>,
+                                      %scaleB: !torch.vtensor<[],f32>,
+                                      %bias: !torch.vtensor<[16],bf16>) -> !torch.vtensor<[16,16],bf16> {
+  %none = torch.constant.none
+  %int15 = torch.constant.int 15
+  %false = torch.constant.bool false
+  %0 = torch.aten._scaled_mm %lhs, %rhs, %scaleA, %scaleB, %bias, %none, %int15, %false : !torch.vtensor<[16,16],f8E4M3FN>, !torch.vtensor<[16,16],f8E4M3FN>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[16],bf16>, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[16,16],bf16>
+  return %0 : !torch.vtensor<[16,16],bf16>
+}
+
+// -----
+// Row/column/block-scaled variants (scale with more than one element) are
+// not implemented -- see #4693.
+func.func @torch.aten._scaled_mm$rowwise(%lhs: !torch.vtensor<[16,16],f8E4M3FN>,
+                                         %rhs: !torch.vtensor<[16,16],f8E4M3FN>,
+                                         %scaleA: !torch.vtensor<[16,1],f32>,
+                                         %scaleB: !torch.vtensor<[1,16],f32>) -> !torch.vtensor<[16,16],bf16> {
+  %none = torch.constant.none
+  %int15 = torch.constant.int 15
+  %false = torch.constant.bool false
+  // expected-error @+1 {{failed to legalize operation 'torch.aten._scaled_mm'}}
+  %0 = torch.aten._scaled_mm %lhs, %rhs, %scaleA, %scaleB, %none, %none, %int15, %false : !torch.vtensor<[16,16],f8E4M3FN>, !torch.vtensor<[16,16],f8E4M3FN>, !torch.vtensor<[16,1],f32>, !torch.vtensor<[1,16],f32>, !torch.none, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[16,16],bf16>
+  return %0 : !torch.vtensor<[16,16],bf16>
+}
