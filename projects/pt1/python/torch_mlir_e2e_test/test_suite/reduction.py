@@ -2255,6 +2255,30 @@ def ReduceLNegInfNormModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class LinalgVectorNormScalarInfiniteModule(torch.nn.Module):
+    @export
+    @annotate_args([None, ([], torch.float32, True)])
+    def forward(self, a):
+        return (
+            torch.linalg.vector_norm(a, ord=float("-inf"), dim=0),
+            torch.linalg.vector_norm(a, ord=float("-inf"), dim=-1),
+            torch.linalg.vector_norm(a, ord=float("-inf"), dim=0, keepdim=True),
+            torch.linalg.vector_norm(a, ord=float("-inf"), dim=-1, keepdim=True),
+            torch.linalg.vector_norm(a, ord=float("inf"), dim=0),
+            torch.linalg.vector_norm(a, ord=float("inf"), dim=-1),
+            torch.linalg.vector_norm(a, ord=float("inf"), dim=0, keepdim=True),
+            torch.linalg.vector_norm(a, ord=float("inf"), dim=-1, keepdim=True),
+        )
+
+
+@register_test_case(module_factory=lambda: LinalgVectorNormScalarInfiniteModule())
+def LinalgVectorNormScalarInfiniteModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor(-3.25))
+
+
+# ==============================================================================
+
+
 class ReduceL0NormModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

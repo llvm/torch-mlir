@@ -1640,6 +1640,121 @@ func.func @torch.aten.linalg_vector_norm$neg_inf(%arg0: !torch.vtensor<[5],f32>)
 
 // -----
 
+// Scalars accept dim 0, dim -1, and an empty dimension list. keepdim does
+// not add a dimension to a scalar result.
+// CHECK-LABEL: func.func @scalar_amin_amax(
+// CHECK-SAME: %[[F32:.*]]: !torch.vtensor<[],f32>, %[[F16:.*]]: !torch.vtensor<[],f16>, %[[BF16:.*]]: !torch.vtensor<[],bf16>)
+// CHECK-NOT: torch.aten.amin
+// CHECK-NOT: torch.aten.amax
+// CHECK: return %[[F32]], %[[F16]], %[[BF16]], %[[BF16]]
+func.func @scalar_amin_amax(%arg0: !torch.vtensor<[],f32>, %arg1: !torch.vtensor<[],f16>, %arg2: !torch.vtensor<[],bf16>) -> (!torch.vtensor<[],f32>, !torch.vtensor<[],f16>, !torch.vtensor<[],bf16>, !torch.vtensor<[],bf16>) {
+  %zero = torch.constant.int 0
+  %minus_one = torch.constant.int -1
+  %dim_zero = torch.prim.ListConstruct %zero : (!torch.int) -> !torch.list<int>
+  %dim_minus_one = torch.prim.ListConstruct %minus_one : (!torch.int) -> !torch.list<int>
+  %empty = torch.prim.ListConstruct : () -> !torch.list<int>
+  %false = torch.constant.bool false
+  %true = torch.constant.bool true
+  %0 = torch.aten.amin %arg0, %dim_zero, %false : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],f32>
+  %1 = torch.aten.amax %arg1, %dim_minus_one, %true : !torch.vtensor<[],f16>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],f16>
+  %2 = torch.aten.amin %arg2, %empty, %true : !torch.vtensor<[],bf16>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],bf16>
+  %3 = torch.aten.amax %arg2, %empty, %false : !torch.vtensor<[],bf16>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],bf16>
+  return %0, %1, %2, %3 : !torch.vtensor<[],f32>, !torch.vtensor<[],f16>, !torch.vtensor<[],bf16>, !torch.vtensor<[],bf16>
+}
+
+// -----
+
+// Invalid axes and repeated scalar dimensions must not become identities.
+// CHECK-LABEL: func.func @scalar_amin_amax_invalid_dims(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[],f32>)
+// CHECK-DAG: %[[ONE:.*]] = torch.constant.int 1{{$}}
+// CHECK-DAG: %[[MINUS_TWO:.*]] = torch.constant.int -2{{$}}
+// CHECK-DAG: %[[ZERO:.*]] = torch.constant.int 0{{$}}
+// CHECK-DAG: %[[MINUS_ONE:.*]] = torch.constant.int -1{{$}}
+// CHECK-DAG: %[[FALSE:.*]] = torch.constant.bool false
+// CHECK-DAG: %[[TOO_LARGE:.*]] = torch.prim.ListConstruct %[[ONE]] : (!torch.int) -> !torch.list<int>
+// CHECK-DAG: %[[TOO_SMALL:.*]] = torch.prim.ListConstruct %[[MINUS_TWO]] : (!torch.int) -> !torch.list<int>
+// CHECK-DAG: %[[DUPLICATE_DIMS:.*]] = torch.prim.ListConstruct %[[ZERO]], %[[ZERO]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK-DAG: %[[ALIASED_DIMS:.*]] = torch.prim.ListConstruct %[[ZERO]], %[[MINUS_ONE]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK: %[[MIN:.*]] = torch.aten.amin %[[INPUT]], %[[TOO_LARGE]], %[[FALSE]] : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],f32>
+// CHECK: %[[MAX:.*]] = torch.aten.amax %[[INPUT]], %[[TOO_SMALL]], %[[FALSE]] : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],f32>
+// CHECK: %[[DUPLICATE:.*]] = torch.aten.amin %[[INPUT]], %[[DUPLICATE_DIMS]], %[[FALSE]] : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],f32>
+// CHECK: %[[ALIASED:.*]] = torch.aten.amax %[[INPUT]], %[[ALIASED_DIMS]], %[[FALSE]] : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],f32>
+// CHECK: return %[[MIN]], %[[MAX]], %[[DUPLICATE]], %[[ALIASED]] : !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>
+func.func @scalar_amin_amax_invalid_dims(%arg0: !torch.vtensor<[],f32>) -> (!torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>) {
+  %one = torch.constant.int 1
+  %minus_two = torch.constant.int -2
+  %zero = torch.constant.int 0
+  %minus_one = torch.constant.int -1
+  %too_large = torch.prim.ListConstruct %one : (!torch.int) -> !torch.list<int>
+  %too_small = torch.prim.ListConstruct %minus_two : (!torch.int) -> !torch.list<int>
+  %duplicate = torch.prim.ListConstruct %zero, %zero : (!torch.int, !torch.int) -> !torch.list<int>
+  %aliased = torch.prim.ListConstruct %zero, %minus_one : (!torch.int, !torch.int) -> !torch.list<int>
+  %false = torch.constant.bool false
+  %0 = torch.aten.amin %arg0, %too_large, %false : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],f32>
+  %1 = torch.aten.amax %arg0, %too_small, %false : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],f32>
+  %2 = torch.aten.amin %arg0, %duplicate, %false : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],f32>
+  %3 = torch.aten.amax %arg0, %aliased, %false : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],f32>
+  return %0, %1, %2, %3 : !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @scalar_amin_unknown_dim(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[],f32>, %[[DIMS:.*]]: !torch.list<int>)
+// CHECK: %[[FALSE:.*]] = torch.constant.bool false
+// CHECK: %[[MIN:.*]] = torch.aten.amin %[[INPUT]], %[[DIMS]], %[[FALSE]] : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],f32>
+// CHECK: return %[[MIN]] : !torch.vtensor<[],f32>
+func.func @scalar_amin_unknown_dim(%arg0: !torch.vtensor<[],f32>, %dim: !torch.list<int>) -> !torch.vtensor<[],f32> {
+  %false = torch.constant.bool false
+  %0 = torch.aten.amin %arg0, %dim, %false : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
+}
+
+// -----
+
+// Non-scalar reductions still select values along their specified dimensions.
+// CHECK-LABEL: func.func @nonscalar_amin_amax(
+// CHECK: %[[MIN:.*]], %{{.*}} = torch.aten.min.dim
+// CHECK: %[[MAX:.*]], %{{.*}} = torch.aten.max.dim
+// CHECK: return %[[MIN]], %[[MAX]]
+func.func @nonscalar_amin_amax(%arg0: !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[2],f32>, !torch.vtensor<[2,1],f32>) {
+  %one = torch.constant.int 1
+  %dim = torch.prim.ListConstruct %one : (!torch.int) -> !torch.list<int>
+  %false = torch.constant.bool false
+  %true = torch.constant.bool true
+  %0 = torch.aten.amin %arg0, %dim, %false : !torch.vtensor<[2,3],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[2],f32>
+  %1 = torch.aten.amax %arg0, %dim, %true : !torch.vtensor<[2,3],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[2,1],f32>
+  return %0, %1 : !torch.vtensor<[2],f32>, !torch.vtensor<[2,1],f32>
+}
+
+// -----
+
+// Scalar infinite norms become abs, not the unmodified scalar input.
+// CHECK-LABEL: func.func @scalar_infinite_vector_norm(
+// CHECK: %[[NEG_ABS:.*]] = torch.aten.abs %arg0
+// CHECK: %[[POS_ABS:.*]] = torch.aten.abs %arg1
+// CHECK-NOT: torch.aten.amin
+// CHECK-NOT: torch.aten.amax
+// CHECK-NOT: torch.aten.linalg_vector_norm
+// CHECK: return %[[NEG_ABS]], %[[POS_ABS]]
+func.func @scalar_infinite_vector_norm(%arg0: !torch.vtensor<[],f32>, %arg1: !torch.vtensor<[],bf16>) -> (!torch.vtensor<[],f32>, !torch.vtensor<[],bf16>) {
+  %neg_inf = torch.constant.float 0xFFF0000000000000
+  %pos_inf = torch.constant.float 0x7FF0000000000000
+  %zero = torch.constant.int 0
+  %minus_one = torch.constant.int -1
+  %dim_zero = torch.prim.ListConstruct %zero : (!torch.int) -> !torch.list<int>
+  %dim_minus_one = torch.prim.ListConstruct %minus_one : (!torch.int) -> !torch.list<int>
+  %false = torch.constant.bool false
+  %true = torch.constant.bool true
+  %none = torch.constant.none
+  %0 = torch.aten.linalg_vector_norm %arg0, %neg_inf, %dim_zero, %false, %none : !torch.vtensor<[],f32>, !torch.float, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[],f32>
+  %1 = torch.aten.linalg_vector_norm %arg1, %pos_inf, %dim_minus_one, %true, %none : !torch.vtensor<[],bf16>, !torch.float, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[],bf16>
+  return %0, %1 : !torch.vtensor<[],f32>, !torch.vtensor<[],bf16>
+}
+
+// -----
+
 // ord = 0: linalg_vector_norm decomposes to the count of nonzeros,
 // sum(|x| != 0), via abs + ne.Scalar + sum.dim_IntList.
 // CHECK-LABEL: func.func @torch.aten.linalg_vector_norm$zero(

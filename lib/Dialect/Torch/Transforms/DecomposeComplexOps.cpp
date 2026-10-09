@@ -2826,6 +2826,18 @@ public:
     }
 
     int64_t inputRank = inputTy.getSizes().size();
+    if (inputRank == 0) {
+      // Scalar reductions accept dimension 0 or -1 without changing shape.
+      if (dims.size() > 1 || (!dims.empty() && dims[0] != 0 && dims[0] != -1))
+        return rewriter.notifyMatchFailure(
+            op, "invalid scalar reduction dimensions");
+      if (input.getType() != op.getType())
+        return rewriter.notifyMatchFailure(
+            op, "scalar reduction requires matching input and result types");
+      rewriter.replaceOp(op, input);
+      return success();
+    }
+
     llvm::for_each(dims, [&](int64_t &d) { d = toPositiveDim(d, inputRank); });
 
     // For every dimension included in `dim` of the op, iterated over in
