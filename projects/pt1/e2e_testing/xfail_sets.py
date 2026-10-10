@@ -3812,6 +3812,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "UpSampleNearest2dVecNoneScales_basic",
     "UpSampleNearest2dVecNoneShape_basic",
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
+    "ViewCollapseTwoDynamicDimsModule_empty",
     "ViewSizeFromOtherTensor_basic",
     "VisionTransformerModule_basic",
     # Unexpected failures due to new PyTorch version update
@@ -4996,6 +4997,8 @@ ONNX_TOSA_XFAIL_SET = {
     "View1DFoldModule_basic",
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
     "ViewCollapseModule_basic",
+    "ViewCollapseTwoDynamicDimsModule_basic",
+    "ViewCollapseTwoDynamicDimsModule_empty",
     "ViewDynamicExpandCollapseModule_basic",
     "ViewDynamicExpandCollapseWithAtenIntModule_basic",
     "ViewDynamicExpandCollapseWithParallelUnknownDimModule_basic",
