@@ -39,6 +39,11 @@ def ElementwiseUnaryModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4))
 
 
+@register_test_case(module_factory=lambda: ElementwiseUnaryModule())
+def ElementwiseUnaryModule_unitDimStride(module, tu: TestUtils):
+    module.forward(tu.rand(4, 1).t())
+
+
 # ==============================================================================
 
 

@@ -76,17 +76,11 @@ LINALG_CRASHING_SET = {
     "GridSamplerBasic2_basic",
     "GridSamplerBasic3_basic",
     "GridSamplerBasic4_basic",
-    # Runtime op verification: stride mismatch in memref.cast
-    "ReduceAllDimEmpty_basic",
-    "TraceUnsignedIntModule_empty",
-    "TraceModule_empty",
     # Crashes due to copy to a smaller destination buffer than the source buffer.
     "SliceCopyStartGreaterThanDimSize_Module_basic",
     # unimplemented: for conversion to byte or char type dstOriginalDtype has to be passed to convertScalarToDtype
     "AtenMmInt8Types_basic",
     "AtenMmInt8ZeroK_basic",
-    # Runtime verification aborts on zero-extent memref casts.
-    "RMSNormZeroExtentModule_basic",
     # Hanging tests:
     "ConvolutionBackwardModule2DDilated_basic",
     "ConvolutionBackwardModule2DStridedPaddedDilatedGrouped_basic",
@@ -1242,6 +1236,7 @@ STABLEHLO_PASS_SET = {
     "ElementwiseToDtypeI64ToI8Module_basic",
     "ElementwiseToDtypeIdentityModule_basic",
     "ElementwiseUnaryModule_basic",
+    "ElementwiseUnaryModule_unitDimStride",
     "ElementwiseHeavisideModule_basic",
     "EmptyLikeMemoryFormatModule_basic",
     "EmptyLikeModule_defaultDtype",
@@ -1721,8 +1716,6 @@ TOSA_CRASHING_SET = {
     "ArangeStartOutDtypeModule_basic",
     "ArangeStartOutModule_basic",
     "ScatterSrcStaticModule_basic",
-    # Runtime op verification: Out of bounds access
-    "ReduceAllDimEmpty_basic",
     # SmallVector unable to grow for ThresholdBackward1d
     "ThresholdBackward1dFloatModule_basic",
     "ThresholdBackward1dIntModule_basic",
@@ -1738,8 +1731,6 @@ FX_IMPORTER_TOSA_CRASHING_SET = {
     "Aten_TrilinearModuleVaryingRanksUnorderedExpands_basic",
     "ScatterSrcModule_basic",
     "ScatterSrcStaticModule_basic",
-    # TOSA runtime verification aborts on zero-extent memref casts.
-    "RMSNormZeroExtentModule_basic",
     # 1D inputs cause generated tosa.negate ops to crash downstream
     "NllLossModule_1D_basic",
     # BertModule is not crashing, but is timing out due to TosaLayerwiseConstantFoldPass:
@@ -2046,6 +2037,7 @@ TOSA_PASS_SET = {
     "ArgminModule_basic",
     "ArgminModule_keepDim",
     "ReduceAllDimBool_basic",
+    "ReduceAllDimEmpty_basic",
     "ReduceAllDimFloat_basic",
     "ReduceAllDimInt_basic",
     "ReduceAllFloatModule_basic",
@@ -2362,6 +2354,7 @@ TOSA_PASS_SET = {
     "ElementwiseSubTensorInt8Module_basic",
     "ElementwiseToDtypeIdentityModule_basic",
     "ElementwiseUnaryModule_basic",
+    "ElementwiseUnaryModule_unitDimStride",
     "ElementwiseUnsqueezeBroadcastModule_basic",
     "ElementwiseWhereScalarModule_basic",
     "ElementwiseNanToNumWithNoneModule_Basic",
@@ -2397,6 +2390,7 @@ TOSA_PASS_SET = {
     "IscloseStaticModule_basic",
     "LayerNormNormalizeOverAllDimsModule_basic",
     "RMSNormModule_basic",
+    "RMSNormZeroExtentModule_basic",
     "RMSNormWithoutEpsModule_basic",
     "RMSNormWithoutWeightModule_basic",
     "RMSNormAllNormalizeModule_basic",
@@ -3170,8 +3164,6 @@ ONNX_XFAIL_SET = {
     "TorchPrimLoopWhileLikeModule_basic",
     # RuntimeError: Detected that you are using FX to torch.jit.trace a dynamo-optimized function
     "TorchPrimLoopWhileLikeHOPModule_basic",
-    "TraceModule_empty",
-    "TraceUnsignedIntModule_empty",
     "TransposedConv1dNegativePaddingUnitStrideDyn_basic",
     "UniformModule_basic",
     "UniformNoCorrelationModule_basic",
