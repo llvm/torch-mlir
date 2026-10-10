@@ -14,9 +14,12 @@
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
+#include "mlir/Interfaces/FunctionInterfaces.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/ADT/TypeSwitch.h"
+#include "llvm/Support/ErrorHandling.h"
 
 namespace mlir {
 namespace torch {
@@ -666,6 +669,290 @@ APFloat getFloatInf(mlir::FloatType fpType, bool negative,
   return allowNonFinites
              ? APFloat::getInf(fpType.getFloatSemantics(), negative)
              : APFloat::getLargest(fpType.getFloatSemantics(), negative);
+}
+
+void forwardUserDiscardableAttrs(Operation *from, Operation *to) {
+  if (!from || !to)
+    return;
+  for (NamedAttribute attr : from->getDiscardableAttrs()) {
+    if (attr.getName().getValue().starts_with(kUserAttrPrefix))
+      to->setAttr(attr.getName(), attr.getValue());
+  }
+}
+
+// Look through cast operations to find the actual value that produces a
+// replacement. This handles tensor.cast, unrealized_conversion_cast, and other
+// cast-like ops that may be eliminated by canonicalization, while preserving
+// whether the underlying value is an OpResult (with its result index) or a
+// BlockArgument.
+static Value lookThroughCasts(Value value) {
+  if (!value)
+    return Value();
+
+  Operation *defOp = value.getDefiningOp();
+  if (!defOp)
+    return value;
+
+  // Look through tensor.cast
+  if (auto castOp = dyn_cast<tensor::CastOp>(defOp)) {
+    return lookThroughCasts(castOp.getSource());
+  }
+
+  // Look through unrealized_conversion_cast
+  if (auto castOp = dyn_cast<UnrealizedConversionCastOp>(defOp)) {
+    if (castOp.getInputs().size() == 1)
+      return lookThroughCasts(castOp.getInputs()[0]);
+  }
+
+  return value;
+}
+
+// Merge `incomingDict` into `existingDict`, with keys already present on
+// `existingDict` taking precedence on conflict so that folding a downstream
+// identity op does not overwrite annotations explicitly placed on an upstream
+// producer or function argument.
+static DictionaryAttr mergeUserAttrDicts(MLIRContext *context,
+                                         DictionaryAttr existingDict,
+                                         DictionaryAttr incomingDict) {
+  if (!existingDict || existingDict.empty())
+    return incomingDict;
+  if (!incomingDict || incomingDict.empty())
+    return existingDict;
+
+  NamedAttrList merged(existingDict);
+  for (NamedAttribute attr : incomingDict) {
+    if (!merged.get(attr.getName()))
+      merged.set(attr.getName(), attr.getValue());
+  }
+  return merged.getDictionary(context);
+}
+
+// Forward user-discardable attributes for a specific source result index onto
+// the destination value `toValue` (after looking through casts).
+//
+// - If `toValue` is a `BlockArgument` of the entry block of a
+//   `FunctionOpInterface`, the source result's `mlir.user` dictionary is merged
+//   into the argument's `mlir.user` dictionary attribute (existing keys win).
+// - If `toValue` is an `OpResult`, the source result's `mlir.user` dictionary
+//   is merged into slot `opResult.getResultNumber()` of the defining op's
+//   `mlir.user` array-of-dictionaries attribute, preserving any dictionaries on
+//   other result slots and giving existing keys on the target slot precedence.
+static void forwardResultUserAttrs(Operation *from, unsigned srcResultIndex,
+                                   Value toValue) {
+  auto userAttr = from->getAttrOfType<ArrayAttr>(kUserAttrPrefix);
+  if (!userAttr || srcResultIndex >= userAttr.size())
+    return;
+
+  auto incomingDict = llvm::dyn_cast<DictionaryAttr>(userAttr[srcResultIndex]);
+  if (!incomingDict || incomingDict.empty())
+    return;
+
+  MLIRContext *context = from->getContext();
+
+  if (auto blockArg = dyn_cast<BlockArgument>(toValue)) {
+    Block *ownerBlock = blockArg.getOwner();
+    if (!ownerBlock || !ownerBlock->isEntryBlock())
+      return;
+    auto funcOp =
+        dyn_cast_or_null<FunctionOpInterface>(ownerBlock->getParentOp());
+    if (!funcOp)
+      return;
+
+    unsigned argIndex = blockArg.getArgNumber();
+    auto existingDict =
+        funcOp.getArgAttrOfType<DictionaryAttr>(argIndex, kUserAttrPrefix);
+    DictionaryAttr mergedDict =
+        mergeUserAttrDicts(context, existingDict, incomingDict);
+    funcOp.setArgAttr(argIndex, kUserAttrPrefix, mergedDict);
+    return;
+  }
+
+  auto opResult = dyn_cast<OpResult>(toValue);
+  if (!opResult)
+    return;
+
+  Operation *to = opResult.getDefiningOp();
+  unsigned dstResultIndex = opResult.getResultNumber();
+  unsigned numResults = to->getNumResults();
+
+  auto existingArray = to->getAttrOfType<ArrayAttr>(kUserAttrPrefix);
+  DictionaryAttr emptyDict = DictionaryAttr::get(context, {});
+
+  unsigned targetSize = std::max(
+      dstResultIndex + 1,
+      existingArray ? static_cast<unsigned>(existingArray.size()) : 1u);
+  targetSize = std::min(targetSize, std::max(numResults, dstResultIndex + 1));
+
+  SmallVector<Attribute> arrayElements(targetSize, emptyDict);
+  if (existingArray) {
+    for (unsigned i = 0,
+                  e = std::min<unsigned>(existingArray.size(), targetSize);
+         i < e; ++i) {
+      if (auto dict = llvm::dyn_cast<DictionaryAttr>(existingArray[i]))
+        arrayElements[i] = dict;
+    }
+  }
+
+  auto existingSlotDict =
+      llvm::dyn_cast<DictionaryAttr>(arrayElements[dstResultIndex]);
+  arrayElements[dstResultIndex] =
+      mergeUserAttrDicts(context, existingSlotDict, incomingDict);
+
+  to->setDiscardableAttr(kUserAttrPrefix,
+                         ArrayAttr::get(context, arrayElements));
+}
+
+// Forward the source op's per-result user attributes onto the values (op
+// results or function entry-block arguments) that replace each result.
+static void forwardUserAttrs(Operation *from, ValueRange replacement) {
+  if (!from->hasAttrOfType<ArrayAttr>(kUserAttrPrefix))
+    return;
+
+  for (unsigned i = 0; i < from->getNumResults() && i < replacement.size();
+       ++i) {
+    Value targetValue = lookThroughCasts(replacement[i]);
+    if (!targetValue)
+      continue;
+
+    forwardResultUserAttrs(from, i, targetValue);
+  }
+}
+
+namespace {
+class ForwardingListener : public RewriterBase::ForwardingListener {
+  Operation *sourceOp;
+
+public:
+  ForwardingListener(OpBuilder::Listener *parent, Operation *op)
+      : RewriterBase::ForwardingListener(parent), sourceOp(op) {}
+
+  void notifyOperationReplaced(Operation *op, ValueRange replacement) override {
+    RewriterBase::ForwardingListener::notifyOperationReplaced(op, replacement);
+    if (op == sourceOp)
+      forwardUserAttrs(op, replacement);
+  }
+};
+
+static LogicalResult matchAndRewriteImpl(Operation *op,
+                                         PatternRewriter &rewriter,
+                                         const RewritePattern &innerPattern) {
+  OpBuilder::Listener *parentListener = rewriter.getListener();
+  ForwardingListener listener(parentListener, op);
+  rewriter.setListener(&listener);
+  llvm::scope_exit cleanup([&]() { rewriter.setListener(parentListener); });
+  return innerPattern.matchAndRewrite(op, rewriter);
+}
+
+class ForwardingOpNamePatternWrapper : public RewritePattern {
+  std::unique_ptr<RewritePattern> innerPattern;
+
+public:
+  ForwardingOpNamePatternWrapper(std::unique_ptr<RewritePattern> inner)
+      : RewritePattern(inner->getRootKind()->getStringRef(),
+                       inner->getBenefit(), inner->getContext()),
+        innerPattern(std::move(inner)) {
+    setDebugName(innerPattern->getDebugName());
+    addDebugLabels(innerPattern->getDebugLabels());
+  }
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    return matchAndRewriteImpl(op, rewriter, *innerPattern);
+  }
+};
+
+class ForwardingAnyOpPatternWrapper : public RewritePattern {
+  std::unique_ptr<RewritePattern> innerPattern;
+
+public:
+  ForwardingAnyOpPatternWrapper(std::unique_ptr<RewritePattern> inner)
+      : RewritePattern(MatchAnyOpTypeTag(), inner->getBenefit(),
+                       inner->getContext()),
+        innerPattern(std::move(inner)) {
+    setDebugName(innerPattern->getDebugName());
+    addDebugLabels(innerPattern->getDebugLabels());
+  }
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    return matchAndRewriteImpl(op, rewriter, *innerPattern);
+  }
+};
+
+class ForwardingInterfacePatternWrapper : public RewritePattern {
+  std::unique_ptr<RewritePattern> innerPattern;
+
+public:
+  ForwardingInterfacePatternWrapper(std::unique_ptr<RewritePattern> inner)
+      : RewritePattern(MatchInterfaceOpTypeTag(), *inner->getRootInterfaceID(),
+                       inner->getBenefit(), inner->getContext()),
+        innerPattern(std::move(inner)) {
+    setDebugName(innerPattern->getDebugName());
+    addDebugLabels(innerPattern->getDebugLabels());
+  }
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    return matchAndRewriteImpl(op, rewriter, *innerPattern);
+  }
+};
+
+class ForwardingTraitPatternWrapper : public RewritePattern {
+  std::unique_ptr<RewritePattern> innerPattern;
+
+public:
+  ForwardingTraitPatternWrapper(std::unique_ptr<RewritePattern> inner)
+      : RewritePattern(MatchTraitOpTypeTag(), *inner->getRootTraitID(),
+                       inner->getBenefit(), inner->getContext()),
+        innerPattern(std::move(inner)) {
+    setDebugName(innerPattern->getDebugName());
+    addDebugLabels(innerPattern->getDebugLabels());
+  }
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    return matchAndRewriteImpl(op, rewriter, *innerPattern);
+  }
+};
+} // namespace
+
+void wrapPatternsWithForwarding(RewritePatternSet &patterns) {
+  auto &nativePatterns = patterns.getNativePatterns();
+  std::vector<std::unique_ptr<RewritePattern>> wrappedPatterns;
+  wrappedPatterns.reserve(nativePatterns.size());
+  for (auto &pattern : nativePatterns) {
+    if (pattern->getRootKind()) {
+      wrappedPatterns.push_back(
+          std::make_unique<ForwardingOpNamePatternWrapper>(std::move(pattern)));
+    } else if (pattern->getRootInterfaceID()) {
+      wrappedPatterns.push_back(
+          std::make_unique<ForwardingInterfacePatternWrapper>(
+              std::move(pattern)));
+    } else if (pattern->getRootTraitID()) {
+      wrappedPatterns.push_back(
+          std::make_unique<ForwardingTraitPatternWrapper>(std::move(pattern)));
+    } else {
+      wrappedPatterns.push_back(
+          std::make_unique<ForwardingAnyOpPatternWrapper>(std::move(pattern)));
+    }
+  }
+  nativePatterns = std::move(wrappedPatterns);
+}
+
+namespace {
+// Listener for forwarding attributes during dialect conversion.
+// This is installed at the pass level and persists for the entire conversion,
+// receiving notifications when replacements are committed.
+class ConversionForwardingListener : public RewriterBase::Listener {
+public:
+  void notifyOperationReplaced(Operation *op, ValueRange replacement) override {
+    forwardUserAttrs(op, replacement);
+  }
+};
+} // namespace
+
+std::unique_ptr<RewriterBase::Listener> createConversionForwardingListener() {
+  return std::make_unique<ConversionForwardingListener>();
 }
 
 } // namespace Torch

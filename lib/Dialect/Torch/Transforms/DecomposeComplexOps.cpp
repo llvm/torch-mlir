@@ -14,6 +14,7 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
@@ -9439,7 +9440,8 @@ class DecomposeAtenPadOp : public OpRewritePattern<AtenPadOp> {
         return rewriter.notifyMatchFailure(op,
                                            "expected an even number of pads");
 
-      for (uint64_t i = padInts.size() - 1; i > 0; i -= 2) {
+      for (int64_t i = static_cast<int64_t>(padInts.size()) - 1; i > 0;
+           i -= 2) {
         if (padInts[i] != 0 || padInts[i - 1] != 0)
           break;
         usefulPadIndexEnd = i - 1;
@@ -14126,9 +14128,16 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenRoundDecimalsOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenAbsoluteOp>(patterns);
 
+    // Wrap patterns to forward user-discardable attributes (mlir.user.*)
+    // from source operations to newly created operations during decomposition.
+    wrapPatternsWithForwarding(patterns);
+
+    static std::unique_ptr<RewriterBase::Listener> listener =
+        createConversionForwardingListener();
     GreedyRewriteConfig config;
     config.setUseTopDownTraversal(true);
     config.setMaxIterations(GreedyRewriteConfig::kNoLimit);
+    config.setListener(listener.get());
 
     if (failed(applyPatternsGreedily(getOperation(), std::move(patterns),
                                      config))) {
