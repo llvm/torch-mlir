@@ -629,9 +629,9 @@ Value torch_to_linalg::removeSizeInformation(OpBuilder &b, Location loc,
 }
 
 FailureOr<Value> torch_to_linalg::convertTensorToElementType(OpBuilder &b,
-                                                              Location loc,
-                                                              Value tensor,
-                                                              Type elementType) {
+                                                             Location loc,
+                                                             Value tensor,
+                                                             Type elementType) {
   bool hadErrorCreatingPayload = false;
   auto dtypePromoteBody = [&](OpBuilder &builder, Location loc,
                               ValueRange payloadArgs) {

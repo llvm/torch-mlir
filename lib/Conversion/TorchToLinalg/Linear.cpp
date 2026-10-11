@@ -691,8 +691,8 @@ public:
         }
         if (accumulatorDType != resultElementType) {
           FailureOr<Value> batchMatMulConverted =
-              torch_to_linalg::convertTensorToElementType(rewriter, loc, batchMatMul,
-                                                          resultElementType);
+              torch_to_linalg::convertTensorToElementType(
+                  rewriter, loc, batchMatMul, resultElementType);
           if (failed(batchMatMulConverted))
             return failure();
           batchMatMul = *batchMatMulConverted;

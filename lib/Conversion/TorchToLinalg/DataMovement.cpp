@@ -1948,8 +1948,9 @@ public:
     for (size_t i = 0; i < tensors.size(); ++i) {
       auto inputType = cast<RankedTensorType>(tensors[i].getType());
       if (inputType.getElementType() != outElemType) {
-        FailureOr<Value> converted = torch_to_linalg::convertTensorToElementType(
-            rewriter, loc, tensors[i], outElemType);
+        FailureOr<Value> converted =
+            torch_to_linalg::convertTensorToElementType(
+                rewriter, loc, tensors[i], outElemType);
         if (failed(converted))
           return failure();
         tensors[i] = *converted;
