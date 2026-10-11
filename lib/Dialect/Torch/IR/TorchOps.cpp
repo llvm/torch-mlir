@@ -7502,7 +7502,7 @@ LogicalResult GlobalSlotModuleInitializerOp::verify() {
   auto initialize = dyn_cast_or_null<InitializeGlobalSlotsOp>(last);
   if (!initialize)
     return emitOpError("expected body to be terminated by "
-                        "'torch.initialize.global_slots'");
+                       "'torch.initialize.global_slots'");
 
   // Collect the relevant symbol names we will verify.
   DenseSet</*StringAttr*/ Attribute> knownGlobalSlots;
