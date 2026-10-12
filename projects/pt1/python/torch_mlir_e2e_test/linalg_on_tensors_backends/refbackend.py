@@ -93,6 +93,11 @@ def get_ctype_func(func_name):
 
 class RefBackendInvoker:
     def __init__(self, module):
+        # Some bufferization.clone operations become memref.copy after the
+        # passes that turn copies into loops have already run. Since LLVM
+        # commit 2a96d5737524, metadata expansion can give these copies dynamic
+        # strides, so LLVM lowering uses memrefCopy instead of llvm.intr.memcpy.
+        # Load its runtime library to avoid "Symbols not found: [ memrefCopy ]".
         runner_utils = os.environ.get("MLIR_C_RUNNER_UTILS")
         self.ee = ExecutionEngine(
             module, shared_libs=[runner_utils] if runner_utils else []
