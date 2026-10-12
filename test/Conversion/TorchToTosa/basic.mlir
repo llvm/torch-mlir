@@ -3763,15 +3763,15 @@ func.func @torch.aten.reflection_pad3d$basic(%arg0: !torch.vtensor<[4,5,7,3,4],f
 // CHECK-LABEL: func.func @torch.aten.replication_pad1d$asymmetric_rank2(
 // CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[2,3],f32>) -> !torch.vtensor<[2,6],f32>
 // CHECK: %[[BUILTIN:.*]] = torch_c.to_builtin_tensor %[[INPUT]] : !torch.vtensor<[2,3],f32> -> tensor<2x3xf32>
-// CHECK-DAG: %[[LEFT_START:.*]] = tosa.const_shape {values = dense<0> : tensor<2xindex>} : () -> !tosa.shape<2>
-// CHECK-DAG: %[[LEFT_SIZE:.*]] = tosa.const_shape {values = dense<[2, 1]> : tensor<2xindex>} : () -> !tosa.shape<2>
+// CHECK-DAG: %[[LEFT_START:.*]] = tosa.const_shape values(dense<0> : tensor<2xindex>) : () -> !tosa.shape<2>
+// CHECK-DAG: %[[LEFT_SIZE:.*]] = tosa.const_shape values(dense<[2, 1]> : tensor<2xindex>) : () -> !tosa.shape<2>
 // CHECK: %[[LEFT:.*]] = tosa.slice %[[BUILTIN]], %[[LEFT_START]], %[[LEFT_SIZE]] : (tensor<2x3xf32>, !tosa.shape<2>, !tosa.shape<2>) -> tensor<2x1xf32>
-// CHECK-DAG: %[[RIGHT_START:.*]] = tosa.const_shape {values = dense<[0, 2]> : tensor<2xindex>} : () -> !tosa.shape<2>
-// CHECK-DAG: %[[RIGHT_SIZE:.*]] = tosa.const_shape {values = dense<[2, 1]> : tensor<2xindex>} : () -> !tosa.shape<2>
+// CHECK-DAG: %[[RIGHT_START:.*]] = tosa.const_shape values(dense<[0, 2]> : tensor<2xindex>) : () -> !tosa.shape<2>
+// CHECK-DAG: %[[RIGHT_SIZE:.*]] = tosa.const_shape values(dense<[2, 1]> : tensor<2xindex>) : () -> !tosa.shape<2>
 // CHECK: %[[RIGHT:.*]] = tosa.slice %[[BUILTIN]], %[[RIGHT_START]], %[[RIGHT_SIZE]] : (tensor<2x3xf32>, !tosa.shape<2>, !tosa.shape<2>) -> tensor<2x1xf32>
-// CHECK: %[[MULTIPLES:.*]] = tosa.const_shape {values = dense<[1, 2]> : tensor<2xindex>} : () -> !tosa.shape<2>
+// CHECK: %[[MULTIPLES:.*]] = tosa.const_shape values(dense<[1, 2]> : tensor<2xindex>) : () -> !tosa.shape<2>
 // CHECK: %[[RIGHT_PAD:.*]] = tosa.tile %[[RIGHT]], %[[MULTIPLES]] : (tensor<2x1xf32>, !tosa.shape<2>) -> tensor<2x2xf32>
-// CHECK: %[[PADDED:.*]] = tosa.concat %[[LEFT]], %[[BUILTIN]], %[[RIGHT_PAD]] {axis = 1 : i32} : (tensor<2x1xf32>, tensor<2x3xf32>, tensor<2x2xf32>) -> tensor<2x6xf32>
+// CHECK: %[[PADDED:.*]] = tosa.concat %[[LEFT]], %[[BUILTIN]], %[[RIGHT_PAD]] axis(1) : (tensor<2x1xf32>, tensor<2x3xf32>, tensor<2x2xf32>) -> tensor<2x6xf32>
 // CHECK: %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[PADDED]] : tensor<2x6xf32> -> !torch.vtensor<[2,6],f32>
 // CHECK: return %[[RESULT]] : !torch.vtensor<[2,6],f32>
 func.func @torch.aten.replication_pad1d$asymmetric_rank2(%input: !torch.vtensor<[2,3],f32>) -> !torch.vtensor<[2,6],f32> {
@@ -3787,12 +3787,12 @@ func.func @torch.aten.replication_pad1d$asymmetric_rank2(%input: !torch.vtensor<
 // CHECK-LABEL: func.func @torch.aten.replication_pad1d$right_only_rank3_f16(
 // CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[1,2,3],f16>) -> !torch.vtensor<[1,2,7],f16>
 // CHECK: %[[BUILTIN:.*]] = torch_c.to_builtin_tensor %[[INPUT]] : !torch.vtensor<[1,2,3],f16> -> tensor<1x2x3xf16>
-// CHECK-DAG: %[[START:.*]] = tosa.const_shape {values = dense<[0, 0, 2]> : tensor<3xindex>} : () -> !tosa.shape<3>
-// CHECK-DAG: %[[SIZE:.*]] = tosa.const_shape {values = dense<[1, 2, 1]> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK-DAG: %[[START:.*]] = tosa.const_shape values(dense<[0, 0, 2]> : tensor<3xindex>) : () -> !tosa.shape<3>
+// CHECK-DAG: %[[SIZE:.*]] = tosa.const_shape values(dense<[1, 2, 1]> : tensor<3xindex>) : () -> !tosa.shape<3>
 // CHECK: %[[EDGE:.*]] = tosa.slice %[[BUILTIN]], %[[START]], %[[SIZE]] : (tensor<1x2x3xf16>, !tosa.shape<3>, !tosa.shape<3>) -> tensor<1x2x1xf16>
-// CHECK: %[[MULTIPLES:.*]] = tosa.const_shape {values = dense<[1, 1, 4]> : tensor<3xindex>} : () -> !tosa.shape<3>
+// CHECK: %[[MULTIPLES:.*]] = tosa.const_shape values(dense<[1, 1, 4]> : tensor<3xindex>) : () -> !tosa.shape<3>
 // CHECK: %[[RIGHT_PAD:.*]] = tosa.tile %[[EDGE]], %[[MULTIPLES]] : (tensor<1x2x1xf16>, !tosa.shape<3>) -> tensor<1x2x4xf16>
-// CHECK: %[[PADDED:.*]] = tosa.concat %[[BUILTIN]], %[[RIGHT_PAD]] {axis = 2 : i32} : (tensor<1x2x3xf16>, tensor<1x2x4xf16>) -> tensor<1x2x7xf16>
+// CHECK: %[[PADDED:.*]] = tosa.concat %[[BUILTIN]], %[[RIGHT_PAD]] axis(2) : (tensor<1x2x3xf16>, tensor<1x2x4xf16>) -> tensor<1x2x7xf16>
 // CHECK: %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[PADDED]] : tensor<1x2x7xf16> -> !torch.vtensor<[1,2,7],f16>
 // CHECK: return %[[RESULT]] : !torch.vtensor<[1,2,7],f16>
 func.func @torch.aten.replication_pad1d$right_only_rank3_f16(%input: !torch.vtensor<[1,2,3],f16>) -> !torch.vtensor<[1,2,7],f16> {
@@ -3808,12 +3808,12 @@ func.func @torch.aten.replication_pad1d$right_only_rank3_f16(%input: !torch.vten
 // CHECK-LABEL: func.func @torch.aten.replication_pad1d$left_only_bf16(
 // CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[2,3],bf16>) -> !torch.vtensor<[2,7],bf16>
 // CHECK: %[[BUILTIN:.*]] = torch_c.to_builtin_tensor %[[INPUT]] : !torch.vtensor<[2,3],bf16> -> tensor<2x3xbf16>
-// CHECK-DAG: %[[START:.*]] = tosa.const_shape {values = dense<0> : tensor<2xindex>} : () -> !tosa.shape<2>
-// CHECK-DAG: %[[SIZE:.*]] = tosa.const_shape {values = dense<[2, 1]> : tensor<2xindex>} : () -> !tosa.shape<2>
+// CHECK-DAG: %[[START:.*]] = tosa.const_shape values(dense<0> : tensor<2xindex>) : () -> !tosa.shape<2>
+// CHECK-DAG: %[[SIZE:.*]] = tosa.const_shape values(dense<[2, 1]> : tensor<2xindex>) : () -> !tosa.shape<2>
 // CHECK: %[[EDGE:.*]] = tosa.slice %[[BUILTIN]], %[[START]], %[[SIZE]] : (tensor<2x3xbf16>, !tosa.shape<2>, !tosa.shape<2>) -> tensor<2x1xbf16>
-// CHECK: %[[MULTIPLES:.*]] = tosa.const_shape {values = dense<[1, 4]> : tensor<2xindex>} : () -> !tosa.shape<2>
+// CHECK: %[[MULTIPLES:.*]] = tosa.const_shape values(dense<[1, 4]> : tensor<2xindex>) : () -> !tosa.shape<2>
 // CHECK: %[[LEFT_PAD:.*]] = tosa.tile %[[EDGE]], %[[MULTIPLES]] : (tensor<2x1xbf16>, !tosa.shape<2>) -> tensor<2x4xbf16>
-// CHECK: %[[PADDED:.*]] = tosa.concat %[[LEFT_PAD]], %[[BUILTIN]] {axis = 1 : i32} : (tensor<2x4xbf16>, tensor<2x3xbf16>) -> tensor<2x7xbf16>
+// CHECK: %[[PADDED:.*]] = tosa.concat %[[LEFT_PAD]], %[[BUILTIN]] axis(1) : (tensor<2x4xbf16>, tensor<2x3xbf16>) -> tensor<2x7xbf16>
 // CHECK: %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[PADDED]] : tensor<2x7xbf16> -> !torch.vtensor<[2,7],bf16>
 // CHECK: return %[[RESULT]] : !torch.vtensor<[2,7],bf16>
 func.func @torch.aten.replication_pad1d$left_only_bf16(%input: !torch.vtensor<[2,3],bf16>) -> !torch.vtensor<[2,7],bf16> {
