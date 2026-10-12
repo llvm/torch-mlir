@@ -1079,6 +1079,106 @@ public:
 };
 } // namespace
 
+// Lowers `aten.upsample_nearest1d` to `linalg.generic`.
+//
+// Input Tensor Shape: [N, C, L_in]
+// Output Tensor Shape: [N, C, L_out]
+//
+// Scaling Factor & Indexing Formula:
+//   scale = L_out / L_in
+//   For each output element at multi-dim index (n, c, l_out):
+//     src_l = floor(l_out / scale)
+//     out_tensor[n, c, l_out] = input[n, c, src_l]
+namespace {
+class ConvertAtenUpsampleNearest1dOp
+    : public OpConversionPattern<AtenUpsampleNearest1dOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenUpsampleNearest1dOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    Value input = adaptor.getSelf();
+
+    Type resultType = getTypeConverter()->convertType(op.getResult().getType());
+    auto inputType = cast<RankedTensorType>(input.getType());
+    auto inputRank = inputType.getRank();
+    Type elementType = inputType.getElementType();
+
+    // Get input length dimension (last dimension L_in)
+    SmallVector<Value> dims = getTensorSizes(rewriter, loc, input);
+    Value originalLength = dims[inputRank - 1];
+
+    // Parse target output length L_out from output_size list
+    SmallVector<Value, 1> outputSizeTorchInt;
+    if (!getListConstructElements(op.getOutputSize(), outputSizeTorchInt))
+      return rewriter.notifyMatchFailure(op,
+                                         "unimplemented: the output_size is "
+                                         "not constructed from ListConstruct");
+
+    SmallVector<Value, 1> outputSizeIntValues = getTypeConvertedValues(
+        rewriter, loc, getTypeConverter(), outputSizeTorchInt);
+
+    Value outputLength = outputSizeIntValues[0];
+
+    // Calculate scaling factor: scale = L_out / L_in
+    Value origLenInt = castIndexToInt64(rewriter, loc, originalLength);
+    Value origLenFloat =
+        convertScalarToDtype(rewriter, loc, origLenInt, rewriter.getF64Type());
+    Value outLenFloat = convertScalarToDtype(rewriter, loc, outputLength,
+                                             rewriter.getF64Type());
+    Value scale =
+        arith::DivFOp::create(rewriter, loc, outLenFloat, origLenFloat);
+
+    // Prepare output tensor shape [N, C, L_out]
+    SmallVector<Value> resultShape = dims;
+    resultShape[inputRank - 1] = outputLength;
+
+    Value initTensor = createZeroInitTensor(
+        rewriter, loc, castIntVectorToIndexVector(rewriter, loc, resultShape),
+        elementType);
+
+    SmallVector<AffineMap> indexingMaps;
+    SmallVector<utils::IteratorType> iteratorTypes(
+        inputRank, utils::IteratorType::parallel);
+    indexingMaps.push_back(rewriter.getMultiDimIdentityMap(inputRank));
+
+    // Generate linalg.generic loop nest over output shape [N, C, L_out]
+    Value finalRes =
+        linalg::GenericOp::create(
+            rewriter, loc, initTensor.getType(), ValueRange{},
+            ValueRange{initTensor}, indexingMaps, iteratorTypes,
+            [&](OpBuilder &b, Location loc, ValueRange args) {
+              SmallVector<Value> indices;
+              // Retain leading batch/channel indices (0 to rank-2)
+              for (unsigned i = 0; i < inputRank - 1; i++) {
+                indices.push_back(linalg::IndexOp::create(b, loc, i));
+              }
+              // Compute source 1D index: src_l = floor(l_out / scale)
+              Value lIdx = linalg::IndexOp::create(b, loc, inputRank - 1);
+              Value lIdxInt = castIndexToInt64(b, loc, lIdx);
+              Value lIdxFloat =
+                  convertScalarToDtype(b, loc, lIdxInt, b.getF64Type());
+              Value srcLIdxFloat =
+                  arith::DivFOp::create(b, loc, lIdxFloat, scale);
+              Value srcLIdxFloor = math::FloorOp::create(b, loc, srcLIdxFloat);
+              Value srcLIdxInt =
+                  convertScalarToDtype(b, loc, srcLIdxFloor, b.getI64Type());
+              Value srcLIdx = castIntToIndex(b, loc, srcLIdxInt);
+
+              indices.push_back(srcLIdx);
+              Value inputVal =
+                  tensor::ExtractOp::create(b, loc, input, indices);
+              linalg::YieldOp::create(b, loc, inputVal);
+            })
+            ->getResult(0);
+
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, resultType, finalRes);
+    return success();
+  }
+};
+} // namespace
+
 void mlir::torch::torch_to_linalg::
     populateIndirectDataMovementPatternsAndLegality(
         TypeConverter &typeConverter, RewritePatternSet &patterns,
@@ -1094,6 +1194,8 @@ void mlir::torch::torch_to_linalg::
   patterns.add<ConvertAtenIndexTensorHackedTwinOp>(typeConverter, context);
   target.addIllegalOp<AtenEmbeddingBagPaddingIdxOp>();
   patterns.add<ConvertAtenEmbeddingBagPaddingIdxOp>(typeConverter, context);
+  target.addIllegalOp<AtenUpsampleNearest1dOp>();
+  patterns.add<ConvertAtenUpsampleNearest1dOp>(typeConverter, context);
   target.addIllegalOp<AtenUpsampleNearest2dOp>();
   patterns.add<ConvertAtenUpsampleNearest2dOp>(typeConverter, context);
   target.addIllegalOp<AtenUpsampleNearest2dBackwardOp>();

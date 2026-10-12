@@ -111,3 +111,20 @@ func.func @torch.aten.index_select$empty_indices_dim1(%arg0: !torch.vtensor<[4,8
   %0 = torch.aten.index_select %arg0, %int1, %arg1 : !torch.vtensor<[4,8],f32>, !torch.int, !torch.vtensor<[0],si64> -> !torch.vtensor<[4,0],f32>
   return %0 : !torch.vtensor<[4,0],f32>
 }
+
+// -----
+
+// CHECK-LABEL:  func.func @torch.aten.upsample_nearest1d$basic(
+// CHECK-SAME:         %[[ARG0:.*]]: !torch.vtensor<[1,1,2],f32>) -> !torch.vtensor<[1,1,4],f32> {
+// CHECK:         %[[INPUT:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[1,1,2],f32> -> tensor<1x1x2xf32>
+// CHECK:         %[[INDICES:.*]] = stablehlo.constant dense<{{\[\[0\]}}, {{\[0\]}}, {{\[1\]}}, {{\[1\]\]}}> : tensor<4x1xi64>
+// CHECK:         %[[GATHER:.*]] = "stablehlo.gather"(%[[INPUT]], %[[INDICES]]) <{dimension_numbers = #stablehlo.gather<offset_dims = [0, 1], collapsed_slice_dims = [2], start_index_map = [2], index_vector_dim = 1>, slice_sizes = array<i64: 1, 1, 1>}> : (tensor<1x1x2xf32>, tensor<4x1xi64>) -> tensor<1x1x4xf32>
+// CHECK:         %[[RES:.*]] = torch_c.from_builtin_tensor %[[GATHER]] : tensor<1x1x4xf32> -> !torch.vtensor<[1,1,4],f32>
+// CHECK:         return %[[RES]] : !torch.vtensor<[1,1,4],f32>
+func.func @torch.aten.upsample_nearest1d$basic(%arg0: !torch.vtensor<[1,1,2],f32>) -> !torch.vtensor<[1,1,4],f32> {
+  %none = torch.constant.none
+  %int4 = torch.constant.int 4
+  %0 = torch.prim.ListConstruct %int4 : (!torch.int) -> !torch.list<int>
+  %1 = torch.aten.upsample_nearest1d %arg0, %0, %none : !torch.vtensor<[1,1,2],f32>, !torch.list<int>, !torch.none -> !torch.vtensor<[1,1,4],f32>
+  return %1 : !torch.vtensor<[1,1,4],f32>
+}

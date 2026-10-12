@@ -1507,6 +1507,95 @@ LogicalResult ConvertAtenOp<AtenGridSamplerOp>::matchAndRewrite(
   return success();
 }
 
+// Legalization for `aten.upsample_nearest1d` & `aten.upsample_nearest1d.vec` to
+// StableHLO.
+//
+// Input Tensor Shape: [N, C, L_in]
+// Output Tensor Shape: [N, C, L_out]
+//
+// Algorithm & Mathematical Formula:
+//   scale = L_out / L_in
+//   indices[l_out, 0] = floor(l_out / scale)
+//
+// StableHLO Gather Parameters:
+//   - operand: input tensor [N, C, L_in]
+//   - start_indices: constant tensor [L_out, 1] containing nearest source
+//   indices
+//   - slice_sizes: [N, C, 1]
+//   - offset_dims: [0, 1] (preserve N and C dimensions in output)
+//   - collapsed_slice_dims: [2] (collapse length slice of size 1)
+//   - start_index_map: [2] (gather index maps to input length dim 2)
+//   - index_vector_dim: 1
+template <typename AtenOpT>
+class ConvertUpsampleNearest1dOp : public ConvertAtenOp<AtenOpT> {
+public:
+  using ConvertAtenOp<AtenOpT>::ConvertAtenOp;
+  using OpAdaptor = typename AtenOpT::Adaptor;
+  LogicalResult
+  matchAndRewrite(AtenOpT op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op->getLoc();
+    Value input;
+    if constexpr (std::is_same_v<AtenOpT, AtenUpsampleNearest1dOp>) {
+      input = adaptor.getSelf();
+    } else {
+      input = adaptor.getInput();
+    }
+    auto inputType = cast<RankedTensorType>(input.getType());
+    if (!inputType || inputType.getRank() != 3) {
+      return rewriter.notifyMatchFailure(
+          op, "Only rank 3 input supported for upsample_nearest1d");
+    }
+
+    RankedTensorType resultType = cast<RankedTensorType>(
+        this->getTypeConverter()->convertType(op.getResult().getType()));
+    if (!resultType || !resultType.hasStaticShape()) {
+      return rewriter.notifyMatchFailure(op, "Requires static result shape");
+    }
+
+    int64_t selfLength = inputType.getShape()[2];
+    int64_t outputLength = resultType.getShape()[2];
+    if (selfLength <= 0 || outputLength <= 0) {
+      return rewriter.notifyMatchFailure(op, "Invalid length dimensions");
+    }
+
+    // Calculate scale factor: scale = L_out / L_in
+    double scale =
+        static_cast<double>(outputLength) / static_cast<double>(selfLength);
+    SmallVector<int64_t> targetIndicesVec;
+    for (int64_t i = 0; i < outputLength; i++) {
+      targetIndicesVec.push_back(static_cast<int64_t>(std::floor(i / scale)));
+    }
+
+    // Construct constant start_indices tensor of shape [L_out, 1]
+    auto indicesType =
+        RankedTensorType::get({outputLength, 1}, rewriter.getI64Type());
+    Value indices = stablehlo::ConstantOp::create(
+        rewriter, loc,
+        DenseIntElementsAttr::get(indicesType, targetIndicesVec));
+
+    int64_t batchSize = inputType.getShape()[0];
+    int64_t channels = inputType.getShape()[1];
+
+    // Configure gather dimension mapping attributes
+    auto dimNumbers = stablehlo::GatherDimensionNumbersAttr::get(
+        rewriter.getContext(),
+        /*offsetDims=*/{0, 1},
+        /*collapsedSliceDims=*/{2},
+        /*operandBatchingDims=*/{},
+        /*startIndicesBatchingDims=*/{},
+        /*startIndexMap=*/{2},
+        /*indexVectorDim=*/1);
+
+    SmallVector<int64_t> sliceSizes = {batchSize, channels, 1};
+
+    rewriter.replaceOpWithNewOp<stablehlo::GatherOp>(
+        op, resultType, input, indices, dimNumbers,
+        rewriter.getDenseI64ArrayAttr(sliceSizes));
+    return success();
+  }
+};
+
 void mlir::torch::torch_to_stablehlo::
     populateGatherScatterOpPatternsAndLegality(
         TypeConverter &typeConverter, RewritePatternSet &patterns,
@@ -1525,6 +1614,14 @@ void mlir::torch::torch_to_stablehlo::
   INSERT_ATENOP_PATTERN(AtenIndexPutHackedTwinOp);
   INSERT_ATENOP_PATTERN(AtenGridSamplerOp);
 #undef INSERT_ATENOP_PATTERN
+
+#define INSERT_UPSAMPLE_NEAREST_1D_OP_PATTERN(AtenOp)                          \
+  target.addIllegalOp<AtenOp>();                                               \
+  patterns.add<ConvertUpsampleNearest1dOp<AtenOp>>(typeConverter, context,     \
+                                                   options);
+  INSERT_UPSAMPLE_NEAREST_1D_OP_PATTERN(AtenUpsampleNearest1dOp);
+  INSERT_UPSAMPLE_NEAREST_1D_OP_PATTERN(AtenUpsampleNearest1dVecOp);
+#undef INSERT_UPSAMPLE_NEAREST_1D_OP_PATTERN
 
 #define INSERT_ATEN_SCATTER_PATTERN(AtenOp, reduceType)                        \
   target.addIllegalOp<AtenOp>();                                               \
