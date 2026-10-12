@@ -2379,6 +2379,7 @@ TOSA_PASS_SET = {
     "FullModuleFloat2D_basic",
     "FullModuleFloat3D_basic",
     "FullModuleInt3D_basic",
+    "GatherScalarModule_basic",
     "GatherStaticModule_basic",
     "GeluBackwardModule_basic",
     "GeluTanhBackwardModule_basic",
