@@ -9281,14 +9281,14 @@ public:
     for (unsigned axis = 0; axis < 3; ++axis) {
       int64_t length = spatialShape[axis];
       int64_t span = length + 2 * padding[axis] - kernel[axis];
-      int64_t out =
-          (ceilMode ? llvm::divideCeilSigned(span, stride[axis])
-                    : llvm::divideFloorSigned(span, stride[axis])) + 1;
+      int64_t out = (ceilMode ? llvm::divideCeilSigned(span, stride[axis])
+                              : llvm::divideFloorSigned(span, stride[axis])) +
+                    1;
       if (ceilMode && (out - 1) * stride[axis] >= length + padding[axis])
         --out;
       if (out <= 0)
-        return rewriter.notifyMatchFailure(
-            op, "AvgPool3d output must be positive");
+        return rewriter.notifyMatchFailure(op,
+                                           "AvgPool3d output must be positive");
       outputShape.push_back(out);
       if (!hasOverride && !countIncludePad)
         continue;
@@ -9316,7 +9316,8 @@ public:
     for (auto [actual, expected] :
          llvm::zip(resultShape, expectedResultTy.getShape()))
       if (!ShapedType::isDynamic(expected) && actual != expected)
-        return rewriter.notifyMatchFailure(op, "AvgPool3d result shape mismatch");
+        return rewriter.notifyMatchFailure(op,
+                                           "AvgPool3d result shape mismatch");
 
     SmallVector<int64_t> inputShape(inputTy.getShape());
     const bool hasBatch = inputTy.getRank() == 5;
@@ -9324,10 +9325,11 @@ public:
     // once when converting the final result back to the original dtype.
     Type elementTy = rewriter.getF32Type();
     if (originalElementTy != elementTy) {
-      auto promoted = tosa::tosaCastTensorToType(
-          rewriter, input, inputTy.clone(elementTy));
+      auto promoted =
+          tosa::tosaCastTensorToType(rewriter, input, inputTy.clone(elementTy));
       if (!promoted)
-        return rewriter.notifyMatchFailure(op, "failed to promote AvgPool3d input");
+        return rewriter.notifyMatchFailure(op,
+                                           "failed to promote AvgPool3d input");
       input = *promoted;
     }
 
@@ -9354,9 +9356,9 @@ public:
 
     // 3. Pool D as Dx1 by folding N and the already-pooled OH and OW
     // dimensions together.
-    Value depthInput = reshapeTensor(
-        hwPooled.value, {n, d, hwPooled.height, hwPooled.width, c}, elementTy,
-        rewriter, loc);
+    Value depthInput = reshapeTensor(hwPooled.value,
+                                     {n, d, hwPooled.height, hwPooled.width, c},
+                                     elementTy, rewriter, loc);
     depthInput = transposeTensor(
         depthInput, {n, d, hwPooled.height, hwPooled.width, c}, elementTy,
         {0, 2, 3, 1, 4}, this->getTypeConverter(), rewriter, loc);
@@ -9390,7 +9392,8 @@ public:
           rewriter, loc, scaleTy,
           DenseElementsAttr::get(scaleTy, ArrayRef<float>(scales[axis])));
       result = tosa::createMulOpAndCast(
-          rewriter, op, cast<RankedTensorType>(result.getType()), result, scale, 0);
+          rewriter, op, cast<RankedTensorType>(result.getType()), result, scale,
+          0);
     }
     if (!hasBatch)
       result = reshapeTensor(
@@ -9401,7 +9404,8 @@ public:
           rewriter, result,
           cast<RankedTensorType>(result.getType()).clone(originalElementTy));
       if (!casted)
-        return rewriter.notifyMatchFailure(op, "failed to cast AvgPool3d result");
+        return rewriter.notifyMatchFailure(op,
+                                           "failed to cast AvgPool3d result");
       result = *casted;
     }
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, expectedResultTy, result);
@@ -9418,10 +9422,10 @@ private:
   // Emit one 2D pooling stage. The input is NHWC, and kernel, stride, and
   // padding are ordered as H, W.
   static Pool2dResult createAvgPool2d(Value input, ArrayRef<int64_t> kernel,
-                                    ArrayRef<int64_t> stride,
-                                    ArrayRef<int64_t> padding, bool ceilMode,
-                                    ConversionPatternRewriter &rewriter,
-                                    Location loc) {
+                                      ArrayRef<int64_t> stride,
+                                      ArrayRef<int64_t> padding, bool ceilMode,
+                                      ConversionPatternRewriter &rewriter,
+                                      Location loc) {
     auto inputTy = cast<RankedTensorType>(input.getType());
     ArrayRef<int64_t> inputShape = inputTy.getShape();
     Type elementTy = inputTy.getElementType();
@@ -9439,8 +9443,8 @@ private:
                               elementTy);
     // Input and output are FP32, so the accumulator is FP32 as well.
     Value result = tosa::AvgPool2dOp::create(
-        rewriter, loc, outputTy, prepared.input, kernelAttr, strideAttr, padAttr,
-        TypeAttr::get(elementTy));
+        rewriter, loc, outputTy, prepared.input, kernelAttr, strideAttr,
+        padAttr, TypeAttr::get(elementTy));
     return {result, prepared.outputShape[0], prepared.outputShape[1]};
   }
 };
