@@ -32,18 +32,8 @@ namespace mlir::torch::TMTensor {
 #define GEN_PASS_DEF_TMTENSORBUFFERIZE
 #include "torch-mlir-dialects/Dialect/TMTensor/Transforms/Passes.h.inc"
 
-static Value cloneMemref(Location loc, Value memref, OpBuilder &b) {
-  auto memrefType = cast<MemRefType>(memref.getType());
-  auto alloc =
-      memref::AllocOp::create(b, loc, memref::getMixedSizes(b, loc, memref),
-                              memrefType.getElementType());
-  memref::CopyOp::create(b, loc, memref, alloc);
-  return alloc;
-}
-
 static LogicalResult
 allocateBuffersForResults(Location loc, TMTensorOp tmtensorOp,
-                          ValueRange outputs,
                           SmallVectorImpl<Value> &resultBuffers, OpBuilder &b) {
   // Lazily compute loopRanges.
   SmallVector<Range, 4> loopRanges;
@@ -62,12 +52,23 @@ allocateBuffersForResults(Location loc, TMTensorOp tmtensorOp,
     }
     auto tensorShape = tensorType.getShape();
     auto memrefType = MemRefType::get(tensorShape, tensorType.getElementType());
-    Value resultTensor = outputs[resultIndex];
 
     // Clone output buffers whose value is actually used.
     OpOperand *tiedOpOperand = tmtensorOp.getOutputOperand(resultIndex);
     if (tmtensorOp.payloadUsesValueFromOperand(tiedOpOperand)) {
-      resultBuffers.push_back(cloneMemref(loc, resultTensor, b));
+      // The op updates this operand in place, so the buffer it writes has to
+      // start out holding the operand's incoming value. Copy from the *tensor*
+      // operand, not from the buffer the conversion driver handed us: a copy
+      // with a tensor source is itself the read of that tensor, so the read
+      // lands here, at the op, instead of at the operand's definition -- the
+      // same reason the `ins` crossings below are built here.
+      Value alloc = memref::AllocOp::create(
+          b, loc, tensor::getMixedSizes(b, loc, tiedOpOperand->get()),
+          memrefType.getElementType());
+      bufferization::MaterializeInDestinationOp::create(
+          b, loc, /*result=*/TypeRange{}, tiedOpOperand->get(), alloc,
+          /*restrict=*/true, /*writable=*/true);
+      resultBuffers.push_back(alloc);
       continue;
     }
 
@@ -77,8 +78,13 @@ allocateBuffersForResults(Location loc, TMTensorOp tmtensorOp,
       continue;
     }
 
+    // The payload does not read this output, so the buffer needs the operand's
+    // shape but not its contents. Take the dynamic sizes from the *tensor*
+    // operand; the destination-passing-style contract guarantees they match the
+    // result's -- "Init operands and their tied OpResults have the same type.
+    // Dynamic dimension sizes also match at runtime."
     resultBuffers.push_back(memref::AllocOp::create(
-        b, loc, memref::getMixedSizes(b, loc, resultTensor),
+        b, loc, tensor::getMixedSizes(b, loc, tiedOpOperand->get()),
         memrefType.getElementType()));
   }
   return success();
@@ -108,16 +114,37 @@ public:
     Location loc = op.getLoc();
     SmallVector<Value, 2> newOutputBuffers;
 
-    SmallVector<Value> outputs(operands.begin() + op.getNumInputs(),
-                               operands.end());
-    if (failed(allocateBuffersForResults(loc, op, outputs, newOutputBuffers,
-                                         rewriter))) {
+    if (failed(
+            allocateBuffersForResults(loc, op, newOutputBuffers, rewriter))) {
       return op.emitOpError()
              << "Failed to allocate buffers for tensor results.";
     }
 
-    SmallVector<Value> inputs(operands.begin(),
-                              operands.begin() + op.getNumInputs());
+    // Take each tensor `ins` operand's buffer here, at the op that reads it,
+    // instead of using the operand the conversion driver converted for us. The
+    // driver pins a target materialization to the operand's *definition*, which
+    // leaves the read invisible to a later full bufferization: this pass is
+    // partial, so the TMTensor op it feeds reads raw memory, and One-Shot
+    // Bufferize analyses tensor operands only. Any write between the definition
+    // and this op may then be bufferized in place over the very buffer we were
+    // handed, silently changing the value the op observes. Stating the crossing
+    // here instead puts the read at the program point where it happens, so
+    // One-Shot sees the read-after-write and preserves the value. `read_only`
+    // is truthful -- a TMTensor op never writes an `ins` operand -- and keeps
+    // the crossing from counting as a write as well.
+    SmallVector<Value> inputs;
+    for (OpOperand &opOperand :
+         op->getOpOperands().take_front(op.getNumInputs())) {
+      auto tensorType = dyn_cast<RankedTensorType>(opOperand.get().getType());
+      if (!tensorType) {
+        inputs.push_back(operands[opOperand.getOperandNumber()]);
+        continue;
+      }
+      inputs.push_back(bufferization::ToBufferOp::create(
+          rewriter, loc,
+          MemRefType::get(tensorType.getShape(), tensorType.getElementType()),
+          opOperand.get(), /*read_only=*/true));
+    }
     createTMTensorOpOnBuffers(rewriter, op, inputs, newOutputBuffers);
     // Replace the results of the old op with the new output buffers.
     rewriter.replaceOp(op, newOutputBuffers);
@@ -131,7 +158,8 @@ static Value materializeToTensor(OpBuilder &builder, TensorType type,
                                  ValueRange inputs, Location loc) {
   assert(inputs.size() == 1);
   assert(isa<BaseMemRefType>(inputs[0].getType()));
-  return bufferization::ToTensorOp::create(builder, loc, type, inputs[0]);
+  return bufferization::ToTensorOp::create(builder, loc, type, inputs[0],
+                                           /*restrict=*/true);
 }
 
 /// Converts TMTensor operations that work on tensor-type operands or results to
@@ -188,8 +216,9 @@ struct TMTensorBufferizePass
     });
 
     // Mark all Standard operations legal.
-    target.addLegalDialect<arith::ArithDialect, func::FuncDialect,
-                           memref::MemRefDialect, tensor::TensorDialect>();
+    target.addLegalDialect<
+        arith::ArithDialect, bufferization::BufferizationDialect,
+        func::FuncDialect, memref::MemRefDialect, tensor::TensorDialect>();
 
     // Mark all TMTensor operations illegal as long as they work on tensors.
     auto isLegalOperation = [&](Operation *op) {
