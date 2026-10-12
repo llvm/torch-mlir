@@ -2055,6 +2055,7 @@ TOSA_PASS_SET = {
     "ReduceAnyIntModule_basic",
     "ReduceMaxAllDims_basic",
     "ReduceMaxFloatModule_basic",
+    "ReduceMaxScalarModule_basic",
     "ReduceMaxSignedIntModule_basic",
     "ReduceMaxUnsignedIntModule_basic",
     "ReduceMinFloatModule_basic",
