@@ -2783,9 +2783,10 @@ def AvgPool2dCeilPadNonUnitaryStrides_basic(module, tu: TestUtils):
 
 
 class AvgPool2dCeilScalarKernelStride(torch.nn.Module):
-    # The kernel and stride are given as scalars rather than per-dimension
-    # lists. The extent 6 is not a multiple of the stride, so the trailing
-    # ceil_mode window reads one element past the input on both spatial dims.
+    # The kernel and stride are given as scalars, which PyTorch expands to
+    # per-dimension lists before the op reaches the torch dialect. With extent
+    # 6, kernel 3 and stride 2, (6 - 3) % 2 is 1, so the trailing ceil_mode
+    # window reads one element past the input on both spatial dims.
 
     def __init__(self):
         super().__init__()

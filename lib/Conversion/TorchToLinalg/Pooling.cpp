@@ -121,7 +121,8 @@ static Value padInputTensor(Operation *op, ConversionPatternRewriter &rewriter,
   SmallVector<int64_t> lowPaddingIncludingNC = {0, 0};
   SmallVector<int64_t> highPaddingIncludingNC = {0, 0};
 
-  unsigned selfRank = cast<RankedTensorType>(self.getType()).getRank();
+  auto selfType = cast<RankedTensorType>(self.getType());
+  unsigned selfRank = selfType.getRank();
   unsigned paddingIntsSize = paddingInts.size();
 
   if (paddingIntsSize == 2 * (selfRank - 2)) {
@@ -137,19 +138,19 @@ static Value padInputTensor(Operation *op, ConversionPatternRewriter &rewriter,
   }
 
   if (ceilMode) {
-    ArrayRef<int64_t> inputShape =
-        cast<RankedTensorType>(self.getType()).getShape();
+    ArrayRef<int64_t> inputShape = selfType.getShape();
     for (int64_t i = 0; i < dimensionality; ++i) {
-      int64_t inputDim = inputShape[i + 2];
-      std::optional<int64_t> kernelSize =
-          getConstantIntValue(kernelSizeIntValues[i]);
       int64_t stride = strideInts[i];
       // A unit stride has zero deficit at any extent or kernel size, so this
       // also covers dynamic dimensions.
       if (stride == 1)
         continue;
+      int64_t inputDim = inputShape[i + 2];
+      std::optional<int64_t> kernelSize =
+          getConstantIntValue(kernelSizeIntValues[i]);
       if (inputDim == ShapedType::kDynamic || !kernelSize) {
-        // Without static extents, pad by the largest deficit a window can have.
+        // Without static extents, pad by a full stride, which covers the
+        // largest possible deficit of stride - 1.
         highPaddingIncludingNC[i + 2] += stride;
         continue;
       }

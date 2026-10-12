@@ -153,7 +153,7 @@ func.func @forward_max_pool3d_ceil_mode_unit_kernel(%arg0: !torch.vtensor<[1,3,6
 // -----
 
 // The trailing window on the 10-wide dim starts at index 9 and reads through 11,
-// so high padding is the deficit of 2, not a whole stride of 3.
+// so high padding is the deficit of 2.
 // CHECK-LABEL: func @forward_max_pool3d_ceil_mode_partial_window
 func.func @forward_max_pool3d_ceil_mode_partial_window(%arg0: !torch.vtensor<[1,3,10,10,10],f32>) -> !torch.vtensor<[1,3,4,4,4],f32> {
   %int3 = torch.constant.int 3
@@ -262,8 +262,9 @@ func.func @forward_max_pool3d_ceil_mode_dynamic_dim_unit_stride(%arg0: !torch.vt
 
 // -----
 
-// Explicit padding counts toward what the last window reads: the deficit is 1
-// on top of the requested 1, so high is 2 rather than the stride of 3.
+// Explicit padding counts toward what the last window reads. The last window
+// starts at index 6 and reads through 9, one element past the padded extent,
+// so high padding is the requested 1 plus a deficit of 1.
 // CHECK-LABEL: func @forward_max_pool2d_ceil_mode_explicit_padding
 func.func @forward_max_pool2d_ceil_mode_explicit_padding(%arg0: !torch.vtensor<[1,3,7,7],f32>) -> !torch.vtensor<[1,3,3,3],f32> {
   %int4 = torch.constant.int 4
@@ -290,9 +291,9 @@ func.func @forward_max_pool2d_ceil_mode_explicit_padding(%arg0: !torch.vtensor<[
 
 // -----
 
-// The window ceil division asks for is dropped when it starts past the input
-// plus low padding alone: kernel 3 stride 4 puts it at index 8, past 7 + 1, so
-// nothing is added beyond the requested padding of 1.
+// Ceil division asks for a window starting at index 8 (kernel 3, stride 4).
+// That start is at or past the input extent plus low padding (7 + 1), so the
+// window is dropped and high padding stays at the requested 1.
 // CHECK-LABEL: func @forward_max_pool2d_ceil_mode_dropped_window_with_padding
 func.func @forward_max_pool2d_ceil_mode_dropped_window_with_padding(%arg0: !torch.vtensor<[1,3,7,7],f32>) -> !torch.vtensor<[1,3,2,2],f32> {
   %int4 = torch.constant.int 4
@@ -315,6 +316,36 @@ func.func @forward_max_pool2d_ceil_mode_dropped_window_with_padding(%arg0: !torc
   // CHECK-SAME: outs(%[[OUT]] : tensor<1x3x2x2xf32>)
   %4 = torch.aten.max_pool2d %arg0, %kernel_size, %stride, %padding, %dilation, %true : !torch.vtensor<[1,3,7,7],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,2,2],f32>
   return %4 : !torch.vtensor<[1,3,2,2],f32>
+}
+
+// -----
+
+// Padding is [begin_h, begin_w, end_h, end_w] = [2, 0, 0, 2] with kernel 3 and
+// stride 4. Height: ceil division puts the last window at index 8, before the
+// input extent plus begin padding (7 + 2), so the window is kept and reads
+// through 10, a deficit of 2 past the padded extent of 9. Width: the last
+// window would start at 8, at or past 7 + 0, so it is dropped and only the
+// requested end padding of 2 is applied.
+// CHECK-LABEL: func @forward_max_pool2d_ceil_mode_asymmetric_padding
+func.func @forward_max_pool2d_ceil_mode_asymmetric_padding(%arg0: !torch.vtensor<[1,3,7,7],f32>) -> !torch.vtensor<[1,3,3,2],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %int4 = torch.constant.int 4
+  %true = torch.constant.bool true
+  %kernel_size = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int4, %int4 : (!torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int2, %int0, %int0, %int2 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[IN:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[1,3,7,7],f32> -> tensor<1x3x7x7xf32>
+  // CHECK: %[[PADDED:.*]] = tensor.pad %[[IN]] low[0, 0, 2, 0] high[0, 0, 2, 2]
+  // CHECK: } : tensor<1x3x7x7xf32> to tensor<1x3x11x9xf32>
+  // CHECK: linalg.pooling_nchw_max {dilations = dense<1> : vector<2xi64>, strides = dense<4> : vector<2xi64>}
+  // CHECK-SAME: ins(%[[PADDED]], %{{.*}} : tensor<1x3x11x9xf32>, tensor<3x3xf32>)
+  // CHECK-SAME: outs(%{{.*}} : tensor<1x3x3x2xf32>)
+  %4 = torch.aten.max_pool2d %arg0, %kernel_size, %stride, %padding, %dilation, %true : !torch.vtensor<[1,3,7,7],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,3,2],f32>
+  return %4 : !torch.vtensor<[1,3,3,2],f32>
 }
 
 // -----
@@ -521,7 +552,7 @@ func.func @forward_avgpool_2d_ceil(%arg0: !torch.vtensor<[1,1,4,4],f32>) -> !tor
 // CHECK-LABEL: func @forward_avgpool_2d_ceil_dilated
 func.func @forward_avgpool_2d_ceil_dilated(%arg0: !torch.vtensor<[1,1,7,7],f32>) -> !torch.vtensor<[1,1,2,2],f32> {
   // Sum pool uses dilation=2, and ceil_mode pads by the dilated-kernel deficit
-  // of 1 rather than by the stride:
+  // of 1:
   // CHECK: %[[IN:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[1,1,7,7],f32> -> tensor<1x1x7x7xf32>
   // CHECK: %[[PADDED:.*]] = tensor.pad %[[IN]] low[0, 0, 0, 0] high[0, 0, 1, 1]
   // CHECK: } : tensor<1x1x7x7xf32> to tensor<1x1x8x8xf32>
@@ -672,9 +703,8 @@ func.func @forward_avgpool_2d_count_include_pad_asymmetric(%arg0: !torch.vtensor
 
 // -----
 
-// An unbatched input has no N dim, so the spatial dims do not start at index 2.
-// PyTorch accepts this, but the lowering does not: it must bail rather than
-// index past the end of the shape.
+// An unbatched input has no N dim, so its spatial dims do not start at index 2.
+// The lowering does not support this layout and fails to legalize the op.
 func.func @forward_avgpool_2d_unbatched(%arg0: !torch.vtensor<[3,10,10],f32>) -> !torch.vtensor<[3,4,4],f32> {
   %int3 = torch.constant.int 3
   %int0 = torch.constant.int 0
