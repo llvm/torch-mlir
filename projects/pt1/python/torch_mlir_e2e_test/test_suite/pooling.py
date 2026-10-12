@@ -1056,6 +1056,35 @@ def MaxPool2dWithIndicesCeilModeTrueModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 8, 8, low=0.5, high=1.0))
 
 
+class MaxPool2dWithIndicesUnpaddedModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 2, 3, 5], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.max_pool2d_with_indices(
+            x,
+            kernel_size=[3, 3],
+            stride=[2, 2],
+            padding=[0, 0],
+            dilation=[1, 1],
+            ceil_mode=True,
+        )
+
+
+@register_test_case(module_factory=lambda: MaxPool2dWithIndicesUnpaddedModule())
+def MaxPool2dWithIndicesUnpaddedModule_basic(module, tu: TestUtils):
+    # Opposing channels select different maxima and original spatial indices.
+    plane = torch.arange(15, dtype=torch.float32)
+    module.forward(torch.stack((plane, 100 - plane)).reshape(1, 2, 3, 5))
+
+
 # ==============================================================================
 
 
