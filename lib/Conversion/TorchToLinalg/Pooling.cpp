@@ -1614,8 +1614,6 @@ template <> struct AdaptivePoolingOpTraits<Aten_AdaptiveAvgPool3dOp> {
 
 template <typename OpTy>
 class ConvertAtenAdaptivePoolOp : public OpConversionPattern<OpTy> {
-  using OpConversionPattern<OpTy>::OpConversionPattern;
-
 public:
   ConvertAtenAdaptivePoolOp(TypeConverter &typeConverter, MLIRContext *context,
                             bool allowNonFinites)
@@ -1863,19 +1861,19 @@ void mlir::torch::torch_to_linalg::populatePoolingPatternsAndLegality(
   target.addIllegalOp<AtenAdaptiveAvgPool1dOp, AtenAdaptiveAvgPool2dOp,
                       AtenAdaptiveAvgPool3dOp, Aten_AdaptiveAvgPool3dOp>();
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveAvgPool1dOp>>(
-      typeConverter, context);
+      typeConverter, context, allowNonFinites);
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveAvgPool2dOp>>(
-      typeConverter, context);
+      typeConverter, context, allowNonFinites);
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveAvgPool3dOp>>(
-      typeConverter, context);
+      typeConverter, context, allowNonFinites);
   patterns.add<ConvertAtenAdaptivePoolOp<Aten_AdaptiveAvgPool3dOp>>(
-      typeConverter, context);
+      typeConverter, context, allowNonFinites);
   target.addIllegalOp<AtenAdaptiveMaxPool1dOp, AtenAdaptiveMaxPool2dOp,
                       AtenAdaptiveMaxPool3dOp>();
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveMaxPool1dOp>>(
-      typeConverter, context);
+      typeConverter, context, allowNonFinites);
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveMaxPool2dOp>>(
-      typeConverter, context);
+      typeConverter, context, allowNonFinites);
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveMaxPool3dOp>>(
-      typeConverter, context);
+      typeConverter, context, allowNonFinites);
 }
