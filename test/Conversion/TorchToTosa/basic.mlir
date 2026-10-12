@@ -7479,7 +7479,7 @@ func.func @torch.aten.linalg_vector_norm$zero_int(%arg0: !torch.vtensor<[5],f32>
 // Smaller integer outputs retain i32 alpha multiplication.
 
 // CHECK-LABEL: func.func @add_i16(
-// CHECK: "tosa.const"() <{values = dense<2> : tensor<i32>}>
+// CHECK: tosa.const values(dense<2> : tensor<i32>)
 // CHECK: tosa.mul {{.*}} : (tensor<2xi32>, tensor<1xi32>, tensor<1xi8>) -> tensor<2xi32>
 // CHECK: tosa.add {{.*}} : (tensor<2xi16>, tensor<2xi16>) -> tensor<2xi16>
 func.func @add_i16(%a: !torch.vtensor<[2],si16>, %b: !torch.vtensor<[2],si16>) -> !torch.vtensor<[2],si16> {
@@ -7491,7 +7491,7 @@ func.func @add_i16(%a: !torch.vtensor<[2],si16>, %b: !torch.vtensor<[2],si16>) -
 // -----
 
 // CHECK-LABEL: func.func @add_i32(
-// CHECK: "tosa.const"() <{values = dense<2> : tensor<i32>}>
+// CHECK: tosa.const values(dense<2> : tensor<i32>)
 // CHECK: tosa.mul {{.*}} : (tensor<2xi32>, tensor<1xi32>, tensor<1xi8>) -> tensor<2xi32>
 // CHECK: tosa.add {{.*}} : (tensor<2xi32>, tensor<2xi32>) -> tensor<2xi32>
 func.func @add_i32(%a: !torch.vtensor<[2],si32>, %b: !torch.vtensor<[2],si32>) -> !torch.vtensor<[2],si32> {
