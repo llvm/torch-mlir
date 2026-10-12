@@ -151,14 +151,14 @@ LogicalResult prepareArgumentsForSlicingOp(OpTy op, OpAdaptor adaptor,
 //                 left padding starting from
 //                    second column onwards as first column is reflection
 //                    boundary
-//                 c) Reflect the affine map to have resultant slice reflected
+//                 c) Reverse the slice with linalg.index
 //                 d) Take the slice and write from begining in result tensor
 //                 e) write the original tensor next into result tensor
 //                 f) Setup affine map to take slice from input tensor of right
 //                 padding size ending
 //                    at second last column as last column is reflection
 //                    boundary for right padding
-//                 g) Reflect the affine map to have resultant slice reflected
+//                 g) Reverse the slice with linalg.index
 //                 h) Take the slice and write from left padding size + orignal
 //                 tensor last dim size
 //                    into result tensor
@@ -237,17 +237,6 @@ public:
     Value resultTensor = createZeroInitTensor(rewriter, loc, resultShape,
                                               inputType.getElementType());
 
-    // Helper to reflect/reverse the i-th dimension of an affine map without
-    // symbols. This only works if applied on a tensor for which the
-    // corresponding dimension has a statically known size
-    auto reflectDim = [](AffineMap map, unsigned numDims, int64_t i,
-                         int64_t size) {
-      AffineExpr d = map.getResult(i);
-      return map.replace(d, size - d - 1, numDims,
-                         0); // left reflect for (3,1) on input shape (1,2,4).
-                             // size = 3, lastDim=2, numDims=3
-    };
-
     SmallVector<utils::IteratorType> iteratorTypes{
         numDims, utils::IteratorType::parallel};
     auto idMap = AffineMap::getMultiDimIdentityMap(numDims, context);
@@ -262,17 +251,27 @@ public:
       Value tile = tensor::ExtractSliceOp::create(
           rewriter, loc, input, extractOffsets, extractShape, allOneStrides);
 
-      auto inputMap = AffineMap::getMultiDimIdentityMap(numDims, context);
-      // Setup the affine map function to resverse the tile along the horizontal
-      // for left and right slices
+      // Reverse the tile along the last dimension for the left and right
+      // slices. Use linalg.index to compute the reflected index rather than a
+      // reflected indexing map (d -> size - 1 - d): a negative coefficient in
+      // an indexing map makes linalg tiling assert.
       if (padPosition < PAD_CENTER) {
-        inputMap = reflectDim(inputMap, numDims, lastDim, padInts[padPosition]);
-        // Take reflected slice as per inputMap
+        int64_t padSize = padInts[padPosition];
         tile = linalg::GenericOp::create(
                    rewriter, loc, llvm::cast<RankedTensorType>(tile.getType()),
-                   tile, tile, ArrayRef({inputMap, idMap}), iteratorTypes,
-                   [](OpBuilder &b, Location nestedLoc, ValueRange args) {
-                     linalg::YieldOp::create(b, nestedLoc, args[0]);
+                   tile, tile, ArrayRef({idMap, idMap}), iteratorTypes,
+                   [&](OpBuilder &b, Location nestedLoc, ValueRange args) {
+                     SmallVector<Value> extractIndices(numDims);
+                     for (unsigned i = 0; i < numDims; i++)
+                       extractIndices[i] =
+                           linalg::IndexOp::create(b, nestedLoc, i);
+                     Value reflectDimSize = getConstant(
+                         b, nestedLoc, padSize - 1, b.getIndexType());
+                     extractIndices[lastDim] = arith::SubIOp::create(
+                         b, nestedLoc, reflectDimSize, extractIndices[lastDim]);
+                     Value extractValue = tensor::ExtractOp::create(
+                         b, nestedLoc, tile, extractIndices);
+                     linalg::YieldOp::create(b, nestedLoc, extractValue);
                    })
                    .getResult(0);
       }

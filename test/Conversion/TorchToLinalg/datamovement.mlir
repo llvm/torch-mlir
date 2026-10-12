@@ -74,6 +74,43 @@ func.func @torch.aten.reflection_pad2d(%arg0: !torch.vtensor<[1,1,4,4],f32>) -> 
 
 // -----
 
+// The reflected tiles must use identity indexing maps: a reflected map such as
+// (d0, d1, d2) -> (d0, d1, -d2 + 2) makes linalg tiling assert.
+// CHECK: #[[$INPUT_MAP:.+]] = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
+// CHECK-NOT:     -d2
+// CHECK-LABEL:   func.func @torch.aten.reflection_pad1d(
+// CHECK-SAME:                                           %[[VAL_0:.*]]: !torch.vtensor<[1,2,4],f32>) -> !torch.vtensor<[1,2,8],f32> {
+// CHECK-DAG:       %[[CST0:.*]] = arith.constant 0 : index
+// CHECK-DAG:       %[[CST2:.*]] = arith.constant 2 : index
+// CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,2,4],f32> -> tensor<1x2x4xf32>
+// CHECK:           %[[VAL_2:.*]] = linalg.fill
+// CHECK:           %[[LEFT_SRC:.*]] = tensor.extract_slice %[[VAL_1]][0, 0, 1] [1, 2, 3] [1, 1, 1] : tensor<1x2x4xf32> to tensor<1x2x3xf32>
+// CHECK:           %[[LEFT:.*]] = linalg.generic {indexing_maps = [#[[$INPUT_MAP]], #[[$INPUT_MAP]]], iterator_types = ["parallel", "parallel", "parallel"]}
+// CHECK:             %[[IDX1:.*]] = linalg.index 1 : index
+// CHECK:             %[[IDX2:.*]] = linalg.index 2 : index
+// CHECK:             %[[REFL:.*]] = arith.subi %[[CST2]], %[[IDX2]] : index
+// CHECK:             %[[VAL_3:.*]] = tensor.extract %[[LEFT_SRC]]{{\[}}%[[CST0]], %[[IDX1]], %[[REFL]]] : tensor<1x2x3xf32>
+// CHECK:             linalg.yield %[[VAL_3]] : f32
+// CHECK:           } -> tensor<1x2x3xf32>
+// CHECK:           %[[VAL_4:.*]] = tensor.insert_slice %[[LEFT]] into %[[VAL_2]][0, 0, 0] [1, 2, 3] [1, 1, 1] : tensor<1x2x3xf32> into tensor<1x2x8xf32>
+// CHECK:           %[[RIGHT:.*]] = linalg.generic {indexing_maps = [#[[$INPUT_MAP]], #[[$INPUT_MAP]]], iterator_types = ["parallel", "parallel", "parallel"]}
+// CHECK:           } -> tensor<1x2x1xf32>
+// CHECK:           %[[VAL_5:.*]] = tensor.insert_slice %[[RIGHT]] into %[[VAL_4]][0, 0, 7] [1, 2, 1] [1, 1, 1] : tensor<1x2x1xf32> into tensor<1x2x8xf32>
+// CHECK:           %[[VAL_6:.*]] = tensor.insert_slice %[[VAL_1]] into %[[VAL_5]][0, 0, 3] [1, 2, 4] [1, 1, 1] : tensor<1x2x4xf32> into tensor<1x2x8xf32>
+// CHECK:           %[[VAL_7:.*]] = torch_c.from_builtin_tensor %[[VAL_6]] : tensor<1x2x8xf32> -> !torch.vtensor<[1,2,8],f32>
+// CHECK:           return %[[VAL_7]] : !torch.vtensor<[1,2,8],f32>
+// CHECK:         }
+
+func.func @torch.aten.reflection_pad1d(%arg0: !torch.vtensor<[1,2,4],f32>) -> !torch.vtensor<[1,2,8],f32> {
+  %int3 = torch.constant.int 3
+  %int1 = torch.constant.int 1
+  %0 = torch.prim.ListConstruct %int3, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.reflection_pad1d %arg0, %0 : !torch.vtensor<[1,2,4],f32>, !torch.list<int> -> !torch.vtensor<[1,2,8],f32>
+  return %1 : !torch.vtensor<[1,2,8],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.transpose.int$dynamic_dims(
 // CHECK-SAME:                                                      %[[VAL_0:.*]]: !torch.vtensor<[1,56,56,96],f32>) -> !torch.vtensor<[?,?,?,?,?,?],f32> {
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[1,56,56,96],f32> -> tensor<1x56x56x96xf32>
