@@ -12,8 +12,12 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
+#include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
+#include <cstdint>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -263,6 +267,22 @@ void TorchMatchSpecializedBackendOp::populateSpecializedConversions(
         }
         return failure();
       });
+
+  matcher.populate("torch.aten.nll_loss_nd",
+                   [](Torch::OperatorOp op,
+                      ConversionPatternRewriter &rewriter) -> LogicalResult {
+                     ValueTensorType lossType =
+                         cast<ValueTensorType>(op->getResult(0).getType());
+                     Type totalWeightTy = ValueTensorType::get(
+                         rewriter.getContext(), ArrayRef<int64_t>(),
+                         lossType.getOptionalDtype());
+                     SmallVector<Type> resultTypes{lossType, totalWeightTy};
+                     auto newOp = Torch::AtenNllLossForwardOp::create(
+                         rewriter, op->getLoc(), resultTypes, op->getOperands(),
+                         op->getAttrs());
+                     rewriter.replaceOp(op, newOp->getResult(0));
+                     return success();
+                   });
 }
 
 bool isSpecializedOperation(Torch::OperatorOp op) { return true; }

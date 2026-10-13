@@ -1112,10 +1112,14 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             rewriter, binder.getLoc(),
             rewriter.getI64IntegerAttr(reduction_value));
 
-        Value nllLoss = Torch::AtenNllLossForwardOp::create(
-                            rewriter, binder.getLoc(), resultType, resultType,
-                            self, target, weight, reduction, ignore_index)
-                            ->getResult(0);
+        Type totalWeightTy = Torch::ValueTensorType::get(
+            rewriter.getContext(), ArrayRef<int64_t>(),
+            resultType.getOptionalDtype());
+        Value nllLoss =
+            Torch::AtenNllLossForwardOp::create(
+                rewriter, binder.getLoc(), resultType, totalWeightTy, self,
+                target, weight, reduction, ignore_index)
+                ->getResult(0);
 
         rewriter.replaceOp(binder.op, nllLoss);
         return success();
