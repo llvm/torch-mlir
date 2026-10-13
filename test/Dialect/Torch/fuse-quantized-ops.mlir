@@ -190,3 +190,142 @@ func.func @convolution_nobias(%arg0: !torch.vtensor<[1,3,8,8],si8>, %arg1: !torc
   // CHECK: %[[FOUT:.+]] = torch.aten.dequantize.tensor %[[QOUT]] : !torch.vtensor<[1,3,7,7],!torch.qint32> -> !torch.vtensor<[1,3,7,7],f32>
   return %16 : !torch.vtensor<[1,3,7,7],f32>
 }
+
+
+// -----
+
+// CHECK-LABEL: @per_channel_conv
+func.func @per_channel_conv(%arg0: !torch.vtensor<[1,2,4,4],si8>, %arg1: !torch.vtensor<[3,2,2,2],si8>, %arg2: !torch.vtensor<[3],si32>) -> !torch.vtensor<[1,3,3,3],f32> {
+  %scale = torch.constant.float 0.5
+  %zero = torch.constant.int 0
+  %one = torch.constant.int 1
+  %false = torch.constant.bool false
+  %wscale = torch.vtensor.literal(dense<[1.000000e-01, 2.000000e-01, 3.000000e-01]> : tensor<3xf32>) : !torch.vtensor<[3],f32>
+  %wzp = torch.vtensor.literal(dense<0> : tensor<3xsi8>) : !torch.vtensor<[3],si8>
+  %bscale = torch.vtensor.literal(dense<[5.000000e-02, 1.000000e-01, 1.500000e-01]> : tensor<3xf32>) : !torch.vtensor<[3],f32>
+  %bzp = torch.vtensor.literal(dense<0> : tensor<3xsi32>) : !torch.vtensor<[3],si32>
+  %0 = torch.aten._make_per_tensor_quantized_tensor %arg0, %scale, %zero : !torch.vtensor<[1,2,4,4],si8>, !torch.float, !torch.int -> !torch.vtensor<[1,2,4,4],!torch.qint8>
+  %1 = torch.aten.dequantize.self %0 : !torch.vtensor<[1,2,4,4],!torch.qint8> -> !torch.vtensor<[1,2,4,4],f32>
+  %2 = torch.aten._make_per_channel_quantized_tensor %arg1, %wscale, %wzp, %zero : !torch.vtensor<[3,2,2,2],si8>, !torch.vtensor<[3],f32>, !torch.vtensor<[3],si8>, !torch.int -> !torch.vtensor<[3,2,2,2],!torch.qint8>
+  %3 = torch.aten.dequantize.self %2 : !torch.vtensor<[3,2,2,2],!torch.qint8> -> !torch.vtensor<[3,2,2,2],f32>
+  %4 = torch.aten._make_per_channel_quantized_tensor %arg2, %bscale, %bzp, %zero : !torch.vtensor<[3],si32>, !torch.vtensor<[3],f32>, !torch.vtensor<[3],si32>, !torch.int -> !torch.vtensor<[3],!torch.qint32>
+  %5 = torch.aten.dequantize.self %4 : !torch.vtensor<[3],!torch.qint32> -> !torch.vtensor<[3],f32>
+  %6 = torch.prim.ListConstruct %one, %one : (!torch.int, !torch.int) -> !torch.list<int>
+  %7 = torch.prim.ListConstruct %zero, %zero : (!torch.int, !torch.int) -> !torch.list<int>
+  %8 = torch.prim.ListConstruct  : () -> !torch.list<int>
+
+  // CHECK-DAG: %[[SI32:.+]] = torch.constant.int 3
+  // CHECK-DAG: %[[FALSE:.+]] = torch.constant.bool false
+  // CHECK-DAG: %[[ONE:.+]] = torch.constant.int 1
+  // CHECK-DAG: %[[WSCALE:.+]] = torch.vtensor.literal(dense<[1.000000e-01, 2.000000e-01, 3.000000e-01]> : tensor<3xf32>)
+  // CHECK-DAG: %[[WZP:.+]] = torch.vtensor.literal(dense<0> : tensor<3xsi8>)
+  // CHECK-DAG: %[[QLHS:.+]] = torch.aten._make_per_tensor_quantized_tensor %arg0, %{{.+}}, %{{.+}} : !torch.vtensor<[1,2,4,4],si8>, !torch.float, !torch.int -> !torch.vtensor<[1,2,4,4],!torch.qint8>
+  // CHECK-DAG: %[[QRHS:.+]] = torch.aten._make_per_channel_quantized_tensor %arg1, %[[WSCALE]], %[[WZP]], %{{.+}} : !torch.vtensor<[3,2,2,2],si8>, {{.*}} -> !torch.vtensor<[3,2,2,2],!torch.qint8>
+  // CHECK-DAG: %[[BDIV:.+]] = torch.aten.div.Tensor %{{.+}}, %{{.+}} : !torch.vtensor<[3],f32>, !torch.vtensor<[3],f32> -> !torch.vtensor<[3],f32>
+  // CHECK-DAG: %[[BROUND:.+]] = torch.aten.round %[[BDIV]]
+  // CHECK-DAG: %[[BIAS:.+]] = torch.aten.to.dtype %[[BROUND]], %[[SI32]], %[[FALSE]], %[[FALSE]], %{{.+}} : {{.*}} -> !torch.vtensor<[3],si32>
+  // CHECK-DAG: %[[CONV:.+]] = torch.aten.convolution %[[QLHS]], %[[QRHS]], %[[BIAS]], {{.*}} : !torch.vtensor<[1,2,4,4],!torch.qint8>, !torch.vtensor<[3,2,2,2],!torch.qint8>, !torch.vtensor<[3],si32>, {{.*}} -> !torch.vtensor<[1,3,3,3],si32>
+  // CHECK-DAG: %[[QOUT:.+]] = torch.aten._make_per_channel_quantized_tensor %[[CONV]], %{{.+}}, %[[WZP]], %[[ONE]] : !torch.vtensor<[1,3,3,3],si32>, {{.*}} -> !torch.vtensor<[1,3,3,3],!torch.qint32>
+  // CHECK-DAG: torch.aten.dequantize.self %[[QOUT]] : !torch.vtensor<[1,3,3,3],!torch.qint32> -> !torch.vtensor<[1,3,3,3],f32>
+  %9 = torch.aten.convolution %1, %3, %5, %6, %7, %6, %false, %8, %one : !torch.vtensor<[1,2,4,4],f32>, !torch.vtensor<[3,2,2,2],f32>, !torch.vtensor<[3],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,3,3,3],f32>
+  return %9 : !torch.vtensor<[1,3,3,3],f32>
+}
+
+// -----
+
+// CHECK-LABEL: @per_channel_mm_transpose
+func.func @per_channel_mm_transpose(%arg0: !torch.vtensor<[1,4],si8>, %arg1: !torch.vtensor<[3,4],si8>) -> !torch.vtensor<[1,3],f32> {
+  %scale = torch.constant.float 0.5
+  %zero = torch.constant.int 0
+  %one = torch.constant.int 1
+  %wscale = torch.vtensor.literal(dense<[1.000000e-01, 2.000000e-01, 3.000000e-01]> : tensor<3xf32>) : !torch.vtensor<[3],f32>
+  %wzp = torch.vtensor.literal(dense<0> : tensor<3xsi8>) : !torch.vtensor<[3],si8>
+  %0 = torch.aten._make_per_tensor_quantized_tensor %arg0, %scale, %zero : !torch.vtensor<[1,4],si8>, !torch.float, !torch.int -> !torch.vtensor<[1,4],!torch.qint8>
+  %1 = torch.aten.dequantize.self %0 : !torch.vtensor<[1,4],!torch.qint8> -> !torch.vtensor<[1,4],f32>
+  %2 = torch.aten._make_per_channel_quantized_tensor %arg1, %wscale, %wzp, %zero : !torch.vtensor<[3,4],si8>, !torch.vtensor<[3],f32>, !torch.vtensor<[3],si8>, !torch.int -> !torch.vtensor<[3,4],!torch.qint8>
+  %3 = torch.aten.dequantize.self %2 : !torch.vtensor<[3,4],!torch.qint8> -> !torch.vtensor<[3,4],f32>
+  %4 = torch.aten.transpose.int %3, %zero, %one : !torch.vtensor<[3,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[4,3],f32>
+
+  // CHECK-DAG: %[[ONE:.+]] = torch.constant.int 1
+  // CHECK-DAG: %[[WSCALE:.+]] = torch.vtensor.literal(dense<[1.000000e-01, 2.000000e-01, 3.000000e-01]> : tensor<3xf32>)
+  // CHECK-DAG: %[[WZP:.+]] = torch.vtensor.literal(dense<0> : tensor<3xsi8>)
+  // CHECK-DAG: %[[QLHS:.+]] = torch.aten._make_per_tensor_quantized_tensor %arg0, %{{.+}}, %{{.+}} : !torch.vtensor<[1,4],si8>, !torch.float, !torch.int -> !torch.vtensor<[1,4],!torch.qint8>
+  // CHECK-DAG: %[[WT:.+]] = torch.aten.transpose.int %arg1, %{{.+}}, %[[ONE]] : !torch.vtensor<[3,4],si8>, !torch.int, !torch.int -> !torch.vtensor<[4,3],si8>
+  // CHECK-DAG: %[[QRHS:.+]] = torch.aten._make_per_channel_quantized_tensor %[[WT]], %[[WSCALE]], %[[WZP]], %[[ONE]] : !torch.vtensor<[4,3],si8>, {{.*}} -> !torch.vtensor<[4,3],!torch.qint8>
+  // CHECK-DAG: %[[MM:.+]] = torch.aten.mm %[[QLHS]], %[[QRHS]] : !torch.vtensor<[1,4],!torch.qint8>, !torch.vtensor<[4,3],!torch.qint8> -> !torch.vtensor<[1,3],si32>
+  // CHECK-DAG: %[[QOUT:.+]] = torch.aten._make_per_channel_quantized_tensor %[[MM]], %{{.+}}, %[[WZP]], %[[ONE]] : !torch.vtensor<[1,3],si32>, {{.*}} -> !torch.vtensor<[1,3],!torch.qint32>
+  // CHECK-DAG: torch.aten.dequantize.self %[[QOUT]] : !torch.vtensor<[1,3],!torch.qint32> -> !torch.vtensor<[1,3],f32>
+  %5 = torch.aten.mm %1, %4 : !torch.vtensor<[1,4],f32>, !torch.vtensor<[4,3],f32> -> !torch.vtensor<[1,3],f32>
+  return %5 : !torch.vtensor<[1,3],f32>
+}
+
+// -----
+
+// CHECK-LABEL: @per_channel_mm_transpose_neg_axis
+func.func @per_channel_mm_transpose_neg_axis(%arg0: !torch.vtensor<[1,4],si8>, %arg1: !torch.vtensor<[3,4],si8>) -> !torch.vtensor<[1,3],f32> {
+  %scale = torch.constant.float 0.5
+  %zero = torch.constant.int 0
+  %one = torch.constant.int 1
+  %negtwo = torch.constant.int -2
+  %wscale = torch.vtensor.literal(dense<[1.000000e-01, 2.000000e-01, 3.000000e-01]> : tensor<3xf32>) : !torch.vtensor<[3],f32>
+  %wzp = torch.vtensor.literal(dense<0> : tensor<3xsi8>) : !torch.vtensor<[3],si8>
+  %0 = torch.aten._make_per_tensor_quantized_tensor %arg0, %scale, %zero : !torch.vtensor<[1,4],si8>, !torch.float, !torch.int -> !torch.vtensor<[1,4],!torch.qint8>
+  %1 = torch.aten.dequantize.self %0 : !torch.vtensor<[1,4],!torch.qint8> -> !torch.vtensor<[1,4],f32>
+  %2 = torch.aten._make_per_channel_quantized_tensor %arg1, %wscale, %wzp, %negtwo : !torch.vtensor<[3,4],si8>, !torch.vtensor<[3],f32>, !torch.vtensor<[3],si8>, !torch.int -> !torch.vtensor<[3,4],!torch.qint8>
+  %3 = torch.aten.dequantize.self %2 : !torch.vtensor<[3,4],!torch.qint8> -> !torch.vtensor<[3,4],f32>
+  %4 = torch.aten.transpose.int %3, %zero, %one : !torch.vtensor<[3,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[4,3],f32>
+
+  // The per-channel axis -2 (== 0 on the rank-2 weight) is normalized and
+  // remapped through the transpose to 1.
+  // CHECK-DAG: %[[ONE:.+]] = torch.constant.int 1
+  // CHECK-DAG: %[[WT:.+]] = torch.aten.transpose.int %arg1, %{{.+}}, %[[ONE]] : !torch.vtensor<[3,4],si8>, !torch.int, !torch.int -> !torch.vtensor<[4,3],si8>
+  // CHECK-DAG: torch.aten._make_per_channel_quantized_tensor %[[WT]], %{{.+}}, %{{.+}}, %[[ONE]] : !torch.vtensor<[4,3],si8>, {{.*}} -> !torch.vtensor<[4,3],!torch.qint8>
+  // CHECK-DAG: torch.aten.mm %{{.+}}, %{{.+}} : !torch.vtensor<[1,4],!torch.qint8>, !torch.vtensor<[4,3],!torch.qint8> -> !torch.vtensor<[1,3],si32>
+  %5 = torch.aten.mm %1, %4 : !torch.vtensor<[1,4],f32>, !torch.vtensor<[4,3],f32> -> !torch.vtensor<[1,3],f32>
+  return %5 : !torch.vtensor<[1,3],f32>
+}
+
+// -----
+
+// A non-constant per-channel weight zero-point cannot be verified all-zero, so
+// the op is left in QDQ form.
+
+// CHECK-LABEL: @per_channel_mm_nonconst_zp
+func.func @per_channel_mm_nonconst_zp(%arg0: !torch.vtensor<[1,4],si8>, %arg1: !torch.vtensor<[3,4],si8>, %arg2: !torch.vtensor<[3],si8>) -> !torch.vtensor<[1,3],f32> {
+  %scale = torch.constant.float 0.5
+  %zero = torch.constant.int 0
+  %one = torch.constant.int 1
+  %wscale = torch.vtensor.literal(dense<[1.000000e-01, 2.000000e-01, 3.000000e-01]> : tensor<3xf32>) : !torch.vtensor<[3],f32>
+  %0 = torch.aten._make_per_tensor_quantized_tensor %arg0, %scale, %zero : !torch.vtensor<[1,4],si8>, !torch.float, !torch.int -> !torch.vtensor<[1,4],!torch.qint8>
+  %1 = torch.aten.dequantize.self %0 : !torch.vtensor<[1,4],!torch.qint8> -> !torch.vtensor<[1,4],f32>
+  %2 = torch.aten._make_per_channel_quantized_tensor %arg1, %wscale, %arg2, %zero : !torch.vtensor<[3,4],si8>, !torch.vtensor<[3],f32>, !torch.vtensor<[3],si8>, !torch.int -> !torch.vtensor<[3,4],!torch.qint8>
+  %3 = torch.aten.dequantize.self %2 : !torch.vtensor<[3,4],!torch.qint8> -> !torch.vtensor<[3,4],f32>
+  %4 = torch.aten.transpose.int %3, %zero, %one : !torch.vtensor<[3,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[4,3],f32>
+
+  // CHECK: torch.aten.mm %{{.+}}, %{{.+}} : !torch.vtensor<[1,4],f32>, !torch.vtensor<[4,3],f32> -> !torch.vtensor<[1,3],f32>
+  %5 = torch.aten.mm %1, %4 : !torch.vtensor<[1,4],f32>, !torch.vtensor<[4,3],f32> -> !torch.vtensor<[1,3],f32>
+  return %5 : !torch.vtensor<[1,3],f32>
+}
+
+// -----
+
+// A non-zero (asymmetric) per-channel weight zero-point is unsupported by the
+// integer lowering, so the op is left in QDQ form.
+
+// CHECK-LABEL: @per_channel_mm_nonzero_zp
+func.func @per_channel_mm_nonzero_zp(%arg0: !torch.vtensor<[1,4],si8>, %arg1: !torch.vtensor<[3,4],si8>) -> !torch.vtensor<[1,3],f32> {
+  %scale = torch.constant.float 0.5
+  %zero = torch.constant.int 0
+  %one = torch.constant.int 1
+  %wscale = torch.vtensor.literal(dense<[1.000000e-01, 2.000000e-01, 3.000000e-01]> : tensor<3xf32>) : !torch.vtensor<[3],f32>
+  %wzp = torch.vtensor.literal(dense<[1, 0, 0]> : tensor<3xsi8>) : !torch.vtensor<[3],si8>
+  %0 = torch.aten._make_per_tensor_quantized_tensor %arg0, %scale, %zero : !torch.vtensor<[1,4],si8>, !torch.float, !torch.int -> !torch.vtensor<[1,4],!torch.qint8>
+  %1 = torch.aten.dequantize.self %0 : !torch.vtensor<[1,4],!torch.qint8> -> !torch.vtensor<[1,4],f32>
+  %2 = torch.aten._make_per_channel_quantized_tensor %arg1, %wscale, %wzp, %zero : !torch.vtensor<[3,4],si8>, !torch.vtensor<[3],f32>, !torch.vtensor<[3],si8>, !torch.int -> !torch.vtensor<[3,4],!torch.qint8>
+  %3 = torch.aten.dequantize.self %2 : !torch.vtensor<[3,4],!torch.qint8> -> !torch.vtensor<[3,4],f32>
+  %4 = torch.aten.transpose.int %3, %zero, %one : !torch.vtensor<[3,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[4,3],f32>
+
+  // CHECK: torch.aten.mm %{{.+}}, %{{.+}} : !torch.vtensor<[1,4],f32>, !torch.vtensor<[4,3],f32> -> !torch.vtensor<[1,3],f32>
+  %5 = torch.aten.mm %1, %4 : !torch.vtensor<[1,4],f32>, !torch.vtensor<[4,3],f32> -> !torch.vtensor<[1,3],f32>
+  return %5 : !torch.vtensor<[1,3],f32>
+}
