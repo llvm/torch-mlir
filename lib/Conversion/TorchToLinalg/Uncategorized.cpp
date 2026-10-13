@@ -1858,7 +1858,9 @@ private:
       return rewriter.notifyMatchFailure(op, "expected float input tensor");
 
     int64_t dtypeVal;
-    (void)matchPattern(op.getDtype(), m_TorchConstantInt(&dtypeVal));
+    if (!matchPattern(op.getDtype(), m_TorchConstantInt(&dtypeVal)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: dtype must be a constant integer");
     auto intDType = cast<IntegerType>(*Torch::getTypeForScalarType(
         op->getContext(), static_cast<torch_upstream::ScalarType>(dtypeVal)));
 
@@ -1870,8 +1872,12 @@ private:
       return rewriter.notifyMatchFailure(op, "could not convert result types");
 
     int64_t qminInt, qmaxInt;
-    (void)matchPattern(op.getQuantMin(), m_TorchConstantInt(&qminInt));
-    (void)matchPattern(op.getQuantMax(), m_TorchConstantInt(&qmaxInt));
+    if (!matchPattern(op.getQuantMin(), m_TorchConstantInt(&qminInt)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: quant_min must be a constant integer");
+    if (!matchPattern(op.getQuantMax(), m_TorchConstantInt(&qmaxInt)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: quant_max must be a constant integer");
 
     Type scaleType = isa<mlir::FloatType>(scaleResultType.getElementType())
                          ? scaleResultType.getElementType()
@@ -1882,7 +1888,11 @@ private:
 
     int64_t rank = inputType.getRank();
     Value flatInput = input;
-    if (rank != 1) {
+    if (rank == 0) {
+      flatInput = tensor::ExpandShapeOp::create(
+          rewriter, loc, RankedTensorType::get({1}, inFpType), input,
+          SmallVector<ReassociationIndices>{});
+    } else if (rank != 1) {
       SmallVector<ReassociationIndices> reassoc(1);
       for (int64_t i = 0; i < rank; ++i)
         reassoc[0].push_back(i);
@@ -1922,7 +1932,7 @@ private:
         reductionIter, [&](OpBuilder &b, Location bodyLoc, ValueRange args) {
           Value elem = args[0];
           if (inFpType != scaleType)
-            elem = arith::ExtFOp::create(b, bodyLoc, scaleType, elem);
+            elem = arith::ExtFOp::create(b, bodyLoc, scaleType, elem, {});
           Value newMin = arith::MinimumFOp::create(b, bodyLoc, elem, args[1]);
           Value newMax = arith::MaximumFOp::create(b, bodyLoc, elem, args[2]);
           linalg::YieldOp::create(b, bodyLoc, ValueRange{newMin, newMax});
