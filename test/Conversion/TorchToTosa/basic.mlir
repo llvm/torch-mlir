@@ -4023,7 +4023,7 @@ func.func @torch.aten.upsample_nearest2d.vec$basic(%arg0: !torch.vtensor<[1,1,4,
 
 // Preserve fractional scales and floor scale-derived output sizes.
 // CHECK-LABEL: func.func @torch.aten.upsample_nearest2d.vec$fractional_scales(
-// CHECK: "tosa.const"() <{values = dense<{{\[\[}}[0, 0, 1, 2, 6, 6, 7, 8]]]> : tensor<1x1x8xi32>
+// CHECK: tosa.const{{.*}}dense<{{\[\[}}[0, 0, 1, 2, 6, 6, 7, 8]]]> : tensor<1x1x8xi32>
 // CHECK: %[[GATHER:.*]] = tosa.gather {{.*}} -> tensor<1x8x1xf32>
 // CHECK: %[[FLAT:.*]] = tosa.reshape %[[GATHER]], {{.*}} -> tensor<1x1x8xf32>
 // CHECK: %[[OUT:.*]] = tosa.reshape %[[FLAT]], {{.*}} -> tensor<1x1x2x4xf32>
@@ -4042,7 +4042,7 @@ func.func @torch.aten.upsample_nearest2d.vec$fractional_scales(%arg0: !torch.vte
 
 // Use same-size height and exact-2x width compatibility sampling.
 // CHECK-LABEL: func.func @torch.aten.upsample_nearest2d$size_compatibility(
-// CHECK: "tosa.const"() <{values = dense<{{\[\[}}[0, 0, 1, 1, 2, 2, 3, 3]]]> : tensor<1x1x8xi32>
+// CHECK: tosa.const{{.*}}dense<{{\[\[}}[0, 0, 1, 1, 2, 2, 3, 3]]]> : tensor<1x1x8xi32>
 // CHECK: %[[GATHER:.*]] = tosa.gather {{.*}} -> tensor<1x8x1xf32>
 // CHECK: %[[FLAT:.*]] = tosa.reshape %[[GATHER]], {{.*}} -> tensor<1x1x8xf32>
 // CHECK: %[[OUT:.*]] = tosa.reshape %[[FLAT]], {{.*}} -> tensor<1x1x2x4xf32>
@@ -4062,7 +4062,7 @@ func.func @torch.aten.upsample_nearest2d$size_compatibility(%arg0: !torch.vtenso
 
 // Float32 reciprocal/multiply selects source 1 at output column 3.
 // CHECK-LABEL: func.func @torch.aten.upsample_nearest2d$float32_explicit_scale(
-// CHECK: "tosa.const"() <{values = dense<{{\[\[}}[0, 0, 0, 1, 1, 1]]]> : tensor<1x1x6xi32>
+// CHECK: tosa.const{{.*}}dense<{{\[\[}}[0, 0, 0, 1, 1, 1]]]> : tensor<1x1x6xi32>
 // CHECK: %[[GATHER:.*]] = tosa.gather {{.*}} -> tensor<1x6x1xf32>
 // CHECK: %[[FLAT:.*]] = tosa.reshape %[[GATHER]], {{.*}} -> tensor<1x1x6xf32>
 // CHECK: %[[OUT:.*]] = tosa.reshape %[[FLAT]], {{.*}} -> tensor<1x1x1x6xf32>
