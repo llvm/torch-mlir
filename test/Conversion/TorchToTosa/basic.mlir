@@ -781,6 +781,39 @@ func.func @torch.aten.eq.Tensor$basic(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !
 
 // -----
 
+// CHECK-LABEL:   func.func @torch.aten.eq.Tensor$int8(
+// CHECK-SAME:                                      %[[VAL_0:.*]]: !torch.vtensor<[8,1],si8>,
+// CHECK-SAME:                                      %[[VAL_1:.*]]: !torch.vtensor<[8,1],si8>) -> !torch.vtensor<[8,1],i1> {
+// CHECK-DAG:       %[[VAL_2:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[8,1],si8> -> tensor<8x1xi8>
+// CHECK-DAG:       %[[VAL_3:.*]] = torch_c.to_builtin_tensor %[[VAL_1]] : !torch.vtensor<[8,1],si8> -> tensor<8x1xi8>
+// CHECK-DAG:       %[[VAL_4:.*]] = tosa.cast %[[VAL_2]] : (tensor<8x1xi8>) -> tensor<8x1xi32>
+// CHECK-DAG:       %[[VAL_5:.*]] = tosa.cast %[[VAL_3]] : (tensor<8x1xi8>) -> tensor<8x1xi32>
+// CHECK:           %[[VAL_6:.*]] = tosa.equal %[[VAL_4]], %[[VAL_5]] : (tensor<8x1xi32>, tensor<8x1xi32>) -> tensor<8x1xi1>
+// CHECK:           %[[VAL_7:.*]] = torch_c.from_builtin_tensor %[[VAL_6]] : tensor<8x1xi1> -> !torch.vtensor<[8,1],i1>
+// CHECK:           return %[[VAL_7]] : !torch.vtensor<[8,1],i1>
+// CHECK:         }
+func.func @torch.aten.eq.Tensor$int8(%arg0: !torch.vtensor<[8,1],si8>, %arg1: !torch.vtensor<[8,1],si8>) -> !torch.vtensor<[8,1],i1> {
+  %0 = torch.aten.eq.Tensor %arg0, %arg1 : !torch.vtensor<[8,1],si8>, !torch.vtensor<[8,1],si8> -> !torch.vtensor<[8,1],i1>
+  return %0 : !torch.vtensor<[8,1],i1>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @tosa.equal$int8_generated(
+// CHECK-SAME:                                         %[[VAL_0:.*]]: tensor<8x1xi8>,
+// CHECK-SAME:                                         %[[VAL_1:.*]]: tensor<8x1xi8>) -> tensor<8x1xi1> {
+// CHECK-DAG:       %[[VAL_2:.*]] = tosa.cast %[[VAL_0]] : (tensor<8x1xi8>) -> tensor<8x1xi32>
+// CHECK-DAG:       %[[VAL_3:.*]] = tosa.cast %[[VAL_1]] : (tensor<8x1xi8>) -> tensor<8x1xi32>
+// CHECK:           %[[VAL_4:.*]] = tosa.equal %[[VAL_2]], %[[VAL_3]] : (tensor<8x1xi32>, tensor<8x1xi32>) -> tensor<8x1xi1>
+// CHECK:           return %[[VAL_4]] : tensor<8x1xi1>
+// CHECK:         }
+func.func @tosa.equal$int8_generated(%arg0: tensor<8x1xi8>, %arg1: tensor<8x1xi8>) -> tensor<8x1xi1> {
+  %0 = tosa.equal %arg0, %arg1 : (tensor<8x1xi8>, tensor<8x1xi8>) -> tensor<8x1xi1>
+  return %0 : tensor<8x1xi1>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.reshape$basic(
 // CHECK-SAME:                                        %[[VAL_0:.*]]: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?],f32> {
 // CHECK:           %[[VAL_1:.*]] = torch_c.to_builtin_tensor %[[VAL_0]] : !torch.vtensor<[?,?,?,?],f32> -> tensor<?x?x?x?xf32>
