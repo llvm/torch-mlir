@@ -759,8 +759,26 @@ public:
           op, "expected both operands to aten.bmm to be rank 3");
     }
 
-    // Convert the inputs element type equivalent to the result' element type.
-    if (lhsElementType != rhsElementType) {
+    Value lhsZeroPoint, rhsZeroPoint;
+    getZeroPoint(op.getSelf(), lhsZeroPoint);
+    getZeroPoint(op.getMat2(), rhsZeroPoint);
+    if (static_cast<bool>(lhsZeroPoint) != static_cast<bool>(rhsZeroPoint)) {
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: aten.bmm with mixed quantization");
+    }
+    if (lhsZeroPoint && (!isa<Torch::IntType>(lhsZeroPoint.getType()) ||
+                         !isa<Torch::IntType>(rhsZeroPoint.getType()))) {
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: aten.bmm requires scalar integer zero points");
+    }
+    if (lhsZeroPoint && lhsElementType != rhsElementType) {
+      return rewriter.notifyMatchFailure(
+          op, "unsupported: aten.bmm with mixed quantized integer widths");
+    }
+
+    // Preserve the input widths for quantized matmul and its zero points.
+    // Convert mixed non-quantized inputs to a common element type.
+    if (!lhsZeroPoint && lhsElementType != rhsElementType) {
       if (lhsElementType != resultElementType) {
         // True if the lhs element type is not equal to the result' element
         // type.
@@ -793,10 +811,40 @@ public:
     Value initTensor0 = createZeroInitTensor(
         rewriter, loc, ValueRange{lhsDim0, lhsDim1, rhsDim2}, accumulatorDType);
 
-    Value bmm =
-        linalg::BatchMatmulOp::create(rewriter, loc, initTensor0.getType(),
-                                      ValueRange{lhs, rhs}, initTensor0)
-            .getResult(0);
+    Value bmm;
+    if (lhsZeroPoint) {
+      bool lhsIsUnsigned =
+          torch_to_linalg::isUnsignedTorchType(op.getSelf().getType());
+      bool rhsIsUnsigned =
+          torch_to_linalg::isUnsignedTorchType(op.getMat2().getType());
+      lhsZeroPoint = typeConverter->materializeTargetConversion(
+          rewriter, loc,
+          getTypeConverter()->convertType(lhsZeroPoint.getType()),
+          lhsZeroPoint);
+      rhsZeroPoint = typeConverter->materializeTargetConversion(
+          rewriter, loc,
+          getTypeConverter()->convertType(rhsZeroPoint.getType()),
+          rhsZeroPoint);
+      lhsZeroPoint = arith::TruncIOp::create(
+          rewriter, loc, rewriter.getI32Type(), lhsZeroPoint);
+      rhsZeroPoint = arith::TruncIOp::create(
+          rewriter, loc, rewriter.getI32Type(), rhsZeroPoint);
+
+      int64_t numBits =
+          cast<mlir::IntegerType>(lhsType.getElementType()).getWidth();
+      signShift(rewriter, loc, lhs, lhsZeroPoint, lhsIsUnsigned, numBits);
+      numBits = cast<mlir::IntegerType>(rhsType.getElementType()).getWidth();
+      signShift(rewriter, loc, rhs, rhsZeroPoint, rhsIsUnsigned, numBits);
+
+      bmm = linalg::QuantizedBatchMatmulOp::create(
+                rewriter, loc, initTensor0.getType(),
+                ValueRange{lhs, rhs, lhsZeroPoint, rhsZeroPoint}, initTensor0)
+                .getResult(0);
+    } else {
+      bmm = linalg::BatchMatmulOp::create(rewriter, loc, initTensor0.getType(),
+                                          ValueRange{lhs, rhs}, initTensor0)
+                .getResult(0);
+    }
 
     if (accumulatorDType != resultElementType) {
       bmm = torch_to_linalg::convertTensorToElementType(rewriter, loc, bmm,
