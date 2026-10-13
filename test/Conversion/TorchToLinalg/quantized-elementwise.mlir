@@ -140,6 +140,36 @@ func.func @choose_qparams_tensor(
 
 // -----
 
+// choose_qparams.tensor on a rank-0 (scalar) input. A 0-D source has no
+// dimensions to collapse, so the lowering expand it into a 1-D tensor
+// of size 1 (tensor.expand_shape with an empty reassociation list).
+// CHECK-LABEL: func.func @choose_qparams_tensor_rank0(
+// CHECK-SAME:    %[[INPUT:[^:,]+]]: !torch.vtensor<[],f32>
+// CHECK:       %[[IN_T:.*]] = torch_c.to_builtin_tensor %[[INPUT]] : !torch.vtensor<[],f32> -> tensor<f32>
+// CHECK:       %[[EXP:.*]] = tensor.expand_shape %[[IN_T]] [] output_shape [1] : tensor<f32> into tensor<1xf32>
+// CHECK:       linalg.generic
+// CHECK-SAME:    ins(%[[EXP]] : tensor<1xf32>)
+// CHECK:       %[[SCALE_1D:.*]] = tensor.from_elements %{{.*}} : tensor<1xf32>
+// CHECK:       %[[SCALE_V:.*]] = torch_c.from_builtin_tensor %[[SCALE_1D]] : tensor<1xf32> -> !torch.vtensor<[1],f32>
+// CHECK:       %[[ZP_1D:.*]] = tensor.from_elements %{{.*}} : tensor<1xi64>
+// CHECK:       %[[ZP_V:.*]] = torch_c.from_builtin_tensor %[[ZP_1D]] : tensor<1xi64> -> !torch.vtensor<[1],si64>
+// CHECK:       return %[[SCALE_V]], %[[ZP_V]] : !torch.vtensor<[1],f32>, !torch.vtensor<[1],si64>
+func.func @choose_qparams_tensor_rank0(
+    %input: !torch.vtensor<[],f32>)
+    -> (!torch.vtensor<[1],f32>, !torch.vtensor<[1],si64>) {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %eps = torch.constant.float 1.000000e-08
+  %dtype = torch.constant.int 2
+  %scale, %zp = torch.quantized_decomposed.choose_qparams.tensor
+      %input, %qmin, %qmax, %eps, %dtype
+      : !torch.vtensor<[],f32>, !torch.int, !torch.int, !torch.float, !torch.int
+      -> !torch.vtensor<[1],f32>, !torch.vtensor<[1],si64>
+  return %scale, %zp : !torch.vtensor<[1],f32>, !torch.vtensor<[1],si64>
+}
+
+// -----
+
 // Symmetric round-trip: choose_qparams_symmetric.tensor -> quantize_per_tensor
 // -> dequantize_per_tensor (scalar-qparam form).
 // CHECK-LABEL: func.func @choose_qparams_symmetric_quantize_dequantize_roundtrip(

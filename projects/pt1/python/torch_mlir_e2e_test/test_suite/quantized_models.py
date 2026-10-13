@@ -572,6 +572,13 @@ def QuantizedDecomposedDynamicQuantFlowSymmetric_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 8))
 
 
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedDynamicQuantFlowSymmetric()
+)
+def QuantizedDecomposedDynamicQuantFlowSymmetric_negative(module, tu: TestUtils):
+    module.forward(10 * tu.rand(4, 8) - 5)
+
+
 # ==============================================================================
 
 
@@ -605,6 +612,13 @@ class QuantizedDecomposedDynamicQuantFlowAsymmetric(torch.nn.Module):
 )
 def QuantizedDecomposedDynamicQuantFlowAsymmetric_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 8))
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedDynamicQuantFlowAsymmetric()
+)
+def QuantizedDecomposedDynamicQuantFlowAsymmetric_negative(module, tu: TestUtils):
+    module.forward(10 * tu.rand(4, 8) - 5)
 
 
 # ==============================================================================
