@@ -105,6 +105,8 @@ def Torch_SlotOp : Torch_Op<"slot", [
 //===----------------------------------------------------------------------===//
 
 def Torch_ClassTypeOp : Torch_Op<"class_type", [
+    SymbolName,
+    SymbolVisibility,
     Symbol,
     SingleBlockImplicitTerminator<"::mlir::torch::Torch::ClassTypeTerminatorOp">]> {
   let summary = "Constructs a torch.ClassType";
@@ -142,12 +144,13 @@ def Torch_ClassTypeOp : Torch_Op<"class_type", [
     ```
   }];
 
-  let arguments = (ins SymbolNameAttr:$sym_name);
+  let arguments = (ins SymbolNameAttr:$sym_name,
+                       OptionalAttr<StrAttr>:$sym_visibility);
   let results = (outs);
   let regions = (region SizedRegion<1>:$region);
   let hasVerifier = 1;
 
-  let assemblyFormat = "$sym_name $region attr-dict";
+  let assemblyFormat = "($sym_visibility^)? $sym_name $region attr-dict";
 }
 
 def Torch_ClassTypeTerminatorOp : Torch_Op<"class_type_terminator", [Terminator,
@@ -228,6 +231,8 @@ def Torch_AttrOp : Torch_Op<"attr", [
 //===----------------------------------------------------------------------===//
 
 def Torch_GlobalSlotOp : Torch_Op<"global_slot", [
+    SymbolName,
+    SymbolVisibility,
     Symbol,
   ]> {
   let summary = "A slot with global storage";

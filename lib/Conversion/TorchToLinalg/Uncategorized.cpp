@@ -2531,7 +2531,7 @@ public:
         [&](OpBuilder &b, Location bodyLoc, ValueRange args) {
           Value val = args[0];
           if (val.getType() != scaleElemType)
-            val = arith::ExtFOp::create(b, bodyLoc, scaleElemType, val);
+            val = arith::ExtFOp::create(b, bodyLoc, scaleElemType, val, {});
           Value resMin = arith::MinimumFOp::create(b, bodyLoc, val, args[1]);
           Value resMax = arith::MaximumFOp::create(b, bodyLoc, val, args[2]);
           linalg::YieldOp::create(b, bodyLoc, ValueRange{resMin, resMax});
@@ -2680,7 +2680,7 @@ public:
             [&](OpBuilder &b, Location bodyLoc, ValueRange args) {
               Value val = args[0];
               if (val.getType() != scaleElemType)
-                val = arith::ExtFOp::create(b, bodyLoc, scaleElemType, val);
+                val = arith::ExtFOp::create(b, bodyLoc, scaleElemType, val, {});
               Value absVal = math::AbsFOp::create(b, bodyLoc, val);
               Value res =
                   arith::MaximumFOp::create(b, bodyLoc, absVal, args[1]);

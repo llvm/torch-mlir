@@ -713,8 +713,8 @@ public:
               [&](OpBuilder &b, Location loc, ValueRange args) {
                 Value l = args[0], r = args[1], res = args[2];
                 if (accumulatorDType != lhsType.getElementType()) {
-                  l = arith::ExtFOp::create(b, loc, accumulatorDType, l);
-                  r = arith::ExtFOp::create(b, loc, accumulatorDType, r);
+                  l = arith::ExtFOp::create(b, loc, accumulatorDType, l, {});
+                  r = arith::ExtFOp::create(b, loc, accumulatorDType, r, {});
                 }
                 Value mul = arith::MulFOp::create(b, loc, l, r);
                 Value add = arith::AddFOp::create(b, loc, mul, res);
@@ -1565,10 +1565,11 @@ public:
                    // Convert input and weight to accumulator type if needed
                    Type accType = output.getType();
                    if (input.getType() != accType) {
-                     input = arith::ExtFOp::create(b, loc, accType, input);
+                     input = arith::ExtFOp::create(b, loc, accType, input, {});
                    }
                    if (weight.getType() != accType) {
-                     weight = arith::ExtFOp::create(b, loc, accType, weight);
+                     weight =
+                         arith::ExtFOp::create(b, loc, accType, weight, {});
                    }
 
                    Value mul = arith::MulFOp::create(b, loc, input, weight);
@@ -2158,7 +2159,7 @@ public:
       auto reductionBody = [&](OpBuilder &b, Location loc, ValueRange args) {
         Value x = args[0];
         if (gradOutputDTy != accumulatorDTy)
-          x = arith::ExtFOp::create(b, loc, accumulatorDTy, x);
+          x = arith::ExtFOp::create(b, loc, accumulatorDTy, x, {});
         Value acc = args[1];
         Value sum = arith::AddFOp::create(b, loc, x, acc);
         linalg::YieldOp::create(b, loc, sum);
@@ -2360,10 +2361,10 @@ private:
           // Convert input and grad to accumulator type if needed
           Type accType = output.getType();
           if (input.getType() != accType) {
-            input = arith::ExtFOp::create(b, loc, accType, input);
+            input = arith::ExtFOp::create(b, loc, accType, input, {});
           }
           if (grad.getType() != accType) {
-            grad = arith::ExtFOp::create(b, loc, accType, grad);
+            grad = arith::ExtFOp::create(b, loc, accType, grad, {});
           }
 
           Value mul = arith::MulFOp::create(b, loc, input, grad);

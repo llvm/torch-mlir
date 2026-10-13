@@ -562,8 +562,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           newOperands.push_back(bias);
 
         llvm::SmallVector<NamedAttribute> newAttributes;
-        newAttributes.push_back(
-            rewriter.getNamedAttr("name", rewriter.getStringAttr("onnx.Conv")));
         for (auto namedAttr : binder.op->getAttrDictionary()) {
           if (namedAttr.getName().getValue().compare("name") == 0)
             continue;
@@ -577,10 +575,13 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                 : cast<Type>(rewriter.getType<Torch::QInt32Type>());
         auto outputTy = rewriter.getType<Torch::ValueTensorType>(
             resultType.getOptionalSizes(), convDtype);
-        Value output = Torch::OperatorOp::create(
-                           rewriter, binder.getLoc(), outputTy, newOperands,
-                           newAttributes, binder.op->getRegions().size())
-                           .getResult(0);
+        Torch::OperatorOp::Properties properties;
+        properties.name = rewriter.getStringAttr("onnx.Conv");
+        Value output =
+            Torch::OperatorOp::create(rewriter, binder.getLoc(), outputTy,
+                                      newOperands, properties, newAttributes,
+                                      binder.op->getRegions().size())
+                .getResult(0);
 
         if (!isPerChannelQuantization) {
           Value outScale = Torch::AtenMulFloatOp::create(
