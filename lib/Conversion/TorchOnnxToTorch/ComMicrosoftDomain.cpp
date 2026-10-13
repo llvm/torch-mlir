@@ -1208,7 +1208,12 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
             rewriter, loc, rewriter.getI64IntegerAttr(1));
         unsigned inputRank = inputShape.size();
         for (unsigned i = 2; i < inputRank; i++) {
-          if (inputShape[i] == Torch::kUnknownSize) {
+          // For a global average pool the result spatial dims are 1, so the
+          // kernel size is the full input spatial dim. Take the dynamic path
+          // if either dim is unknown; a statically unknown result dim
+          // (kUnknownSize = -1) must not feed the arithmetic below.
+          if (inputShape[i] == Torch::kUnknownSize ||
+              resultShape[i] == Torch::kUnknownSize) {
             Value dim = Torch::ConstantIntOp::create(
                 rewriter, loc, rewriter.getI64IntegerAttr(i));
             Value inputDimSize =
