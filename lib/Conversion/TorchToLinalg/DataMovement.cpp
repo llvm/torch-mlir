@@ -243,37 +243,50 @@ public:
     SmallVector<Value> allOneStrides(numDims, one);
 
     auto addTileToResult = [&](PadLocation padPosition) {
-      // Create the tile by extracting a slice from the input tensor.
       SmallVector<Value> extractShape{inputShape};
       extractShape[lastDim] = tileWidth[padPosition];
-      SmallVector<Value> extractOffsets(numDims, zero);
-      extractOffsets[lastDim] = extractOffset[padPosition];
-      Value tile = tensor::ExtractSliceOp::create(
-          rewriter, loc, input, extractOffsets, extractShape, allOneStrides);
-
-      // Reverse the tile along the last dimension for the left and right
-      // slices. Use linalg.index to compute the reflected index rather than a
-      // reflected indexing map (d -> size - 1 - d): a negative coefficient in
-      // an indexing map makes linalg tiling assert.
+      Value tile;
       if (padPosition < PAD_CENTER) {
+        // Build the reflected left/right tile with an identity indexing map,
+        // reading input column extractOffset + (padSize - 1 - i) in the body.
+        //
+        // A reflected indexing map (d -> size - 1 - d) would have a negative
+        // coefficient, which makes linalg tiling assert. Extract from the
+        // whole input rather than from a slice of it: the linalg vectorizer
+        // lowers this tensor.extract to a vector.gather with an index
+        // linearized as if its source were contiguous, which a multi-row
+        // slice of the input is not.
         int64_t padSize = padInts[padPosition];
-        tile = linalg::GenericOp::create(
-                   rewriter, loc, llvm::cast<RankedTensorType>(tile.getType()),
-                   tile, tile, ArrayRef({idMap, idMap}), iteratorTypes,
-                   [&](OpBuilder &b, Location nestedLoc, ValueRange args) {
-                     SmallVector<Value> extractIndices(numDims);
-                     for (unsigned i = 0; i < numDims; i++)
-                       extractIndices[i] =
-                           linalg::IndexOp::create(b, nestedLoc, i);
-                     Value reflectDimSize = getConstant(
-                         b, nestedLoc, padSize - 1, b.getIndexType());
-                     extractIndices[lastDim] = arith::SubIOp::create(
-                         b, nestedLoc, reflectDimSize, extractIndices[lastDim]);
-                     Value extractValue = tensor::ExtractOp::create(
-                         b, nestedLoc, tile, extractIndices);
-                     linalg::YieldOp::create(b, nestedLoc, extractValue);
-                   })
-                   .getResult(0);
+        Value srcOffset = extractOffset[padPosition];
+        Value init = tensor::EmptyOp::create(
+            rewriter, loc, llvm::to_vector_of<OpFoldResult>(extractShape),
+            inputType.getElementType());
+        tile =
+            linalg::GenericOp::create(
+                rewriter, loc, init.getType(), ValueRange{}, init,
+                ArrayRef({idMap}), iteratorTypes,
+                [&](OpBuilder &b, Location nestedLoc, ValueRange args) {
+                  SmallVector<Value> extractIndices(numDims);
+                  for (unsigned i = 0; i < numDims; i++)
+                    extractIndices[i] =
+                        linalg::IndexOp::create(b, nestedLoc, i);
+                  Value reflectDimSize =
+                      getConstant(b, nestedLoc, padSize - 1, b.getIndexType());
+                  Value reflected = arith::SubIOp::create(
+                      b, nestedLoc, reflectDimSize, extractIndices[lastDim]);
+                  extractIndices[lastDim] =
+                      arith::AddIOp::create(b, nestedLoc, srcOffset, reflected);
+                  Value extractValue = tensor::ExtractOp::create(
+                      b, nestedLoc, input, extractIndices);
+                  linalg::YieldOp::create(b, nestedLoc, extractValue);
+                })
+                .getResult(0);
+      } else {
+        // The center tile is the input itself.
+        SmallVector<Value> extractOffsets(numDims, zero);
+        extractOffsets[lastDim] = extractOffset[padPosition];
+        tile = tensor::ExtractSliceOp::create(
+            rewriter, loc, input, extractOffsets, extractShape, allOneStrides);
       }
       // Insert the tile in the resultTensor
       SmallVector<Value> insertOffsets(numDims, zero);
