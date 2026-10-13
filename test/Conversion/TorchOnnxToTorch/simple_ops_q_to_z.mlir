@@ -3748,10 +3748,8 @@ func.func @test_unique_sorted_with_negative_axis(%arg0: !torch.vtensor<[3,3],f32
 
 // -----
 
-// Regression test: ONNX Unique allows fewer than four outputs. Previously the
-// lowering blindly indexed `resultTypes[1..3]`, which on a single-output op
-// read garbage and crashed. Verify that requesting only Y produces valid IR
-// that returns a single value.
+// Regression test: ONNX Unique allows fewer than four outputs. Verify that
+// requesting only Y produces valid IR that returns a single value.
 
 // CHECK-LABEL: func.func @test_unique_one_output
 // CHECK-SAME:    %[[ARG0:.+]]: !torch.vtensor<[7],f32>
@@ -3802,8 +3800,7 @@ func.func @test_unique_three_outputs(%arg0: !torch.vtensor<[7],f32>) -> (!torch.
 // an explicit axis. The types of the unrequested outputs are synthesized, and
 // they must follow the axis: inverse_indices is as long as the input along
 // `axis` (4), and counts is as long as the number of unique entries, i.e. the
-// output's extent along `axis` (3). Deriving either from dimension 0 or from
-// the full input shape produces a mistyped `torch.aten.unique_dim`.
+// output's extent along `axis` (3).
 
 // CHECK-LABEL: func.func @test_unique_one_output_with_axis
 func.func @test_unique_one_output_with_axis(%arg0: !torch.vtensor<[2,4,2],f32>) -> !torch.vtensor<[2,3,2],f32> attributes {torch.onnx_meta.ir_version = 6 : si64, torch.onnx_meta.opset_version = 11 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
@@ -3819,9 +3816,8 @@ func.func @test_unique_one_output_with_axis(%arg0: !torch.vtensor<[2,4,2],f32>) 
 
 // -----
 
-// Regression test: with `axis` absent the input is flattened, so the indices
-// are taken over all 6 elements, not over dimension 0 (2) of the original
-// shape. `indices` must be computed from the flattened length.
+// Regression test: with `axis` absent the input is flattened, so `indices` is
+// computed over all 6 elements.
 
 // CHECK-LABEL: func.func @test_unique_no_axis_2d_with_indices
 func.func @test_unique_no_axis_2d_with_indices(%arg0: !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[4],f32>, !torch.vtensor<[4],si64>) attributes {torch.onnx_meta.ir_version = 6 : si64, torch.onnx_meta.opset_version = 11 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
