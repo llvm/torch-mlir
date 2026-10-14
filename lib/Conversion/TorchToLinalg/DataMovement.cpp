@@ -178,6 +178,12 @@ public:
     if (!matchPattern(op.getPadding(), m_TorchListOfConstantInts(padInts)))
       return rewriter.notifyMatchFailure(
           op, "only constant int padding range is supported");
+    // The tiles below read input columns up to padSize, so reject padding
+    // that would read out of bounds.
+    if (padInts.size() != 2)
+      return rewriter.notifyMatchFailure(op, "expected two padding values");
+    if (padInts[0] < 0 || padInts[1] < 0)
+      return rewriter.notifyMatchFailure(op, "negative padding not supported");
 
     MLIRContext *context = rewriter.getContext();
     Location loc = op.getLoc();
@@ -208,6 +214,26 @@ public:
     SmallVector<Value> inputShape = getTensorSizes(rewriter, loc, input);
     Value lastDimSize = inputShape[lastDim]; // input [1,2,4], then lastDim = 2,
                                              // inputShape[2] will give 4
+
+    // Reflection needs each pad to be smaller than the input width (PyTorch:
+    // "Padding size should be less than the corresponding input dimension").
+    // Fail statically when the width is known, else assert at runtime like
+    // ConvertAtenReflectionPad2dOp does.
+    int64_t staticWidth = inputType.getDimSize(lastDim);
+    for (int64_t pad : {padInts[0], padInts[1]}) {
+      if (ShapedType::isDynamic(staticWidth)) {
+        Value padValue = arith::ConstantIndexOp::create(rewriter, loc, pad);
+        Value padOk = arith::CmpIOp::create(
+            rewriter, loc, arith::CmpIPredicate::slt, padValue, lastDimSize);
+        cf::AssertOp::create(
+            rewriter, loc, padOk,
+            rewriter.getStringAttr(
+                "padding must be smaller than the input width"));
+      } else if (pad >= staticWidth) {
+        return rewriter.notifyMatchFailure(
+            op, "padding must be smaller than the input width");
+      }
+    }
 
     Value tileWidth[3], extractOffset[3], insertOffset[3];
 
@@ -345,9 +371,9 @@ namespace {
 // center bottom: [[2,3,2]]
 // center right: [[2,1]]
 //
-// The lowering uses a tensor.extract_slice operation to create each tile,
-// a linalg.generic for the reflection, and a tensor.insert_slice to
-// insert the tile in the resulting tensor.
+// The lowering builds each reflected tile with a linalg.generic that reads
+// the input at reflected indices, and inserts it in the resulting tensor
+// with a tensor.insert_slice. The center tile is the input itself.
 class ConvertAtenReflectionPad2dOp
     : public OpConversionPattern<AtenReflectionPad2dOp> {
 public:
@@ -433,8 +459,9 @@ public:
           arith::ConstantIndexOp::create(rewriter, loc, padArgument);
       Value index = arith::ConstantIndexOp::create(rewriter, loc, dim);
       Value shapeDim = tensor::DimOp::create(rewriter, loc, input, index);
+      // pad == size would read one past the input.
       Value cmpPred = arith::CmpIOp::create(
-          rewriter, loc, arith::CmpIPredicate::sle, padValue, shapeDim);
+          rewriter, loc, arith::CmpIPredicate::slt, padValue, shapeDim);
       cf::AssertOp::create(rewriter, loc, cmpPred,
                            rewriter.getStringAttr(errorMessage));
     };
@@ -539,7 +566,7 @@ public:
     SmallVector<Value> allOneStrides(numDims, one);
 
     auto createTile = [&](PadVLoc verticalPos, PadHLoc horizontalPos) {
-      // Create the tile by extracting a slice from the input tenor.
+      // The tile's shape and its offsets in the input.
       SmallVector<Value> extractShape{inputShape};
       extractShape[hDim] = tileWidth[horizontalPos];
       extractShape[vDim] = tileHeight[verticalPos];
@@ -548,42 +575,57 @@ public:
       extractOffsets[hDim] = extractHOffset[horizontalPos];
       extractOffsets[vDim] = extractVOffset[verticalPos];
 
-      Value tile = tensor::ExtractSliceOp::create(
-          rewriter, loc, input, extractOffsets, extractShape, allOneStrides);
+      // Read the reflected tiles from the whole input at absolute indices
+      // (offset + i, or offset + padSize - 1 - i along a reflected dim) rather
+      // than from a slice of it: the linalg vectorizer lowers the
+      // tensor.extract to a vector.gather whose index is linearized as if its
+      // source were contiguous, which a multi-row slice of the input is not.
+      Value tile;
+      if (!shouldHReflect(horizontalPos) && !shouldVReflect(verticalPos)) {
+        // The center tile is the input itself.
+        tile = tensor::ExtractSliceOp::create(
+            rewriter, loc, input, extractOffsets, extractShape, allOneStrides);
+      } else {
+        Value init = tensor::EmptyOp::create(
+            rewriter, loc, llvm::to_vector_of<OpFoldResult>(extractShape),
+            inputType.getElementType());
+        tile =
+            linalg::GenericOp::create(
+                rewriter, loc, init.getType(), ValueRange{}, init,
+                ArrayRef({idMap}), iteratorTypes,
+                [&](OpBuilder &b, Location nestedLoc, ValueRange args) {
+                  SmallVector<Value> extractIndices(numDims);
+                  for (unsigned i = 0; i < numDims; i++)
+                    extractIndices[i] =
+                        linalg::IndexOp::create(b, nestedLoc, i);
 
-      auto inputMap = AffineMap::getMultiDimIdentityMap(numDims, context);
+                  // offset + i, or offset + (padSize - 1 - i) when reflected.
+                  auto sourceIndex = [&](Value offset, bool reflect,
+                                         int64_t padSize, Value i) {
+                    if (reflect) {
+                      Value last = getConstant(b, nestedLoc, padSize - 1,
+                                               b.getIndexType());
+                      i = arith::SubIOp::create(b, nestedLoc, last, i);
+                    }
+                    return arith::AddIOp::create(b, nestedLoc, offset, i);
+                  };
+                  bool hReflect = shouldHReflect(horizontalPos);
+                  bool vReflect = shouldVReflect(verticalPos);
+                  extractIndices[hDim] =
+                      sourceIndex(extractHOffset[horizontalPos], hReflect,
+                                  hReflect ? getHPadArgument(horizontalPos) : 0,
+                                  extractIndices[hDim]);
+                  extractIndices[vDim] =
+                      sourceIndex(extractVOffset[verticalPos], vReflect,
+                                  vReflect ? getVPadArgument(verticalPos) : 0,
+                                  extractIndices[vDim]);
 
-      tile =
-          linalg::GenericOp::create(
-              rewriter, loc, llvm::cast<RankedTensorType>(tile.getType()), tile,
-              tile, ArrayRef({inputMap, idMap}), iteratorTypes,
-              [&](OpBuilder &b, Location nestedLoc, ValueRange args) {
-                // Use linalg.index to reflect the dims
-                SmallVector<Value> extractIndices(numDims);
-                for (unsigned i = 0; i < numDims; i++)
-                  extractIndices[i] = linalg::IndexOp::create(b, nestedLoc, i);
-
-                auto reflectDim = [&](int64_t padSize, Value dim) {
-                  Value reflectDimSize = getConstant(rewriter, loc, padSize - 1,
-                                                     rewriter.getIndexType());
-                  return arith::SubIOp::create(b, loc, reflectDimSize, dim);
-                };
-
-                // Reverse the tile along the horizontal, vertical, or both
-                // dimensions.
-                if (shouldHReflect(horizontalPos))
-                  extractIndices[hDim] = reflectDim(
-                      getHPadArgument(horizontalPos), extractIndices[hDim]);
-
-                if (shouldVReflect(verticalPos))
-                  extractIndices[vDim] = reflectDim(
-                      getVPadArgument(verticalPos), extractIndices[vDim]);
-
-                Value extractValue = tensor::ExtractOp::create(
-                    rewriter, nestedLoc, tile, extractIndices);
-                linalg::YieldOp::create(b, nestedLoc, extractValue);
-              })
-              .getResult(0);
+                  Value extractValue = tensor::ExtractOp::create(
+                      b, nestedLoc, input, extractIndices);
+                  linalg::YieldOp::create(b, nestedLoc, extractValue);
+                })
+                .getResult(0);
+      }
 
       // Insert the tile in the resultTensor.
       SmallVector<Value> insertOffsets(numDims, zero);
