@@ -212,3 +212,17 @@ func.func @torch.aten.diag_embed$positive_offset(%arg0: !torch.vtensor<[3],f32>)
   %0 = torch.aten.diag_embed %arg0, %int1, %int0, %int_neg1 : !torch.vtensor<[3],f32>, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,4],f32>
   return %0 : !torch.vtensor<[4,4],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.index_put.hacked_twin(
+// CHECK-SAME:                                                 %[[INPUT:.*]]: !torch.vtensor<[4,4],f32>, %[[IDX:.*]]: !torch.vtensor<[2],si64>, %[[VALS:.*]]: !torch.vtensor<[2,4],f32>) -> !torch.vtensor<[4,4],f32> {
+// CHECK:           %[[GENERIC:.*]] = linalg.generic
+// CHECK:           %[[RES:.*]] = torch_c.from_builtin_tensor %[[GENERIC]] : tensor<4x4xf32> -> !torch.vtensor<[4,4],f32>
+// CHECK:           return %[[RES]] : !torch.vtensor<[4,4],f32>
+func.func @torch.aten.index_put.hacked_twin(%input: !torch.vtensor<[4,4],f32>, %idx: !torch.vtensor<[2],si64>, %vals: !torch.vtensor<[2,4],f32>) -> !torch.vtensor<[4,4],f32> {
+  %false = torch.constant.bool false
+  %indices = torch.prim.ListConstruct %idx : (!torch.vtensor<[2],si64>) -> !torch.list<vtensor>
+  %result = torch.aten.index_put.hacked_twin %input, %indices, %vals, %false : !torch.vtensor<[4,4],f32>, !torch.list<vtensor>, !torch.vtensor<[2,4],f32>, !torch.bool -> !torch.vtensor<[4,4],f32>
+  return %result : !torch.vtensor<[4,4],f32>
+}
