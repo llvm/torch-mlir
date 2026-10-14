@@ -1230,12 +1230,14 @@ public:
           /// input and output dimensions in the slice statically known
           /// or parallel unknown to have the same number of elements.
           assumedDynamicDimNotSplit = true;
-        } else if (inputShapeSlice[0] == kUnknownSize) {
-          // Defer the dynamic shape check to avoid DialectConversion assertion:
-          if (outputShapeSlice[0] != kUnknownSize) {
-            checkDimPairs.push_back(
-                std::pair<int64_t, int64_t>(inputDim, outputDim));
-          }
+        } else if (inputShapeSlice[0] == kUnknownSize &&
+                   outputShapeSlice[0] != kUnknownSize) {
+          // Defer the dynamic shape check to avoid DialectConversion assertion.
+          // The check assumes this input dim maps to the output dim alone, and
+          // fails at runtime if not. A dynamic output dim usually spans several
+          // ([?,?,8,8] -> [?,64]), so leave those to a lower benefit pattern.
+          checkDimPairs.push_back(
+              std::pair<int64_t, int64_t>(inputDim, outputDim));
 
           inputShape[inputDim] = outputShape[outputDim];
           inputSliceIndices.push_back(0);
@@ -1447,7 +1449,12 @@ public:
       totalSize = arith::MulIOp::create(b, totalSize, dim);
     }
 
-    Value inferredSize = arith::DivSIOp::create(b, totalSize, knownSize);
+    // Without an inferred dimension, knownSize is zero for an empty view, and
+    // the select below would not stop that division by zero from executing.
+    Value hasInferredDim =
+        arith::CmpIOp::create(b, arith::CmpIPredicate::sgt, count, zero);
+    Value divisor = arith::SelectOp::create(b, hasInferredDim, knownSize, one);
+    Value inferredSize = arith::DivSIOp::create(b, totalSize, divisor);
     for (auto &size : sizes) {
       Value isNeg =
           arith::CmpIOp::create(b, arith::CmpIPredicate::slt, size, zero);
