@@ -31,6 +31,18 @@ ONNX_E2E_LINALG_CRASHING_SET = set()
 # TOSA has different op coverage than linalg; tests unsupported on the
 # torch -> tosa path go here.
 ONNX_E2E_TOSA_XFAIL_SET = {
+    # TOSA per-tensor DQ gives incorrect numerical results for uint8 inputs
+    # above 127. Keep the full unsigned range in these tests to expose it.
+    "OnnxMatMulIntegerToFloat_aZeroPoint",
+    "OnnxMatMulIntegerToFloat_bZeroPoint",
+    # TOSA cannot lower aten.item on runtime qparams.
+    "OnnxMatMulIntegerToFloat_runtimeQParams",
+    # TOSA has no first-class PT2E per-channel DQ lowering.
+    "OnnxMatMulIntegerToFloat_perColumn",
+    "OnnxMatMulIntegerToFloat_mixedQParams",
+    "OnnxMatMulIntegerToFloat_batchedWeights",
+    # TOSA cannot lower dynamic size.int / per-channel DQ here.
+    "OnnxMatMulIntegerToFloat_dynamicColumns",
     # OnnxLSTM_forward_basic: LSTM has no torch -> tosa lowering.
     "OnnxLSTM_forward_basic",
     # OnnxSTFT_onesided_basic: STFT has no torch -> tosa lowering.
