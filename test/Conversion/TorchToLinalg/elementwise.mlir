@@ -209,3 +209,31 @@ func.func @elementwise_bitwise_right_shift_tensor_unsigned(%arg0: !torch.vtensor
   %0 = torch.aten.bitwise_right_shift.Tensor %arg0, %arg1 : !torch.vtensor<[?],ui8>, !torch.vtensor<[?],ui8> -> !torch.vtensor<[?],ui8>
   return %0 : !torch.vtensor<[?],ui8>
 }
+
+// -----
+
+// erfc has no decomposition: it maps straight onto math.erfc so that the
+// accuracy of erfc(x) for large x is not lost to a `1 - erf(x)` rewrite.
+// CHECK-LABEL:   func.func @elementwise_erfc(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[BBARG0:.*]]: f32, %{{.*}}: f32):
+// CHECK:             %[[ERFC:.*]] = math.erfc %[[BBARG0]] : f32
+// CHECK:             linalg.yield %[[ERFC]] : f32
+func.func @elementwise_erfc(%arg0: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+  %0 = torch.aten.erfc %arg0 : !torch.vtensor<[?,?],f32> -> !torch.vtensor<[?,?],f32>
+  return %0 : !torch.vtensor<[?,?],f32>
+}
+
+// -----
+
+// An integer input is promoted to the result's floating-point dtype.
+// CHECK-LABEL:   func.func @elementwise_erfc$int(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[BBARG0:.*]]: i32, %{{.*}}: f32):
+// CHECK:             %[[CAST:.*]] = arith.sitofp %[[BBARG0]] : i32 to f32
+// CHECK:             %[[ERFC:.*]] = math.erfc %[[CAST]] : f32
+// CHECK:             linalg.yield %[[ERFC]] : f32
+func.func @elementwise_erfc$int(%arg0: !torch.vtensor<[?,?],si32>) -> !torch.vtensor<[?,?],f32> {
+  %0 = torch.aten.erfc %arg0 : !torch.vtensor<[?,?],si32> -> !torch.vtensor<[?,?],f32>
+  return %0 : !torch.vtensor<[?,?],f32>
+}
