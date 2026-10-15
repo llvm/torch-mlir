@@ -542,3 +542,39 @@ func.func @torch.aten.unsqueeze$from_end(%arg0: !torch.vtensor<[?,?,?,?],f32>) -
   %0 = torch.aten.unsqueeze %arg0, %int-2 : !torch.vtensor<[?,?,?,?],f32>, !torch.int -> !torch.vtensor<[?,?,?,1,?],f32>
   return %0 : !torch.vtensor<[?,?,?,1,?],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.diagonal$offset(
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[4,5],f32>) -> !torch.vtensor<[4],f32> {
+// CHECK:         %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[4,5],f32> -> tensor<4x5xf32>
+// CHECK-NOT:     stablehlo.transpose
+// CHECK:         %[[T1:.*]] = stablehlo.slice %[[T0]] [0:4, 1:5] : (tensor<4x5xf32>) -> tensor<4x4xf32>
+// CHECK:         %[[T2:.*]] = stablehlo.reshape %[[T1]] : (tensor<4x4xf32>) -> tensor<16xf32>
+// CHECK:         %[[T3:.*]] = stablehlo.slice %[[T2]] [0:16:5] : (tensor<16xf32>) -> tensor<4xf32>
+// CHECK:         %[[T4:.*]] = torch_c.from_builtin_tensor %[[T3]] : tensor<4xf32> -> !torch.vtensor<[4],f32>
+// CHECK:         return %[[T4]] : !torch.vtensor<[4],f32>
+func.func @torch.aten.diagonal$offset(%arg0: !torch.vtensor<[4,5],f32>) -> !torch.vtensor<[4],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %0 = torch.aten.diagonal %arg0, %int1, %int0, %int1 : !torch.vtensor<[4,5],f32>, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4],f32>
+  return %0 : !torch.vtensor<[4],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.diagonal$dims(
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[3,2,4],f32>) -> !torch.vtensor<[2,3],f32> {
+// CHECK:         %[[T0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[3,2,4],f32> -> tensor<3x2x4xf32>
+// CHECK:         %[[T1:.*]] = stablehlo.transpose %[[T0]], dims = [1, 0, 2] : (tensor<3x2x4xf32>) -> tensor<2x3x4xf32>
+// CHECK:         %[[T2:.*]] = stablehlo.slice %[[T1]] [0:2, 0:3, 0:3] : (tensor<2x3x4xf32>) -> tensor<2x3x3xf32>
+// CHECK:         %[[T3:.*]] = stablehlo.reshape %[[T2]] : (tensor<2x3x3xf32>) -> tensor<2x9xf32>
+// CHECK:         %[[T4:.*]] = stablehlo.slice %[[T3]] [0:2, 0:9:4] : (tensor<2x9xf32>) -> tensor<2x3xf32>
+// CHECK:         %[[T5:.*]] = torch_c.from_builtin_tensor %[[T4]] : tensor<2x3xf32> -> !torch.vtensor<[2,3],f32>
+// CHECK:         return %[[T5]] : !torch.vtensor<[2,3],f32>
+func.func @torch.aten.diagonal$dims(%arg0: !torch.vtensor<[3,2,4],f32>) -> !torch.vtensor<[2,3],f32> {
+  %int0 = torch.constant.int 0
+  %int2 = torch.constant.int 2
+  %0 = torch.aten.diagonal %arg0, %int0, %int0, %int2 : !torch.vtensor<[3,2,4],f32>, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,3],f32>
+  return %0 : !torch.vtensor<[2,3],f32>
+}

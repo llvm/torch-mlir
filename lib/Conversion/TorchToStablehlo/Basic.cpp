@@ -2400,6 +2400,82 @@ LogicalResult ConvertAtenOp<AtenSortOp>::matchAndRewrite(
   return success();
 }
 
+// AtenDiagonalOp (static shapes only)
+template <>
+LogicalResult ConvertAtenOp<AtenDiagonalOp>::matchAndRewrite(
+    AtenDiagonalOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Location loc = op.getLoc();
+  Value self = adaptor.getSelf();
+  auto selfTy = dyn_cast<RankedTensorType>(self.getType());
+  if (!selfTy || !selfTy.hasStaticShape() || selfTy.getRank() < 2)
+    return rewriter.notifyMatchFailure(op,
+                                       "expected static input of rank >= 2");
+
+  int64_t offset, dim1, dim2;
+  if (!matchPattern(op.getOffset(), m_TorchConstantInt(&offset)) ||
+      !matchPattern(op.getDim1(), m_TorchConstantInt(&dim1)) ||
+      !matchPattern(op.getDim2(), m_TorchConstantInt(&dim2)))
+    return rewriter.notifyMatchFailure(op, "offset/dim1/dim2 must be constant");
+
+  int64_t rank = selfTy.getRank();
+  dim1 = toPositiveDim(dim1, rank);
+  dim2 = toPositiveDim(dim2, rank);
+  if (!isValidDim(dim1, rank) || !isValidDim(dim2, rank))
+    return rewriter.notifyMatchFailure(op, "dim1 or dim2 out of range");
+  if (dim1 == dim2)
+    return rewriter.notifyMatchFailure(op, "dim1 and dim2 must differ");
+
+  Type elemTy = selfTy.getElementType();
+  ArrayRef<int64_t> shape = selfTy.getShape();
+
+  // 1. Transpose so dim1, dim2 are the last two dims.
+  SmallVector<int64_t> perm, batchShape;
+  for (int64_t i = 0; i < rank; ++i)
+    if (i != dim1 && i != dim2) {
+      perm.push_back(i);
+      batchShape.push_back(shape[i]);
+    }
+  perm.append({dim1, dim2});
+  SmallVector<int64_t> transposedShape;
+  for (int64_t d : perm)
+    transposedShape.push_back(shape[d]);
+  Value x = self;
+  if (dim1 != rank - 2 || dim2 != rank - 1)
+    x = stablehlo::TransposeOp::create(
+        rewriter, loc, RankedTensorType::get(transposedShape, elemTy), self,
+        perm);
+
+  // 2. Slice the LxL square that holds the diagonal. The diagonal starts at
+  // (row, col) and runs until either dim ends.
+  int64_t h = shape[dim1], w = shape[dim2];
+  int64_t row = std::min<int64_t>(std::max<int64_t>(-offset, 0), h);
+  int64_t col = std::min<int64_t>(std::max<int64_t>(offset, 0), w);
+  int64_t len = std::min(h - row, w - col);
+
+  SmallVector<int64_t> start(rank, 0), limit(batchShape), strides(rank, 1);
+  start[rank - 2] = row;
+  start[rank - 1] = col;
+  limit.append({row + len, col + len});
+  x = stablehlo::SliceOp::create(rewriter, loc, x, start, limit, strides);
+
+  // 3. Flatten the square to len * len elements.
+  SmallVector<int64_t> flatShape(batchShape);
+  flatShape.push_back(len * len);
+  x = stablehlo::ReshapeOp::create(rewriter, loc,
+                                   RankedTensorType::get(flatShape, elemTy), x);
+
+  // 4. Element (i, i) of the flattened square is at index i * (len + 1), so a
+  // slice with stride len + 1 picks out exactly the diagonal.
+  SmallVector<int64_t> flatStart(rank - 1, 0), flatStrides(rank - 1, 1);
+  flatStrides[rank - 2] = len + 1;
+  x = stablehlo::SliceOp::create(rewriter, loc, x, flatStart, flatShape,
+                                 flatStrides);
+
+  rewriter.replaceOp(op, x);
+  return success();
+}
+
 void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
     TypeConverter &typeConverter, RewritePatternSet &patterns,
     ConversionTarget &target, const TorchToStablehloOptions &options) {
@@ -2579,6 +2655,7 @@ void mlir::torch::torch_to_stablehlo::populateBasicOpPatternsAndLegality(
   INSERT_ATENOP_PATTERN(AtenTriuOp);
   INSERT_ATENOP_PATTERN(AtenIsfiniteOp);
   INSERT_ATENOP_PATTERN(AtenSortOp);
+  INSERT_ATENOP_PATTERN(AtenDiagonalOp);
 
 #undef INSERT_ATENOP_PATTERN
 
