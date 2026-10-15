@@ -407,6 +407,11 @@ TORCHDYNAMO_CRASHING_SET = {
 }
 
 FX_IMPORTER_XFAIL_SET = {
+    # Torch-to-Linalg nearest2d rounds explicit scales up to integers and
+    # uses integer floor division, producing incorrect source indices.
+    "UpSampleNearest2dFloat32Scale_basic",
+    "UpSampleNearest2dFractionalScales_basic",
+    "UpSampleNearest2dSizeCompatibility_basic",
     "TimeOutModule_basic",  # this test is expected to time out
     "AddFloatIntModule_basic",
     "AllBoolFalseModule_basic",
