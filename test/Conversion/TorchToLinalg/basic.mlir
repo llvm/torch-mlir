@@ -1204,3 +1204,15 @@ func.func @torch.aten.min.dim$bool(%arg0: !torch.vtensor<[3,4],i1>) -> !torch.vt
   %values, %indices = torch.aten.min.dim %arg0, %int1, %false : !torch.vtensor<[3,4],i1>, !torch.int, !torch.bool -> !torch.vtensor<[3],i1>, !torch.vtensor<[3],si64>
   return %values : !torch.vtensor<[3],i1>
 }
+
+// -----
+// Lowering matmul to an 8-bit integer result requires threading the Torch
+// dtype through convertScalarToDtype, which is not implemented; the pattern
+// must report a legalization failure instead of crashing (see #4725).
+func.func @torch.aten.matmul$int8(%lhs: !torch.vtensor<[4,4],si8>,
+                                  %rhs: !torch.vtensor<[4,4],si8>) -> !torch.vtensor<[4,4],si8> {
+  // expected-error @+2 {{unimplemented: for conversion to byte or char type dstOriginalDtype has to be passed to convertScalarToDtype}}
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.matmul'}}
+  %0 = torch.aten.matmul %lhs, %rhs : !torch.vtensor<[4,4],si8>, !torch.vtensor<[4,4],si8> -> !torch.vtensor<[4,4],si8>
+  return %0 : !torch.vtensor<[4,4],si8>
+}
