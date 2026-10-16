@@ -988,18 +988,12 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
                                                  a, b, alpha);
 
         // Quantizing the result of "Add" operation.
-        cTy = dyn_cast<Torch::ValueTensorType>(
-            getQTorchTypeFromTorchIntType(resultType));
-        Value dtyVal = Torch::ConstantIntOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(
-                rewriter.getIntegerType(64),
-                static_cast<int64_t>(
-                    Torch::getScalarTypeForType(cTy.getDtype()))));
-        c = Torch::AtenQuantizePerTensorOp::create(rewriter, binder.getLoc(),
-                                                   cTy, c, cScale, cZp, dtyVal);
-        rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType,
-                                                          c);
+        Value quantizedC;
+        if (failed(createQuantizeTensor(rewriter, loc, c, cScale, cZp,
+                                        resultType, quantizedC)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to quantize the result tensor `c`");
+        rewriter.replaceOp(binder.op, quantizedC);
         return success();
       });
   patterns.onOp(
@@ -1049,18 +1043,12 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
             Torch::AtenLeakyReluOp::create(rewriter, loc, yTy, x, constAlpha);
 
         // Quantizing the result of LeakyRelu op.
-        yTy = dyn_cast<Torch::ValueTensorType>(
-            getQTorchTypeFromTorchIntType(resultType));
-        Value dtyVal = Torch::ConstantIntOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(
-                rewriter.getIntegerType(64),
-                static_cast<int64_t>(
-                    Torch::getScalarTypeForType(yTy.getDtype()))));
-        y = Torch::AtenQuantizePerTensorOp::create(rewriter, loc, yTy, y,
-                                                   yScale, yZp, dtyVal);
-        rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType,
-                                                          y);
+        Value quantizedY;
+        if (failed(createQuantizeTensor(rewriter, loc, y, yScale, yZp,
+                                        resultType, quantizedY)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to quantize the result tensor `y`");
+        rewriter.replaceOp(binder.op, quantizedY);
         return success();
       });
   patterns.onOp(
@@ -1135,18 +1123,12 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
           return rewriter.notifyMatchFailure(
               binder.op, "Incompatible scale and zero-points argument for "
                          "per-tensor quantization");
-        Torch::ValueTensorType yTy = dyn_cast<Torch::ValueTensorType>(
-            getQTorchTypeFromTorchIntType(resultType));
-        Value dtyVal = Torch::ConstantIntOp::create(
-            rewriter, loc, rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(
-                rewriter.getIntegerType(64),
-                static_cast<int64_t>(
-                    Torch::getScalarTypeForType(yTy.getDtype()))));
-        Value result = Torch::AtenQuantizePerTensorOp::create(
-            rewriter, loc, yTy, concat, yScale, yZp, dtyVal);
-        rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType,
-                                                          result);
+        Value quantizedResult;
+        if (failed(createQuantizeTensor(rewriter, loc, concat, yScale, yZp,
+                                        resultType, quantizedResult)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to quantize the concatenated result tensor");
+        rewriter.replaceOp(binder.op, quantizedResult);
         return success();
       });
   patterns.onOp(
@@ -1261,18 +1243,12 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         }
 
         // Quantizing the result of AvgPool op.
-        yTy = dyn_cast<Torch::ValueTensorType>(
-            getQTorchTypeFromTorchIntType(resultType));
-        Value dtyVal = Torch::ConstantIntOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(
-                rewriter.getIntegerType(64),
-                static_cast<int64_t>(
-                    Torch::getScalarTypeForType(yTy.getDtype()))));
-        avgpool = Torch::AtenQuantizePerTensorOp::create(
-            rewriter, loc, yTy, avgpool, yScale, yZp, dtyVal);
-        rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType,
-                                                          avgpool);
+        Value quantizedAvgpool;
+        if (failed(createQuantizeTensor(rewriter, loc, avgpool, yScale, yZp,
+                                        resultType, quantizedAvgpool)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to quantize the AvgPool result tensor");
+        rewriter.replaceOp(binder.op, quantizedAvgpool);
         return success();
       });
   patterns.onOp(
@@ -1316,18 +1292,12 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         Value y = Torch::AtenSigmoidOp::create(rewriter, loc, yTy, x);
 
         // Quantizing the result of Sigmoid op.
-        yTy = dyn_cast<Torch::ValueTensorType>(
-            getQTorchTypeFromTorchIntType(resultType));
-        Value dtyVal = Torch::ConstantIntOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(
-                rewriter.getIntegerType(64),
-                static_cast<int64_t>(
-                    Torch::getScalarTypeForType(yTy.getDtype()))));
-        y = Torch::AtenQuantizePerTensorOp::create(rewriter, loc, yTy, y,
-                                                   yScale, yZp, dtyVal);
-        rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType,
-                                                          y);
+        Value quantizedY;
+        if (failed(createQuantizeTensor(rewriter, loc, y, yScale, yZp,
+                                        resultType, quantizedY)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to quantize the Sigmoid result tensor");
+        rewriter.replaceOp(binder.op, quantizedY);
         return success();
       });
   patterns.onOp(
@@ -1393,18 +1363,12 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
                 .getResult(0);
 
         // Quantizing the result of AveragePool op.
-        yTy = dyn_cast<Torch::ValueTensorType>(
-            getQTorchTypeFromTorchIntType(resultType));
-        Value dtyVal = Torch::ConstantIntOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(
-                rewriter.getIntegerType(64),
-                static_cast<int64_t>(
-                    Torch::getScalarTypeForType(yTy.getDtype()))));
-        averagePool = Torch::AtenQuantizePerTensorOp::create(
-            rewriter, loc, yTy, averagePool, yScale, yZp, dtyVal);
-        rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType,
-                                                          averagePool);
+        Value quantizedAveragePool;
+        if (failed(createQuantizeTensor(rewriter, loc, averagePool, yScale, yZp,
+                                        resultType, quantizedAveragePool)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to quantize the AveragePool result tensor");
+        rewriter.replaceOp(binder.op, quantizedAveragePool);
         return success();
       });
   patterns.onOp(
@@ -1518,18 +1482,12 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
                                                  a, b);
 
         // Quantizing the result of Mul operation.
-        cTy = dyn_cast<Torch::ValueTensorType>(
-            getQTorchTypeFromTorchIntType(resultType));
-        Value dtyVal = Torch::ConstantIntOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(
-                rewriter.getIntegerType(64),
-                static_cast<int64_t>(
-                    Torch::getScalarTypeForType(cTy.getDtype()))));
-        c = Torch::AtenQuantizePerTensorOp::create(rewriter, binder.getLoc(),
-                                                   cTy, c, cScale, cZp, dtyVal);
-        rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType,
-                                                          c);
+        Value quantizedC;
+        if (failed(createQuantizeTensor(rewriter, loc, c, cScale, cZp,
+                                        resultType, quantizedC)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to quantize the result tensor `c`");
+        rewriter.replaceOp(binder.op, quantizedC);
         return success();
       });
 }
