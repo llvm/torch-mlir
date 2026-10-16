@@ -19,8 +19,6 @@ import numpy as np
 import onnx
 import torch
 
-import onnx.reference
-
 from torch_mlir.compiler_utils import (
     OutputType,
     TensorPlaceholder,
@@ -29,6 +27,7 @@ from torch_mlir_e2e_test.configs.onnx_backend import import_onnx, module_lowerin
 from torch_mlir_e2e_test.configs.utils import recursively_convert_from_numpy
 
 from .framework import _INPUT_RANGE_ATTR
+from .reference import create_reference_evaluator
 
 # Torch-MLIR execution backends
 from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import (
@@ -122,7 +121,7 @@ def run_golden(
     """
     input_names = [inp.name for inp in model_proto.graph.input]
     feed = {name: arr for name, arr in zip(input_names, numpy_inputs)}
-    sess = onnx.reference.ReferenceEvaluator(model_proto)
+    sess = create_reference_evaluator(model_proto)
     raw_outputs = sess.run(None, feed)
     return [recursively_convert_from_numpy(out) for out in raw_outputs]
 
