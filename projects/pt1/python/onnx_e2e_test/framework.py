@@ -62,6 +62,7 @@ def build_model(
     opset: int = _DEFAULT_OPSET,
     ir_version: int = _DEFAULT_IR_VERSION,
     validate: bool = True,
+    extra_opsets: Optional[dict[str, int]] = None,
 ) -> onnx.ModelProto:
     """Build an ``onnx.ModelProto`` with the graph name hard-coded to
     ``"main_graph"``.
@@ -82,6 +83,7 @@ def build_model(
         validate: Run ``onnx.checker.check_model`` (default True).  Set False
             for the pass-1 probe model, whose outputs are intentionally
             shapeless (the checker requires a shape).
+        extra_opsets: Additional operator domains and their versions.
 
     Returns:
         An ``onnx.ModelProto`` (validated unless ``validate`` is False).
@@ -95,7 +97,11 @@ def build_model(
     )
     model = onnx.helper.make_model(
         graph,
-        opset_imports=[onnx.helper.make_opsetid("", opset)],
+        opset_imports=[onnx.helper.make_opsetid("", opset)]
+        + [
+            onnx.helper.make_opsetid(domain, version)
+            for domain, version in (extra_opsets or {}).items()
+        ],
         ir_version=ir_version,
     )
     if validate:
@@ -166,6 +172,7 @@ class OnnxTestCase:
     infers each output's shape and dtype by running the model once through
     ``onnx.reference`` — authors never declare output shapes.  A subclass that
     needs an op version newer than the default opset overrides ``opset``.
+    Additional operator domains are declared through ``extra_opsets``.
     Example::
 
         @register_onnx_test
@@ -180,6 +187,7 @@ class OnnxTestCase:
 
     # ONNX opset the model imports; the probe and final models share it.
     opset: int = _DEFAULT_OPSET
+    extra_opsets: Optional[dict[str, int]] = None
 
     def graph(self):
         raise NotImplementedError
@@ -211,6 +219,7 @@ class OnnxTestCase:
         import onnx.reference
 
         from .config import materialize_inputs
+        from .reference import create_reference_evaluator
 
         annotations = cls._input_annotations()
         # A -1 in an annotation shape marks a dynamic dim: TensorPlaceholder /
@@ -234,11 +243,22 @@ class OnnxTestCase:
             nodes, output_names = result
             initializers = None
 
+        # Intermediate tensors have no declared type by default, so probe and declare
+        # them explicitly here, same as the graph outputs.
+        initializer_names = {init.name for init in (initializers or [])}
+        all_node_outputs = [out for node in nodes for out in node.output if out]
+        intermediate_names = [
+            name
+            for name in all_node_outputs
+            if name not in output_names and name not in initializer_names
+        ]
+        probe_names = list(output_names) + intermediate_names
+
         # Pass 1: build a model with shapeless outputs and run onnx.reference to
         # learn each output's concrete shape and dtype.  This model is not
         # validated (check_model requires a shape); it exists only to be run.
         probe_outputs = [
-            onnx.helper.make_empty_tensor_value_info(name) for name in output_names
+            onnx.helper.make_empty_tensor_value_info(name) for name in probe_names
         ]
         probe_model = build_model(
             nodes,
@@ -247,23 +267,37 @@ class OnnxTestCase:
             initializers=initializers,
             opset=cls.opset,
             validate=False,
+            extra_opsets=cls.extra_opsets,
         )
         numpy_inputs = materialize_inputs(cls.input_placeholders(), seed=0)
         feed = {
             annotation[0]: arr for (annotation, arr) in zip(annotations, numpy_inputs)
         }
-        golden = onnx.reference.ReferenceEvaluator(probe_model).run(None, feed)
+        golden = create_reference_evaluator(probe_model).run(None, feed)
+        golden_by_name = dict(zip(probe_names, golden))
 
         # Pass 2: rebuild with concrete, inferred output value_infos so the
-        # importer sees correct result types (and check_model passes).
-        output_infos = [
-            onnx.helper.make_tensor_value_info(
+        # importer sees correct result types (and check_model passes); also
+        # declare intermediate tensors' value_info so a com.microsoft graph
+        # (which skips ONNX shape inference) still has complete type info.
+        def _value_info(name):
+            arr = golden_by_name[name]
+            return onnx.helper.make_tensor_value_info(
                 name,
                 onnx.helper.np_dtype_to_tensor_dtype(arr.dtype),
                 list(arr.shape),
             )
-            for name, arr in zip(output_names, golden)
-        ]
-        return build_model(
-            nodes, input_infos, output_infos, initializers=initializers, opset=cls.opset
+
+        output_infos = [_value_info(name) for name in output_names]
+        final_model = build_model(
+            nodes,
+            input_infos,
+            output_infos,
+            initializers=initializers,
+            opset=cls.opset,
+            extra_opsets=cls.extra_opsets,
         )
+        final_model.graph.value_info.extend(
+            _value_info(name) for name in intermediate_names
+        )
+        return final_model

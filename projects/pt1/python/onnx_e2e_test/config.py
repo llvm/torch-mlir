@@ -19,16 +19,19 @@ import numpy as np
 import onnx
 import torch
 
-import onnx.reference
-
 from torch_mlir.compiler_utils import (
     OutputType,
     TensorPlaceholder,
 )
-from torch_mlir_e2e_test.configs.onnx_backend import import_onnx, module_lowering
+from torch_mlir.extras import onnx_importer
+from torch_mlir.dialects import torch as torch_d
+from torch_mlir.ir import Context
+from torch_mlir_e2e_test.configs.onnx_backend import module_lowering
 from torch_mlir_e2e_test.configs.utils import recursively_convert_from_numpy
 
+
 from .framework import _INPUT_RANGE_ATTR
+from .reference import create_reference_evaluator
 
 # Torch-MLIR execution backends
 from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import (
@@ -122,7 +125,7 @@ def run_golden(
     """
     input_names = [inp.name for inp in model_proto.graph.input]
     feed = {name: arr for name, arr in zip(input_names, numpy_inputs)}
-    sess = onnx.reference.ReferenceEvaluator(model_proto)
+    sess = create_reference_evaluator(model_proto)
     raw_outputs = sess.run(None, feed)
     return [recursively_convert_from_numpy(out) for out in raw_outputs]
 
@@ -130,6 +133,33 @@ def run_golden(
 # ---------------------------------------------------------------------------
 # SUT evaluation via a torch-mlir Linalg backend
 # ---------------------------------------------------------------------------
+
+
+def _uses_com_microsoft_domain(raw_model: onnx.ModelProto) -> bool:
+    return any(opset.domain == "com.microsoft" for opset in raw_model.opset_import)
+
+
+def _import_onnx_for_e2e(serialized: bytes):
+    """Imports a serialized ONNX model into MLIR.
+
+    For models that use the com.microsoft domain, this skips
+    onnx.shape_inference.infer_shapes: ONNX's shape inference does not
+    understand com.microsoft contrib ops and clears the type information
+    on their outputs. Such models (built by `OnnxTestCase`) already carry
+    complete value_info for every tensor (inferred in OnnxTestCase.build),
+    so shape inference not needed for them. This is fine for single-op
+    test graphs but may need refinement for larger mixed models.
+    """
+    raw_model = onnx.load_from_string(serialized)
+    if not _uses_com_microsoft_domain(raw_model):
+        raw_model = onnx.shape_inference.infer_shapes(raw_model, data_prop=True)
+    context = Context()
+    torch_d.register_dialect(context)
+    model_info = onnx_importer.ModelInfo(raw_model)
+    m = model_info.create_module(context=context)
+    imp = onnx_importer.NodeImporter.define_function(model_info.main_graph, m.operation)
+    imp.import_all()
+    return m
 
 
 def run_backend(
@@ -164,7 +194,7 @@ def run_backend(
     serialized = model_proto.SerializeToString()
 
     # Import to MLIR.
-    mlir_module = import_onnx(serialized)
+    mlir_module = _import_onnx_for_e2e(serialized)
 
     # Lower ONNX dialect -> Torch backend contract -> requested backend dialect,
     # reusing the shared lowering sequence from the torch-level ONNX e2e config.
@@ -184,7 +214,38 @@ def run_backend(
     if isinstance(raw_outputs, np.ndarray):
         raw_outputs = (raw_outputs,)
 
-    return [recursively_convert_from_numpy(out) for out in raw_outputs]
+    outputs = [recursively_convert_from_numpy(out) for out in raw_outputs]
+
+    # RefBackend's raw memref buffers don't carry 8-bit signedness, so an
+    # op with result type of ui8 comes back from the compiled
+    # artifact as a torch.int8. Reinterpret based on the ONNX graph's
+    # declared output dtype.
+    output_dtypes = [
+        onnx.helper.tensor_dtype_to_np_dtype(out.type.tensor_type.elem_type)
+        for out in model_proto.graph.output
+    ]
+    outputs = [
+        _reinterpret_to_dtype(out, np_dtype)
+        for out, np_dtype in zip(outputs, output_dtypes)
+    ]
+
+    return outputs
+
+
+def _reinterpret_to_dtype(output: torch.Tensor, np_dtype: np.dtype) -> torch.Tensor:
+    if not isinstance(output, torch.Tensor):
+        return output
+    target_dtype = {np.dtype(np.uint8): torch.uint8, np.dtype(np.int8): torch.int8}.get(
+        np.dtype(np_dtype)
+    )
+    if target_dtype is None or output.dtype == target_dtype:
+        return output
+    if output.dtype in (torch.uint8, torch.int8) and target_dtype in (
+        torch.uint8,
+        torch.int8,
+    ):
+        return output.view(target_dtype)
+    return output
 
 
 # ---------------------------------------------------------------------------
