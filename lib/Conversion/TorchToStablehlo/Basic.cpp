@@ -1130,6 +1130,14 @@ LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewrite(
     return op.emitError("unsupported approximate: ") << approximate;
   }
 
+  // Use f32 opmath for both GELU modes with f16/bf16 inputs, preserving the
+  // negative tail until the final rounding to the result type.
+  auto resultTy =
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  Type elementTy = inputTy.getElementType();
+  if (elementTy.isF16() || elementTy.isBF16())
+    input = hlo::promoteType(rewriter, loc, input, rewriter.getF32Type());
+
   Value one = hlo::getConstantLike(rewriter, loc, 1.0, input);
   Value two = hlo::getConstantLike(rewriter, loc, 2.0, input);
   Value three = hlo::getConstantLike(rewriter, loc, 3.0, input);
@@ -1141,13 +1149,13 @@ LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewrite(
 
   // x * 0.5
   auto inputMulHalf = stablehlo::MulOp::create(rewriter, loc, input, half);
+  Value result;
   if (approximate == "none") {
     auto rsqrtTwo = stablehlo::RsqrtOp::create(rewriter, loc, two);
     auto erfElement = stablehlo::MulOp::create(rewriter, loc, input, rsqrtTwo);
     auto erf = chlo::ErfOp::create(rewriter, loc, erfElement);
     auto erfAdd = stablehlo::AddOp::create(rewriter, loc, erf, one);
-    rewriter.replaceOpWithNewOp<stablehlo::MulOp>(op, erfAdd, inputMulHalf);
-    return success();
+    result = stablehlo::MulOp::create(rewriter, loc, erfAdd, inputMulHalf);
   } else {
     auto sqrtTwoPi = stablehlo::SqrtOp::create(rewriter, loc, twoDivPi);
     // x^3
@@ -1159,9 +1167,11 @@ LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewrite(
     auto tanh = stablehlo::TanhOp::create(
         rewriter, loc, stablehlo::MulOp::create(rewriter, loc, sqrtTwoPi, add));
     auto tanhAdd = stablehlo::AddOp::create(rewriter, loc, tanh, one);
-    rewriter.replaceOpWithNewOp<stablehlo::MulOp>(op, tanhAdd, inputMulHalf);
-    return success();
+    result = stablehlo::MulOp::create(rewriter, loc, tanhAdd, inputMulHalf);
   }
+  result = hlo::promoteType(rewriter, loc, result, resultTy.getElementType());
+  rewriter.replaceOp(op, result);
+  return success();
 }
 
 // AtenLog2Op

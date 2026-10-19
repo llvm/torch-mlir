@@ -5782,16 +5782,25 @@ LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewriteImpl(
         op, "Non-const approximate value not supported");
   }
 
+  // Compute both GELU modes in f32 for f16/bf16 inputs and round once at the
+  // end, avoiding cancellation after a low-precision erf or tanh.
+  auto originalResultType = resultType;
+  if (selfElemTy.isF16() || selfElemTy.isBF16()) {
+    selfType = selfType.clone(rewriter.getF32Type());
+    self = tosa::tosaCastTensorToType(rewriter, self, selfType).value();
+    selfElemTy = rewriter.getF32Type();
+    resultType = resultType.clone(selfElemTy);
+  }
+  Value output;
   if (approximate.compare("none") == 0) {
     // GELU(x) = x * CDF(x)
-    Value cdf =
-        buildUnitNormalCdf(rewriter, op, adaptor.getSelf(), selfElemTy).value();
+    Value cdf = buildUnitNormalCdf(rewriter, op, self, selfElemTy).value();
     cdf = tosa::tosaCastTensorToType(rewriter, cdf, selfType).value();
 
     auto result = tosa::createMulOpAndCast(rewriter, op, resultType, self, cdf,
                                            /*shift=*/0);
 
-    rewriter.replaceOp(op, result.getResult());
+    output = result.getResult();
   } else if (approximate.compare("tanh") == 0) {
     // "tanh" approximate
     // GELU(x) = 0.5 * x * (1 + Tanh(sqrt(2/pi) * (x + 0.044715 * x^3))
@@ -5862,12 +5871,16 @@ LogicalResult ConvertAtenOp<AtenGeluOp>::matchAndRewriteImpl(
                                            halfInput.getResult(),
                                            tanhAdd.getResult(), /*shift=*/0);
 
-    rewriter.replaceOp(op, result.getResult());
+    output = result.getResult();
   } else {
     return rewriter.notifyMatchFailure(op,
                                        "Unsupported approximation algorithm");
   }
 
+  if (output.getType() != originalResultType)
+    output = tosa::tosaCastTensorToType(rewriter, output, originalResultType)
+                 .value();
+  rewriter.replaceOp(op, output);
   return success();
 }
 

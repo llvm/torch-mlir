@@ -222,6 +222,57 @@ Value createMatMulIntegerToFloatDequantize(ConversionPatternRewriter &rewriter,
 void mlir::torch::onnx_c::populateComMicrosoftDomain(
     OnnxCustomOpConversionPattern &patterns) {
   patterns.onOp(
+      "FastGelu", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Value input, bias;
+        Torch::ValueTensorType resultType;
+        if (binder.getNumOperands() < 1 || binder.getNumOperands() > 2 ||
+            binder.tensorOperandAtIndex(input, 0) ||
+            binder.tensorResultType(resultType)) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "expected one input and an optional bias");
+        }
+
+        // Empty ONNX input names are imported as None.
+        if (binder.getNumOperands() == 2 &&
+            !isa<Torch::NoneType>(binder.op->getOperand(1).getType()) &&
+            binder.tensorOperandAtIndex(bias, 1)) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "expected tensor or None bias");
+        }
+        if (!resultType.hasDtype() ||
+            !(resultType.getDtype().isF16() || resultType.getDtype().isBF16() ||
+              resultType.getDtype().isF32() || resultType.getDtype().isF64())) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "expected floating-point result");
+        }
+
+        Location loc = binder.getLoc();
+        Type computeType = resultType;
+        if (bias) {
+          // Keep the bias addition in f32 as part of FastGelu's opmath; an
+          // intermediate f16/bf16 rounding changes the activation's result.
+          if (resultType.getDtype().isF16() || resultType.getDtype().isBF16()) {
+            auto f32 = rewriter.getF32Type();
+            input = Torch::convertTensorToDtype(rewriter, loc, input, f32);
+            bias = Torch::convertTensorToDtype(rewriter, loc, bias, f32);
+            computeType = resultType.getWithSizesAndDtype(
+                resultType.getOptionalSizes(), f32);
+          }
+          Value one = Torch::ConstantIntOp::create(rewriter, loc, 1);
+          input = Torch::AtenAddTensorOp::create(rewriter, loc, computeType,
+                                                 input, bias, one);
+        }
+        // FastGelu is the tanh GELU approximation, with bias added first.
+        Value approximate = Torch::ConstantStrOp::create(rewriter, loc, "tanh");
+        Value result = Torch::AtenGeluOp::create(rewriter, loc, computeType,
+                                                 input, approximate);
+        if (computeType != resultType)
+          result = Torch::convertTensorToDtype(rewriter, loc, result,
+                                               resultType.getDtype());
+        rewriter.replaceOp(binder.op, result);
+        return success();
+      });
+  patterns.onOp(
       "MatMulIntegerToFloat", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Value a, b, aScale, bScale, aZeroPoint, bZeroPoint, bias;

@@ -18,7 +18,6 @@ import onnx.helper
 
 from torch_mlir.compiler_utils import TensorPlaceholder
 
-
 # ---------------------------------------------------------------------------
 # OnnxTest — the fundamental test descriptor
 # ---------------------------------------------------------------------------
@@ -170,8 +169,8 @@ class OnnxTestCase:
     ``unique_name``.  ``graph`` returns ``(nodes, output_names[, initializers])``
     where ``output_names`` is the list of graph output tensor names.  The base
     infers each output's shape and dtype by running the model once through
-    ``onnx.reference`` — authors never declare output shapes.  A subclass that
-    needs an op version newer than the default opset overrides ``opset``.
+    the reference evaluator — authors never declare output shapes. A subclass
+    that needs an op version newer than the default opset overrides ``opset``.
     Additional operator domains are declared through ``extra_opsets``.
     Example::
 
@@ -241,9 +240,9 @@ class OnnxTestCase:
             nodes, output_names = result
             initializers = None
 
-        # Pass 1: build a model with shapeless outputs and run onnx.reference to
-        # learn each output's concrete shape and dtype.  This model is not
-        # validated (check_model requires a shape); it exists only to be run.
+        # Pass 1: run a model with shapeless outputs through the reference
+        # evaluator to learn each output's concrete shape and dtype. This model
+        # is not validated (check_model requires a shape); it exists only to run.
         probe_outputs = [
             onnx.helper.make_empty_tensor_value_info(name) for name in output_names
         ]
