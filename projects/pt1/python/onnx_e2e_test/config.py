@@ -23,12 +23,8 @@ from torch_mlir.compiler_utils import (
     OutputType,
     TensorPlaceholder,
 )
-from torch_mlir.extras import onnx_importer
-from torch_mlir.dialects import torch as torch_d
-from torch_mlir.ir import Context
-from torch_mlir_e2e_test.configs.onnx_backend import module_lowering
+from torch_mlir_e2e_test.configs.onnx_backend import import_onnx, module_lowering
 from torch_mlir_e2e_test.configs.utils import recursively_convert_from_numpy
-
 
 from .framework import _INPUT_RANGE_ATTR
 from .reference import create_reference_evaluator
@@ -135,33 +131,6 @@ def run_golden(
 # ---------------------------------------------------------------------------
 
 
-def _uses_com_microsoft_domain(raw_model: onnx.ModelProto) -> bool:
-    return any(opset.domain == "com.microsoft" for opset in raw_model.opset_import)
-
-
-def _import_onnx_for_e2e(serialized: bytes):
-    """Imports a serialized ONNX model into MLIR.
-
-    For models that use the com.microsoft domain, this skips
-    onnx.shape_inference.infer_shapes: ONNX's shape inference does not
-    understand com.microsoft contrib ops and clears the type information
-    on their outputs. Such models (built by `OnnxTestCase`) already carry
-    complete value_info for every tensor (inferred in OnnxTestCase.build),
-    so shape inference not needed for them. This is fine for single-op
-    test graphs but may need refinement for larger mixed models.
-    """
-    raw_model = onnx.load_from_string(serialized)
-    if not _uses_com_microsoft_domain(raw_model):
-        raw_model = onnx.shape_inference.infer_shapes(raw_model, data_prop=True)
-    context = Context()
-    torch_d.register_dialect(context)
-    model_info = onnx_importer.ModelInfo(raw_model)
-    m = model_info.create_module(context=context)
-    imp = onnx_importer.NodeImporter.define_function(model_info.main_graph, m.operation)
-    imp.import_all()
-    return m
-
-
 def run_backend(
     model_proto: onnx.ModelProto,
     numpy_inputs: List[np.ndarray],
@@ -194,7 +163,7 @@ def run_backend(
     serialized = model_proto.SerializeToString()
 
     # Import to MLIR.
-    mlir_module = _import_onnx_for_e2e(serialized)
+    mlir_module = import_onnx(serialized)
 
     # Lower ONNX dialect -> Torch backend contract -> requested backend dialect,
     # reusing the shared lowering sequence from the torch-level ONNX e2e config.

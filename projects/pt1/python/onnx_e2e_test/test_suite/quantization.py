@@ -28,9 +28,11 @@ _QUANT_RANGE = {
     torch.int8: (-128, 128),
 }
 
+
 def _zp_initializer(name: str, value: int, dtype: torch.dtype):
     np_dtype = _TORCH_TO_NP_DTYPE[dtype]
     return onnx.numpy_helper.from_array(np_dtype(value), name=name)
+
 
 def _scale_initializer(name: str, value: float):
     return onnx.numpy_helper.from_array(np.float32(value), name=name)
