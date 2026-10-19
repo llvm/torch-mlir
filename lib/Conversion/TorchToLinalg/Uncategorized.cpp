@@ -383,13 +383,20 @@ Value createRemainderPayload(OpBuilder &b, Location loc,
 //   round(input/scale) + zeroPoint
 // roundBeforeAdd=false matches quantize_per_token:
 //   round(input/scale + zeroPoint)
+// The arithmetic runs in f32 whatever the input and scale types, as Inductor's
+// quantize lowerings do: they upcast bf16 inputs and cast the scales to f32.
+// https://github.com/pytorch/pytorch/blob/f3c0cf56a7577d677c37718c4edc41b8fc7fb51a/torch/_inductor/lowering.py#L1953-L1954
+// https://github.com/pytorch/pytorch/blob/f3c0cf56a7577d677c37718c4edc41b8fc7fb51a/torch/_inductor/lowering.py#L1974-L1975
 static Value createQuantizePayload(OpBuilder &b, Location loc,
                                    const TypeConverter *converter, Value input,
                                    Value scale, Value zeroPoint, Value quantMin,
                                    Value quantMax, Type outputType,
                                    bool outputIsUnsigned, bool roundBeforeAdd,
                                    Type zeroPointDtype = {}) {
-  Type computeType = input.getType();
+  Type computeType = b.getF32Type();
+  input = convertScalarToDtype(b, loc, input, computeType);
+  quantMin = convertScalarToDtype(b, loc, quantMin, computeType);
+  quantMax = convertScalarToDtype(b, loc, quantMax, computeType);
   scale = materializeScalarToDtype(b, loc, converter, scale, computeType);
   zeroPoint = materializeScalarToDtype(b, loc, converter, zeroPoint,
                                        computeType, zeroPointDtype);
@@ -424,40 +431,55 @@ getSafeSubtractionWidth(unsigned inputWidth, unsigned zeroPointWidth) {
   }
 }
 
+// Returns (input - zeroPoint) * scale computed in f32 and converted to
+// `outputType`, as Inductor's dequantize lowerings do, casting the scales to
+// f32:
+// https://github.com/pytorch/pytorch/blob/f3c0cf56a7577d677c37718c4edc41b8fc7fb51a/torch/_inductor/lowering.py#L2058-L2062
+// An integer zero point is subtracted exactly in a widened integer type. A
+// floating-point zero point is subtracted in f32, so the fraction of a
+// non-integral zero point survives, as in the PT2E reference:
+// https://github.com/pytorch/pytorch/blob/f3c0cf56a7577d677c37718c4edc41b8fc7fb51a/torch/ao/quantization/fx/_decomposed.py#L1183
 static Value createDequantizePayload(OpBuilder &b, Location loc,
                                      const TypeConverter *converter,
                                      Value input, Value scale, Value zeroPoint,
                                      Type outputType, bool inputIsUnsigned,
                                      Type zeroPointDtype = {}) {
-  auto inputIntType = cast<mlir::IntegerType>(input.getType());
-  if (zeroPoint) {
-    Type zeroPointType = converter->convertType(zeroPoint.getType());
-    auto zeroPointIntType = cast<IntegerType>(zeroPointType);
-    std::optional<unsigned> subtractionWidth = getSafeSubtractionWidth(
-        inputIntType.getWidth(), zeroPointIntType.getWidth());
-    assert(subtractionWidth && "unsupported quantized input width");
-    IntegerType subtractionType = b.getIntegerType(*subtractionWidth);
-    zeroPoint = materializeScalarToDtype(b, loc, converter, zeroPoint,
-                                         subtractionType, zeroPointDtype);
-    if (inputIsUnsigned)
-      input = arith::ExtUIOp::create(b, loc, subtractionType, input);
-    else
-      input = arith::ExtSIOp::create(b, loc, subtractionType, input);
-    input = arith::SubIOp::create(b, loc, input, zeroPoint);
-  }
-  Type scaleType = isa<Torch::FloatType>(scale.getType())
-                       ? getDefaultDtypeForTorchScalar(scale.getType())
-                       : converter->convertType(scale.getType());
-  scale = materializeScalarToDtype(b, loc, converter, scale, scaleType);
+  Type computeType = b.getF32Type();
+  Type zeroPointType =
+      zeroPoint ? converter->convertType(zeroPoint.getType()) : Type();
   Value value;
-  if (inputIsUnsigned && !zeroPoint)
-    value = arith::UIToFPOp::create(b, loc, scale.getType(), input);
-  else
-    value = arith::SIToFPOp::create(b, loc, scale.getType(), input);
+  if (isa_and_present<mlir::FloatType>(zeroPointType)) {
+    if (inputIsUnsigned)
+      value = arith::UIToFPOp::create(b, loc, computeType, input);
+    else
+      value = arith::SIToFPOp::create(b, loc, computeType, input);
+    zeroPoint =
+        materializeScalarToDtype(b, loc, converter, zeroPoint, computeType);
+    value = arith::SubFOp::create(b, loc, value, zeroPoint);
+  } else {
+    if (zeroPoint) {
+      auto inputIntType = cast<mlir::IntegerType>(input.getType());
+      auto zeroPointIntType = cast<IntegerType>(zeroPointType);
+      std::optional<unsigned> subtractionWidth = getSafeSubtractionWidth(
+          inputIntType.getWidth(), zeroPointIntType.getWidth());
+      assert(subtractionWidth && "unsupported quantized input width");
+      IntegerType subtractionType = b.getIntegerType(*subtractionWidth);
+      zeroPoint = materializeScalarToDtype(b, loc, converter, zeroPoint,
+                                           subtractionType, zeroPointDtype);
+      if (inputIsUnsigned)
+        input = arith::ExtUIOp::create(b, loc, subtractionType, input);
+      else
+        input = arith::ExtSIOp::create(b, loc, subtractionType, input);
+      input = arith::SubIOp::create(b, loc, input, zeroPoint);
+    }
+    if (inputIsUnsigned && !zeroPoint)
+      value = arith::UIToFPOp::create(b, loc, computeType, input);
+    else
+      value = arith::SIToFPOp::create(b, loc, computeType, input);
+  }
+  scale = materializeScalarToDtype(b, loc, converter, scale, computeType);
   value = arith::MulFOp::create(b, loc, value, scale);
-  if (value.getType() != outputType)
-    value = convertScalarToDtype(b, loc, value, outputType);
-  return value;
+  return convertScalarToDtype(b, loc, value, outputType);
 }
 
 // Returns the Torch element dtype of `zeroPoints`, or a null type when the
