@@ -95,9 +95,11 @@ LogicalResult broadcastToGivenShape(Operation *op, PatternRewriter &rewriter,
 // <?x?xf32>
 Value removeSizeInformation(OpBuilder &b, Location loc, Value tensor);
 
-// Converts a tensor' element type to the specified `elementType`.
-Value convertTensorToElementType(OpBuilder &b, Location loc, Value tensor,
-                                 Type elementType);
+// Converts a tensor' element type to the specified `elementType`. Fails if
+// the per-element conversion is not supported (e.g. converting to a byte or
+// char destination without an original Torch dtype for range-checking).
+FailureOr<Value> convertTensorToElementType(OpBuilder &b, Location loc,
+                                            Value tensor, Type elementType);
 
 // Convert a scalar type to the corresponding builtin type in the
 // linalg-on-tensors backend.
