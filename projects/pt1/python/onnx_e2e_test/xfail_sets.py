@@ -21,6 +21,10 @@ ONNX_E2E_LINALG_XFAIL_SET = {
     # "Yield operand #1 is not equivalent to the corresponding iter bbArg"
     # during linalg-on-tensors -> LLVM lowering.
     "OnnxLSTM_forward_basic",
+    # OnnxConvInteger_perChannelWeightZp: fails becuase "ValueError: The truth
+    # value of an array with more than one element is ambiguous." from
+    # onnx/reference/ops/op_conv_integer.py
+    "OnnxConvInteger_perChannelWeightZp",
 }
 
 # Tests that crash the interpreter and cannot be XFAILed safely.
@@ -53,6 +57,10 @@ ONNX_E2E_TOSA_XFAIL_SET = {
     # OnnxAveragePool2d_countIncludePad_asymmetricPadsDilated: tosa.avg_pool2d
     # has no dilation, so the torch -> tosa pooling lowering rejects it.
     "OnnxAveragePool2d_countIncludePad_asymmetricPadsDilated",
+    # OnnxConvInteger_perChannelWeightZp: fails becuase "ValueError: The truth
+    # value of an array with more than one element is ambiguous." from
+    # onnx/reference/ops/op_conv_integer.py
+    "OnnxConvInteger_perChannelWeightZp",
 }
 
 ONNX_E2E_TOSA_CRASHING_SET = set()

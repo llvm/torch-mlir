@@ -183,22 +183,85 @@ LogicalResult mlir::torch::onnx_c::extractPerTensorQuantizationArguments(
   return success();
 }
 
+namespace {
+struct IntQuantParams {
+  Value dtypeConst;
+  Value quantMin;
+  Value quantMax;
+};
+} // namespace
+
+static FailureOr<IntQuantParams>
+getIntQuantParams(ConversionPatternRewriter &rewriter, Location loc,
+                  Torch::ValueTensorType ty) {
+  if (!ty || !ty.hasSizes())
+    return failure();
+  if (!ty.hasDtype() || !isa<IntegerType>(ty.getDtype()))
+    return failure();
+  auto eTy = cast<IntegerType>(ty.getDtype());
+
+  Value dtypeConst = Torch::getDtypeIntValueForType(rewriter, loc, eTy);
+  auto [minInt, maxInt] = createQuantizationBounds(rewriter, loc, eTy);
+  return IntQuantParams{dtypeConst, minInt, maxInt};
+}
+
+/// Dequantizes the integer tensor `input` to an f32 tensor. If `axis` is set,
+/// `quantized_decomposed.dequantize_per_channel` is emitted,
+/// otherwise `quantized_decomposed.dequantize_per_tensor` is emitted.
+static LogicalResult createDequantizeImpl(ConversionPatternRewriter &rewriter,
+                                          Location loc, Value input,
+                                          Value scale, Value zeroPoint,
+                                          std::optional<int64_t> axis,
+                                          Value &output) {
+  auto inputTy = dyn_cast<Torch::ValueTensorType>(input.getType());
+  FailureOr<IntQuantParams> params = getIntQuantParams(rewriter, loc, inputTy);
+  if (failed(params))
+    return failure();
+
+  Value noneOutDtype = Torch::ConstantNoneOp::create(rewriter, loc);
+  Torch::ValueTensorType resultTy = rewriter.getType<Torch::ValueTensorType>(
+      inputTy.getSizes(), rewriter.getF32Type());
+
+  if (!axis) {
+    output = Torch::QuantizedDecomposedDequantizePerTensorOp::create(
+        rewriter, loc, resultTy, input, scale, zeroPoint, params->quantMin,
+        params->quantMax, params->dtypeConst, noneOutDtype);
+    return success();
+  }
+
+  Value cstAxis = Torch::ConstantIntOp::create(
+      rewriter, loc, rewriter.getI64IntegerAttr(*axis));
+  output = Torch::QuantizedDecomposedDequantizePerChannelOp::create(
+      rewriter, loc, resultTy, input, scale, zeroPoint, cstAxis,
+      params->quantMin, params->quantMax, params->dtypeConst, noneOutDtype);
+  return success();
+}
+
 LogicalResult mlir::torch::onnx_c::createDequantizeTensor(
     ConversionPatternRewriter &rewriter, Location loc, Value input, Value scale,
     Value zeroPoint, Value &output) {
-  auto inputTy = dyn_cast<Torch::ValueTensorType>(input.getType());
-  if (!inputTy || !inputTy.hasSizes())
+  return createDequantizeImpl(rewriter, loc, input, scale, zeroPoint,
+                              /*axis=*/std::nullopt, output);
+}
+
+LogicalResult mlir::torch::onnx_c::createDequantizePerChannelTensor(
+    ConversionPatternRewriter &rewriter, Location loc, Value input,
+    Value scales, Value zeroPoints, int64_t axis, Value &output) {
+  return createDequantizeImpl(rewriter, loc, input, scales, zeroPoints, axis,
+                              output);
+}
+
+LogicalResult mlir::torch::onnx_c::createQuantizeTensor(
+    ConversionPatternRewriter &rewriter, Location loc, Value input, Value scale,
+    Value zeroPoint, Torch::ValueTensorType resultType, Value &output) {
+  FailureOr<IntQuantParams> params =
+      getIntQuantParams(rewriter, loc, resultType);
+  if (failed(params))
     return failure();
 
-  Torch::ValueTensorType makeTensorTy = getQTorchTypeFromTorchIntType(inputTy);
-  Value quantizedInput = Torch::Aten_MakePerTensorQuantizedTensorOp::create(
-      rewriter, loc, makeTensorTy, input, scale, zeroPoint);
-
-  Torch::ValueTensorType resultTy = rewriter.getType<Torch::ValueTensorType>(
-      inputTy.getSizes(), rewriter.getF32Type());
-  output = Torch::AtenDequantizeSelfOp::create(rewriter, loc, resultTy,
-                                               quantizedInput);
-
+  output = Torch::QuantizedDecomposedQuantizePerTensorOp::create(
+      rewriter, loc, resultType, input, scale, zeroPoint, params->quantMin,
+      params->quantMax, params->dtypeConst);
   return success();
 }
 

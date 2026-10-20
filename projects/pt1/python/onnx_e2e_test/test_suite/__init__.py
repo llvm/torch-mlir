@@ -20,3 +20,4 @@ def register_all_tests():
     from . import recurrent  # noqa: F401
     from . import signal  # noqa: F401
     from . import reduction  # noqa: F401
+    from . import quantization  # noqa: F401

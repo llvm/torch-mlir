@@ -1883,7 +1883,6 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             binder.tensorResultType(resultType))
           return failure();
 
-        auto inputTy = dyn_cast<Torch::ValueTensorType>(input.getType());
         auto weightTy = dyn_cast<Torch::ValueTensorType>(weight.getType());
         if (!weightTy || !weightTy.hasSizes())
           return rewriter.notifyMatchFailure(
@@ -1948,28 +1947,44 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
           return rewriter.notifyMatchFailure(
               binder.op, "strides list size does not match the number of axes");
 
+        auto loc = binder.getLoc();
+
         Value scale = Torch::ConstantFloatOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+            rewriter, loc, rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr(1.0));
         if (binder.tensorOperandAtIndex(inputZp, 2)) {
-          inputZp = Torch::ConstantIntOp::create(rewriter, binder.getLoc(),
+          inputZp = Torch::ConstantIntOp::create(rewriter, loc,
                                                  rewriter.getI64IntegerAttr(0));
         } else {
           inputZp = Torch::AtenItemOp::create(
-              rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
-              inputZp);
+              rewriter, loc, rewriter.getType<Torch::IntType>(), inputZp);
         }
-        if (binder.tensorOperandAtIndex(weightZp, 3))
+
+        // Determine whether weight zero-point is per-tensor or per-channel.
+        // w_zero_point in ONNX is optional and, when present, can
+        // be a scalar (per-tensor) or a 1-D tensor whose size equals the
+        // number of output channels (per-channel).
+        bool isPerChannelWeight = false;
+        if (binder.tensorOperandAtIndex(weightZp, 3)) {
+          // w_zero_point not provided: default to scalar 0.
           weightZp = Torch::ConstantIntOp::create(
-              rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(0));
-        // TODO: support per channel quantization if weightZp is a 1-D tensor
-        if (auto zpTy = dyn_cast<Torch::ValueTensorType>(weightZp.getType())) {
-          for (auto dim : zpTy.getSizes())
-            if (dim != 1)
-              return failure();
-          weightZp = Torch::AtenItemOp::create(
-              rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
-              weightZp);
+              rewriter, loc, rewriter.getI64IntegerAttr(0));
+        } else if (auto zpTy =
+                       dyn_cast<Torch::ValueTensorType>(weightZp.getType())) {
+          auto zpSizes = zpTy.getSizes();
+          if (zpSizes.size() > 1)
+            return rewriter.notifyMatchFailure(
+                binder.op, "w_zero_point must be a scalar or 1-D tensor");
+          bool isScalar = zpSizes.empty() || zpSizes[0] == 1;
+          if (isScalar) {
+            // Scalar or single-element 1-D tensor: extract as a single int
+            // for per-tensor dequantization.
+            weightZp = Torch::AtenItemOp::create(
+                rewriter, loc, rewriter.getType<Torch::IntType>(), weightZp);
+          } else {
+            // 1-D tensor with size > 1: per-channel zero-point.
+            isPerChannelWeight = true;
+          }
         }
 
         SmallVector<Value> cstPadding;
@@ -1994,7 +2009,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         }
 
         Value paddingList = Torch::PrimListConstructOp::create(
-            rewriter, binder.getLoc(),
+            rewriter, loc,
             rewriter.getType<Torch::ListType>(
                 rewriter.getType<Torch::IntType>()),
             cstPadding);
@@ -2003,23 +2018,58 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         Value stridesList = createConstantIntList(binder, rewriter, strides);
         Value outputPaddingList =
             createConstantIntList(binder, rewriter, {0, 0});
-        Value transposed =
-            Torch::ConstantBoolOp::create(rewriter, binder.getLoc(), false);
-        Value bias = Torch::ConstantNoneOp::create(rewriter, binder.getLoc());
+        Value transposed = Torch::ConstantBoolOp::create(rewriter, loc, false);
+        Value bias = Torch::ConstantNoneOp::create(rewriter, loc);
         Value cstGroup = Torch::ConstantIntOp::create(
-            rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(group));
+            rewriter, loc, rewriter.getI64IntegerAttr(group));
 
-        Type inputQTy = getQTorchTypeFromTorchIntType(inputTy);
-        Type weightQTy = getQTorchTypeFromTorchIntType(weightTy);
-        input = Torch::Aten_MakePerTensorQuantizedTensorOp::create(
-            rewriter, binder.getLoc(), inputQTy, input, scale, inputZp);
-        weight = Torch::Aten_MakePerTensorQuantizedTensorOp::create(
-            rewriter, binder.getLoc(), weightQTy, weight, scale, weightZp);
+        // Dequantize input (always per-tensor).
+        Value dequantizedInput;
+        if (failed(createDequantizeTensor(rewriter, loc, input, scale, inputZp,
+                                          dequantizedInput)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "failed to dequantize input tensor");
 
-        rewriter.replaceOpWithNewOp<Torch::AtenConvolutionOp>(
-            binder.op, resultType, input, weight, bias, stridesList,
-            paddingList, dilationsList, transposed, outputPaddingList,
-            cstGroup);
+        // Dequantize weight (per-tensor or per-channel).
+        Value dequantizedWeight;
+        if (isPerChannelWeight) {
+          int64_t numChannels = weightShape[0];
+          SmallVector<float> onesVec(numChannels, 1.0f);
+          auto onesAttr = DenseElementsAttr::get(
+              RankedTensorType::get({numChannels}, rewriter.getF32Type()),
+              ArrayRef<float>(onesVec));
+          auto scalesTensorTy = rewriter.getType<Torch::ValueTensorType>(
+              ArrayRef<int64_t>{numChannels}, rewriter.getF32Type());
+          Value weightScales = Torch::ValueTensorLiteralOp::create(
+              rewriter, loc, scalesTensorTy, onesAttr);
+          if (failed(createDequantizePerChannelTensor(
+                  rewriter, loc, weight, weightScales, weightZp,
+                  /*axis=*/0, dequantizedWeight)))
+            return rewriter.notifyMatchFailure(
+                binder.op, "failed to dequantize weight tensor (per-channel)");
+        } else {
+          if (failed(createDequantizeTensor(rewriter, loc, weight, scale,
+                                            weightZp, dequantizedWeight)))
+            return rewriter.notifyMatchFailure(
+                binder.op, "failed to dequantize weight tensor");
+        }
+
+        auto floatResultTy = rewriter.getType<Torch::ValueTensorType>(
+            resultType.getSizes(), rewriter.getF32Type());
+        Value conv = Torch::AtenConvolutionOp::create(
+            rewriter, loc, floatResultTy, dequantizedInput, dequantizedWeight,
+            bias, stridesList, paddingList, dilationsList, transposed,
+            outputPaddingList, cstGroup);
+
+        // Cast float result to si32 (safe given the dequantized inputs)
+        Value si32Dtype = Torch::getDtypeIntValueForType(
+            rewriter, loc, rewriter.getIntegerType(32, /*isSigned=*/true));
+        Value cstFalse = Torch::ConstantBoolOp::create(rewriter, loc, false);
+        Value none = Torch::ConstantNoneOp::create(rewriter, loc);
+        rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
+            binder.op, resultType, conv, si32Dtype,
+            /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+            /*memory_format=*/none);
         return success();
       });
   patterns.onOp(
