@@ -21,6 +21,11 @@ ONNX_E2E_LINALG_XFAIL_SET = {
     # "Yield operand #1 is not equivalent to the corresponding iter bbArg"
     # during linalg-on-tensors -> LLVM lowering.
     "OnnxLSTM_forward_basic",
+    # OnnxQLinearConv_perChannel*: Fails with "operands could not be
+    # broadcast together with shapes". Fixed in onnx 1.18.0, see
+    # https://github.com/onnx/onnx/pull/6460.
+    "OnnxQLinearConv_perChannel",
+    "OnnxQLinearConv_perChannelBias",
 }
 
 # Tests that crash the interpreter and cannot be XFAILed safely.
@@ -53,6 +58,14 @@ ONNX_E2E_TOSA_XFAIL_SET = {
     # OnnxAveragePool2d_countIncludePad_asymmetricPadsDilated: tosa.avg_pool2d
     # has no dilation, so the torch -> tosa pooling lowering rejects it.
     "OnnxAveragePool2d_countIncludePad_asymmetricPadsDilated",
+    # OnnxQLinearConv_perChannel*: Fails with "operands could not be
+    # broadcast together with shapes". Fixed in onnx 1.18.0, see
+    # https://github.com/onnx/onnx/pull/6460.
+    "OnnxQLinearConv_perChannel",
+    "OnnxQLinearConv_perChannelBias",
+    # OnnxQLinearConv_ui8_basic: TOSA mishandles uint8 inputs above 127.
+    # Keep the full unsigned range in these tests to expose it.
+    "OnnxQLinearConv_ui8_basic",
 }
 
 ONNX_E2E_TOSA_CRASHING_SET = set()

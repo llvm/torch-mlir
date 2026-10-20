@@ -2,7 +2,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
-"""ONNX-native tests for Microsoft-domain quantized matmul in PT2E QDQ form."""
+"""ONNX-native tests for quantized ops in PT2E QDQ form."""
 
 import numpy as np
 import onnx.helper
@@ -11,6 +11,9 @@ import torch
 
 from onnx_e2e_test.framework import OnnxTestCase, annotate_inputs
 from onnx_e2e_test.registry import register_onnx_test
+
+
+# ==============================================================================
 
 
 class _MatMulIntegerToFloat(OnnxTestCase):
@@ -39,6 +42,9 @@ class _MatMulIntegerToFloat(OnnxTestCase):
         return [node], ["y"], initializers
 
 
+# ==============================================================================
+
+
 @register_onnx_test
 class OnnxMatMulIntegerToFloat_missingOptional(_MatMulIntegerToFloat):
     @annotate_inputs(
@@ -49,6 +55,9 @@ class OnnxMatMulIntegerToFloat_missingOptional(_MatMulIntegerToFloat):
     )
     def graph(self):
         return super().graph()
+
+
+# ==============================================================================
 
 
 @register_onnx_test
@@ -66,6 +75,9 @@ class OnnxMatMulIntegerToFloat_aZeroPoint(_MatMulIntegerToFloat):
         return super().graph()
 
 
+# ==============================================================================
+
+
 @register_onnx_test
 class OnnxMatMulIntegerToFloat_bZeroPoint(_MatMulIntegerToFloat):
     optional_inputs = ("", "b_zero_point")
@@ -78,6 +90,9 @@ class OnnxMatMulIntegerToFloat_bZeroPoint(_MatMulIntegerToFloat):
     )
     def graph(self):
         return super().graph()
+
+
+# ==============================================================================
 
 
 @register_onnx_test
@@ -98,6 +113,9 @@ class OnnxMatMulIntegerToFloat_runtimeQParams(_MatMulIntegerToFloat):
         return super().graph()
 
 
+# ==============================================================================
+
+
 @register_onnx_test
 class OnnxMatMulIntegerToFloat_bias(_MatMulIntegerToFloat):
     optional_inputs = ("", "", "bias")
@@ -110,6 +128,9 @@ class OnnxMatMulIntegerToFloat_bias(_MatMulIntegerToFloat):
     )
     def graph(self):
         return super().graph()
+
+
+# ==============================================================================
 
 
 @register_onnx_test
@@ -130,6 +151,9 @@ class OnnxMatMulIntegerToFloat_perColumn(_MatMulIntegerToFloat):
         return super().graph()
 
 
+# ==============================================================================
+
+
 @register_onnx_test
 class OnnxMatMulIntegerToFloat_mixedQParams(_MatMulIntegerToFloat):
     # A broadcasts its scalar zero point; B broadcasts its scalar scale.
@@ -147,6 +171,9 @@ class OnnxMatMulIntegerToFloat_mixedQParams(_MatMulIntegerToFloat):
         return super().graph()
 
 
+# ==============================================================================
+
+
 @register_onnx_test
 class OnnxMatMulIntegerToFloat_batchedWeights(_MatMulIntegerToFloat):
     # A [2,4,3] @ B [3,5] -> Y [2,4,5], with B shared across batches.
@@ -157,6 +184,9 @@ class OnnxMatMulIntegerToFloat_batchedWeights(_MatMulIntegerToFloat):
     @annotate_inputs([("a", torch.int8, [2, 4, 3], (-128, 128))])
     def graph(self):
         return super().graph()
+
+
+# ==============================================================================
 
 
 @register_onnx_test
@@ -175,5 +205,135 @@ class OnnxMatMulIntegerToFloat_dynamicColumns(_MatMulIntegerToFloat):
             ("b_zero_point", torch.uint8, [-1], (128, 256)),
         ]
     )
+    def graph(self):
+        return super().graph()
+
+
+# ==============================================================================
+
+
+class _QLinearConv(OnnxTestCase):
+    x_scale = np.array(0.0625, dtype=np.float32)
+    x_zero_point = np.array(-3, dtype=np.int8)
+    w = np.random.default_rng(46).integers(-8, 9, size=(4, 2, 3, 3), dtype=np.int8)
+    w_scale = np.array(0.125, dtype=np.float32)
+    w_zero_point = np.array(0, dtype=np.int8)
+    y_scale = np.array(1.0, dtype=np.float32)
+    y_zero_point = np.array(6, dtype=np.int8)
+    # Optional int32 bias, quantized with scale x_scale * w_scale.
+    B = None
+    # Extra node attributes (pads, strides, group, ...).
+    attributes = {}
+
+    def graph(self):
+        inputs = [
+            "x",
+            "x_scale",
+            "x_zero_point",
+            "w",
+            "w_scale",
+            "w_zero_point",
+            "y_scale",
+            "y_zero_point",
+        ]
+        if self.B is not None:
+            inputs.append("B")
+        initializers = [
+            onnx.numpy_helper.from_array(getattr(self, name), name=name)
+            for name in inputs
+            if name != "x"
+        ]
+        node = onnx.helper.make_node("QLinearConv", inputs, ["y"], **self.attributes)
+        return [node], ["y"], initializers
+
+
+# ==============================================================================
+
+
+@register_onnx_test
+class OnnxQLinearConv_ui8_basic(_QLinearConv):
+    # This test uses uint8, so that it flags the TOSA uint8 Q/DQ issue.
+    x_zero_point = np.array(128, dtype=np.uint8)
+    y_zero_point = np.array(128, dtype=np.uint8)
+
+    @annotate_inputs([("x", torch.uint8, [1, 2, 5, 5], (0, 256))])
+    def graph(self):
+        return super().graph()
+
+
+# ==============================================================================
+
+
+@register_onnx_test
+class OnnxQLinearConv_i8_basic(_QLinearConv):
+    w_zero_point = np.array(2, dtype=np.int8)
+
+    @annotate_inputs([("x", torch.int8, [1, 2, 5, 5], (-128, 128))])
+    def graph(self):
+        return super().graph()
+
+
+# ==============================================================================
+
+
+@register_onnx_test
+class OnnxQLinearConv_bias(_QLinearConv):
+    B = np.array([-300, 0, 250, 1000], dtype=np.int32)
+
+    @annotate_inputs([("x", torch.int8, [1, 2, 5, 5], (-128, 128))])
+    def graph(self):
+        return super().graph()
+
+
+# ==============================================================================
+
+
+@register_onnx_test
+class OnnxQLinearConv_padStride(_QLinearConv):
+    attributes = {"pads": [1, 1, 1, 1], "strides": [2, 2]}
+
+    @annotate_inputs([("x", torch.int8, [1, 2, 7, 7], (-128, 128))])
+    def graph(self):
+        return super().graph()
+
+
+# ==============================================================================
+
+
+@register_onnx_test
+class OnnxQLinearConv_group(_QLinearConv):
+    # 4 input channels split into 2 groups of 2; weight is (M, C/group, kH, kW).
+    attributes = {"group": 2}
+
+    @annotate_inputs([("x", torch.int8, [1, 4, 5, 5], (-128, 128))])
+    def graph(self):
+        return super().graph()
+
+
+# ==============================================================================
+
+
+@register_onnx_test
+class OnnxQLinearConv_perChannel(_QLinearConv):
+    w_scale = np.array([0.125, 0.25, 0.0625, 0.5], dtype=np.float32)
+    w_zero_point = np.array([0, 1, -2, 3], dtype=np.int8)
+    y_scale = np.array(2.0, dtype=np.float32)
+
+    @annotate_inputs([("x", torch.int8, [1, 2, 5, 5], (-128, 128))])
+    def graph(self):
+        return super().graph()
+
+
+# ==============================================================================
+
+
+@register_onnx_test
+class OnnxQLinearConv_perChannelBias(_QLinearConv):
+    w_scale = np.array([0.125, 0.25, 0.0625, 0.5], dtype=np.float32)
+    w_zero_point = np.array([0, 1, -2, 3], dtype=np.int8)
+    y_scale = np.array(2.0, dtype=np.float32)
+    B = np.array([-300, 0, 250, 1000], dtype=np.int32)
+
+    @annotate_inputs([("x", torch.int8, [1, 2, 5, 5], (-128, 128))])
     def graph(self):
         return super().graph()
