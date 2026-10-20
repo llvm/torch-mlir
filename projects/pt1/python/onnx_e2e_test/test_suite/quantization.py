@@ -86,12 +86,12 @@ class OnnxMatMulIntegerToFloat_runtimeQParams(_MatMulIntegerToFloat):
 
     @annotate_inputs(
         [
-            ("a", torch.int8, [4, 3], (-128, 128)),
-            ("b", torch.uint8, [3, 5], (128, 256)),
+            ("a", torch.uint8, [4, 3], (128, 256)),
+            ("b", torch.int8, [3, 5], (-128, 128)),
             ("a_scale", torch.float32, [], (0.125, 0.5)),
             ("b_scale", torch.float32, [1], (0.125, 0.5)),
-            ("a_zero_point", torch.int8, [], (-16, 16)),
-            ("b_zero_point", torch.uint8, [1], (128, 256)),
+            ("a_zero_point", torch.uint8, [], (128, 256)),
+            ("b_zero_point", torch.int8, [1], (-16, 16)),
         ]
     )
     def graph(self):
@@ -115,9 +115,9 @@ class OnnxMatMulIntegerToFloat_bias(_MatMulIntegerToFloat):
 @register_onnx_test
 class OnnxMatMulIntegerToFloat_perColumn(_MatMulIntegerToFloat):
     optional_inputs = ("a_zero_point", "b_zero_point")
-    a_scale = np.array([0.125, 0.25, 0.5], dtype=np.float32)
     b_scale = np.array([0.5, 0.125, 2.0, 0.25, 1.0], dtype=np.float32)
-    a_zero_point = np.array([0, 127, 255], dtype=np.uint8)
+    # ONNX Runtime supports per-column qparams for B and scalar qparams for A.
+    a_zero_point = np.array(200, dtype=np.uint8)
     b_zero_point = np.array([-128, -3, 0, 7, 127], dtype=np.int8)
 
     @annotate_inputs(
@@ -132,15 +132,14 @@ class OnnxMatMulIntegerToFloat_perColumn(_MatMulIntegerToFloat):
 
 @register_onnx_test
 class OnnxMatMulIntegerToFloat_mixedQParams(_MatMulIntegerToFloat):
-    # A broadcasts its scalar zero point; B broadcasts its scalar scale.
+    # B broadcasts its scalar scale alongside per-column zero points.
     optional_inputs = ("a_zero_point", "b_zero_point")
-    a_scale = np.array([0.125, 0.25, 0.5], dtype=np.float32)
-    b_zero_point = np.array([0, 1, 127, 200, 255], dtype=np.uint8)
+    b_zero_point = np.array([-128, -3, 0, 7, 127], dtype=np.int8)
 
     @annotate_inputs(
         [
             ("a", torch.int8, [4, 3], (-128, 128)),
-            ("b", torch.uint8, [3, 5], (128, 256)),
+            ("b", torch.int8, [3, 5], (-128, 128)),
         ]
     )
     def graph(self):
@@ -150,8 +149,7 @@ class OnnxMatMulIntegerToFloat_mixedQParams(_MatMulIntegerToFloat):
 @register_onnx_test
 class OnnxMatMulIntegerToFloat_batchedWeights(_MatMulIntegerToFloat):
     # A [2,4,3] @ B [3,5] -> Y [2,4,5], with B shared across batches.
-    # Vector scales and omitted zero points exercise per-channel DQ defaults.
-    a_scale = np.array([0.125, 0.25, 0.5], dtype=np.float32)
+    # B's vector scale and omitted zero point exercise per-channel DQ defaults.
     b_scale = np.array([0.5, 0.125, 2.0, 0.25, 1.0], dtype=np.float32)
 
     @annotate_inputs([("a", torch.int8, [2, 4, 3], (-128, 128))])
@@ -168,11 +166,11 @@ class OnnxMatMulIntegerToFloat_dynamicColumns(_MatMulIntegerToFloat):
     @annotate_inputs(
         [
             ("a", torch.int8, [-1, -1], (-128, 128)),
-            ("b", torch.uint8, [-1, -1], (128, 256)),
-            ("a_scale", torch.float32, [-1], (0.125, 1.0)),
+            ("b", torch.int8, [-1, -1], (-128, 128)),
+            ("a_scale", torch.float32, [], (0.125, 1.0)),
             ("b_scale", torch.float32, [-1], (0.125, 1.0)),
-            ("a_zero_point", torch.int8, [-1], (-128, 128)),
-            ("b_zero_point", torch.uint8, [-1], (128, 256)),
+            ("a_zero_point", torch.int8, [], (-16, 16)),
+            ("b_zero_point", torch.int8, [-1], (-128, 128)),
         ]
     )
     def graph(self):

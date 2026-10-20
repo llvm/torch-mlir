@@ -6,7 +6,7 @@
 Golden-vs-backend evaluation for ONNX-native end-to-end tests.
 
 Provides two functions:
-  - run_golden: run an onnx.ModelProto through onnx.reference.ReferenceEvaluator
+  - run_golden: evaluate an onnx.ModelProto (ONNX Runtime for Microsoft contrib ops)
   - run_backend: compile the same ModelProto through a torch-mlir backend
 
 Both return a list of torch.Tensor so the existing torch_mlir_e2e_test
@@ -102,7 +102,7 @@ def materialize_inputs(
 
 
 # ---------------------------------------------------------------------------
-# Golden evaluation via onnx.reference
+# Golden evaluation via the shared reference evaluator
 # ---------------------------------------------------------------------------
 
 
@@ -110,7 +110,7 @@ def run_golden(
     model_proto: onnx.ModelProto,
     numpy_inputs: List[np.ndarray],
 ) -> List[torch.Tensor]:
-    """Run *model_proto* through ``onnx.reference.ReferenceEvaluator``.
+    """Evaluate *model_proto*, using ONNX Runtime for Microsoft contrib ops.
 
     Args:
         model_proto: The ONNX model.
@@ -187,12 +187,12 @@ def run_backend(
 
 
 # ---------------------------------------------------------------------------
-# Test configs — pair golden (onnx.reference) with a SUT backend
+# Test configs — pair the reference evaluator with a SUT backend
 # ---------------------------------------------------------------------------
 
 
 class OnnxLinalgTestConfig:
-    """Golden (onnx.reference) + SUT lowered to linalg-on-tensors on the Linalg backend.
+    """Golden reference + SUT lowered to linalg-on-tensors on the Linalg backend.
 
     Usage::
 
@@ -218,7 +218,7 @@ class OnnxLinalgTestConfig:
 
 
 class OnnxTosaBackendTestConfig:
-    """Golden (onnx.reference) + SUT lowered to TOSA, executed via linalg.
+    """Golden reference + SUT lowered to TOSA, executed via linalg.
 
     Lowers the imported model to the ``tosa`` dialect, then compiles it with
     ``LinalgOnTensorsTosaBackend`` (TOSA -> linalg -> RefBackend) so numeric

@@ -1532,6 +1532,68 @@ def ElementwiseGeluApproximateTanhModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 3, low=-0.5, high=0.5))
 
 
+class ElementwiseGeluPrecisionModule(torch.nn.Module):
+    def __init__(self, dtype, approximate="none"):
+        super().__init__()
+        self.dtype = dtype
+        self.approximate = approximate
+
+    @export
+    @annotate_args([None, ([7], torch.float32, True)])
+    def forward(self, x):
+        # Use f32 at the boundary so RefBackend can exercise bf16 internally.
+        return torch.nn.functional.gelu(
+            x.to(self.dtype), approximate=self.approximate
+        ).to(torch.float32)
+
+
+class ElementwiseGeluApproximateTanhPrecisionModule(ElementwiseGeluPrecisionModule):
+    def __init__(self, dtype):
+        super().__init__(dtype, approximate="tanh")
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseGeluApproximateTanhPrecisionModule(torch.float16)
+)
+def ElementwiseGeluApproximateTanhPrecisionModule_f16(module, tu: TestUtils):
+    module.forward(torch.tensor([-3.09765625, -3.0, -2.5, -0.75, 0.0, 0.75, 3.0]))
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseGeluApproximateTanhPrecisionModule(torch.bfloat16)
+)
+def ElementwiseGeluApproximateTanhPrecisionModule_bf16(module, tu: TestUtils):
+    module.forward(torch.tensor([-3.09765625, -3.0, -2.5, -0.75, 0.0, 0.75, 3.0]))
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseGeluApproximateTanhPrecisionModule(torch.float32)
+)
+def ElementwiseGeluApproximateTanhPrecisionModule_f32(module, tu: TestUtils):
+    module.forward(torch.tensor([-3.09765625, -3.0, -2.5, -0.75, 0.0, 0.75, 3.0]))
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseGeluPrecisionModule(torch.float16)
+)
+def ElementwiseGeluPrecisionModule_f16(module, tu: TestUtils):
+    module.forward(torch.tensor([-3.09765625, -3.0, -2.5, -0.75, 0.0, 0.75, 3.0]))
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseGeluPrecisionModule(torch.bfloat16)
+)
+def ElementwiseGeluPrecisionModule_bf16(module, tu: TestUtils):
+    module.forward(torch.tensor([-3.09765625, -3.0, -2.5, -0.75, 0.0, 0.75, 3.0]))
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseGeluPrecisionModule(torch.float32)
+)
+def ElementwiseGeluPrecisionModule_f32(module, tu: TestUtils):
+    module.forward(torch.tensor([-3.09765625, -3.0, -2.5, -0.75, 0.0, 0.75, 3.0]))
+
+
 # ==============================================================================
 
 

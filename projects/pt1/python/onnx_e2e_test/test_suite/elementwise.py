@@ -135,3 +135,101 @@ class OnnxAdd_f32_dynamicInput(OnnxTestCase):
     def graph(self):
         node = onnx.helper.make_node("Add", ["x", "y"], ["z"])
         return [node], ["z"]
+
+
+# ==============================================================================
+
+
+class _FastGelu(OnnxTestCase):
+    extra_opsets = {"com.microsoft": 1}
+    optional_inputs = ()
+
+    def graph(self):
+        node = onnx.helper.make_node(
+            "FastGelu", ["x", *self.optional_inputs], ["y"], domain="com.microsoft"
+        )
+        return [node], ["y"]
+
+
+@register_onnx_test
+class OnnxFastGelu_f32_basic(_FastGelu):
+    @annotate_inputs([("x", torch.float32, [3, 4], (-3.0, 3.0))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class OnnxFastGelu_f32_noneBias(_FastGelu):
+    optional_inputs = ("",)
+
+    @annotate_inputs([("x", torch.float32, [3, 4], (-3.0, 3.0))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class OnnxFastGelu_f32_bias(_FastGelu):
+    optional_inputs = ("bias",)
+
+    @annotate_inputs(
+        [
+            ("x", torch.float32, [2, 3, 4], (-3.0, 3.0)),
+            ("bias", torch.float32, [4], (-1.0, 1.0)),
+        ]
+    )
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class OnnxFastGelu_f32_dynamicBias(_FastGelu):
+    optional_inputs = ("bias",)
+    # Exercise dynamic broadcasting away from tanh saturation, where small
+    # differences between CPU approximations exceed the harness tolerances.
+
+    @annotate_inputs(
+        [
+            ("x", torch.float32, [-1, 4], (-2.0, 2.0)),
+            ("bias", torch.float32, [4], (-1.0, 1.0)),
+        ]
+    )
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class OnnxFastGelu_f64_basic(_FastGelu):
+    @annotate_inputs([("x", torch.float64, [3, 4], (-3.0, 3.0))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class OnnxFastGelu_f16_basic(_FastGelu):
+    @annotate_inputs([("x", torch.float16, [8, 8], (-4.0, 4.0))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class OnnxFastGelu_f16_bias(_FastGelu):
+    optional_inputs = ("bias",)
+
+    @annotate_inputs(
+        [
+            ("x", torch.float16, [2, 3, 4], (-3.0, 3.0)),
+            ("bias", torch.float16, [4], (-1.0, 1.0)),
+        ]
+    )
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class OnnxFastGelu_f16_rounding(_FastGelu):
+    # At x = -3.09765625, f16 intermediates lose accuracy in the negative
+    # tail. FP32 computation followed by a single f16 rounding gives
+    # -0.00264739990234375.
+    @annotate_inputs([("x", torch.float16, [1], (-3.09765625, -3.09765625))])
+    def graph(self):
+        return super().graph()
