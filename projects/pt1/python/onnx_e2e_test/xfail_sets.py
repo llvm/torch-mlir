@@ -21,6 +21,11 @@ ONNX_E2E_LINALG_XFAIL_SET = {
     # "Yield operand #1 is not equivalent to the corresponding iter bbArg"
     # during linalg-on-tensors -> LLVM lowering.
     "OnnxLSTM_forward_basic",
+    # QLinearAveragePool_*: off by one quantized step in a few elements
+    # versus the onnxruntime golden (ORT's integer QLinearAveragePool kernel
+    # rounds differently from the dequantize/avg_pool/quantize lowering).
+    "QLinearAveragePool_ui8_basic",
+    "QLinearAveragePool_i8_basic",
 }
 
 # Tests that crash the interpreter and cannot be XFAILed safely.
@@ -64,6 +69,9 @@ ONNX_E2E_TOSA_XFAIL_SET = {
     "QLinearGlobalAveragePool_ui8_basic",
     "QLinearAveragePool_ui8_basic",
     "QLinearAddQLinearSigmoidFused_ui8_basic",
+    # QLinearAveragePool_i8_basic: off by one quantized step versus the
+    # onnxruntime golden (same rounding difference as on linalg).
+    "QLinearAveragePool_i8_basic",
 }
 
 

@@ -62,6 +62,7 @@ def build_model(
     ir_version: int = _DEFAULT_IR_VERSION,
     validate: bool = True,
     extra_opsets: Optional[dict[str, int]] = None,
+    value_infos: Optional[list] = None,
 ) -> onnx.ModelProto:
     """Build an ``onnx.ModelProto`` with the graph name hard-coded to
     ``"main_graph"``.
@@ -83,6 +84,8 @@ def build_model(
             for the pass-1 probe model, whose outputs are intentionally
             shapeless (the checker requires a shape).
         extra_opsets: Additional operator domains and their versions.
+        value_infos: Optional list of ``onnx.ValueInfoProto`` objects typing
+            intermediate (non-input, non-output) tensors.
 
     Returns:
         An ``onnx.ModelProto`` (validated unless ``validate`` is False).
@@ -93,6 +96,7 @@ def build_model(
         inputs=inputs,
         outputs=outputs,
         initializer=initializers or [],
+        value_info=value_infos or [],
     )
     model = onnx.helper.make_model(
         graph,
@@ -240,20 +244,19 @@ class OnnxTestCase:
             nodes, output_names = result
             initializers = None
 
-        # Intermediate tensors have no declared type by default, so probe and declare
-        # them explicitly here, same as the graph outputs.
-        initializer_names = {init.name for init in (initializers or [])}
-        all_node_outputs = [out for node in nodes for out in node.output if out]
-        intermediate_names = [
-            name
-            for name in all_node_outputs
-            if name not in output_names and name not in initializer_names
-        ]
-        probe_names = list(output_names) + intermediate_names
-
         # Pass 1: run a model with shapeless outputs through the reference
         # evaluator to learn each output's concrete shape and dtype. This model
         # is not validated (check_model requires a shape); it exists only to run.
+        # Intermediate node outputs are also exposed on the probe so their
+        # types can also be recorded as value_info.
+        graph_names = set(output_names)
+        graph_names.update(name for (name, *_rest) in annotations)
+        intermediate_names = []
+        for node in nodes:
+            for out in node.output:
+                if out and out not in graph_names and out not in intermediate_names:
+                    intermediate_names.append(out)
+        probe_names = list(output_names) + intermediate_names
         probe_outputs = [
             onnx.helper.make_empty_tensor_value_info(name) for name in probe_names
         ]
@@ -271,30 +274,24 @@ class OnnxTestCase:
             annotation[0]: arr for (annotation, arr) in zip(annotations, numpy_inputs)
         }
         golden = create_reference_evaluator(probe_model).run(None, feed)
-        golden_by_name = dict(zip(probe_names, golden))
 
         # Pass 2: rebuild with concrete, inferred output value_infos so the
-        # importer sees correct result types (and check_model passes); also
-        # declare intermediate tensors' value_info so a com.microsoft graph
-        # (which skips ONNX shape inference) still has complete type info.
-        def _value_info(name):
-            arr = golden_by_name[name]
-            return onnx.helper.make_tensor_value_info(
+        # importer sees correct result types (and check_model passes).
+        inferred_infos = [
+            onnx.helper.make_tensor_value_info(
                 name,
                 onnx.helper.np_dtype_to_tensor_dtype(arr.dtype),
                 list(arr.shape),
             )
-
-        output_infos = [_value_info(name) for name in output_names]
-        final_model = build_model(
+            for name, arr in zip(probe_names, golden)
+        ]
+        num_outputs = len(output_names)
+        return build_model(
             nodes,
             input_infos,
-            output_infos,
+            inferred_infos[:num_outputs],
             initializers=initializers,
             opset=cls.opset,
             extra_opsets=cls.extra_opsets,
+            value_infos=inferred_infos[num_outputs:],
         )
-        final_model.graph.value_info.extend(
-            _value_info(name) for name in intermediate_names
-        )
-        return final_model
