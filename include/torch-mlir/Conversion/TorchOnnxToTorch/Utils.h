@@ -160,6 +160,16 @@ LogicalResult createQuantizeTensor(ConversionPatternRewriter &rewriter,
                                    Torch::ValueTensorType resultType,
                                    Value &output);
 
+/// This utility takes as input an integer tensor along with per-channel
+/// quantization parameters (1-D scales tensor, optional 1-D zero-points
+/// tensor or `torch.none`) and dequantizes it to a floating point tensor
+/// using `quantized_decomposed.dequantize_per_channel` (PT2E representation).
+/// `input` must be a `ValueTensorType` with known integer dtype and sizes.
+LogicalResult
+createDequantizePerChannelTensor(ConversionPatternRewriter &rewriter,
+                                 Location loc, Value input, Value scales,
+                                 Value zeroPoints, int64_t axis, Value &output);
+
 } // namespace mlir::torch::onnx_c
 
 #endif // TORCHMLIR_CONVERSION_TORCHONNXTOTORCH_UTILS_H
