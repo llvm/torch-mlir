@@ -2,7 +2,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
-"""ONNX-native tests for Microsoft-domain quantized ops in PT2E QDQ form."""
+"""ONNX-native tests for quantized ops in PT2E QDQ form."""
 
 import numpy as np
 import onnx.helper
@@ -660,5 +660,135 @@ class QLinearAddQLinearSigmoidFused_i8_basic(_QLinearAddQLinearSigmoidFused):
             ("B", torch.int8, [2, 4], (-128, 128)),
         ]
     )
+    def graph(self):
+        return super().graph()
+
+
+# ==============================================================================
+# ConvInteger
+# ==============================================================================
+
+
+class _ConvInteger(OnnxTestCase):
+    """Base for ConvInteger tests: y = conv(x - x_zp, w - w_zp) in int32.
+
+    Subclasses set ``dtype``, ``w`` and the zero points. ``x_zp`` and ``w_zp``
+    are optional; ``None`` omits the corresponding ONNX input.
+    """
+
+    opset = 10
+    x_zp = None
+    w_zp = None
+    pads = None
+
+    def graph(self):
+        inputs = ["x", "w"]
+        initializers = [onnx.numpy_helper.from_array(self.w, name="w")]
+        if self.x_zp is not None:
+            inputs.append("x_zero_point")
+            initializers.append(_zp_initializer("x_zero_point", self.x_zp, self.dtype))
+        if self.w_zp is not None:
+            if self.x_zp is None:
+                inputs.append("")
+            inputs.append("w_zero_point")
+            initializers.append(_zp_initializer("w_zero_point", self.w_zp, self.dtype))
+        attrs = {"pads": self.pads} if self.pads is not None else {}
+        node = onnx.helper.make_node("ConvInteger", inputs, ["y"], **attrs)
+        return [node], ["y"], initializers
+
+
+def _conv_weight(seed: int, shape, dtype: torch.dtype, low: int, high: int):
+    rng = np.random.default_rng(seed)
+    return rng.integers(low, high, size=shape).astype(numpy_dtype_for_torch(dtype))
+
+
+@register_onnx_test
+class OnnxConvInteger_ui8_basic(_ConvInteger):
+    dtype = torch.uint8
+    w = _conv_weight(42, (1, 1, 2, 2), torch.uint8, 0, 256)
+    x_zp, w_zp = 128, 3
+
+    @annotate_inputs([("x", torch.uint8, [1, 1, 3, 3], (0, 256))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class OnnxConvInteger_i8_basic(_ConvInteger):
+    dtype = torch.int8
+    w = _conv_weight(42, (1, 1, 2, 2), torch.int8, -128, 128)
+    x_zp, w_zp = -3, 5
+
+    @annotate_inputs([("x", torch.int8, [1, 1, 3, 3], (-128, 128))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class OnnxConvInteger_ui8_noWeightZp(_ConvInteger):
+    dtype = torch.uint8
+    w = _conv_weight(43, (1, 1, 2, 2), torch.uint8, 0, 256)
+    x_zp = 2
+
+    @annotate_inputs([("x", torch.uint8, [1, 1, 3, 3], (0, 256))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class OnnxConvInteger_i8_noWeightZp(_ConvInteger):
+    dtype = torch.int8
+    w = _conv_weight(43, (1, 1, 2, 2), torch.int8, -128, 128)
+    x_zp = 2
+
+    @annotate_inputs([("x", torch.int8, [1, 1, 3, 3], (-128, 128))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class OnnxConvInteger_ui8_withPadding(_ConvInteger):
+    dtype = torch.uint8
+    w = _conv_weight(44, (1, 1, 2, 2), torch.uint8, 0, 256)
+    x_zp, w_zp = 7, 1
+    pads = [1, 1, 1, 1]
+
+    @annotate_inputs([("x", torch.uint8, [1, 1, 3, 3], (0, 256))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class OnnxConvInteger_i8_withPadding(_ConvInteger):
+    dtype = torch.int8
+    w = _conv_weight(44, (1, 1, 2, 2), torch.int8, -128, 128)
+    x_zp, w_zp = -7, 1
+    pads = [1, 1, 1, 1]
+
+    @annotate_inputs([("x", torch.int8, [1, 1, 3, 3], (-128, 128))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class OnnxConvInteger_ui8_perChannelWeightZp(_ConvInteger):
+    dtype = torch.uint8
+    w = _conv_weight(45, (3, 2, 2, 2), torch.uint8, 0, 256)
+    x_zp = 1
+    w_zp = np.array([3, 128, 250], dtype=np.uint8)
+
+    @annotate_inputs([("x", torch.uint8, [1, 2, 3, 3], (0, 256))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class OnnxConvInteger_i8_perChannelWeightZp(_ConvInteger):
+    dtype = torch.int8
+    w = _conv_weight(45, (3, 2, 2, 2), torch.int8, -128, 128)
+    x_zp = 1
+    w_zp = np.array([-3, 0, 4], dtype=np.int8)
+
+    @annotate_inputs([("x", torch.int8, [1, 2, 3, 3], (-128, 128))])
     def graph(self):
         return super().graph()
