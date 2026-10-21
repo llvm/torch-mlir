@@ -73,7 +73,11 @@ class OnnxMatMulIntegerToFloat_bZeroPoint(_MatMulIntegerToFloat):
     @annotate_inputs(
         [
             ("a", torch.uint8, [4, 3], (128, 256)),
-            ("b", torch.int8, [3, 5], (-128, 128)),
+            # Setting RHS with reduced range to avoid saturation issues on x86-64 machines (with AVX2/AVX512).
+            # ONNX Runtime uses the VPMADDUBSW instruction for U8S8 for performance but that may cause the input to be 16-bit clamped (saturated).
+            # See https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html#when-to-use-reduce-range-and-per-channel-quantization
+            # for more details.
+            ("b", torch.int8, [3, 5], (-64, 64)),
         ]
     )
     def graph(self):
@@ -87,7 +91,11 @@ class OnnxMatMulIntegerToFloat_runtimeQParams(_MatMulIntegerToFloat):
     @annotate_inputs(
         [
             ("a", torch.uint8, [4, 3], (128, 256)),
-            ("b", torch.int8, [3, 5], (-128, 128)),
+            # Setting RHS with reduced range to avoid saturation issues on x86-64 machines (with AVX2/AVX512).
+            # ONNX Runtime uses the VPMADDUBSW instruction for U8S8 for performance but that may cause the input to be 16-bit clamped (saturated).
+            # See https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html#when-to-use-reduce-range-and-per-channel-quantization
+            # for more details.
+            ("b", torch.int8, [3, 5], (-64, 64)),
             ("a_scale", torch.float32, [], (0.125, 0.5)),
             ("b_scale", torch.float32, [1], (0.125, 0.5)),
             ("a_zero_point", torch.uint8, [], (128, 256)),
@@ -123,7 +131,11 @@ class OnnxMatMulIntegerToFloat_perColumn(_MatMulIntegerToFloat):
     @annotate_inputs(
         [
             ("a", torch.uint8, [4, 3], (128, 256)),
-            ("b", torch.int8, [3, 5], (-128, 128)),
+            # Setting RHS with reduced range to avoid saturation issues on x86-64 machines (with AVX2/AVX512).
+            # ONNX Runtime uses the VPMADDUBSW instruction for U8S8 for performance but that may cause the input to be 16-bit clamped (saturated).
+            # See https://onnxruntime.ai/docs/performance/model-optimizations/quantization.html#when-to-use-reduce-range-and-per-channel-quantization
+            # for more details.
+            ("b", torch.int8, [3, 5], (-64, 64)),
         ]
     )
     def graph(self):
