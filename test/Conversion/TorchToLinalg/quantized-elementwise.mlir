@@ -111,11 +111,15 @@ func.func @standalone_quantize_si8(
 // CHECK:       %[[RAW_SCALE:.*]] = arith.divf %[[DRANGE]], %[[QRANGE]] : f32
 // CHECK:       %[[SCALE_EPS:.*]] = arith.maximumf %[[RAW_SCALE]], %{{.*}} : f32
 // CHECK:       %[[MIN_OVER_SCALE:.*]] = arith.divf %[[MIN_C]], %[[SCALE_EPS]] : f32
+// As in the reference, the subtraction and clamp happen in int32 (torch.int).
 // CHECK:       %[[RND:.*]] = math.roundeven %[[MIN_OVER_SCALE]] : f32
-// CHECK:       %[[RAW_ZP:.*]] = arith.subf %[[QMIN_F]], %[[RND]] : f32
-// CHECK:       %[[ZP_LO:.*]] = arith.maximumf %[[RAW_ZP]], %[[QMIN_F]] : f32
-// CHECK:       %[[ZP_HI:.*]] = arith.minimumf %[[ZP_LO]], %[[QMAX_F]] : f32
-// CHECK:       %[[ZP_I64:.*]] = arith.fptosi %[[ZP_HI]] : f32 to i64
+// CHECK:       %[[RND_I:.*]] = arith.fptosi %[[RND]] : f32 to i32
+// CHECK-DAG:   %[[QMIN_I:.*]] = arith.constant -128 : i32
+// CHECK-DAG:   %[[QMAX_I:.*]] = arith.constant 127 : i32
+// CHECK:       %[[RAW_ZP:.*]] = arith.subi %[[QMIN_I]], %[[RND_I]] : i32
+// CHECK:       %[[ZP_LO:.*]] = arith.maxsi %[[RAW_ZP]], %[[QMIN_I]] : i32
+// CHECK:       %[[ZP_HI:.*]] = arith.minsi %[[ZP_LO]], %[[QMAX_I]] : i32
+// CHECK:       %[[ZP_I64:.*]] = arith.extsi %[[ZP_HI]] : i32 to i64
 // CHECK:       %[[DEG:.*]] = arith.cmpf ogt, %[[MIN_V]], %[[MAX_V]] : f32
 // CHECK:       %[[ONE:.*]] = arith.constant 1.000000e+00 : f32
 // CHECK:       %[[ZERO_I64:.*]] = arith.constant 0 : i64
@@ -194,13 +198,19 @@ func.func @choose_qparams_tensor_f64_scale(
 
 // -----
 
-// choose_qparams.tensor, f16 input: computes in f32 and extends
-// the final scale to f64.
+// choose_qparams.tensor, f16 input: like PyTorch, the min/max, range and scale
+// division are computed in f16; the eps clamp and zero point are computed in
+// f32, and the final scale is extended to f64.
 // CHECK-LABEL: func.func @choose_qparams_tensor_f16_input(
 // CHECK:       linalg.generic
-// CHECK:         arith.extf %{{.*}} : f16 to f32
-// CHECK:         arith.minimumf %{{.*}}, %{{.*}} : f32
-// CHECK:       arith.divf %{{.*}}, %{{.*}} : f32
+// CHECK-NOT:     arith.extf
+// CHECK:         arith.minimumf %{{.*}}, %{{.*}} : f16
+// CHECK-NOT:   arith.truncf %{{.*}} : f32 to f16
+// CHECK:       %[[RAW:.*]] = arith.divf %{{.*}}, %{{.*}} : f16
+// CHECK:       %[[RAW_F:.*]] = arith.extf %[[RAW]] : f16 to f32
+// CHECK:       %[[SCALE:.*]] = arith.maximumf %[[RAW_F]], %{{.*}} : f32
+// CHECK:       %[[MIN_F:.*]] = arith.extf %{{.*}} : f16 to f32
+// CHECK:       arith.divf %[[MIN_F]], %[[SCALE]] : f32
 // CHECK:       %[[SEL:.*]] = arith.select %{{.*}}, %{{.*}}, %{{.*}} : f32
 // CHECK:       %[[EXT:.*]] = arith.extf %[[SEL]] : f32 to f64
 // CHECK:       tensor.from_elements %[[EXT]] : tensor<1xf64>
@@ -220,11 +230,17 @@ func.func @choose_qparams_tensor_f16_input(
 
 // -----
 
-// choose_qparams_symmetric.tensor, bf16 input: same promotion to f32 as above.
+// choose_qparams_symmetric.tensor, bf16 input: scale computed in bf16, then
+// extended to f32 for the eps clamp, as above.
 // CHECK-LABEL: func.func @choose_qparams_symmetric_tensor_bf16_input(
 // CHECK:       linalg.generic
-// CHECK:         arith.extf %{{.*}} : bf16 to f32
-// CHECK:       arith.divf %{{.*}}, %{{.*}} : f32
+// CHECK-NOT:     arith.extf
+// CHECK:         arith.minimumf %{{.*}}, %{{.*}} : bf16
+// CHECK-NOT:   arith.truncf %{{.*}} : f32 to bf16
+// CHECK:       %[[HALF:.*]] = arith.divf %{{.*}}, %{{.*}} : bf16
+// CHECK:       %[[RAW:.*]] = arith.divf %{{.*}}, %[[HALF]] : bf16
+// CHECK:       %[[RAW_F:.*]] = arith.extf %[[RAW]] : bf16 to f32
+// CHECK:       arith.maximumf %[[RAW_F]], %{{.*}} : f32
 // CHECK:       %[[SEL:.*]] = arith.select %{{.*}}, %{{.*}}, %{{.*}} : f32
 // CHECK:       %[[EXT:.*]] = arith.extf %[[SEL]] : f32 to f64
 // CHECK:       tensor.from_elements %[[EXT]] : tensor<1xf64>
