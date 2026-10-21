@@ -7,8 +7,9 @@ set(CMAKE_PLATFORM_NO_VERSIONED_SONAME ON)
 # argument.
 set(TORCH_MLIR_PYTHON_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/torch_mlir")
 
-# We vendor our own MLIR instance in the `torch_mlir` namespace.
-add_compile_definitions("MLIR_PYTHON_PACKAGE_PREFIX=torch_mlir.")
+# We vendor our own MLIR instance in the configured package namespace.
+add_compile_definitions(
+  "MLIR_PYTHON_PACKAGE_PREFIX=${TORCH_MLIR_PYTHON_PACKAGE_PREFIX}.")
 
 # ################################################################################
 # # Sources
