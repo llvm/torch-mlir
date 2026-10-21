@@ -1571,6 +1571,7 @@ class AvgPool2dDivisorOverrideModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AvgPool2dDivisorOverrideModule())
 def AvgPool2dDivisorOverrideModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 4, 20, 20, low=-1))
+    module.forward(torch.ones(4, 4, 20, 20))
 
 
 class AvgPool2dCeilModeTrueModule(torch.nn.Module):

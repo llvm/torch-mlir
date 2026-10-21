@@ -9216,21 +9216,179 @@ class ConvertAtenAvgPool2dOp
 public:
   using ConvertAtenPoolingBaseOp<AtenAvgPool2dOp,
                                  tosa::AvgPool2dOp>::ConvertAtenPoolingBaseOp;
+
+  LogicalResult
+  matchAndRewriteImpl(AtenAvgPool2dOp op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
+    if (isa<Torch::NoneType>(op.getDivisorOverride().getType()))
+      return ConvertAtenPoolingBaseOp<
+          AtenAvgPool2dOp, tosa::AvgPool2dOp>::matchAndRewriteImpl(op, adaptor,
+                                                                   rewriter);
+
+    int64_t divisor;
+    if (!matchPattern(op.getDivisorOverride(), m_TorchConstantInt(&divisor)) ||
+        divisor == 0)
+      return rewriter.notifyMatchFailure(
+          op, "avg_pool2d requires a nonzero constant divisor_override");
+
+    Value self = adaptor.getSelf();
+    auto inputTy = dyn_cast<RankedTensorType>(self.getType());
+    if (!inputTy || !inputTy.hasStaticShape() ||
+        (inputTy.getRank() != 3 && inputTy.getRank() != 4) ||
+        llvm::any_of(inputTy.getShape(), [](int64_t d) { return d <= 0; }))
+      return rewriter.notifyMatchFailure(
+          op, "avg_pool2d divisor_override requires a positive static rank-3 "
+              "or rank-4 input");
+    Type elementTy = inputTy.getElementType();
+    if (!elementTy.isF32() && !elementTy.isF16() && !elementTy.isBF16())
+      return rewriter.notifyMatchFailure(
+          op, "avg_pool2d divisor_override requires f32, f16, or bf16 input");
+
+    SmallVector<int64_t> kernel, stride, padding;
+    bool ceilMode;
+    if (!matchPattern(op.getKernelSize(), m_TorchListOfConstantInts(kernel)) ||
+        !matchPattern(op.getStride(), m_TorchListOfConstantInts(stride)) ||
+        !matchPattern(op.getPadding(), m_TorchListOfConstantInts(padding)) ||
+        !matchPattern(op.getCeilMode(), m_TorchConstantBool(&ceilMode)))
+      return rewriter.notifyMatchFailure(
+          op,
+          "avg_pool2d divisor_override requires constant pooling parameters");
+    if (stride.empty())
+      stride = kernel;
+    auto normalizePair = [](SmallVectorImpl<int64_t> &values) {
+      if (values.size() == 1)
+        values.push_back(values.front());
+      return values.size() == 2;
+    };
+    if (!normalizePair(kernel) || !normalizePair(stride) ||
+        !normalizePair(padding) ||
+        llvm::any_of(kernel, [](int64_t v) { return v <= 0; }) ||
+        llvm::any_of(stride, [](int64_t v) { return v <= 0; }) ||
+        padding[0] < 0 || padding[1] < 0 || padding[0] > kernel[0] / 2 ||
+        padding[1] > kernel[1] / 2)
+      return rewriter.notifyMatchFailure(
+          op,
+          "avg_pool2d divisor_override requires valid 2D pooling parameters");
+
+    int64_t rank = inputTy.getRank();
+    SmallVector<int64_t> resultShape(inputTy.getShape());
+    SmallVector<int64_t> paddedShape(inputTy.getShape());
+    SmallVector<int64_t, 2> sliceSize;
+    SmallVector<int64_t, 4> poolPad;
+    for (int64_t axis = 0; axis < 2; ++axis) {
+      int64_t dim = inputTy.getDimSize(rank - 2 + axis);
+      int64_t padded;
+      if (llvm::AddOverflow(dim, padding[axis], padded) ||
+          llvm::AddOverflow(padded, padding[axis], padded))
+        return rewriter.notifyMatchFailure(
+            op, "avg_pool2d divisor_override padding overflows");
+      int64_t numerator = padded - kernel[axis];
+      int64_t output = numerator / stride[axis] + 1;
+      int64_t remainder = numerator % stride[axis];
+      if (ceilMode && remainder > 0)
+        ++output;
+      if (!ceilMode && remainder < 0)
+        --output;
+      if (ceilMode && output > 0 &&
+          output - 1 > (dim + padding[axis] - 1) / stride[axis])
+        --output;
+      if (output <= 0)
+        return rewriter.notifyMatchFailure(
+            op,
+            "avg_pool2d divisor_override requires positive output dimensions");
+
+      int64_t covered;
+      if (llvm::MulOverflow(output - 1, stride[axis], covered) ||
+          llvm::AddOverflow(covered, kernel[axis], covered))
+        return rewriter.notifyMatchFailure(
+            op, "avg_pool2d divisor_override window extent overflows");
+      // Make the last window end at the padded input boundary required by TOSA.
+      // The override makes count_include_pad irrelevant, including ceil tails.
+      int64_t tail = covered - padding[axis];
+      sliceSize.push_back(std::min(dim, tail));
+      poolPad.push_back(padding[axis]);
+      poolPad.push_back(std::max(int64_t{0}, tail - dim));
+      resultShape[rank - 2 + axis] = output;
+      paddedShape[rank - 2 + axis] = covered;
+    }
+
+    auto resultTy = dyn_cast<RankedTensorType>(
+        getTypeConverter()->convertType(op.getType()));
+    if (!resultTy || resultTy.getElementType() != elementTy ||
+        !llvm::equal(resultTy.getShape(), resultShape))
+      return rewriter.notifyMatchFailure(
+          op, "avg_pool2d divisor_override requires a matching static result");
+    int64_t batch = rank == 4 ? inputTy.getDimSize(0) : 1;
+    int64_t channels = inputTy.getDimSize(rank - 3);
+    SmallVector<int64_t> weightShape{kernel[0], kernel[1], channels, 1};
+    auto fitsTensorSize = [](ArrayRef<int64_t> shape) {
+      int64_t elements = 1;
+      for (int64_t dim : shape)
+        if (llvm::MulOverflow(elements, dim, elements))
+          return false;
+      return static_cast<uint64_t>(elements) <=
+             std::numeric_limits<size_t>::max() / sizeof(float);
+    };
+    if (!fitsTensorSize(inputTy.getShape()) || !fitsTensorSize(resultShape) ||
+        !fitsTensorSize(paddedShape) || !fitsTensorSize(weightShape))
+      return rewriter.notifyMatchFailure(
+          op, "avg_pool2d divisor_override tensor size overflows");
+
+    Location loc = op.getLoc();
+    Type f32 = rewriter.getF32Type();
+    Value input = transposePoolingInputToHwc(op, rewriter, self);
+    SmallVector<int64_t> inputShape{batch, inputTy.getDimSize(rank - 2),
+                                    inputTy.getDimSize(rank - 1), channels};
+    if (rank == 3)
+      input = reshapeTensor(input, inputShape, elementTy, rewriter, loc);
+    SmallVector<int64_t> slicedShape{batch, sliceSize[0], sliceSize[1],
+                                     channels};
+    if (inputShape != slicedShape)
+      input = tosa::SliceOp::create(
+          rewriter, loc, RankedTensorType::get(slicedShape, elementTy), input,
+          tosa::getTosaConstShape(rewriter, loc, {0, 0, 0, 0}),
+          tosa::getTosaConstShape(rewriter, loc, slicedShape));
+    input = tosa::tosaCastTensorToType(rewriter, input,
+                                       RankedTensorType::get(slicedShape, f32))
+                .value();
+
+    // Sum directly instead of rescaling an already rounded average. Keep both
+    // accumulation and division in f32, narrowing only the final result.
+    Value weight =
+        tosa::getSplatConstTensor<float>(rewriter, op, 1.0f, weightShape)
+            .value();
+    Value bias =
+        tosa::getSplatConstTensor<float>(rewriter, op, 0.0f, {channels})
+            .value();
+    Value zeroPoint =
+        tosa::getConstTensor<float>(rewriter, op, 0.0f, {1}).value();
+    auto pooledTy = RankedTensorType::get(
+        {batch, resultShape[rank - 2], resultShape[rank - 1], channels}, f32);
+    Value sum = tosa::DepthwiseConv2DOp::create(
+        rewriter, loc, pooledTy, input, weight, bias, zeroPoint, zeroPoint,
+        rewriter.getDenseI64ArrayAttr(poolPad),
+        rewriter.getDenseI64ArrayAttr(stride),
+        rewriter.getDenseI64ArrayAttr({1, 1}), TypeAttr::get(f32));
+    Value reciprocal =
+        tosa::getConstTensor<float>(
+            rewriter, op, 1.0f / static_cast<float>(divisor), {1, 1, 1, 1})
+            .value();
+    Value result = tosa::createMulOpAndCast(rewriter, op, pooledTy, sum,
+                                            reciprocal, /*shift=*/0);
+    result = transposePoolingOutputToChw(op, rewriter, result);
+    if (rank == 3)
+      result = reshapeTensor(result, resultShape, f32, rewriter, loc);
+    rewriter.replaceOp(
+        op, tosa::tosaCastTensorToType(rewriter, result, resultTy).value());
+    return success();
+  }
+
   LogicalResult processInputs(AtenAvgPool2dOp op, OpAdaptor adaptor,
                               ConversionPatternRewriter &rewriter, Value &input,
                               DenseI64ArrayAttr &kernel,
                               DenseI64ArrayAttr &stride, DenseI64ArrayAttr &pad,
                               Type &outputTy) const override {
     auto self = adaptor.getSelf();
-
-    // Currently, we can not represent `divisor_override` with the existing TOSA
-    // AvgPool2d specification. Without the below check, we produce silent wrong
-    // answers (SWA) when the `divisor_override` value is other than `None.`
-    if (!isa<Torch::NoneType>(op.getDivisorOverride().getType())) {
-      return rewriter.notifyMatchFailure(
-          op, "Unsupported `divisor_override` value, for tosa AvgPool2dOp "
-              "`divisor_override` value should be `None`.");
-    }
 
     SmallVector<int64_t, 2> dilationArray{1, 1};
     SmallVector<int64_t, 4> explicitNHWCPad;
