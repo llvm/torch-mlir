@@ -2,7 +2,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
-"""ONNX-native tests for Microsoft-domain quantized matmul in PT2E QDQ form."""
+"""ONNX-native tests for quantized ops in PT2E QDQ form."""
 
 import numpy as np
 import onnx.helper
@@ -11,6 +11,9 @@ import torch
 
 from onnx_e2e_test.framework import OnnxTestCase, annotate_inputs
 from onnx_e2e_test.registry import register_onnx_test
+
+
+# ==============================================================================
 
 
 class _MatMulIntegerToFloat(OnnxTestCase):
@@ -39,6 +42,9 @@ class _MatMulIntegerToFloat(OnnxTestCase):
         return [node], ["y"], initializers
 
 
+# ==============================================================================
+
+
 @register_onnx_test
 class OnnxMatMulIntegerToFloat_missingOptional(_MatMulIntegerToFloat):
     @annotate_inputs(
@@ -49,6 +55,9 @@ class OnnxMatMulIntegerToFloat_missingOptional(_MatMulIntegerToFloat):
     )
     def graph(self):
         return super().graph()
+
+
+# ==============================================================================
 
 
 @register_onnx_test
@@ -64,6 +73,9 @@ class OnnxMatMulIntegerToFloat_aZeroPoint(_MatMulIntegerToFloat):
     )
     def graph(self):
         return super().graph()
+
+
+# ==============================================================================
 
 
 @register_onnx_test
@@ -82,6 +94,9 @@ class OnnxMatMulIntegerToFloat_bZeroPoint(_MatMulIntegerToFloat):
     )
     def graph(self):
         return super().graph()
+
+
+# ==============================================================================
 
 
 @register_onnx_test
@@ -106,6 +121,9 @@ class OnnxMatMulIntegerToFloat_runtimeQParams(_MatMulIntegerToFloat):
         return super().graph()
 
 
+# ==============================================================================
+
+
 @register_onnx_test
 class OnnxMatMulIntegerToFloat_bias(_MatMulIntegerToFloat):
     optional_inputs = ("", "", "bias")
@@ -118,6 +136,9 @@ class OnnxMatMulIntegerToFloat_bias(_MatMulIntegerToFloat):
     )
     def graph(self):
         return super().graph()
+
+
+# ==============================================================================
 
 
 @register_onnx_test
@@ -142,6 +163,9 @@ class OnnxMatMulIntegerToFloat_perColumn(_MatMulIntegerToFloat):
         return super().graph()
 
 
+# ==============================================================================
+
+
 @register_onnx_test
 class OnnxMatMulIntegerToFloat_mixedQParams(_MatMulIntegerToFloat):
     # B broadcasts its scalar scale alongside per-column zero points.
@@ -158,6 +182,9 @@ class OnnxMatMulIntegerToFloat_mixedQParams(_MatMulIntegerToFloat):
         return super().graph()
 
 
+# ==============================================================================
+
+
 @register_onnx_test
 class OnnxMatMulIntegerToFloat_batchedWeights(_MatMulIntegerToFloat):
     # A [2,4,3] @ B [3,5] -> Y [2,4,5], with B shared across batches.
@@ -167,6 +194,9 @@ class OnnxMatMulIntegerToFloat_batchedWeights(_MatMulIntegerToFloat):
     @annotate_inputs([("a", torch.int8, [2, 4, 3], (-128, 128))])
     def graph(self):
         return super().graph()
+
+
+# ==============================================================================
 
 
 @register_onnx_test
@@ -187,3 +217,114 @@ class OnnxMatMulIntegerToFloat_dynamicColumns(_MatMulIntegerToFloat):
     )
     def graph(self):
         return super().graph()
+
+
+# ==============================================================================
+
+
+@register_onnx_test
+class OnnxConvInteger_basic(OnnxTestCase):
+    opset = 10
+
+    def __init__(self):
+        rng = np.random.default_rng(42)
+        self._w = rng.integers(0, 10, size=(1, 1, 2, 2), dtype=np.int8)
+        self._x_zp = np.array(1, dtype=np.int8)
+        self._w_zp = np.array(0, dtype=np.int8)
+
+    @annotate_inputs([("x", torch.int8, [1, 1, 3, 3], (0, 20))])
+    def graph(self):
+        node = onnx.helper.make_node(
+            "ConvInteger",
+            ["x", "w", "x_zero_point", "w_zero_point"],
+            ["y"],
+        )
+        initializers = [
+            onnx.numpy_helper.from_array(self._w, name="w"),
+            onnx.numpy_helper.from_array(self._x_zp, name="x_zero_point"),
+            onnx.numpy_helper.from_array(self._w_zp, name="w_zero_point"),
+        ]
+        return [node], ["y"], initializers
+
+
+# ==============================================================================
+
+
+@register_onnx_test
+class OnnxConvInteger_noWeightZp(OnnxTestCase):
+    opset = 10
+
+    def __init__(self):
+        rng = np.random.default_rng(43)
+        self._w = rng.integers(0, 10, size=(1, 1, 2, 2), dtype=np.int8)
+        self._x_zp = np.array(2, dtype=np.int8)
+
+    @annotate_inputs([("x", torch.int8, [1, 1, 3, 3], (0, 20))])
+    def graph(self):
+        node = onnx.helper.make_node(
+            "ConvInteger",
+            ["x", "w", "x_zero_point"],
+            ["y"],
+        )
+        initializers = [
+            onnx.numpy_helper.from_array(self._w, name="w"),
+            onnx.numpy_helper.from_array(self._x_zp, name="x_zero_point"),
+        ]
+        return [node], ["y"], initializers
+
+
+# ==============================================================================
+
+
+@register_onnx_test
+class OnnxConvInteger_withPadding(OnnxTestCase):
+    opset = 10
+
+    def __init__(self):
+        rng = np.random.default_rng(44)
+        self._w = rng.integers(0, 10, size=(1, 1, 2, 2), dtype=np.int8)
+        self._x_zp = np.array(0, dtype=np.int8)
+        self._w_zp = np.array(0, dtype=np.int8)
+
+    @annotate_inputs([("x", torch.int8, [1, 1, 3, 3], (0, 20))])
+    def graph(self):
+        node = onnx.helper.make_node(
+            "ConvInteger",
+            ["x", "w", "x_zero_point", "w_zero_point"],
+            ["y"],
+            pads=[1, 1, 1, 1],
+        )
+        initializers = [
+            onnx.numpy_helper.from_array(self._w, name="w"),
+            onnx.numpy_helper.from_array(self._x_zp, name="x_zero_point"),
+            onnx.numpy_helper.from_array(self._w_zp, name="w_zero_point"),
+        ]
+        return [node], ["y"], initializers
+
+
+# ==============================================================================
+
+
+@register_onnx_test
+class OnnxConvInteger_perChannelWeightZp(OnnxTestCase):
+    opset = 10
+
+    def __init__(self):
+        rng = np.random.default_rng(45)
+        self._w = rng.integers(0, 10, size=(3, 2, 2, 2), dtype=np.int8)
+        self._x_zp = np.array(1, dtype=np.int8)
+        self._w_zp = rng.integers(0, 5, size=(3,), dtype=np.int8)
+
+    @annotate_inputs([("x", torch.int8, [1, 2, 3, 3], (0, 20))])
+    def graph(self):
+        node = onnx.helper.make_node(
+            "ConvInteger",
+            ["x", "w", "x_zero_point", "w_zero_point"],
+            ["y"],
+        )
+        initializers = [
+            onnx.numpy_helper.from_array(self._w, name="w"),
+            onnx.numpy_helper.from_array(self._x_zp, name="x_zero_point"),
+            onnx.numpy_helper.from_array(self._w_zp, name="w_zero_point"),
+        ]
+        return [node], ["y"], initializers
