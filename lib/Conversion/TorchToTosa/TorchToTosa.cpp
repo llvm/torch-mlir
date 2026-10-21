@@ -8980,6 +8980,207 @@ public:
   }
 };
 
+class ConvertAtenMaxPool2dWithIndicesOp
+    : public TorchToTosaOpConversionPattern<AtenMaxPool2dWithIndicesOp> {
+public:
+  using TorchToTosaOpConversionPattern::TorchToTosaOpConversionPattern;
+
+  LogicalResult
+  matchAndRewriteImpl(AtenMaxPool2dWithIndicesOp op, OpAdaptor adaptor,
+                      ConversionPatternRewriter &rewriter) const override {
+    Value self = adaptor.getSelf();
+    auto inputTy = dyn_cast<RankedTensorType>(self.getType());
+    if (!inputTy || !inputTy.hasStaticShape() ||
+        (inputTy.getRank() != 3 && inputTy.getRank() != 4) ||
+        llvm::any_of(inputTy.getShape(), [](int64_t d) { return d <= 0; }))
+      return rewriter.notifyMatchFailure(
+          op, "max_pool2d_with_indices requires a positive static rank-3 or "
+              "rank-4 input");
+    Type elementTy = inputTy.getElementType();
+    if (!elementTy.isF32() && !elementTy.isF16() && !elementTy.isBF16())
+      return rewriter.notifyMatchFailure(
+          op, "max_pool2d_with_indices requires f32, f16, or bf16 input");
+
+    SmallVector<int64_t> kernel, stride, padding, dilation;
+    bool ceilMode;
+    if (!matchPattern(op.getKernelSize(), m_TorchListOfConstantInts(kernel)) ||
+        !matchPattern(op.getStride(), m_TorchListOfConstantInts(stride)) ||
+        !matchPattern(op.getPadding(), m_TorchListOfConstantInts(padding)) ||
+        !matchPattern(op.getDilation(), m_TorchListOfConstantInts(dilation)) ||
+        !matchPattern(op.getCeilMode(), m_TorchConstantBool(&ceilMode)))
+      return rewriter.notifyMatchFailure(
+          op, "max_pool2d_with_indices requires constant pooling parameters");
+    if (stride.empty())
+      stride = kernel;
+    auto normalizePair = [](SmallVectorImpl<int64_t> &values) {
+      if (values.size() == 1)
+        values.push_back(values.front());
+      return values.size() == 2;
+    };
+    if (!normalizePair(kernel) || !normalizePair(stride) ||
+        !normalizePair(padding) || !normalizePair(dilation) ||
+        llvm::any_of(kernel, [](int64_t v) { return v <= 0; }) ||
+        llvm::any_of(stride, [](int64_t v) { return v <= 0; }))
+      return rewriter.notifyMatchFailure(
+          op, "max_pool2d_with_indices requires valid 2D pooling parameters");
+    if (padding[0] != 0 || padding[1] != 0 || dilation[0] != 1 ||
+        dilation[1] != 1)
+      return rewriter.notifyMatchFailure(
+          op,
+          "max_pool2d_with_indices requires zero padding and unit dilation");
+
+    int64_t rank = inputTy.getRank();
+    int64_t height = inputTy.getDimSize(rank - 2);
+    int64_t width = inputTy.getDimSize(rank - 1);
+    auto outputDim = [ceilMode](int64_t input, int64_t kernel, int64_t stride) {
+      int64_t numerator = input - kernel;
+      int64_t quotient = numerator / stride;
+      int64_t remainder = numerator % stride;
+      if (ceilMode && remainder > 0)
+        ++quotient;
+      if (!ceilMode && remainder < 0)
+        --quotient;
+      int64_t output = quotient + 1;
+      // Drop ceil-mode windows starting outside the input, without multiplying
+      // their start coordinates before checking overflow.
+      if (ceilMode && output > 0 && (output - 1) > (input - 1) / stride)
+        --output;
+      return output;
+    };
+    int64_t outHeight = outputDim(height, kernel[0], stride[0]);
+    int64_t outWidth = outputDim(width, kernel[1], stride[1]);
+    if (outHeight <= 0 || outWidth <= 0)
+      return rewriter.notifyMatchFailure(
+          op, "max_pool2d_with_indices requires positive output dimensions");
+
+    auto valuesTy = dyn_cast<RankedTensorType>(
+        getTypeConverter()->convertType(op.getResult0().getType()));
+    auto indicesTy = dyn_cast<RankedTensorType>(
+        getTypeConverter()->convertType(op.getResult1().getType()));
+    SmallVector<int64_t> resultShape(inputTy.getShape());
+    resultShape[rank - 2] = outHeight;
+    resultShape[rank - 1] = outWidth;
+    if (!valuesTy || !indicesTy || valuesTy.getElementType() != elementTy ||
+        !indicesTy.getElementType().isInteger(64) ||
+        !llvm::equal(valuesTy.getShape(), resultShape) ||
+        !llvm::equal(indicesTy.getShape(), resultShape))
+      return rewriter.notifyMatchFailure(
+          op, "max_pool2d_with_indices requires matching static result shapes "
+              "and i64 indices");
+
+    int64_t batch = rank == 4 ? inputTy.getDimSize(0) : 1;
+    int64_t channels, inputArea, outputArea, kernelArea, ignored;
+    int64_t kernelHeight = std::min(kernel[0], height);
+    int64_t kernelWidth = std::min(kernel[1], width);
+    if (llvm::MulOverflow(batch, inputTy.getDimSize(rank - 3), channels) ||
+        llvm::MulOverflow(height, width, inputArea) ||
+        llvm::MulOverflow(outHeight, outWidth, outputArea) ||
+        llvm::MulOverflow(channels, inputArea, ignored) ||
+        llvm::MulOverflow(channels, outputArea, ignored) ||
+        llvm::MulOverflow(kernelHeight, kernelWidth, kernelArea) ||
+        llvm::MulOverflow(kernelArea, outputArea, ignored) ||
+        static_cast<uint64_t>(outputArea) >
+            std::numeric_limits<size_t>::max() / sizeof(int64_t))
+      return rewriter.notifyMatchFailure(
+          op, "max_pool2d_with_indices tensor size overflows");
+
+    Location loc = op.getLoc();
+    Type indexElementTy = indicesTy.getElementType();
+    auto planeTy = RankedTensorType::get({1, outputArea, channels}, elementTy);
+    auto indexPlaneTy =
+        RankedTensorType::get({1, outputArea, channels}, indexElementTy);
+    auto boolPlaneTy =
+        RankedTensorType::get({1, outputArea, channels}, rewriter.getI1Type());
+    auto permutation = rewriter.getDenseI32ArrayAttr({0, 2, 1});
+    // Fold N*C into gather's channels so spatial maps are shared across planes.
+    Value input =
+        reshapeTensor(self, {1, channels, inputArea}, elementTy, rewriter, loc);
+    input = tosa::TransposeOp::create(
+        rewriter, loc,
+        RankedTensorType::get({1, inputArea, channels}, elementTy), input,
+        permutation);
+
+    Value maxValues, maxIndices;
+    for (int64_t kh = 0; kh < kernelHeight; ++kh) {
+      for (int64_t kw = 0; kw < kernelWidth; ++kw) {
+        SmallVector<int64_t> spatialIndices;
+        SmallVector<bool> validPositions;
+        spatialIndices.reserve(outputArea);
+        validPositions.reserve(outputArea);
+        bool allValid = true;
+        for (int64_t oh = 0; oh < outHeight; ++oh) {
+          int64_t rowStart = oh * stride[0];
+          for (int64_t ow = 0; ow < outWidth; ++ow) {
+            int64_t colStart = ow * stride[1];
+            bool valid = kh < height - rowStart && kw < width - colStart;
+            // Even masked gather indices must remain in bounds. Checking the
+            // offsets first also avoids overflowing coordinates in ceil tails.
+            spatialIndices.push_back(
+                valid ? (rowStart + kh) * width + colStart + kw : 0);
+            validPositions.push_back(valid);
+            allValid &= valid;
+          }
+        }
+        auto gatherIndices = tosa::getConstTensor<int64_t>(
+            rewriter, op, spatialIndices, {1, outputArea});
+        if (!gatherIndices)
+          return failure();
+        Value candidate = tosa::GatherOp::create(rewriter, loc, planeTy, input,
+                                                 *gatherIndices);
+        Value candidateIndices = reshapeTensor(
+            *gatherIndices, {1, outputArea, 1}, indexElementTy, rewriter, loc);
+        if (!maxValues) {
+          // With zero padding, every retained window starts at a valid input.
+          // Initialize from it so all -inf windows still select a valid index.
+          maxValues = candidate;
+          maxIndices = candidateIndices;
+          if (channels != 1)
+            maxIndices = tosa::TileOp::create(
+                rewriter, loc, indexPlaneTy, maxIndices,
+                tosa::getTosaConstShape(rewriter, loc, {1, 1, channels}));
+          continue;
+        }
+
+        Value nonNan = tosa::EqualOp::create(rewriter, loc, boolPlaneTy,
+                                             candidate, candidate);
+        Value isNan =
+            tosa::LogicalNotOp::create(rewriter, loc, boolPlaneTy, nonNan);
+        Value greater = tosa::GreaterOp::create(rewriter, loc, boolPlaneTy,
+                                                candidate, maxValues);
+        // Strict comparison keeps the first equal maximum; every NaN replaces
+        // the winner, matching Torch's last-NaN rule in row-major kernel order.
+        Value take = tosa::LogicalOrOp::create(rewriter, loc, boolPlaneTy,
+                                               greater, isNan);
+        if (!allValid) {
+          auto valid = tosa::getConstTensor<bool>(rewriter, op, validPositions,
+                                                  {1, outputArea, 1});
+          if (!valid)
+            return failure();
+          take = tosa::LogicalAndOp::create(rewriter, loc, boolPlaneTy, take,
+                                            *valid);
+        }
+        maxValues = tosa::SelectOp::create(rewriter, loc, planeTy, take,
+                                           candidate, maxValues);
+        maxIndices = tosa::SelectOp::create(rewriter, loc, indexPlaneTy, take,
+                                            candidateIndices, maxIndices);
+      }
+    }
+
+    auto restoreShape = [&](Value value, RankedTensorType resultTy) -> Value {
+      Type resultElementTy = resultTy.getElementType();
+      Value transposed = tosa::TransposeOp::create(
+          rewriter, loc,
+          RankedTensorType::get({1, channels, outputArea}, resultElementTy),
+          value, permutation);
+      return reshapeTensor(transposed, resultShape, resultElementTy, rewriter,
+                           loc);
+    };
+    rewriter.replaceOp(op, {restoreShape(maxValues, valuesTy),
+                            restoreShape(maxIndices, indicesTy)});
+    return success();
+  }
+};
+
 // Legalization for aten.max_pool1d
 class ConvertAtenMaxPool1dOp
     : public ConvertAtenPoolingBaseOp<AtenMaxPool1dOp, tosa::MaxPool2dOp> {
@@ -12857,6 +13058,10 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
   illegalOps.insert(AtenMaxPool2dOp::getOperationName());
   patterns.addWithLabel<ConvertAtenMaxPool2dOp>(
       AtenMaxPool2dOp::getOperationName(), typeConverter, context);
+
+  illegalOps.insert(AtenMaxPool2dWithIndicesOp::getOperationName());
+  patterns.addWithLabel<ConvertAtenMaxPool2dWithIndicesOp>(
+      AtenMaxPool2dWithIndicesOp::getOperationName(), typeConverter, context);
 
   illegalOps.insert(AtenMaxPool1dOp::getOperationName());
   patterns.addWithLabel<ConvertAtenMaxPool1dOp>(
