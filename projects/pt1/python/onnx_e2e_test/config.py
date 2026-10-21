@@ -28,6 +28,7 @@ from torch_mlir_e2e_test.configs.utils import recursively_convert_from_numpy
 
 from .framework import _INPUT_RANGE_ATTR
 from .reference import create_reference_evaluator
+from .utils import cast_outputs_to_declared_dtypes, numpy_dtype_for_torch
 
 # Torch-MLIR execution backends
 from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import (
@@ -42,16 +43,6 @@ from torch_mlir_e2e_test.tosa_backends.linalg_on_tensors import (
 # ---------------------------------------------------------------------------
 
 _DYNAMIC_DIM_PLACEHOLDER = 2
-
-
-def _numpy_dtype_for_torch(dtype: torch.dtype) -> np.dtype:
-    """Map a torch.dtype to a numpy dtype for seeding input arrays."""
-    try:
-        return torch.empty((), dtype=dtype).numpy().dtype
-    except TypeError as e:
-        raise ValueError(
-            f"Unsupported torch dtype for input generation: {dtype}"
-        ) from e
 
 
 def _is_integer_dtype(np_dtype: np.dtype) -> bool:
@@ -85,7 +76,7 @@ def materialize_inputs(
         shape = tuple(
             d if d >= 0 else _DYNAMIC_DIM_PLACEHOLDER for d in placeholder.shape
         )
-        np_dtype = _numpy_dtype_for_torch(placeholder.dtype)
+        np_dtype = numpy_dtype_for_torch(placeholder.dtype)
         value_range = getattr(placeholder, _INPUT_RANGE_ATTR, None)
         # Default to torch_mlir_e2e_test.TestUtils defaults: floats uniform
         # [0, 1), ints uniform [0, 10), bools [0, 2).
@@ -182,6 +173,9 @@ def run_backend(
     # Normalise: a backend may return a single ndarray or a tuple.
     if isinstance(raw_outputs, np.ndarray):
         raw_outputs = (raw_outputs,)
+
+    # Restore signedness lost in backend lowering.
+    raw_outputs = cast_outputs_to_declared_dtypes(model_proto, list(raw_outputs))
 
     return [recursively_convert_from_numpy(out) for out in raw_outputs]
 
