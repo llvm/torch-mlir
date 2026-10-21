@@ -538,6 +538,57 @@ def QuantizedDecomposedChooseQparamsSymmetricTensorUint8_basic(module, tu: TestU
 # ==============================================================================
 
 
+class QuantizedDecomposedChooseQparamsTensorBf16(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        scale, zp = torch.ops.quantized_decomposed.choose_qparams.tensor(
+            x.to(torch.bfloat16), -128, 127, torch.finfo(torch.float32).eps, torch.int8
+        )
+        return scale, zp
+
+
+@register_test_case(module_factory=lambda: QuantizedDecomposedChooseQparamsTensorBf16())
+def QuantizedDecomposedChooseQparamsTensorBf16_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([-1.3, 2.7], dtype=torch.bfloat16).to(torch.float32))
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedChooseQparamsTensorF16Overflow(torch.nn.Module):
+    """Reference computes the range and scale in f16, so the
+    range overflows to inf, returning a scale of inf."""
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2], torch.float16, True),
+        ]
+    )
+    def forward(self, x):
+        scale, zp = torch.ops.quantized_decomposed.choose_qparams.tensor(
+            x, -128, 127, torch.finfo(torch.float32).eps, torch.int8
+        )
+        return scale, zp
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedChooseQparamsTensorF16Overflow()
+)
+def QuantizedDecomposedChooseQparamsTensorF16Overflow_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([-60000.0, 60000.0], dtype=torch.float16))
+
+
+# ==============================================================================
+
+
 class QuantizedDecomposedDynamicQuantFlowSymmetric(torch.nn.Module):
     """Symmetric dynamic quantization flow with tensor2:
     choose_qparams_symmetric -> quantize_per_tensor.tensor2 -> dequantize_per_tensor.tensor2
