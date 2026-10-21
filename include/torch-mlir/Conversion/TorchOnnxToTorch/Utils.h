@@ -140,10 +140,35 @@ LogicalResult extractPerTensorQuantizationArguments(
     ConversionPatternRewriter &rewriter, Location loc, Value inScale,
     Value inZeroPoint, Value &outScale, Value &outZeroPoint);
 
-/// This utility takes as input a quantized tensor and dequantizes it.
+/// This utility takes as input an integer tensor along with its per-tensor
+/// affine quantization parameters (scale, zero point) and dequantizes it to
+/// a floating point tensor using `quantized_decomposed.dequantize_per_tensor`
+/// (PT2E representation). `input` must be a `ValueTensorType` with a known
+/// integer dtype and known sizes.
 LogicalResult createDequantizeTensor(ConversionPatternRewriter &rewriter,
                                      Location loc, Value input, Value scale,
                                      Value zeroPoint, Value &output);
+
+/// This utility takes as input a floating point tensor along with per-tensor
+/// affine quantization parameters (scale, zero point) and quantizes it to
+/// `resultType`'s integer element type using
+/// `quantized_decomposed.quantize_per_tensor` (PT2E representation).
+/// `resultType` must have known sizes and an integer dtype.
+LogicalResult createQuantizeTensor(ConversionPatternRewriter &rewriter,
+                                   Location loc, Value input, Value scale,
+                                   Value zeroPoint,
+                                   Torch::ValueTensorType resultType,
+                                   Value &output);
+
+/// This utility takes as input an integer tensor along with per-channel
+/// quantization parameters (1-D scales tensor, optional 1-D zero-points
+/// tensor or `torch.none`) and dequantizes it to a floating point tensor
+/// using `quantized_decomposed.dequantize_per_channel` (PT2E representation).
+/// `input` must be a `ValueTensorType` with known integer dtype and sizes.
+LogicalResult
+createDequantizePerChannelTensor(ConversionPatternRewriter &rewriter,
+                                 Location loc, Value input, Value scales,
+                                 Value zeroPoints, int64_t axis, Value &output);
 
 } // namespace mlir::torch::onnx_c
 
