@@ -377,12 +377,13 @@ Value createRemainderPayload(OpBuilder &b, Location loc,
   return result;
 }
 
-// Emit the arithmetic for affine quantization: (input / scale) [+zp] [round]
-// clamp(qmin, qmax) -> cast to outputType.
-// roundBeforeAdd=true  matches quantize_per_tensor / quantize_per_channel:
-//   round(input/scale) + zeroPoint
-// roundBeforeAdd=false matches quantize_per_token:
-//   round(input/scale + zeroPoint)
+// Emit the arithmetic for affine quantization, clamp(q, qmin, qmax) cast to
+// outputType, where q rounds input / scale to the nearest integer, ties to
+// even, and adds the zero point. An integer zero point is added after
+// rounding: round(input / scale) + zeroPoint. Adding it first would round the
+// sum in floating point and flip ties with odd zero points. A floating-point
+// zero point is added before rounding, round(input / scale + zeroPoint), so q
+// is integral.
 // The arithmetic runs in f32 whatever the input and scale types, as Inductor's
 // quantize lowerings do: they upcast bf16 inputs and cast the scales to f32.
 // https://github.com/pytorch/pytorch/blob/f3c0cf56a7577d677c37718c4edc41b8fc7fb51a/torch/_inductor/lowering.py#L1953-L1954
@@ -391,8 +392,9 @@ static Value createQuantizePayload(OpBuilder &b, Location loc,
                                    const TypeConverter *converter, Value input,
                                    Value scale, Value zeroPoint, Value quantMin,
                                    Value quantMax, Type outputType,
-                                   bool outputIsUnsigned, bool roundBeforeAdd,
+                                   bool outputIsUnsigned,
                                    Type zeroPointDtype = {}) {
+  bool roundBeforeAdd = !isa<mlir::FloatType>(zeroPoint.getType());
   Type computeType = b.getF32Type();
   input = convertScalarToDtype(b, loc, input, computeType);
   quantMin = convertScalarToDtype(b, loc, quantMin, computeType);
@@ -1763,7 +1765,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
         arith::ConstantOp::create(b, loc, b.getFloatAttr(valueTy, maxI));
     return createQuantizePayload(b, loc, converter, value, quant.getScale(),
                                  quant.getZeroPoint(), qmin, qmax, destTy,
-                                 isUnsigned, /*roundBeforeAdd=*/true);
+                                 isUnsigned);
   }
 
   if (auto q = dyn_cast<QuantizedDecomposedQuantizePerTensorOp>(op)) {
@@ -1780,7 +1782,7 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value qmax = toFloat(q.getQuantMax());
     return createQuantizePayload(b, loc, converter, value, q.getScale(),
                                  q.getZeroPoint(), qmin, qmax, destTy,
-                                 isUnsigned, /*roundBeforeAdd=*/true);
+                                 isUnsigned);
   }
 
   if (auto isClose = dyn_cast<AtenIscloseOp>(op)) {
@@ -1915,7 +1917,6 @@ public:
               Value value = createQuantizePayload(
                   b, bodyLoc, getTypeConverter(), args[0], args[1], args[2],
                   qmin, qmax, outputType, resultIsUnsigned,
-                  /*roundBeforeAdd=*/true,
                   getZeroPointDtype(op.getZeroPoints()));
               linalg::YieldOp::create(b, bodyLoc, value);
             })
@@ -2141,7 +2142,6 @@ public:
               Value value = createQuantizePayload(
                   b, bodyLoc, getTypeConverter(), inputVal, scaleVal, zpVal,
                   qmin, qmax, outputType, resultIsUnsigned,
-                  /*roundBeforeAdd=*/true,
                   getZeroPointDtype(op.getZeroPoints()));
               linalg::YieldOp::create(b, bodyLoc, value);
             })
@@ -2309,7 +2309,7 @@ public:
               Value value = createQuantizePayload(
                   b, bodyLoc, getTypeConverter(), args[0], args[1], args[2],
                   qmin, qmax, outputType, resultIsUnsigned,
-                  /*roundBeforeAdd=*/false, getZeroPointDtype(zeroPoints));
+                  getZeroPointDtype(zeroPoints));
               linalg::YieldOp::create(b, bodyLoc, value);
             })
             .getResult(0);

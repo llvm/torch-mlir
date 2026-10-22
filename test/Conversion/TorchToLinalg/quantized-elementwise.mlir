@@ -1024,6 +1024,60 @@ func.func @quantize_per_token(
 
 // -----
 
+// An integer zero point is added after rounding, so the sum is not rounded in
+// floating point and ties do not depend on the zero point's parity.
+// CHECK-LABEL: func.func @quantize_per_token_integer_zero_point_order(
+// CHECK: ^bb0(%[[IN:.*]]: f32, %[[SCALE:.*]]: f32, %[[ZP:.*]]: i64, %{{.*}}: i8):
+// CHECK:   %[[ZPF:.*]] = arith.sitofp %[[ZP]] : i64 to f32
+// CHECK:   %[[DIV:.*]] = arith.divf %[[IN]], %[[SCALE]] : f32
+// CHECK:   %[[RND:.*]] = math.roundeven %[[DIV]] : f32
+// CHECK:   %[[ADD:.*]] = arith.addf %[[RND]], %[[ZPF]] : f32
+// CHECK:   arith.maximumf %[[ADD]], %{{.*}} : f32
+func.func @quantize_per_token_integer_zero_point_order(
+    %input: !torch.vtensor<[4,16],f32>,
+    %scales: !torch.vtensor<[4,1],f32>,
+    %zero_points: !torch.vtensor<[4,1],si64>)
+    -> !torch.vtensor<[4,16],si8> {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 1
+  %out = torch.quantized_decomposed.quantize_per_token
+      %input, %scales, %zero_points, %qmin, %qmax, %dtype
+      : !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,1],f32>,
+        !torch.vtensor<[4,1],si64>, !torch.int, !torch.int, !torch.int
+      -> !torch.vtensor<[4,16],si8>
+  return %out : !torch.vtensor<[4,16],si8>
+}
+
+// -----
+
+// A floating-point zero point is added before rounding, so the quantized value
+// is integral for a non-integral zero point.
+// CHECK-LABEL: func.func @quantize_per_channel_group_float_zero_point_order(
+// CHECK: ^bb0(%[[IN:.*]]: f32, %[[SCALE:.*]]: f32, %[[ZP:.*]]: f32, %{{.*}}: i8):
+// CHECK:   %[[DIV:.*]] = arith.divf %[[IN]], %[[SCALE]] : f32
+// CHECK:   %[[ADD:.*]] = arith.addf %[[DIV]], %[[ZP]] : f32
+// CHECK:   %[[RND:.*]] = math.roundeven %[[ADD]] : f32
+// CHECK:   arith.maximumf %[[RND]], %{{.*}} : f32
+func.func @quantize_per_channel_group_float_zero_point_order(
+    %input: !torch.vtensor<[4,16],f32>,
+    %scales: !torch.vtensor<[4,4],f32>,
+    %zero_points: !torch.vtensor<[4,4],f32>)
+    -> !torch.vtensor<[4,16],si8> {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 1
+  %group_size = torch.constant.int 4
+  %out = torch.quantized_decomposed.quantize_per_channel_group
+      %input, %scales, %zero_points, %qmin, %qmax, %dtype, %group_size
+      : !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,4],f32>,
+        !torch.vtensor<[4,4],f32>, !torch.int, !torch.int, !torch.int,
+        !torch.int -> !torch.vtensor<[4,16],si8>
+  return %out : !torch.vtensor<[4,16],si8>
+}
+
+// -----
+
 // Per-token dequantization.
 // CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
 // CHECK: #[[TOKEN:.*]] = affine_map<(d0, d1) -> (d0, 0)>
