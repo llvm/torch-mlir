@@ -1017,3 +1017,175 @@ func.func @torch.aten._scaled_mm$invalid_scale_result_numel(
   %0 = torch.aten._scaled_mm %arg0, %arg1, %arg2, %arg3, %none, %arg4, %int15, %false : !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.none, !torch.vtensor<[2],f32>, !torch.int, !torch.bool -> !torch.vtensor<[128,128],bf16>
   return %0 : !torch.vtensor<[128,128],bf16>
 }
+
+// -----
+
+func.func @torch.torchao.dequantize_affine$invalid_zero_point_numel(
+    %arg0: !torch.vtensor<[4,16],si8>,
+    %arg1: !torch.vtensor<[4,2],f32>,
+    %arg2: !torch.vtensor<[4,4],si32>) -> !torch.vtensor<[4,16],f32> {
+  %int1 = torch.constant.int 1
+  %int6 = torch.constant.int 6
+  %int8 = torch.constant.int 8
+  %none = torch.constant.none
+  %block_size = torch.prim.ListConstruct %int1, %int8 : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{'torch.torchao.dequantize_affine' op zero_point must have as many elements as scale}}
+  %0 = torch.torchao.dequantize_affine %arg0, %block_size, %arg1, %arg2, %int1, %none, %none, %int6 : !torch.vtensor<[4,16],si8>, !torch.list<int>, !torch.vtensor<[4,2],f32>, !torch.vtensor<[4,4],si32>, !torch.int, !torch.none, !torch.none, !torch.int -> !torch.vtensor<[4,16],f32>
+  return %0 : !torch.vtensor<[4,16],f32>
+}
+
+// -----
+
+func.func @torch.torchao.quantize_affine$invalid_block_size_length(
+    %arg0: !torch.vtensor<[4,16],f32>,
+    %arg1: !torch.vtensor<[4,2],f32>,
+    %arg2: !torch.vtensor<[4,2],si32>) -> !torch.vtensor<[4,16],si8> {
+  %int1 = torch.constant.int 1
+  %int8 = torch.constant.int 8
+  %none = torch.constant.none
+  %block_size = torch.prim.ListConstruct %int8 : (!torch.int) -> !torch.list<int>
+  // expected-error @+1 {{'torch.torchao.quantize_affine' op block_size must have one entry per input dimension}}
+  %0 = torch.torchao.quantize_affine %arg0, %block_size, %arg1, %arg2, %int1, %none, %none : !torch.vtensor<[4,16],f32>, !torch.list<int>, !torch.vtensor<[4,2],f32>, !torch.vtensor<[4,2],si32>, !torch.int, !torch.none, !torch.none -> !torch.vtensor<[4,16],si8>
+  return %0 : !torch.vtensor<[4,16],si8>
+}
+
+// -----
+
+func.func @torch.torchao.quantize_affine$invalid_block_size_divisor(
+    %arg0: !torch.vtensor<[?,16],f32>,
+    %arg1: !torch.vtensor<[1,3],f32>,
+    %arg2: !torch.vtensor<[1,3],si32>) -> !torch.vtensor<[?,16],si8> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int5 = torch.constant.int 5
+  %none = torch.constant.none
+  %size = torch.aten.size.int %arg0, %int0 : !torch.vtensor<[?,16],f32>, !torch.int -> !torch.int
+  %block_size = torch.prim.ListConstruct %size, %int5 : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{'torch.torchao.quantize_affine' op block_size entries must be positive divisors of the input sizes}}
+  %0 = torch.torchao.quantize_affine %arg0, %block_size, %arg1, %arg2, %int1, %none, %none : !torch.vtensor<[?,16],f32>, !torch.list<int>, !torch.vtensor<[1,3],f32>, !torch.vtensor<[1,3],si32>, !torch.int, !torch.none, !torch.none -> !torch.vtensor<[?,16],si8>
+  return %0 : !torch.vtensor<[?,16],si8>
+}
+
+// -----
+
+func.func @torch.torchao.quantize_affine$invalid_scale_numel(
+    %arg0: !torch.vtensor<[4,16],f32>,
+    %arg1: !torch.vtensor<[4,4],f32>,
+    %arg2: !torch.vtensor<[4,4],si32>) -> !torch.vtensor<[4,16],si8> {
+  %int1 = torch.constant.int 1
+  %int8 = torch.constant.int 8
+  %none = torch.constant.none
+  %block_size = torch.prim.ListConstruct %int1, %int8 : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{'torch.torchao.quantize_affine' op scale must have one element per block}}
+  %0 = torch.torchao.quantize_affine %arg0, %block_size, %arg1, %arg2, %int1, %none, %none : !torch.vtensor<[4,16],f32>, !torch.list<int>, !torch.vtensor<[4,4],f32>, !torch.vtensor<[4,4],si32>, !torch.int, !torch.none, !torch.none -> !torch.vtensor<[4,16],si8>
+  return %0 : !torch.vtensor<[4,16],si8>
+}
+
+// -----
+
+func.func @torch.torchao.quantize_affine$invalid_scale_dtype(
+    %arg0: !torch.vtensor<[4,16],f32>,
+    %arg1: !torch.vtensor<[4,2],f8E4M3FN>,
+    %arg2: !torch.vtensor<[4,2],si32>) -> !torch.vtensor<[4,16],si8> {
+  %int1 = torch.constant.int 1
+  %int8 = torch.constant.int 8
+  %none = torch.constant.none
+  %block_size = torch.prim.ListConstruct %int1, %int8 : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{'torch.torchao.quantize_affine' op scale must have an f16, bf16, f32 or f64 dtype}}
+  %0 = torch.torchao.quantize_affine %arg0, %block_size, %arg1, %arg2, %int1, %none, %none : !torch.vtensor<[4,16],f32>, !torch.list<int>, !torch.vtensor<[4,2],f8E4M3FN>, !torch.vtensor<[4,2],si32>, !torch.int, !torch.none, !torch.none -> !torch.vtensor<[4,16],si8>
+  return %0 : !torch.vtensor<[4,16],si8>
+}
+
+// -----
+
+func.func @torch.torchao.dequantize_affine$invalid_zero_point_dtype(
+    %arg0: !torch.vtensor<[4,16],si8>,
+    %arg1: !torch.vtensor<[4,2],f32>,
+    %arg2: !torch.vtensor<[4,2],f8E4M3FN>) -> !torch.vtensor<[4,16],f32> {
+  %int1 = torch.constant.int 1
+  %int6 = torch.constant.int 6
+  %int8 = torch.constant.int 8
+  %none = torch.constant.none
+  %block_size = torch.prim.ListConstruct %int1, %int8 : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{'torch.torchao.dequantize_affine' op zero_point must have an integer, f16, bf16, f32 or f64 dtype}}
+  %0 = torch.torchao.dequantize_affine %arg0, %block_size, %arg1, %arg2, %int1, %none, %none, %int6 : !torch.vtensor<[4,16],si8>, !torch.list<int>, !torch.vtensor<[4,2],f32>, !torch.vtensor<[4,2],f8E4M3FN>, !torch.int, !torch.none, !torch.none, !torch.int -> !torch.vtensor<[4,16],f32>
+  return %0 : !torch.vtensor<[4,16],f32>
+}
+
+// -----
+
+func.func @torch.torchao.dequantize_affine$invalid_block_size_zero(
+    %arg0: !torch.vtensor<[4,16],si8>,
+    %arg1: !torch.vtensor<[4,1],f32>) -> !torch.vtensor<[4,16],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int6 = torch.constant.int 6
+  %none = torch.constant.none
+  %block_size = torch.prim.ListConstruct %int1, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{'torch.torchao.dequantize_affine' op block_size entries must be positive divisors of the input sizes}}
+  %0 = torch.torchao.dequantize_affine %arg0, %block_size, %arg1, %none, %int1, %none, %none, %int6 : !torch.vtensor<[4,16],si8>, !torch.list<int>, !torch.vtensor<[4,1],f32>, !torch.none, !torch.int, !torch.none, !torch.none, !torch.int -> !torch.vtensor<[4,16],f32>
+  return %0 : !torch.vtensor<[4,16],f32>
+}
+
+// -----
+
+func.func @torch.torchao.quantize_affine$invalid_quant_max(
+    %arg0: !torch.vtensor<[4,16],f32>,
+    %arg1: !torch.vtensor<[4,2],f32>,
+    %arg2: !torch.vtensor<[4,2],si32>) -> !torch.vtensor<[4,16],si8> {
+  %int1 = torch.constant.int 1
+  %int8 = torch.constant.int 8
+  %int200 = torch.constant.int 200
+  %none = torch.constant.none
+  %block_size = torch.prim.ListConstruct %int1, %int8 : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{'torch.torchao.quantize_affine' op quant_min and quant_max must lie within the bounds of output_dtype}}
+  %0 = torch.torchao.quantize_affine %arg0, %block_size, %arg1, %arg2, %int1, %none, %int200 : !torch.vtensor<[4,16],f32>, !torch.list<int>, !torch.vtensor<[4,2],f32>, !torch.vtensor<[4,2],si32>, !torch.int, !torch.none, !torch.int -> !torch.vtensor<[4,16],si8>
+  return %0 : !torch.vtensor<[4,16],si8>
+}
+
+// -----
+
+func.func @torch.torchao.quantize_affine$invalid_input_dtype(
+    %arg0: !torch.vtensor<[4,16],f64>,
+    %arg1: !torch.vtensor<[4,2],f32>,
+    %arg2: !torch.vtensor<[4,2],si32>) -> !torch.vtensor<[4,16],si8> {
+  %int1 = torch.constant.int 1
+  %int8 = torch.constant.int 8
+  %none = torch.constant.none
+  %block_size = torch.prim.ListConstruct %int1, %int8 : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{'torch.torchao.quantize_affine' op input must have an f16, bf16 or f32 dtype}}
+  %0 = torch.torchao.quantize_affine %arg0, %block_size, %arg1, %arg2, %int1, %none, %none : !torch.vtensor<[4,16],f64>, !torch.list<int>, !torch.vtensor<[4,2],f32>, !torch.vtensor<[4,2],si32>, !torch.int, !torch.none, !torch.none -> !torch.vtensor<[4,16],si8>
+  return %0 : !torch.vtensor<[4,16],si8>
+}
+
+// -----
+
+func.func @torch.torchao.dequantize_affine$invalid_input_dtype(
+    %arg0: !torch.vtensor<[4,16],si8>,
+    %arg1: !torch.vtensor<[4,2],f32>) -> !torch.vtensor<[4,16],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int6 = torch.constant.int 6
+  %int8 = torch.constant.int 8
+  %none = torch.constant.none
+  %block_size = torch.prim.ListConstruct %int1, %int8 : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{'torch.torchao.dequantize_affine' op input_dtype must be the dtype of the quantized tensor}}
+  %0 = torch.torchao.dequantize_affine %arg0, %block_size, %arg1, %none, %int0, %none, %none, %int6 : !torch.vtensor<[4,16],si8>, !torch.list<int>, !torch.vtensor<[4,2],f32>, !torch.none, !torch.int, !torch.none, !torch.none, !torch.int -> !torch.vtensor<[4,16],f32>
+  return %0 : !torch.vtensor<[4,16],f32>
+}
+
+// -----
+
+func.func @torch.torchao.dequantize_affine$unsupported_input_dtype(
+    %arg0: !torch.vtensor<[4,16],si64>,
+    %arg1: !torch.vtensor<[4,2],f32>) -> !torch.vtensor<[4,16],f32> {
+  %int1 = torch.constant.int 1
+  %int4 = torch.constant.int 4
+  %int6 = torch.constant.int 6
+  %int8 = torch.constant.int 8
+  %none = torch.constant.none
+  %block_size = torch.prim.ListConstruct %int1, %int8 : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{'torch.torchao.dequantize_affine' op input_dtype must be uint8, int8, int16, int32 or a float8 dtype}}
+  %0 = torch.torchao.dequantize_affine %arg0, %block_size, %arg1, %none, %int4, %none, %none, %int6 : !torch.vtensor<[4,16],si64>, !torch.list<int>, !torch.vtensor<[4,2],f32>, !torch.none, !torch.int, !torch.none, !torch.none, !torch.int -> !torch.vtensor<[4,16],f32>
+  return %0 : !torch.vtensor<[4,16],f32>
+}

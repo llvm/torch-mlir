@@ -7965,3 +7965,133 @@ LogicalResult QuantizedDecomposedDequantizePerTokenOp::verify() {
       cast<BaseTensorType>(getScales().getType()),
       cast<BaseTensorType>(getZeroPoints().getType()));
 }
+
+//===----------------------------------------------------------------------===//
+// TorchaoQuantizeAffineOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verifyPerBlockQuantShapes(Operation *op, Value input,
+                                               Value blockSize, Value scale,
+                                               Value zeroPoint) {
+  auto scaleType = cast<BaseTensorType>(scale.getType());
+  if (scaleType.hasDtype() &&
+      !isa<mlir::Float16Type, mlir::BFloat16Type, mlir::Float32Type,
+           mlir::Float64Type>(scaleType.getDtype()))
+    return op->emitOpError("scale must have an f16, bf16, f32 or f64 dtype");
+  auto zeroPointType = dyn_cast<BaseTensorType>(zeroPoint.getType());
+  if (zeroPointType && zeroPointType.hasDtype() &&
+      !isa<mlir::IntegerType, mlir::Float16Type, mlir::BFloat16Type,
+           mlir::Float32Type, mlir::Float64Type>(zeroPointType.getDtype()))
+    return op->emitOpError(
+        "zero_point must have an integer, f16, bf16, f32 or f64 dtype");
+
+  // torchao reshapes `scale` and `zero_point` to the blocks, so only their
+  // element counts are checked.
+  int64_t scaleNumel =
+      scaleType.hasSizes() ? getNumel(scaleType.getSizes()) : kUnknownSize;
+  if (zeroPointType && zeroPointType.hasSizes()) {
+    int64_t zeroPointNumel = getNumel(zeroPointType.getSizes());
+    if (scaleNumel != kUnknownSize && zeroPointNumel != kUnknownSize &&
+        zeroPointNumel != scaleNumel)
+      return op->emitOpError("zero_point must have as many elements as scale");
+  }
+
+  SmallVector<Value> entries;
+  auto inputType = cast<BaseTensorType>(input.getType());
+  if (!getListConstructElements(blockSize, entries) || !inputType.hasSizes())
+    return success();
+
+  ArrayRef<int64_t> inputShape = inputType.getSizes();
+  if (entries.size() != inputShape.size())
+    return op->emitOpError(
+        "block_size must have one entry per input dimension");
+
+  SmallVector<int64_t> numBlocksPerDim;
+  for (auto [entry, size] : llvm::zip_equal(entries, inputShape)) {
+    int64_t block;
+    if (!matchPattern(entry, m_TorchConstantInt(&block))) {
+      numBlocksPerDim.push_back(kUnknownSize);
+      continue;
+    }
+    // Entries below 1, which torchao's quantize_ API never produces, are
+    // rejected.
+    if (block < 1 || (size != kUnknownSize && size % block != 0))
+      return op->emitOpError(
+          "block_size entries must be positive divisors of the input sizes");
+    numBlocksPerDim.push_back(size == kUnknownSize ? kUnknownSize
+                                                   : size / block);
+  }
+
+  int64_t numBlocks = getNumel(numBlocksPerDim);
+  if (scaleNumel != kUnknownSize && numBlocks != kUnknownSize &&
+      scaleNumel != numBlocks)
+    return op->emitOpError("scale must have one element per block");
+  return success();
+}
+
+// Checks that the real tensor `real` has an f16, bf16 or f32 dtype.
+static LogicalResult verifyPerBlockRealDtype(Operation *op, StringRef name,
+                                             Value real) {
+  auto realType = cast<BaseTensorType>(real.getType());
+  if (realType.hasDtype() &&
+      !isa<mlir::Float16Type, mlir::BFloat16Type, mlir::Float32Type>(
+          realType.getDtype()))
+    return op->emitOpError() << name << " must have an f16, bf16 or f32 dtype";
+  return success();
+}
+
+// Checks that `dtype` is a torchao storage dtype, is the dtype of `quantized`,
+// and bounds `quant_min` and `quant_max`.
+static LogicalResult verifyPerBlockQuantDtype(Operation *op, StringRef name,
+                                              Value dtype, Value quantized,
+                                              Value quantMin, Value quantMax) {
+  int64_t dtypeInt;
+  if (!matchPattern(dtype, m_TorchConstantInt(&dtypeInt)))
+    return success();
+  using torch_upstream::ScalarType;
+  auto scalarType = static_cast<ScalarType>(dtypeInt);
+  std::optional<std::pair<double, double>> dtypeBounds =
+      getTorchaoDtypeBounds(dtypeInt);
+  if (!dtypeBounds &&
+      !llvm::is_contained({ScalarType::Float8_e4m3fn, ScalarType::Float8_e5m2,
+                           ScalarType::Float8_e4m3fnuz,
+                           ScalarType::Float8_e5m2fnuz},
+                          scalarType))
+    return op->emitOpError()
+           << name << " must be uint8, int8, int16, int32 or a float8 dtype";
+  auto quantizedType = cast<BaseTensorType>(quantized.getType());
+  if (quantizedType.hasDtype() &&
+      quantizedType.getDtype() !=
+          *getTypeForScalarType(op->getContext(), scalarType))
+    return op->emitOpError()
+           << name << " must be the dtype of the quantized tensor";
+  FailureOr<std::pair<double, double>> bounds =
+      getTorchaoQuantBounds(quantMin, quantMax, dtype);
+  if (succeeded(bounds) && (bounds->first < dtypeBounds->first ||
+                            bounds->second > dtypeBounds->second))
+    return op->emitOpError()
+           << "quant_min and quant_max must lie within the bounds of " << name;
+  return success();
+}
+
+LogicalResult TorchaoQuantizeAffineOp::verify() {
+  if (failed(verifyPerBlockQuantShapes(*this, getInput(), getBlockSize(),
+                                       getScale(), getZeroPoint())) ||
+      failed(verifyPerBlockRealDtype(*this, "input", getInput())))
+    return failure();
+  return verifyPerBlockQuantDtype(*this, "output_dtype", getOutputDtype(),
+                                  getResult(), getQuantMin(), getQuantMax());
+}
+
+//===----------------------------------------------------------------------===//
+// TorchaoDequantizeAffineOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult TorchaoDequantizeAffineOp::verify() {
+  if (failed(verifyPerBlockQuantShapes(*this, getInput(), getBlockSize(),
+                                       getScale(), getZeroPoint())) ||
+      failed(verifyPerBlockRealDtype(*this, "result", getResult())))
+    return failure();
+  return verifyPerBlockQuantDtype(*this, "input_dtype", getInputDtype(),
+                                  getInput(), getQuantMin(), getQuantMax());
+}

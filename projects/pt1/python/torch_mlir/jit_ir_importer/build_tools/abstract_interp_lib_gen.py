@@ -6588,6 +6588,26 @@ def quantized_decomposed〇choose_qparams_per_token〡dtype(input_rank_dtype: Tu
     return torch.float64, torch.int64
 
 # ==============================================================================
+# torchao quantization ops (torchao namespace)
+# ==============================================================================
+
+@not_present_in_registry
+def torchao〇quantize_affine〡shape(input: List[int], block_size: List[int], scale: List[int], zero_point: Optional[List[int]], output_dtype: int, quant_min: Optional[float] = None, quant_max: Optional[float] = None) -> List[int]:
+    return upstream_shape_functions.unary(input)
+
+@not_present_in_registry
+def torchao〇quantize_affine〡dtype(input_rank_dtype: Tuple[int, int], block_size: List[int], scale_rank_dtype: Tuple[int, int], zero_point_rank_dtype: Optional[Tuple[int, int]], output_dtype: int, quant_min: Optional[Union[int, float, complex]] = None, quant_max: Optional[Union[int, float, complex]] = None) -> int:
+    return output_dtype
+
+@not_present_in_registry
+def torchao〇dequantize_affine〡shape(input: List[int], block_size: List[int], scale: List[int], zero_point: Optional[List[int]], input_dtype: int, quant_min: Optional[float] = None, quant_max: Optional[float] = None, output_dtype: int = 6) -> List[int]:
+    return upstream_shape_functions.unary(input)
+
+@not_present_in_registry
+def torchao〇dequantize_affine〡dtype(input_rank_dtype: Tuple[int, int], block_size: List[int], scale_rank_dtype: Tuple[int, int], zero_point_rank_dtype: Optional[Tuple[int, int]], input_dtype: int, quant_min: Optional[Union[int, float, complex]] = None, quant_max: Optional[Union[int, float, complex]] = None, output_dtype: int = 6) -> int:
+    return output_dtype
+
+# ==============================================================================
 # Main
 # ==============================================================================
 

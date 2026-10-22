@@ -1889,4 +1889,80 @@ def Torch_QuantizedDecomposedChooseQparamsPerTokenOp : Torch_Op<
   }];
 }
 
+//===----------------------------------------------------------------------===//
+// torchao quantization ops
+// Hand-authored for torchao ops that appear in torch.export graphs.
+//===----------------------------------------------------------------------===//
+
+def Torch_TorchaoQuantizeAffineOp : Torch_Op<
+    "torchao.quantize_affine", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly,
+  ]> {
+  let hasVerifier = 1;
+  let summary = "torchao quantize_affine";
+  let description = [{
+    Quantizes a floating-point tensor with affine quantization in blocks. All
+    elements of a block of shape `block_size` share one `scale` and
+    `zero_point` value. A None `quant_min` or `quant_max` is the bound of
+    `output_dtype`.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchListOfTorchIntType:$block_size,
+    AnyTorchTensorType:$scale,
+    AnyTorchOptionalTensorType:$zero_point,
+    Torch_IntType:$output_dtype,
+    AnyTorchOptionalScalarType:$quant_min,
+    AnyTorchOptionalScalarType:$quant_max
+  );
+  let results = (outs AnyTorchTensorType:$result);
+  let assemblyFormat = [{
+    $input `,` $block_size `,` $scale `,` $zero_point `,` $output_dtype `,`
+        $quant_min `,` $quant_max attr-dict
+    `:` qualified(type($input)) `,` qualified(type($block_size)) `,`
+        qualified(type($scale)) `,` qualified(type($zero_point)) `,`
+        qualified(type($output_dtype)) `,` qualified(type($quant_min)) `,`
+        qualified(type($quant_max))
+    `->` qualified(type($result))
+  }];
+}
+
+def Torch_TorchaoDequantizeAffineOp : Torch_Op<
+    "torchao.dequantize_affine", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly,
+  ]> {
+  let hasVerifier = 1;
+  let summary = "torchao dequantize_affine";
+  let description = [{
+    Dequantizes a tensor quantized in blocks of shape `block_size`, each with
+    one `scale` and `zero_point` value. A None `zero_point` denotes symmetric
+    quantization. `quant_min` and `quant_max` describe the range of `input`
+    and do not clamp.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchListOfTorchIntType:$block_size,
+    AnyTorchTensorType:$scale,
+    AnyTorchOptionalTensorType:$zero_point,
+    Torch_IntType:$input_dtype,
+    AnyTorchOptionalScalarType:$quant_min,
+    AnyTorchOptionalScalarType:$quant_max,
+    Torch_IntType:$output_dtype
+  );
+  let results = (outs AnyTorchTensorType:$result);
+  let assemblyFormat = [{
+    $input `,` $block_size `,` $scale `,` $zero_point `,` $input_dtype `,`
+        $quant_min `,` $quant_max `,` $output_dtype attr-dict
+    `:` qualified(type($input)) `,` qualified(type($block_size)) `,`
+        qualified(type($scale)) `,` qualified(type($zero_point)) `,`
+        qualified(type($input_dtype)) `,` qualified(type($quant_min)) `,`
+        qualified(type($quant_max)) `,` qualified(type($output_dtype))
+    `->` qualified(type($result))
+  }];
+}
+
 #endif // TORCH_OPS
