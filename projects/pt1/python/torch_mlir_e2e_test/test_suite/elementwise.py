@@ -3668,6 +3668,83 @@ def ElementwiseErfModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ElementwiseErfcModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.erfc(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseErfcModule())
+def ElementwiseErfcModule_basic(module, tu: TestUtils):
+    # Spans both sides of zero: erfc goes from 2 to 0 across the range.
+    module.forward(tu.rand(3, 4, low=-3.0, high=3.0))
+
+
+# ==============================================================================
+
+
+class ElementwiseErfcIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.int32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.erfc(a)
+
+
+@register_test_case(module_factory=lambda: ElementwiseErfcIntModule())
+def ElementwiseErfcIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-3, high=3).to(torch.int32))
+
+
+# ==============================================================================
+
+
+class ElementwiseLogErfcModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.log(torch.ops.aten.erfc(a))
+
+
+@register_test_case(module_factory=lambda: ElementwiseLogErfcModule())
+def ElementwiseLogErfcModule_basic(module, tu: TestUtils):
+    # erfc(x) underflows a `1 - erf(x)` rewrite once erf(x) rounds to 1, which
+    # in f32 happens from x = 4 on. The log then turns the resulting 0 into
+    # -inf instead of a finite value, so this pins erfc down where the
+    # elementwise comparison alone would not: log(erfc(5.0)) is about -27.2,
+    # and log(erfc(8.0)) about -66.6.
+    module.forward(
+        torch.tensor([-2.0, 0.0, 1.0, 3.0, 4.0, 5.0, 6.0, 8.0], dtype=torch.float32)
+    )
+
+
+# ==============================================================================
+
+
 class ElementwiseErfIntModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

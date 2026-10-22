@@ -496,6 +496,9 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   if (isa<AtenErfOp>(op)) {
     return createFpOpWithDtype<math::ErfOp>(b, converter, payloadArgs[0], op);
   }
+  if (isa<AtenErfcOp>(op)) {
+    return createFpOpWithDtype<math::ErfcOp>(b, converter, payloadArgs[0], op);
+  }
   if (isa<AtenSqrtOp>(op)) {
     return createFpOpWithDtype<math::SqrtOp>(b, converter, payloadArgs[0], op);
   }
@@ -2786,7 +2789,7 @@ public:
              AtenLerpTensorOp, AtenSigmoidOp, AtenExpOp, AtenExpm1Op,
              AtenMinimumOp, AtenMaximumOp, AtenToDtypeOp, AtenClampOp,
              AtenClampTensorOp, AtenRsubScalarOp, AtenMulScalarOp, AtenLogOp,
-             AtenErfOp, AtenSqrtOp, AtenFloorOp, AtenPowScalarOp,
+             AtenErfOp, AtenErfcOp, AtenSqrtOp, AtenFloorOp, AtenPowScalarOp,
              AtenPowTensorScalarOp, AtenPowTensorTensorOp, AtenLog2Op,
              AtenLog10Op, AtenLog1pOp, AtenRsqrtOp, AtenDivScalarOp,
              AtenRemainderScalarOp, AtenRemainderTensorOp, AtenAbsOp,
@@ -5098,8 +5101,8 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenAddTensorOp, AtenMulTensorOp, AtenDivTensorOp, AtenDivTensorModeOp,
       AtenDivScalarModeOp, AtenSubTensorOp, AtenLerpTensorOp, AtenSigmoidOp,
       AtenMinimumOp, AtenAtan2Op, AtenMaximumOp, AtenToDtypeOp, AtenClampOp,
-      AtenClampTensorOp, AtenRsubScalarOp, AtenLogOp, AtenErfOp, AtenSqrtOp,
-      AtenFloorOp, AtenCeilOp, AtenPreluOp, AtenPowScalarOp,
+      AtenClampTensorOp, AtenRsubScalarOp, AtenLogOp, AtenErfOp, AtenErfcOp,
+      AtenSqrtOp, AtenFloorOp, AtenCeilOp, AtenPreluOp, AtenPowScalarOp,
       AtenPowTensorScalarOp, AtenPowTensorTensorOp, AtenLog2Op, AtenLog10Op,
       AtenLog1pOp, AtenRsqrtOp, AtenAbsOp, AtenComplexOp, AtenReciprocalOp,
       AtenBitwiseAndTensorOp, AtenBitwiseAndScalarOp, AtenBitwiseOrTensorOp,
