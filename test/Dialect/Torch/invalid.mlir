@@ -1189,3 +1189,393 @@ func.func @torch.torchao.dequantize_affine$unsupported_input_dtype(
   %0 = torch.torchao.dequantize_affine %arg0, %block_size, %arg1, %none, %int4, %none, %none, %int6 : !torch.vtensor<[4,16],si64>, !torch.list<int>, !torch.vtensor<[4,2],f32>, !torch.none, !torch.int, !torch.none, !torch.none, !torch.int -> !torch.vtensor<[4,16],f32>
   return %0 : !torch.vtensor<[4,16],f32>
 }
+
+// -----
+
+func.func @torch.quantized_decomposed.quantize_per_tensor$invalid_real_dtype(%arg0: !torch.vtensor<[4,8],si32>) -> !torch.vtensor<[4,8],si8> {
+  %scale = torch.constant.float 5.000000e-01
+  %zero_point = torch.constant.int 0
+  %quant_min = torch.constant.int -128
+  %quant_max = torch.constant.int 127
+  %dtype = torch.constant.int 1
+  // expected-error @+1 {{'torch.quantized_decomposed.quantize_per_tensor' op expected the real tensor to have a floating-point dtype, but got 'si32'}}
+  %0 = torch.quantized_decomposed.quantize_per_tensor %arg0, %scale, %zero_point, %quant_min, %quant_max, %dtype : !torch.vtensor<[4,8],si32>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,8],si8>
+  return %0 : !torch.vtensor<[4,8],si8>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.quantize_per_tensor$invalid_dtype_code(%arg0: !torch.vtensor<[4,8],f32>) -> !torch.vtensor<[4,8],si8> {
+  %scale = torch.constant.float 5.000000e-01
+  %zero_point = torch.constant.int 0
+  %quant_min = torch.constant.int -128
+  %quant_max = torch.constant.int 127
+  %dtype = torch.constant.int 6
+  // expected-error @+1 {{'torch.quantized_decomposed.quantize_per_tensor' op expected dtype to be a PT2E storage dtype, but got dtype code 6}}
+  %0 = torch.quantized_decomposed.quantize_per_tensor %arg0, %scale, %zero_point, %quant_min, %quant_max, %dtype : !torch.vtensor<[4,8],f32>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,8],si8>
+  return %0 : !torch.vtensor<[4,8],si8>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.quantize_per_tensor$invalid_bound_order(%arg0: !torch.vtensor<[4,8],f32>) -> !torch.vtensor<[4,8],si8> {
+  %scale = torch.constant.float 5.000000e-01
+  %zero_point = torch.constant.int 0
+  %quant_min = torch.constant.int 127
+  %quant_max = torch.constant.int -128
+  %dtype = torch.constant.int 1
+  // expected-error @+1 {{'torch.quantized_decomposed.quantize_per_tensor' op expected quant_min to not exceed quant_max, but got [127, -128]}}
+  %0 = torch.quantized_decomposed.quantize_per_tensor %arg0, %scale, %zero_point, %quant_min, %quant_max, %dtype : !torch.vtensor<[4,8],f32>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,8],si8>
+  return %0 : !torch.vtensor<[4,8],si8>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.quantize_per_tensor$invalid_quant_max(%arg0: !torch.vtensor<[4,8],f32>) -> !torch.vtensor<[4,8],si8> {
+  %scale = torch.constant.float 5.000000e-01
+  %zero_point = torch.constant.int 0
+  %quant_min = torch.constant.int -128
+  %quant_max = torch.constant.int 255
+  %dtype = torch.constant.int 1
+  // expected-error @+1 {{'torch.quantized_decomposed.quantize_per_tensor' op expected quant_max to be representable in 'si8', but got 255}}
+  %0 = torch.quantized_decomposed.quantize_per_tensor %arg0, %scale, %zero_point, %quant_min, %quant_max, %dtype : !torch.vtensor<[4,8],f32>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,8],si8>
+  return %0 : !torch.vtensor<[4,8],si8>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.quantize_per_tensor$invalid_float8_quant_max(%arg0: !torch.vtensor<[4,8],f32>) -> !torch.vtensor<[4,8],f8E4M3FN> {
+  %scale = torch.constant.float 5.000000e-01
+  %zero_point = torch.constant.int 0
+  %quant_min = torch.constant.int -448
+  %quant_max = torch.constant.int 449
+  %dtype = torch.constant.int 24
+  // expected-error @+1 {{'torch.quantized_decomposed.quantize_per_tensor' op expected quant_max to be representable in 'f8E4M3FN', but got 449}}
+  %0 = torch.quantized_decomposed.quantize_per_tensor %arg0, %scale, %zero_point, %quant_min, %quant_max, %dtype : !torch.vtensor<[4,8],f32>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,8],f8E4M3FN>
+  return %0 : !torch.vtensor<[4,8],f8E4M3FN>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.dequantize_per_tensor$invalid_dtype_mismatch(%arg0: !torch.vtensor<[4,8],si8>) -> !torch.vtensor<[4,8],f32> {
+  %scale = torch.constant.float 5.000000e-01
+  %zero_point = torch.constant.int 0
+  %quant_min = torch.constant.int -128
+  %quant_max = torch.constant.int 127
+  %dtype = torch.constant.int 2
+  %out_dtype = torch.constant.none
+  // expected-error @+1 {{'torch.quantized_decomposed.dequantize_per_tensor' op expected dtype code 2 ('si16') to match the storage tensor dtype 'si8'}}
+  %0 = torch.quantized_decomposed.dequantize_per_tensor %arg0, %scale, %zero_point, %quant_min, %quant_max, %dtype, %out_dtype : !torch.vtensor<[4,8],si8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.none -> !torch.vtensor<[4,8],f32>
+  return %0 : !torch.vtensor<[4,8],f32>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.dequantize_per_tensor$invalid_storage_dtype(%arg0: !torch.vtensor<[4,8],si64>) -> !torch.vtensor<[4,8],f32> {
+  %scale = torch.constant.float 5.000000e-01
+  %zero_point = torch.constant.int 0
+  %quant_min = torch.constant.int -128
+  %quant_max = torch.constant.int 127
+  %dtype = torch.constant.int 4
+  %out_dtype = torch.constant.none
+  // expected-error @+1 {{'torch.quantized_decomposed.dequantize_per_tensor' op expected the storage tensor to have a PT2E storage dtype, but got 'si64'}}
+  %0 = torch.quantized_decomposed.dequantize_per_tensor %arg0, %scale, %zero_point, %quant_min, %quant_max, %dtype, %out_dtype : !torch.vtensor<[4,8],si64>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.none -> !torch.vtensor<[4,8],f32>
+  return %0 : !torch.vtensor<[4,8],f32>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.dequantize_per_tensor$invalid_result_dtype(%arg0: !torch.vtensor<[4,8],si8>) -> !torch.vtensor<[4,8],si64> {
+  %scale = torch.constant.float 5.000000e-01
+  %zero_point = torch.constant.int 0
+  %quant_min = torch.constant.int -128
+  %quant_max = torch.constant.int 127
+  %dtype = torch.constant.int 1
+  %out_dtype = torch.constant.int 4
+  // expected-error @+1 {{'torch.quantized_decomposed.dequantize_per_tensor' op expected the real tensor to have a floating-point dtype, but got 'si64'}}
+  %0 = torch.quantized_decomposed.dequantize_per_tensor %arg0, %scale, %zero_point, %quant_min, %quant_max, %dtype, %out_dtype : !torch.vtensor<[4,8],si8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,8],si64>
+  return %0 : !torch.vtensor<[4,8],si64>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.dequantize_per_tensor$invalid_out_dtype_int(%arg0: !torch.vtensor<[4,8],si8>) -> !torch.vtensor<[4,8],f32> {
+  %scale = torch.constant.float 5.000000e-01
+  %zero_point = torch.constant.int 0
+  %quant_min = torch.constant.int -128
+  %quant_max = torch.constant.int 127
+  %dtype = torch.constant.int 1
+  %out_dtype = torch.constant.int 4
+  // expected-error @+1 {{'torch.quantized_decomposed.dequantize_per_tensor' op expected the output dtype to be a floating-point dtype, but got dtype code 4}}
+  %0 = torch.quantized_decomposed.dequantize_per_tensor %arg0, %scale, %zero_point, %quant_min, %quant_max, %dtype, %out_dtype : !torch.vtensor<[4,8],si8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,8],f32>
+  return %0 : !torch.vtensor<[4,8],f32>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.dequantize_per_tensor$invalid_out_dtype_mismatch(%arg0: !torch.vtensor<[4,8],si8>) -> !torch.vtensor<[4,8],f32> {
+  %scale = torch.constant.float 5.000000e-01
+  %zero_point = torch.constant.int 0
+  %quant_min = torch.constant.int -128
+  %quant_max = torch.constant.int 127
+  %dtype = torch.constant.int 1
+  %out_dtype = torch.constant.int 15
+  // expected-error @+1 {{'torch.quantized_decomposed.dequantize_per_tensor' op expected the result dtype to be 'bf16', but got 'f32'}}
+  %0 = torch.quantized_decomposed.dequantize_per_tensor %arg0, %scale, %zero_point, %quant_min, %quant_max, %dtype, %out_dtype : !torch.vtensor<[4,8],si8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,8],f32>
+  return %0 : !torch.vtensor<[4,8],f32>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.dequantize_per_tensor$invalid_default_out_dtype(%arg0: !torch.vtensor<[4,8],si8>) -> !torch.vtensor<[4,8],f16> {
+  %scale = torch.constant.float 5.000000e-01
+  %zero_point = torch.constant.int 0
+  %quant_min = torch.constant.int -128
+  %quant_max = torch.constant.int 127
+  %dtype = torch.constant.int 1
+  %out_dtype = torch.constant.none
+  // expected-error @+1 {{'torch.quantized_decomposed.dequantize_per_tensor' op expected the result dtype to be 'f32', but got 'f16'}}
+  %0 = torch.quantized_decomposed.dequantize_per_tensor %arg0, %scale, %zero_point, %quant_min, %quant_max, %dtype, %out_dtype : !torch.vtensor<[4,8],si8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.none -> !torch.vtensor<[4,8],f16>
+  return %0 : !torch.vtensor<[4,8],f16>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.quantize_per_channel$invalid_scales_dtype(%arg0: !torch.vtensor<[4,8],f32>, %arg1: !torch.vtensor<[4],si64>, %arg2: !torch.vtensor<[4],si64>) -> !torch.vtensor<[4,8],si8> {
+  %axis = torch.constant.int 0
+  %quant_min = torch.constant.int -128
+  %quant_max = torch.constant.int 127
+  %dtype = torch.constant.int 1
+  // expected-error @+1 {{'torch.quantized_decomposed.quantize_per_channel' op expected scales to have a floating-point dtype, but got 'si64'}}
+  %0 = torch.quantized_decomposed.quantize_per_channel %arg0, %arg1, %arg2, %axis, %quant_min, %quant_max, %dtype : !torch.vtensor<[4,8],f32>, !torch.vtensor<[4],si64>, !torch.vtensor<[4],si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,8],si8>
+  return %0 : !torch.vtensor<[4,8],si8>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.quantize_per_channel$invalid_scales_rank(%arg0: !torch.vtensor<[4,8],f32>, %arg1: !torch.vtensor<[4,1],f32>, %arg2: !torch.vtensor<[4],si64>) -> !torch.vtensor<[4,8],si8> {
+  %axis = torch.constant.int 0
+  %quant_min = torch.constant.int -128
+  %quant_max = torch.constant.int 127
+  %dtype = torch.constant.int 1
+  // expected-error @+1 {{'torch.quantized_decomposed.quantize_per_channel' op expected scales to have rank 1, but got rank 2}}
+  %0 = torch.quantized_decomposed.quantize_per_channel %arg0, %arg1, %arg2, %axis, %quant_min, %quant_max, %dtype : !torch.vtensor<[4,8],f32>, !torch.vtensor<[4,1],f32>, !torch.vtensor<[4],si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,8],si8>
+  return %0 : !torch.vtensor<[4,8],si8>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.quantize_per_channel$invalid_scale_broadcast(%arg0: !torch.vtensor<[4,8],f32>, %arg1: !torch.vtensor<[1],f32>, %arg2: !torch.vtensor<[1],si64>) -> !torch.vtensor<[4,8],si8> {
+  %axis = torch.constant.int 0
+  %quant_min = torch.constant.int -128
+  %quant_max = torch.constant.int 127
+  %dtype = torch.constant.int 1
+  // expected-error @+1 {{'torch.quantized_decomposed.quantize_per_channel' op expected scales to have one element per index of input dimension 0 (4), but got 1}}
+  %0 = torch.quantized_decomposed.quantize_per_channel %arg0, %arg1, %arg2, %axis, %quant_min, %quant_max, %dtype : !torch.vtensor<[4,8],f32>, !torch.vtensor<[1],f32>, !torch.vtensor<[1],si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,8],si8>
+  return %0 : !torch.vtensor<[4,8],si8>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.dequantize_per_channel$invalid_zero_points_rank(%arg0: !torch.vtensor<[4,8],si8>, %arg1: !torch.vtensor<[4],f32>, %arg2: !torch.vtensor<[4,1],si64>) -> !torch.vtensor<[4,8],f32> {
+  %axis = torch.constant.int 0
+  %quant_min = torch.constant.int -128
+  %quant_max = torch.constant.int 127
+  %dtype = torch.constant.int 1
+  %none = torch.constant.none
+  // expected-error @+1 {{'torch.quantized_decomposed.dequantize_per_channel' op expected zero_points to have rank 1, but got rank 2}}
+  %0 = torch.quantized_decomposed.dequantize_per_channel %arg0, %arg1, %arg2, %axis, %quant_min, %quant_max, %dtype, %none : !torch.vtensor<[4,8],si8>, !torch.vtensor<[4],f32>, !torch.vtensor<[4,1],si64>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.none -> !torch.vtensor<[4,8],f32>
+  return %0 : !torch.vtensor<[4,8],f32>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.dequantize_per_channel$invalid_zero_points_length(%arg0: !torch.vtensor<[4,8],si8>, %arg1: !torch.vtensor<[4],f32>, %arg2: !torch.vtensor<[3],si64>) -> !torch.vtensor<[4,8],f32> {
+  %axis = torch.constant.int 0
+  %quant_min = torch.constant.int -128
+  %quant_max = torch.constant.int 127
+  %dtype = torch.constant.int 1
+  %none = torch.constant.none
+  // expected-error @+1 {{'torch.quantized_decomposed.dequantize_per_channel' op expected zero_points to have the length of scales, but got 3 and 4}}
+  %0 = torch.quantized_decomposed.dequantize_per_channel %arg0, %arg1, %arg2, %axis, %quant_min, %quant_max, %dtype, %none : !torch.vtensor<[4,8],si8>, !torch.vtensor<[4],f32>, !torch.vtensor<[3],si64>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.none -> !torch.vtensor<[4,8],f32>
+  return %0 : !torch.vtensor<[4,8],f32>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.dequantize_per_channel$invalid_axis(%arg0: !torch.vtensor<[4,8],si8>, %arg1: !torch.vtensor<[4],f32>, %arg2: !torch.vtensor<[4],si64>) -> !torch.vtensor<[4,8],f32> {
+  %axis = torch.constant.int 2
+  %quant_min = torch.constant.int -128
+  %quant_max = torch.constant.int 127
+  %dtype = torch.constant.int 1
+  %none = torch.constant.none
+  // expected-error @+1 {{'torch.quantized_decomposed.dequantize_per_channel' op expected axis to be in [-2, 2), but got 2}}
+  %0 = torch.quantized_decomposed.dequantize_per_channel %arg0, %arg1, %arg2, %axis, %quant_min, %quant_max, %dtype, %none : !torch.vtensor<[4,8],si8>, !torch.vtensor<[4],f32>, !torch.vtensor<[4],si64>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.none -> !torch.vtensor<[4,8],f32>
+  return %0 : !torch.vtensor<[4,8],f32>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.dequantize_per_channel$invalid_negative_axis(%arg0: !torch.vtensor<[4,8],si8>, %arg1: !torch.vtensor<[4],f32>, %arg2: !torch.none) -> !torch.vtensor<[4,8],f32> {
+  %axis = torch.constant.int -3
+  %quant_min = torch.constant.int -128
+  %quant_max = torch.constant.int 127
+  %dtype = torch.constant.int 1
+  %none = torch.constant.none
+  // expected-error @+1 {{'torch.quantized_decomposed.dequantize_per_channel' op expected axis to be in [-2, 2), but got -3}}
+  %0 = torch.quantized_decomposed.dequantize_per_channel %arg0, %arg1, %arg2, %axis, %quant_min, %quant_max, %dtype, %none : !torch.vtensor<[4,8],si8>, !torch.vtensor<[4],f32>, !torch.none, !torch.int, !torch.int, !torch.int, !torch.int, !torch.none -> !torch.vtensor<[4,8],f32>
+  return %0 : !torch.vtensor<[4,8],f32>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.dequantize_per_channel$invalid_scales_length(%arg0: !torch.vtensor<[4,8],si8>, %arg1: !torch.vtensor<[8],f32>, %arg2: !torch.none) -> !torch.vtensor<[4,8],f32> {
+  %axis = torch.constant.int 0
+  %quant_min = torch.constant.int -128
+  %quant_max = torch.constant.int 127
+  %dtype = torch.constant.int 1
+  %none = torch.constant.none
+  // expected-error @+1 {{'torch.quantized_decomposed.dequantize_per_channel' op expected scales to have one element per index of input dimension 0 (4), but got 8}}
+  %0 = torch.quantized_decomposed.dequantize_per_channel %arg0, %arg1, %arg2, %axis, %quant_min, %quant_max, %dtype, %none : !torch.vtensor<[4,8],si8>, !torch.vtensor<[8],f32>, !torch.none, !torch.int, !torch.int, !torch.int, !torch.int, !torch.none -> !torch.vtensor<[4,8],f32>
+  return %0 : !torch.vtensor<[4,8],f32>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.quantize_per_channel_group$invalid_input_rank(%arg0: !torch.vtensor<[2,4,16],f32>, %arg1: !torch.vtensor<[2,4],f32>, %arg2: !torch.vtensor<[2,4],si64>) -> !torch.vtensor<[2,4,16],si8> {
+  %quant_min = torch.constant.int -8
+  %quant_max = torch.constant.int 7
+  %dtype = torch.constant.int 1
+  %group_size = torch.constant.int 4
+  // expected-error @+1 {{'torch.quantized_decomposed.quantize_per_channel_group' op expected input to have rank 2, but got rank 3}}
+  %0 = torch.quantized_decomposed.quantize_per_channel_group %arg0, %arg1, %arg2, %quant_min, %quant_max, %dtype, %group_size : !torch.vtensor<[2,4,16],f32>, !torch.vtensor<[2,4],f32>, !torch.vtensor<[2,4],si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,4,16],si8>
+  return %0 : !torch.vtensor<[2,4,16],si8>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.quantize_per_channel_group$invalid_scales_dtype(%arg0: !torch.vtensor<[4,16],f32>, %arg1: !torch.vtensor<[4,4],si64>, %arg2: !torch.vtensor<[4,4],si64>) -> !torch.vtensor<[4,16],si8> {
+  %quant_min = torch.constant.int -8
+  %quant_max = torch.constant.int 7
+  %dtype = torch.constant.int 1
+  %group_size = torch.constant.int 4
+  // expected-error @+1 {{'torch.quantized_decomposed.quantize_per_channel_group' op expected scales to have a floating-point dtype, but got 'si64'}}
+  %0 = torch.quantized_decomposed.quantize_per_channel_group %arg0, %arg1, %arg2, %quant_min, %quant_max, %dtype, %group_size : !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,4],si64>, !torch.vtensor<[4,4],si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,16],si8>
+  return %0 : !torch.vtensor<[4,16],si8>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.quantize_per_channel_group$invalid_scales_rank(%arg0: !torch.vtensor<[4,16],f32>, %arg1: !torch.vtensor<[16],f32>, %arg2: !torch.vtensor<[16],si64>) -> !torch.vtensor<[4,16],si8> {
+  %quant_min = torch.constant.int -8
+  %quant_max = torch.constant.int 7
+  %dtype = torch.constant.int 1
+  %group_size = torch.constant.int 4
+  // expected-error @+1 {{'torch.quantized_decomposed.quantize_per_channel_group' op expected scales to have rank 2, but got rank 1}}
+  %0 = torch.quantized_decomposed.quantize_per_channel_group %arg0, %arg1, %arg2, %quant_min, %quant_max, %dtype, %group_size : !torch.vtensor<[4,16],f32>, !torch.vtensor<[16],f32>, !torch.vtensor<[16],si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,16],si8>
+  return %0 : !torch.vtensor<[4,16],si8>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.quantize_per_channel_group$invalid_zero_points_shape(%arg0: !torch.vtensor<[4,16],f32>, %arg1: !torch.vtensor<[4,4],f32>, %arg2: !torch.vtensor<[4,2],f32>) -> !torch.vtensor<[4,16],si8> {
+  %quant_min = torch.constant.int -8
+  %quant_max = torch.constant.int 7
+  %dtype = torch.constant.int 1
+  %group_size = torch.constant.int 4
+  // expected-error @+1 {{'torch.quantized_decomposed.quantize_per_channel_group' op expected zero_points to have the shape of scales, but got [4, 2] and [4, 4]}}
+  %0 = torch.quantized_decomposed.quantize_per_channel_group %arg0, %arg1, %arg2, %quant_min, %quant_max, %dtype, %group_size : !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,4],f32>, !torch.vtensor<[4,2],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,16],si8>
+  return %0 : !torch.vtensor<[4,16],si8>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.quantize_per_channel_group$invalid_group_size(%arg0: !torch.vtensor<[4,16],f32>, %arg1: !torch.vtensor<[4,16],f32>, %arg2: !torch.vtensor<[4,16],si64>) -> !torch.vtensor<[4,16],si8> {
+  %quant_min = torch.constant.int -8
+  %quant_max = torch.constant.int 7
+  %dtype = torch.constant.int 1
+  %group_size = torch.constant.int 1
+  // expected-error @+1 {{'torch.quantized_decomposed.quantize_per_channel_group' op expected group_size to be greater than 1, but got 1}}
+  %0 = torch.quantized_decomposed.quantize_per_channel_group %arg0, %arg1, %arg2, %quant_min, %quant_max, %dtype, %group_size : !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,16],si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,16],si8>
+  return %0 : !torch.vtensor<[4,16],si8>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.quantize_per_channel_group$invalid_scale_rows(%arg0: !torch.vtensor<[4,16],f32>, %arg1: !torch.vtensor<[2,4],f32>, %arg2: !torch.vtensor<[2,4],si64>) -> !torch.vtensor<[4,16],si8> {
+  %quant_min = torch.constant.int -8
+  %quant_max = torch.constant.int 7
+  %dtype = torch.constant.int 1
+  %group_size = torch.constant.int 4
+  // expected-error @+1 {{'torch.quantized_decomposed.quantize_per_channel_group' op expected scales to have one row per input row (4), but got 2}}
+  %0 = torch.quantized_decomposed.quantize_per_channel_group %arg0, %arg1, %arg2, %quant_min, %quant_max, %dtype, %group_size : !torch.vtensor<[4,16],f32>, !torch.vtensor<[2,4],f32>, !torch.vtensor<[2,4],si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,16],si8>
+  return %0 : !torch.vtensor<[4,16],si8>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.quantize_per_channel_group$invalid_quant_max(%arg0: !torch.vtensor<[4,16],f32>, %arg1: !torch.vtensor<[4,4],f32>, %arg2: !torch.vtensor<[4,4],si64>) -> !torch.vtensor<[4,16],si8> {
+  %quant_min = torch.constant.int -8
+  %quant_max = torch.constant.int 128
+  %dtype = torch.constant.int 1
+  %group_size = torch.constant.int 4
+  // expected-error @+1 {{'torch.quantized_decomposed.quantize_per_channel_group' op expected quant_max to be representable in 'si8', but got 128}}
+  %0 = torch.quantized_decomposed.quantize_per_channel_group %arg0, %arg1, %arg2, %quant_min, %quant_max, %dtype, %group_size : !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,4],f32>, !torch.vtensor<[4,4],si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,16],si8>
+  return %0 : !torch.vtensor<[4,16],si8>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.dequantize_per_channel_group$invalid_divisibility(%arg0: !torch.vtensor<[4,16],si8>, %arg1: !torch.vtensor<[4,3],f32>) -> !torch.vtensor<[4,16],f32> {
+  %quant_min = torch.constant.int -8
+  %quant_max = torch.constant.int 7
+  %dtype = torch.constant.int 1
+  %group_size = torch.constant.int 5
+  %output_dtype = torch.constant.int 6
+  %none = torch.constant.none
+  // expected-error @+1 {{'torch.quantized_decomposed.dequantize_per_channel_group' op expected input dimension 1 (16) to be divisible by group_size 5}}
+  %0 = torch.quantized_decomposed.dequantize_per_channel_group %arg0, %arg1, %none, %quant_min, %quant_max, %dtype, %group_size, %output_dtype : !torch.vtensor<[4,16],si8>, !torch.vtensor<[4,3],f32>, !torch.none, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,16],f32>
+  return %0 : !torch.vtensor<[4,16],f32>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.dequantize_per_channel_group$invalid_group_count(%arg0: !torch.vtensor<[4,16],si8>, %arg1: !torch.vtensor<[4,2],f32>) -> !torch.vtensor<[4,16],f32> {
+  %quant_min = torch.constant.int -8
+  %quant_max = torch.constant.int 7
+  %dtype = torch.constant.int 1
+  %group_size = torch.constant.int 4
+  %output_dtype = torch.constant.int 6
+  %none = torch.constant.none
+  // expected-error @+1 {{'torch.quantized_decomposed.dequantize_per_channel_group' op expected scales to have 4 columns, one per group, but got 2}}
+  %0 = torch.quantized_decomposed.dequantize_per_channel_group %arg0, %arg1, %none, %quant_min, %quant_max, %dtype, %group_size, %output_dtype : !torch.vtensor<[4,16],si8>, !torch.vtensor<[4,2],f32>, !torch.none, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,16],f32>
+  return %0 : !torch.vtensor<[4,16],f32>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.dequantize_per_channel_group$invalid_gptq_group_count(%arg0: !torch.vtensor<[4,16],si8>, %arg1: !torch.vtensor<[4,2],f32>) -> !torch.vtensor<[4,16],f32> {
+  %quant_min = torch.constant.int -8
+  %quant_max = torch.constant.int 7
+  %dtype = torch.constant.int 1
+  %group_size = torch.constant.int 128
+  %output_dtype = torch.constant.int 6
+  %none = torch.constant.none
+  // expected-error @+1 {{'torch.quantized_decomposed.dequantize_per_channel_group' op expected input dimension 1 (16) to be divisible by group_size 128}}
+  %0 = torch.quantized_decomposed.dequantize_per_channel_group %arg0, %arg1, %none, %quant_min, %quant_max, %dtype, %group_size, %output_dtype : !torch.vtensor<[4,16],si8>, !torch.vtensor<[4,2],f32>, !torch.none, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,16],f32>
+  return %0 : !torch.vtensor<[4,16],f32>
+}
+
+// -----
+
+func.func @torch.quantized_decomposed.dequantize_per_channel_group$invalid_output_dtype(%arg0: !torch.vtensor<[4,16],si8>, %arg1: !torch.vtensor<[4,4],f32>) -> !torch.vtensor<[4,16],f32> {
+  %quant_min = torch.constant.int -8
+  %quant_max = torch.constant.int 7
+  %dtype = torch.constant.int 1
+  %group_size = torch.constant.int 4
+  %output_dtype = torch.constant.int 15
+  %none = torch.constant.none
+  // expected-error @+1 {{'torch.quantized_decomposed.dequantize_per_channel_group' op expected the result dtype to be 'bf16', but got 'f32'}}
+  %0 = torch.quantized_decomposed.dequantize_per_channel_group %arg0, %arg1, %none, %quant_min, %quant_max, %dtype, %group_size, %output_dtype : !torch.vtensor<[4,16],si8>, !torch.vtensor<[4,4],f32>, !torch.none, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,16],f32>
+  return %0 : !torch.vtensor<[4,16],f32>
+}
