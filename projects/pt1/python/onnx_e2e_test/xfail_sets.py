@@ -48,6 +48,13 @@ ONNX_E2E_TOSA_XFAIL_SET = {
     "OnnxMatMulIntegerToFloat_batchedWeights",
     # TOSA cannot lower dynamic size.int / per-channel DQ here.
     "OnnxMatMulIntegerToFloat_dynamicColumns",
+    # TOSA has no first-class PT2E per-channel-group DQ lowering.
+    "OnnxMatMulNBits_4bit",
+    "OnnxMatMulNBits_8bit_zeroPointBias",
+    "OnnxMatMulNBits_raggedK",
+    "OnnxMatMulNBits_floatZeroPoint",
+    "OnnxMatMulNBits_accuracyLevel4",
+    "OnnxMatMulNBits_runtimeWeights",
     # OnnxLSTM_forward_basic: LSTM has no torch -> tosa lowering.
     "OnnxLSTM_forward_basic",
     # OnnxSTFT_onesided_basic: STFT has no torch -> tosa lowering.
