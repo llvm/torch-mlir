@@ -481,17 +481,26 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         Value input, skip, gamma;
         float epsilon;
         int64_t stashType;
-        SmallVector<Type> resultTypes;
         if (binder.tensorOperandAtIndex(input, 0) ||
             binder.tensorOperandAtIndex(skip, 1) ||
             binder.tensorOperandAtIndex(gamma, 2) ||
             binder.f32FloatAttr(epsilon, "epsilon", 1e-5f) ||
-            binder.s64IntegerAttr(stashType, "stash_type", 1) ||
-            binder.tensorResultTypes(resultTypes))
+            binder.s64IntegerAttr(stashType, "stash_type", 1))
           return rewriter.notifyMatchFailure(binder.op,
                                              "Failed to bind inputs/attrs");
 
-        if (resultTypes.size() > 2)
+        // Gather result types directly from the op rather than via
+        // binder.tensorResultTypes: unused optional outputs are imported as
+        // !torch.none typed results, which tensorResultTypes rejects. We must
+        // accept and preserve those none-typed slots so they can be emitted as
+        // torch.constant.none below.
+        SmallVector<Type> resultTypes(binder.op->getResultTypes());
+
+        // ORT's SkipSimplifiedLayerNormalization defines up to 4 outputs, in
+        // order: output, mean, inv_std_var, input_skip_bias_sum. Unused
+        // (optional) outputs are imported as !torch.none typed results and are
+        // handled below by emitting a torch.constant.none in that slot.
+        if (resultTypes.size() > 4)
           return rewriter.notifyMatchFailure(binder.op,
                                              "unsupported number of results");
 
@@ -550,21 +559,80 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
                                              bias, cstOne);
         }
 
-        // Build normalized_shape for last dimension: [inputShape[-1]]
-        auto castInput = cast<Torch::ValueTensorType>(input.getType());
-        ArrayRef<int64_t> inputShape = castInput.getSizes();
-        Value cstLastDimSize = Torch::ConstantIntOp::create(
-            rewriter, loc,
-            rewriter.getI64IntegerAttr(inputShape[inputRank - 1]));
-        Value normalizedShape = Torch::PrimListConstructOp::create(
-            rewriter, loc,
-            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
-            SmallVector<Value>{cstLastDimSize});
+        // Keep a stash-dtype copy of the residual sum. `s` itself is cast back
+        // to origDtype below so that it can be returned as
+        // input_skip_bias_sum; sStash is used for all normalization math.
+        Value sStash = s;
 
-        // Emit aten.rms_norm (in stash dtype if upcasted)
-        Value output =
-            Torch::AtenRmsNormOp::create(rewriter, loc, input.getType(), s,
-                                         normalizedShape, gamma, cstEpsilon);
+        // inv_std_var (result 2) is only computed when the model requests it
+        // with a concrete tensor type; unused outputs are !torch.none.
+        bool wantInvStd =
+            resultTypes.size() > 2 && !isa<Torch::NoneType>(resultTypes[2]);
+
+        Value output;
+        Value invStdStash;
+        if (wantInvStd) {
+          // inv_std_var = 1 / sqrt(mean(s^2, dim=-1, keepdim) + eps). This is
+          // the same quantity aten.rms_norm computes internally, so compute it
+          // once here and build the normalized output from it explicitly
+          // (output = s * inv_std_var * gamma) instead of also emitting
+          // aten.rms_norm, which would recompute it.
+          auto sStashType = cast<Torch::ValueTensorType>(sStash.getType());
+          Value cstTwo = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(2));
+          Value sSquared = Torch::AtenPowTensorScalarOp::create(
+              rewriter, loc, sStashType, sStash, cstTwo);
+          Value cstLastDim = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(-1));
+          Value dimList = Torch::PrimListConstructOp::create(
+              rewriter, loc,
+              Torch::ListType::get(
+                  Torch::IntType::get(binder.op->getContext())),
+              SmallVector<Value>{cstLastDim});
+          Value cstTrue = Torch::ConstantBoolOp::create(rewriter, loc, true);
+          Value cstNoneForMean = Torch::ConstantNoneOp::create(rewriter, loc);
+          // Reduced type: keepdim=true keeps last dim as size 1.
+          SmallVector<int64_t> reducedSizes(sStashType.getSizes());
+          reducedSizes.back() = 1;
+          auto reducedType =
+              Torch::ValueTensorType::get(binder.op->getContext(), reducedSizes,
+                                          sStashType.getOptionalDtype());
+          Value meanSq = Torch::AtenMeanDimOp::create(
+              rewriter, loc, reducedType, sSquared, dimList,
+              /*keepdim=*/cstTrue, /*dtype=*/cstNoneForMean);
+          Value meanSqEps = Torch::AtenAddScalarOp::create(
+              rewriter, loc, reducedType, meanSq, cstEpsilon, cstOne);
+          invStdStash =
+              Torch::AtenRsqrtOp::create(rewriter, loc, reducedType, meanSqEps);
+
+          // output = (s * inv_std_var) * gamma, in the stash dtype.
+          Value normed = Torch::AtenMulTensorOp::create(
+              rewriter, loc, sStashType, sStash, invStdStash);
+          Value gammaStash = gamma;
+          auto gammaType = cast<Torch::ValueTensorType>(gamma.getType());
+          if (gammaType.getOptionalDtype() != *stashDtype)
+            gammaStash =
+                Torch::convertTensorToDtype(rewriter, loc, gamma, *stashDtype);
+          output = Torch::AtenMulTensorOp::create(rewriter, loc, sStashType,
+                                                  normed, gammaStash);
+        } else {
+          // Build normalized_shape for last dimension: [inputShape[-1]]
+          auto castInput = cast<Torch::ValueTensorType>(input.getType());
+          ArrayRef<int64_t> inputShape = castInput.getSizes();
+          Value cstLastDimSize = Torch::ConstantIntOp::create(
+              rewriter, loc,
+              rewriter.getI64IntegerAttr(inputShape[inputRank - 1]));
+          Value normalizedShape = Torch::PrimListConstructOp::create(
+              rewriter, loc,
+              Torch::ListType::get(
+                  Torch::IntType::get(binder.op->getContext())),
+              SmallVector<Value>{cstLastDimSize});
+
+          // Emit aten.rms_norm (in stash dtype if upcasted)
+          output =
+              Torch::AtenRmsNormOp::create(rewriter, loc, input.getType(), s,
+                                           normalizedShape, gamma, cstEpsilon);
+        }
 
         // Cast results back to original dtype if upcasted
         if (*stashDtype != origDtype) {
@@ -573,14 +641,102 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
           s = Torch::convertTensorToDtype(rewriter, loc, s, origDtype);
         }
 
-        if (resultTypes.size() == 1) {
-          rewriter.replaceOp(binder.op, {output});
-        } else {
-          // 2-output: (output, input_skip_bias_sum)
-          rewriter.replaceOp(binder.op, {output, s});
+        // Emit the results positionally following the ORT output ordering:
+        //   0: output
+        //   1: mean
+        //   2: inv_std_var
+        //   3: input_skip_bias_sum
+        // Any output that the model does not consume is imported as a
+        // !torch.none typed result; for those we emit a torch.constant.none in
+        // that slot and skip computing the corresponding value.
+        auto isNoneResult = [](Type t) { return isa<Torch::NoneType>(t); };
+        Value cstNone;
+        auto getNone = [&]() -> Value {
+          if (!cstNone)
+            cstNone = Torch::ConstantNoneOp::create(rewriter, loc);
+          return cstNone;
+        };
+
+        SmallVector<Value> results;
+        results.reserve(resultTypes.size());
+
+        // Result 0: output (always present).
+        results.push_back(output);
+
+        // Result 1: mean. The simplified (RMS) variant does not subtract a
+        // mean, so this output is vestigial. When requested with a concrete
+        // tensor type, materialize a zeros tensor of the expected shape/dtype.
+        if (resultTypes.size() > 1) {
+          if (isNoneResult(resultTypes[1])) {
+            results.push_back(getNone());
+          } else {
+            auto meanType = cast<Torch::ValueTensorType>(resultTypes[1]);
+            Value dtypeInt = Torch::ConstantIntOp::create(
+                rewriter, loc,
+                rewriter.getI64IntegerAttr(static_cast<int64_t>(
+                    Torch::getScalarTypeForType(meanType.getDtype()))));
+            // Build a zeros tensor with the reduced shape. Use aten.zeros with
+            // the sizes taken from the requested result type. Dynamic dims
+            // (kUnknownSize) cannot be baked into a constant, so resolve them
+            // at runtime from the already-materialized residual sum (sStash),
+            // whose leading dims match the mean output's dims by index.
+            SmallVector<Value> meanShapeValues;
+            ArrayRef<int64_t> meanShape = meanType.getSizes();
+            for (auto [idx, dim] : llvm::enumerate(meanShape)) {
+              Value dimSize;
+              if (dim == Torch::kUnknownSize) {
+                Value dimIndex = Torch::ConstantIntOp::create(
+                    rewriter, loc, rewriter.getI64IntegerAttr(idx));
+                dimSize = Torch::AtenSizeIntOp::create(rewriter, loc, sStash,
+                                                       dimIndex);
+              } else {
+                dimSize = Torch::ConstantIntOp::create(
+                    rewriter, loc, rewriter.getI64IntegerAttr(dim));
+              }
+              meanShapeValues.push_back(dimSize);
+            }
+
+            Value zerosSizeList = Torch::PrimListConstructOp::create(
+                rewriter, loc,
+                Torch::ListType::get(
+                    Torch::IntType::get(binder.op->getContext())),
+                meanShapeValues);
+            Value cstNoneForZeros = getNone();
+            Value mean = Torch::AtenZerosOp::create(
+                rewriter, loc, meanType, zerosSizeList, dtypeInt,
+                /*layout=*/cstNoneForZeros, /*device=*/cstNoneForZeros,
+                /*pin_memory=*/cstNoneForZeros);
+            results.push_back(mean);
+          }
         }
+
+        // Result 2: inv_std_var, computed above together with the output.
+        if (resultTypes.size() > 2) {
+          if (!wantInvStd) {
+            results.push_back(getNone());
+          } else {
+            auto invStdType = cast<Torch::ValueTensorType>(resultTypes[2]);
+            Value invStd = invStdStash;
+            if (invStdType.getOptionalDtype() != *stashDtype)
+              invStd = Torch::convertTensorToDtype(
+                  rewriter, loc, invStd, invStdType.getOptionalDtype());
+            results.push_back(invStd);
+          }
+        }
+
+        // Result 3: input_skip_bias_sum = input + skip + bias.
+        if (resultTypes.size() > 3) {
+          if (isNoneResult(resultTypes[3])) {
+            results.push_back(getNone());
+          } else {
+            results.push_back(s);
+          }
+        }
+
+        rewriter.replaceOp(binder.op, results);
         return success();
       });
+
   patterns.onOp(
       "GroupQueryAttention", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
