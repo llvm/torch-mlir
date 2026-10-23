@@ -75,7 +75,6 @@ LINALG_CRASHING_SET = {
     "GridSamplerBasic1_basic",
     "GridSamplerBasic2_basic",
     "GridSamplerBasic3_basic",
-    "GridSamplerBasic4_basic",
     # Crashes due to copy to a smaller destination buffer than the source buffer.
     "SliceCopyStartGreaterThanDimSize_Module_basic",
     # unimplemented: for conversion to byte or char type dstOriginalDtype has to be passed to convertScalarToDtype
@@ -343,6 +342,9 @@ TORCHDYNAMO_XFAIL_SET = {
     "GridSamplerBasic1_basic",
     "GridSamplerBasic2_basic",
     "GridSamplerBasic3_basic",
+    # TorchDynamo emits the unregistered torch.aten.grid_sampler_2d operation.
+    "GridSamplerNearestZeros_basic",
+    "GridSamplerNearestZeros_align_corners",
     "FakeQuantizePerTensorAffineModule_basic",
     "FakeQuantizePerTensorAffineDynamicShapeModule_basic",
     "FakeQuantizePerTensorAffineRoundToEvenModule_basic",
@@ -458,6 +460,8 @@ FX_IMPORTER_XFAIL_SET = {
     "FloatImplicitModule_basic",
     "GeFloatIntModule_basic",
     "GeIntModule_basic",
+    # FX's GridSample decomposition has rounding mismatches with align_corners=False.
+    "GridSamplerNearestZeros_basic",
     "GtFloatIntModule_basic",
     "IntFloatModule_basic",
     "IntImplicitModule_basic",
@@ -696,6 +700,8 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "FloatImplicitModule_basic",
     "GeFloatIntModule_basic",
     "GeIntModule_basic",
+    # FX's GridSample decomposition has rounding mismatches with align_corners=False.
+    "GridSamplerNearestZeros_basic",
     "GtFloatIntModule_basic",
     "IndexPut1DFloatAccumulateModule_basic",
     "IndexPut1DFloatNonAccumulateModule_basic",
@@ -3386,7 +3392,6 @@ ONNX_CRASHING_SET -= {
     "GridSamplerBasic1_basic",
     "GridSamplerBasic2_basic",
     "GridSamplerBasic3_basic",
-    "GridSamplerBasic4_basic",
 }
 
 FX_IMPORTER_TOSA_XFAIL_SET = {
@@ -3592,6 +3597,8 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "GeFloatIntModule_basic",
     "GeFloatModule_basic",
     "GeIntModule_basic",
+    # FX's GridSample decomposition has rounding mismatches with align_corners=False.
+    "GridSamplerNearestZeros_basic",
     "GtFloatIntModule_basic",
     "GtIntModule_basic",
     "IndexPut1DFloatAccumulateModule_basic",
@@ -4441,6 +4448,9 @@ ONNX_TOSA_XFAIL_SET = {
     "GridSamplerBasic2_basic",
     "GridSamplerBasic3_basic",
     "GridSamplerBasic4_basic",
+    # No TOSA lowering for torch.aten.grid_sampler.
+    "GridSamplerNearestZeros_basic",
+    "GridSamplerNearestZeros_align_corners",
     "GtFloatIntModule_basic",
     "GtIntModule_basic",
     "HBC_basic",
