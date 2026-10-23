@@ -421,3 +421,86 @@ func.func @torch.aten._scaled_mm_v2$nv_blockwise_1x16_tensorwise_scales(
   %0 = torch.aten._scaled_mm_v2 %arg0, %arg1, %nv2_scale_a, %nv2_recipe_a, %nv2_swizzle_a, %nv2_scale_b, %nv2_recipe_b, %nv2_swizzle_b, %nv2_none, %nv2_int15, %nv2_contraction_dim, %nv2_false : !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[128,128],f8E4M3FN>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.none, !torch.int, !torch.list<int>, !torch.bool -> !torch.vtensor<[128,128],bf16>
   return %0 : !torch.vtensor<[128,128],bf16>
 }
+
+// The quantized_decomposed verifiers check only static information: unknown
+// sizes and dtypes, and non-constant dtype codes and bounds, verify.
+// CHECK-LABEL: func.func @quantized_decomposed_unknown_types(
+func.func @quantized_decomposed_unknown_types(%arg0: !torch.vtensor, %arg1: !torch.vtensor, %arg2: !torch.vtensor, %quant_min: !torch.int, %dtype: !torch.int) -> !torch.vtensor {
+  %scale = torch.constant.float 5.000000e-01
+  %zero_point = torch.constant.int 0
+  %axis = torch.constant.int -1
+  %quant_max = torch.constant.int 127
+  %none_out_dtype = torch.constant.none
+  // CHECK: torch.quantized_decomposed.quantize_per_tensor
+  %0 = torch.quantized_decomposed.quantize_per_tensor %arg0, %scale, %zero_point, %quant_min, %quant_max, %dtype : !torch.vtensor, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor
+  // CHECK: torch.quantized_decomposed.dequantize_per_channel
+  %1 = torch.quantized_decomposed.dequantize_per_channel %0, %arg1, %arg2, %axis, %quant_min, %quant_max, %dtype, %none_out_dtype : !torch.vtensor, !torch.vtensor, !torch.vtensor, !torch.int, !torch.int, !torch.int, !torch.int, !torch.none -> !torch.vtensor
+  return %1 : !torch.vtensor
+}
+
+// CHECK-LABEL: func.func @quantized_decomposed_dynamic_channels(
+func.func @quantized_decomposed_dynamic_channels(%arg0: !torch.vtensor<[4,?],f32>, %arg1: !torch.vtensor<[?],f32>, %arg2: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[4,?],ui8> {
+  %axis = torch.constant.int -1
+  %quant_min = torch.constant.int 0
+  %quant_max = torch.constant.int 255
+  %dtype = torch.constant.int 0
+  // CHECK: torch.quantized_decomposed.quantize_per_channel
+  %0 = torch.quantized_decomposed.quantize_per_channel %arg0, %arg1, %arg2, %axis, %quant_min, %quant_max, %dtype : !torch.vtensor<[4,?],f32>, !torch.vtensor<[?],f32>, !torch.vtensor<[?],ui8>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,?],ui8>
+  return %0 : !torch.vtensor<[4,?],ui8>
+}
+
+// Floating-point per-channel zero points, as per_channel_affine_float_qparams
+// observers produce.
+// CHECK-LABEL: func.func @quantized_decomposed_per_channel_float_zero_points(
+func.func @quantized_decomposed_per_channel_float_zero_points(%arg0: !torch.vtensor<[4,8],f32>, %arg1: !torch.vtensor<[4],f32>, %arg2: !torch.vtensor<[4],f32>) -> !torch.vtensor<[4,8],f32> {
+  %axis = torch.constant.int 0
+  %quant_min = torch.constant.int 0
+  %quant_max = torch.constant.int 255
+  %dtype = torch.constant.int 0
+  %none_out_dtype = torch.constant.none
+  // CHECK: torch.quantized_decomposed.quantize_per_channel
+  %0 = torch.quantized_decomposed.quantize_per_channel %arg0, %arg1, %arg2, %axis, %quant_min, %quant_max, %dtype : !torch.vtensor<[4,8],f32>, !torch.vtensor<[4],f32>, !torch.vtensor<[4],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,8],ui8>
+  // CHECK: torch.quantized_decomposed.dequantize_per_channel
+  %1 = torch.quantized_decomposed.dequantize_per_channel %0, %arg1, %arg2, %axis, %quant_min, %quant_max, %dtype, %none_out_dtype : !torch.vtensor<[4,8],ui8>, !torch.vtensor<[4],f32>, !torch.vtensor<[4],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.none -> !torch.vtensor<[4,8],f32>
+  return %1 : !torch.vtensor<[4,8],f32>
+}
+
+// PT2E also quantizes to float8 and uint16 storage.
+// CHECK-LABEL: func.func @quantized_decomposed_storage_dtypes(
+func.func @quantized_decomposed_storage_dtypes(%arg0: !torch.vtensor<[4,8],f8E4M3FN>, %arg1: !torch.vtensor<[4,8],f32>) -> (!torch.vtensor<[4,8],bf16>, !torch.vtensor<[4,8],ui16>) {
+  %scale = torch.constant.float 5.000000e-01
+  %zero_point = torch.constant.int 0
+  %float8_min = torch.constant.int -448
+  %float8_max = torch.constant.int 448
+  %float8_e4m3fn = torch.constant.int 24
+  %bfloat16 = torch.constant.int 15
+  %uint16_min = torch.constant.int 0
+  %uint16_max = torch.constant.int 65535
+  %uint16 = torch.constant.int 27
+  // CHECK: torch.quantized_decomposed.dequantize_per_tensor
+  %0 = torch.quantized_decomposed.dequantize_per_tensor %arg0, %scale, %zero_point, %float8_min, %float8_max, %float8_e4m3fn, %bfloat16 : !torch.vtensor<[4,8],f8E4M3FN>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,8],bf16>
+  // CHECK: torch.quantized_decomposed.quantize_per_tensor
+  %1 = torch.quantized_decomposed.quantize_per_tensor %arg1, %scale, %zero_point, %uint16_min, %uint16_max, %uint16 : !torch.vtensor<[4,8],f32>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,8],ui16>
+  return %0, %1 : !torch.vtensor<[4,8],bf16>, !torch.vtensor<[4,8],ui16>
+}
+
+// Group quantization accepts the floating-point zero points torchao passes,
+// a group_size beyond the row length with one group column, and a dynamic
+// group count that decides whether such a group_size applies.
+// CHECK-LABEL: func.func @quantized_decomposed_per_channel_group(
+func.func @quantized_decomposed_per_channel_group(%arg0: !torch.vtensor<[4,16],f32>, %arg1: !torch.vtensor<[4,4],f32>, %arg2: !torch.vtensor<[4,1],f32>, %arg3: !torch.vtensor<[4,?],f32>) -> (!torch.vtensor<[4,16],si8>, !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,16],f32>) {
+  %quant_min = torch.constant.int -8
+  %quant_max = torch.constant.int 7
+  %int8 = torch.constant.int 1
+  %float32 = torch.constant.int 6
+  %group_size_4 = torch.constant.int 4
+  %group_size_128 = torch.constant.int 128
+  %symmetric = torch.constant.none
+  // CHECK: torch.quantized_decomposed.quantize_per_channel_group
+  %0 = torch.quantized_decomposed.quantize_per_channel_group %arg0, %arg1, %arg1, %quant_min, %quant_max, %int8, %group_size_4 : !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,4],f32>, !torch.vtensor<[4,4],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,16],si8>
+  // CHECK: torch.quantized_decomposed.dequantize_per_channel_group
+  %1 = torch.quantized_decomposed.dequantize_per_channel_group %0, %arg2, %symmetric, %quant_min, %quant_max, %int8, %group_size_128, %float32 : !torch.vtensor<[4,16],si8>, !torch.vtensor<[4,1],f32>, !torch.none, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,16],f32>
+  // CHECK: torch.quantized_decomposed.dequantize_per_channel_group
+  %2 = torch.quantized_decomposed.dequantize_per_channel_group %0, %arg3, %symmetric, %quant_min, %quant_max, %int8, %group_size_128, %float32 : !torch.vtensor<[4,16],si8>, !torch.vtensor<[4,?],f32>, !torch.none, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,16],f32>
+  return %0, %1, %2 : !torch.vtensor<[4,16],si8>, !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,16],f32>
+}

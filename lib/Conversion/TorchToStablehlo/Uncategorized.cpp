@@ -332,10 +332,7 @@ public:
     if (!inputTensorType.hasStaticShape())
       return rewriter.notifyMatchFailure(op, "dynamic shapes not supported");
     auto floatElemType =
-        dyn_cast<mlir::FloatType>(inputTensorType.getElementType());
-    if (!floatElemType)
-      return rewriter.notifyMatchFailure(
-          op, "input element type must be a float type");
+        cast<mlir::FloatType>(inputTensorType.getElementType());
     // Scalar tensor type for broadcasting constants.
     auto scalarFloatType = RankedTensorType::get({}, floatElemType);
 
@@ -441,10 +438,7 @@ public:
       return rewriter.notifyMatchFailure(op, "result must be a ranked tensor");
 
     auto outputFloatType =
-        dyn_cast<mlir::FloatType>(resultTensorType.getElementType());
-    if (!outputFloatType)
-      return rewriter.notifyMatchFailure(
-          op, "result element type must be a float type");
+        cast<mlir::FloatType>(resultTensorType.getElementType());
 
     auto loc = op.getLoc();
     Value input = adaptor.getInput();
