@@ -1424,6 +1424,50 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenGatherOp : public OpRewritePattern<AtenGatherOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenGatherOp op,
+                                PatternRewriter &rewriter) const override {
+    auto inputType = dyn_cast<ValueTensorType>(op.getSelf().getType());
+    auto indexType = dyn_cast<ValueTensorType>(op.getIndex().getType());
+    if (!inputType || !indexType || !inputType.hasSizes() ||
+        !indexType.hasSizes() || !inputType.getSizes().empty() ||
+        !indexType.getSizes().empty())
+      return rewriter.notifyMatchFailure(op, "expected scalar input and index");
+    if (op.getType() != inputType)
+      return rewriter.notifyMatchFailure(
+          op, "expected matching scalar input and result types");
+
+    int64_t dim;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)) ||
+        (dim != 0 && dim != -1))
+      return rewriter.notifyMatchFailure(
+          op, "expected scalar gather dimension 0 or -1");
+
+    // Keep the runtime index in a rank-one gather, then restore scalar shape.
+    Location loc = op.getLoc();
+    Value zero =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
+    SmallVector<int64_t> shape{1};
+    Type input1DType =
+        inputType.getWithSizesAndDtype(shape, inputType.getOptionalDtype());
+    Type index1DType =
+        indexType.getWithSizesAndDtype(shape, indexType.getOptionalDtype());
+    Value input =
+        AtenUnsqueezeOp::create(rewriter, loc, input1DType, op.getSelf(), zero);
+    Value index = AtenUnsqueezeOp::create(rewriter, loc, index1DType,
+                                          op.getIndex(), zero);
+    Value gathered = AtenGatherOp::create(rewriter, loc, input1DType, input,
+                                          zero, index, op.getSparseGrad());
+    rewriter.replaceOpWithNewOp<AtenSqueezeDimOp>(op, op.getType(), gathered,
+                                                  zero);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenSelectIntOp : public OpRewritePattern<AtenSelectIntOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -2826,6 +2870,18 @@ public:
     }
 
     int64_t inputRank = inputTy.getSizes().size();
+    if (inputRank == 0) {
+      // Scalar reductions accept dimension 0 or -1 without changing shape.
+      if (dims.size() > 1 || (!dims.empty() && dims[0] != 0 && dims[0] != -1))
+        return rewriter.notifyMatchFailure(
+            op, "invalid scalar reduction dimensions");
+      if (input.getType() != op.getType())
+        return rewriter.notifyMatchFailure(
+            op, "scalar reduction requires matching input and result types");
+      rewriter.replaceOp(op, input);
+      return success();
+    }
+
     llvm::for_each(dims, [&](int64_t &d) { d = toPositiveDim(d, inputRank); });
 
     // For every dimension included in `dim` of the op, iterated over in
@@ -2847,6 +2903,44 @@ public:
       }
     }
     rewriter.replaceOp(op, input);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenMaxDimOp : public OpRewritePattern<AtenMaxDimOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenMaxDimOp op,
+                                PatternRewriter &rewriter) const override {
+    auto inputType = dyn_cast<ValueTensorType>(op.getSelf().getType());
+    auto indicesType = dyn_cast<ValueTensorType>(op.getIndices().getType());
+    if (!inputType || !inputType.hasSizes() || !inputType.getSizes().empty() ||
+        inputType.getOptionalSparsity() ||
+        !isa_and_nonnull<mlir::FloatType, IntegerType>(
+            inputType.getOptionalDtype()) ||
+        op.getValues().getType() != inputType || !indicesType ||
+        !indicesType.hasSizes() || !indicesType.getSizes().empty() ||
+        indicesType.getOptionalSparsity() || !indicesType.hasDtype() ||
+        !indicesType.getDtype().isSignedInteger(64))
+      return rewriter.notifyMatchFailure(op, "expected a scalar maximum");
+
+    int64_t dim;
+    bool keepDim;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)) ||
+        (dim != 0 && dim != -1) ||
+        !matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepDim)))
+      return rewriter.notifyMatchFailure(op,
+                                         "expected a valid constant dimension");
+
+    // Scalar max accepts dim 0 and -1. Both results stay scalar even with
+    // keepdim; forwarding the input also preserves NaNs and signed zero.
+    Value index = ValueTensorLiteralOp::create(
+        rewriter, op.getLoc(), indicesType,
+        DenseIntElementsAttr::get(indicesType.toBuiltinTensor(),
+                                  ArrayRef<int64_t>{0}));
+    rewriter.replaceOp(op, {op.getSelf(), index});
     return success();
   }
 };
@@ -3242,25 +3336,70 @@ public:
 };
 } // namespace
 
+// Numerically stable decomposition of logaddexp / logaddexp2.
+//   logaddexp(a, b)  = log (exp (a) + exp (b))  = m + log1p(exp (-|a - b|))
+//   logaddexp2(a, b) = log2(exp2(a) + exp2(b))  = m + log2(1 + exp2(-|a - b|))
+// where m = max(a, b). Carrying `m` outside the exponential and only ever
+// exponentiating the non-positive value -|a - b| avoids the +inf overflow of
+// the naive `log(exp(a) + exp(b))` form when a or b exceeds ~88 in float32.
+// `useBase2` selects the base-2 variant (exp2/log2); base-e uses log1p
+// directly.
+template <typename OpTy>
+static LogicalResult decomposeLogAddExp(OpTy op, PatternRewriter &rewriter,
+                                        bool useBase2) {
+  Location loc = op.getLoc();
+  Value self = op.getSelf();
+  Value other = op.getOther();
+  auto outTy = cast<BaseTensorType>(op.getType());
+
+  // diff = a - b; |diff|; -|diff|  (broadcast to the result type).
+  Value diff = createTensorSub(rewriter, loc, outTy, self, other);
+  Value absDiff = AtenAbsOp::create(rewriter, loc, outTy, diff);
+  Value negAbsDiff = AtenNegOp::create(rewriter, loc, outTy, absDiff);
+
+  // m = max(a, b).
+  Value maxAB = AtenMaximumOp::create(rewriter, loc, outTy, self, other);
+
+  Value logTerm;
+  if (useBase2) {
+    // log2(1 + exp2(-|a - b|)) -- no log2p1 op, so form 1 + ... explicitly.
+    Value expTerm = AtenExp2Op::create(rewriter, loc, outTy, negAbsDiff);
+    Value one =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
+    Value onePlus = AtenAddScalarOp::create(rewriter, loc, outTy, expTerm,
+                                            /*other=*/one, /*alpha=*/one);
+    logTerm = AtenLog2Op::create(rewriter, loc, outTy, onePlus);
+  } else {
+    // log1p(exp(-|a - b|)).
+    Value expTerm = AtenExpOp::create(rewriter, loc, outTy, negAbsDiff);
+    logTerm = AtenLog1pOp::create(rewriter, loc, outTy, expTerm);
+  }
+
+  Value alpha =
+      ConstantFloatOp::create(rewriter, loc, rewriter.getF64FloatAttr(1));
+  Value stable =
+      AtenAddTensorOp::create(rewriter, loc, outTy, maxAB, logTerm, alpha);
+
+  // When both inputs are the same infinity (a == b == +/-inf) the diff a - b
+  // is NaN, which poisons `stable` into NaN. PyTorch instead returns that
+  // shared infinity. Guard on the already-computed max: whenever m = max(a, b)
+  // is infinite, m is itself the correct answer, so select it over `stable`:
+  //   result = where(isinf(m), m, stable)
+  Type boolTy = outTy.getWithSizesAndDtype(outTy.getOptionalSizes(),
+                                           rewriter.getI1Type());
+  Value maxIsInf = AtenIsinfOp::create(rewriter, loc, boolTy, maxAB);
+  rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, outTy, maxIsInf, maxAB,
+                                               stable);
+  return success();
+}
+
 namespace {
 class DecomposeAtenLogAddExpOp : public OpRewritePattern<AtenLogaddexpOp> {
 public:
   using OpRewritePattern<AtenLogaddexpOp>::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenLogaddexpOp op,
                                 PatternRewriter &rewriter) const override {
-    Location loc = op.getLoc();
-    Value self = op.getSelf();
-    Value other = op.getOther();
-    auto outTy = op.getType();
-
-    Value constantOne =
-        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
-    Value expSelf = AtenExpOp::create(rewriter, loc, self.getType(), self);
-    Value expOther = AtenExpOp::create(rewriter, loc, other.getType(), other);
-    Value addValue = AtenAddTensorOp::create(rewriter, loc, outTy, expSelf,
-                                             expOther, constantOne);
-    rewriter.replaceOpWithNewOp<AtenLogOp>(op, outTy, addValue);
-    return success();
+    return decomposeLogAddExp(op, rewriter, /*useBase2=*/false);
   }
 };
 } // namespace
@@ -3271,19 +3410,7 @@ public:
   using OpRewritePattern<AtenLogaddexp2Op>::OpRewritePattern;
   LogicalResult matchAndRewrite(AtenLogaddexp2Op op,
                                 PatternRewriter &rewriter) const override {
-    Location loc = op.getLoc();
-    Value self = op.getSelf();
-    Value other = op.getOther();
-    auto outTy = op.getType();
-
-    Value constantOne =
-        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
-    Value expSelf = AtenExp2Op::create(rewriter, loc, self.getType(), self);
-    Value expOther = AtenExp2Op::create(rewriter, loc, other.getType(), other);
-    Value addValue = AtenAddTensorOp::create(rewriter, loc, outTy, expSelf,
-                                             expOther, constantOne);
-    rewriter.replaceOpWithNewOp<AtenLog2Op>(op, outTy, addValue);
-    return success();
+    return decomposeLogAddExp(op, rewriter, /*useBase2=*/true);
   }
 };
 } // namespace
@@ -7393,13 +7520,24 @@ public:
     Value inputTimesBeta =
         AtenMulScalarOp::create(rewriter, loc, inputType, input, op.getBeta());
 
-    // out = log1p(exp(input * beta)) / beta
-    Value exp = AtenExpOp::create(rewriter, loc, inputType, inputTimesBeta);
-    Value log1p = AtenLog1pOp::create(rewriter, loc, inputType, exp);
-    Value out =
-        AtenDivScalarOp::create(rewriter, loc, inputType, log1p, op.getBeta());
+    // out = log1p(exp(z)) / beta, with z = input * beta, computed in the
+    // numerically stable form (max(z, 0) + log1p(exp(-|z|))) / beta. Only ever
+    // exponentiating -|z| <= 0 keeps exp in (0, 1], so the arm stays finite for
+    // all inputs.
+    Value absZ = AtenAbsOp::create(rewriter, loc, inputType, inputTimesBeta);
+    Value negAbsZ = AtenNegOp::create(rewriter, loc, inputType, absZ);
+    Value expNegAbsZ = AtenExpOp::create(rewriter, loc, inputType, negAbsZ);
+    Value log1p = AtenLog1pOp::create(rewriter, loc, inputType, expNegAbsZ);
+    Value reluZ = AtenReluOp::create(rewriter, loc, inputType, inputTimesBeta);
+    Value one =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
+    Value stableSum = AtenAddTensorOp::create(rewriter, loc, inputType, reluZ,
+                                              log1p, /*alpha=*/one);
+    Value out = AtenDivScalarOp::create(rewriter, loc, inputType, stableSum,
+                                        op.getBeta());
 
-    // Select where x * beta > threshold
+    // Select where x * beta > threshold. The threshold arm returns x directly
+    // (matching eager); the stable arm above is finite for all inputs.
     auto boolResType = inputType.getWithSizesAndDtype(inputType.getSizes(),
                                                       rewriter.getI1Type());
     Value condition = AtenGtScalarOp::create(rewriter, loc, boolResType,
@@ -13819,6 +13957,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenStftCenterOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenGatherOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSelectIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMatmulOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMvOp>(patterns);
@@ -13859,6 +13998,7 @@ public:
         DecomposeAtenAminAmaxOp<AtenAmaxOp, AtenMaxDimOp>>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeAtenAminAmaxOp<AtenAminOp, AtenMinDimOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenMaxDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeAtenArgMinMaxOp<AtenArgmaxOp, AtenMaxDimOp>>(patterns);
     addPatternIfTargetOpIsIllegal<

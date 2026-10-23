@@ -2,6 +2,7 @@ pillow
 dill
 multiprocess
 onnx==1.17.0
+onnxruntime==1.23.2
 onnxscript==0.7.1
 mpmath==1.3.0
 requests==2.32.3

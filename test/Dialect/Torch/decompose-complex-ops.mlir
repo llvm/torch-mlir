@@ -56,6 +56,130 @@ func.func @rms_norm_zero_extent_unsupported_dtype(%arg0: !torch.vtensor<[0,1],si
 
 // -----
 
+// CHECK-LABEL: func.func @gather_scalar_f32(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[],f32>, %[[INDEX:.*]]: !torch.vtensor<[],si64>)
+// CHECK-DAG: %[[ZERO:.*]] = torch.constant.int 0{{$}}
+// CHECK-DAG: %[[FALSE:.*]] = torch.constant.bool false
+// CHECK-DAG: %[[INPUT_1D:.*]] = torch.aten.unsqueeze %[[INPUT]], %[[ZERO]] : !torch.vtensor<[],f32>, !torch.int -> !torch.vtensor<[1],f32>
+// CHECK-DAG: %[[INDEX_1D:.*]] = torch.aten.unsqueeze %[[INDEX]], %[[ZERO]] : !torch.vtensor<[],si64>, !torch.int -> !torch.vtensor<[1],si64>
+// CHECK: %[[GATHER:.*]] = torch.aten.gather %[[INPUT_1D]], %[[ZERO]], %[[INDEX_1D]], %[[FALSE]] : !torch.vtensor<[1],f32>, !torch.int, !torch.vtensor<[1],si64>, !torch.bool -> !torch.vtensor<[1],f32>
+// CHECK: %[[RESULT:.*]] = torch.aten.squeeze.dim %[[GATHER]], %[[ZERO]] : !torch.vtensor<[1],f32>, !torch.int -> !torch.vtensor<[],f32>
+// CHECK: return %[[RESULT]] : !torch.vtensor<[],f32>
+func.func @gather_scalar_f32(%input: !torch.vtensor<[],f32>, %index: !torch.vtensor<[],si64>) -> !torch.vtensor<[],f32> {
+  %zero = torch.constant.int 0
+  %false = torch.constant.bool false
+  %result = torch.aten.gather %input, %zero, %index, %false : !torch.vtensor<[],f32>, !torch.int, !torch.vtensor<[],si64>, !torch.bool -> !torch.vtensor<[],f32>
+  return %result : !torch.vtensor<[],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @gather_scalar_negative_dim_f16(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[],f16>, %[[INDEX:.*]]: !torch.vtensor<[],si64>)
+// CHECK-DAG: %[[ZERO:.*]] = torch.constant.int 0{{$}}
+// CHECK-DAG: %[[FALSE:.*]] = torch.constant.bool false
+// CHECK-DAG: %[[INPUT_1D:.*]] = torch.aten.unsqueeze %[[INPUT]], %[[ZERO]] : !torch.vtensor<[],f16>, !torch.int -> !torch.vtensor<[1],f16>
+// CHECK-DAG: %[[INDEX_1D:.*]] = torch.aten.unsqueeze %[[INDEX]], %[[ZERO]] : !torch.vtensor<[],si64>, !torch.int -> !torch.vtensor<[1],si64>
+// CHECK: %[[GATHER:.*]] = torch.aten.gather %[[INPUT_1D]], %[[ZERO]], %[[INDEX_1D]], %[[FALSE]] : !torch.vtensor<[1],f16>, !torch.int, !torch.vtensor<[1],si64>, !torch.bool -> !torch.vtensor<[1],f16>
+// CHECK: %[[RESULT:.*]] = torch.aten.squeeze.dim %[[GATHER]], %[[ZERO]] : !torch.vtensor<[1],f16>, !torch.int -> !torch.vtensor<[],f16>
+// CHECK: return %[[RESULT]] : !torch.vtensor<[],f16>
+func.func @gather_scalar_negative_dim_f16(%input: !torch.vtensor<[],f16>, %index: !torch.vtensor<[],si64>) -> !torch.vtensor<[],f16> {
+  %minus_one = torch.constant.int -1
+  %false = torch.constant.bool false
+  %result = torch.aten.gather %input, %minus_one, %index, %false : !torch.vtensor<[],f16>, !torch.int, !torch.vtensor<[],si64>, !torch.bool -> !torch.vtensor<[],f16>
+  return %result : !torch.vtensor<[],f16>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @gather_scalar_bf16(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[],bf16>, %[[INDEX:.*]]: !torch.vtensor<[],si64>)
+// CHECK-DAG: %[[ZERO:.*]] = torch.constant.int 0{{$}}
+// CHECK-DAG: %[[FALSE:.*]] = torch.constant.bool false
+// CHECK-DAG: %[[INPUT_1D:.*]] = torch.aten.unsqueeze %[[INPUT]], %[[ZERO]] : !torch.vtensor<[],bf16>, !torch.int -> !torch.vtensor<[1],bf16>
+// CHECK-DAG: %[[INDEX_1D:.*]] = torch.aten.unsqueeze %[[INDEX]], %[[ZERO]] : !torch.vtensor<[],si64>, !torch.int -> !torch.vtensor<[1],si64>
+// CHECK: %[[GATHER:.*]] = torch.aten.gather %[[INPUT_1D]], %[[ZERO]], %[[INDEX_1D]], %[[FALSE]] : !torch.vtensor<[1],bf16>, !torch.int, !torch.vtensor<[1],si64>, !torch.bool -> !torch.vtensor<[1],bf16>
+// CHECK: %[[RESULT:.*]] = torch.aten.squeeze.dim %[[GATHER]], %[[ZERO]] : !torch.vtensor<[1],bf16>, !torch.int -> !torch.vtensor<[],bf16>
+// CHECK: return %[[RESULT]] : !torch.vtensor<[],bf16>
+func.func @gather_scalar_bf16(%input: !torch.vtensor<[],bf16>, %index: !torch.vtensor<[],si64>) -> !torch.vtensor<[],bf16> {
+  %zero = torch.constant.int 0
+  %false = torch.constant.bool false
+  %result = torch.aten.gather %input, %zero, %index, %false : !torch.vtensor<[],bf16>, !torch.int, !torch.vtensor<[],si64>, !torch.bool -> !torch.vtensor<[],bf16>
+  return %result : !torch.vtensor<[],bf16>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @gather_scalar_invalid_or_unknown_dim(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[],f32>, %[[INDEX:.*]]: !torch.vtensor<[],si64>, %[[DIM:.*]]: !torch.int)
+// CHECK-DAG: %[[ONE:.*]] = torch.constant.int 1{{$}}
+// CHECK-DAG: %[[MINUS_TWO:.*]] = torch.constant.int -2{{$}}
+// CHECK-DAG: %[[FALSE:.*]] = torch.constant.bool false
+// CHECK: %[[POSITIVE:.*]] = torch.aten.gather %[[INPUT]], %[[ONE]], %[[INDEX]], %[[FALSE]] : !torch.vtensor<[],f32>, !torch.int, !torch.vtensor<[],si64>, !torch.bool -> !torch.vtensor<[],f32>
+// CHECK: %[[NEGATIVE:.*]] = torch.aten.gather %[[INPUT]], %[[MINUS_TWO]], %[[INDEX]], %[[FALSE]] : !torch.vtensor<[],f32>, !torch.int, !torch.vtensor<[],si64>, !torch.bool -> !torch.vtensor<[],f32>
+// CHECK: %[[UNKNOWN:.*]] = torch.aten.gather %[[INPUT]], %[[DIM]], %[[INDEX]], %[[FALSE]] : !torch.vtensor<[],f32>, !torch.int, !torch.vtensor<[],si64>, !torch.bool -> !torch.vtensor<[],f32>
+// CHECK: return %[[POSITIVE]], %[[NEGATIVE]], %[[UNKNOWN]] : !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>
+func.func @gather_scalar_invalid_or_unknown_dim(%input: !torch.vtensor<[],f32>, %index: !torch.vtensor<[],si64>, %dim: !torch.int) -> (!torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>) {
+  %one = torch.constant.int 1
+  %minus_two = torch.constant.int -2
+  %false = torch.constant.bool false
+  %0 = torch.aten.gather %input, %one, %index, %false : !torch.vtensor<[],f32>, !torch.int, !torch.vtensor<[],si64>, !torch.bool -> !torch.vtensor<[],f32>
+  %1 = torch.aten.gather %input, %minus_two, %index, %false : !torch.vtensor<[],f32>, !torch.int, !torch.vtensor<[],si64>, !torch.bool -> !torch.vtensor<[],f32>
+  %2 = torch.aten.gather %input, %dim, %index, %false : !torch.vtensor<[],f32>, !torch.int, !torch.vtensor<[],si64>, !torch.bool -> !torch.vtensor<[],f32>
+  return %0, %1, %2 : !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @gather_nonscalar_operands(
+// CHECK-SAME: %[[SCALAR:.*]]: !torch.vtensor<[],f32>, %[[VECTOR:.*]]: !torch.vtensor<[3],f32>, %[[SCALAR_INDEX:.*]]: !torch.vtensor<[],si64>, %[[VECTOR_INDEX:.*]]: !torch.vtensor<[1],si64>)
+// CHECK-DAG: %[[ZERO:.*]] = torch.constant.int 0{{$}}
+// CHECK-DAG: %[[FALSE:.*]] = torch.constant.bool false
+// CHECK: %[[SCALAR_INPUT:.*]] = torch.aten.gather %[[SCALAR]], %[[ZERO]], %[[VECTOR_INDEX]], %[[FALSE]] : !torch.vtensor<[],f32>, !torch.int, !torch.vtensor<[1],si64>, !torch.bool -> !torch.vtensor<[1],f32>
+// CHECK: %[[SCALAR_INDEX_RESULT:.*]] = torch.aten.gather %[[VECTOR]], %[[ZERO]], %[[SCALAR_INDEX]], %[[FALSE]] : !torch.vtensor<[3],f32>, !torch.int, !torch.vtensor<[],si64>, !torch.bool -> !torch.vtensor<[],f32>
+// CHECK: %[[VECTOR_RESULT:.*]] = torch.aten.gather %[[VECTOR]], %[[ZERO]], %[[VECTOR_INDEX]], %[[FALSE]] : !torch.vtensor<[3],f32>, !torch.int, !torch.vtensor<[1],si64>, !torch.bool -> !torch.vtensor<[1],f32>
+// CHECK: return %[[SCALAR_INPUT]], %[[SCALAR_INDEX_RESULT]], %[[VECTOR_RESULT]] : !torch.vtensor<[1],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[1],f32>
+func.func @gather_nonscalar_operands(%scalar: !torch.vtensor<[],f32>, %vector: !torch.vtensor<[3],f32>, %scalar_index: !torch.vtensor<[],si64>, %vector_index: !torch.vtensor<[1],si64>) -> (!torch.vtensor<[1],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[1],f32>) {
+  %zero = torch.constant.int 0
+  %false = torch.constant.bool false
+  %0 = torch.aten.gather %scalar, %zero, %vector_index, %false : !torch.vtensor<[],f32>, !torch.int, !torch.vtensor<[1],si64>, !torch.bool -> !torch.vtensor<[1],f32>
+  %1 = torch.aten.gather %vector, %zero, %scalar_index, %false : !torch.vtensor<[3],f32>, !torch.int, !torch.vtensor<[],si64>, !torch.bool -> !torch.vtensor<[],f32>
+  %2 = torch.aten.gather %vector, %zero, %vector_index, %false : !torch.vtensor<[3],f32>, !torch.int, !torch.vtensor<[1],si64>, !torch.bool -> !torch.vtensor<[1],f32>
+  return %0, %1, %2 : !torch.vtensor<[1],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[1],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @gather_unknown_rank(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<*,f32>, %[[INDEX:.*]]: !torch.vtensor<[],si64>)
+// CHECK-DAG: %[[ZERO:.*]] = torch.constant.int 0{{$}}
+// CHECK-DAG: %[[FALSE:.*]] = torch.constant.bool false
+// CHECK: %[[RESULT:.*]] = torch.aten.gather %[[INPUT]], %[[ZERO]], %[[INDEX]], %[[FALSE]] : !torch.vtensor<*,f32>, !torch.int, !torch.vtensor<[],si64>, !torch.bool -> !torch.vtensor<[],f32>
+// CHECK: return %[[RESULT]] : !torch.vtensor<[],f32>
+func.func @gather_unknown_rank(%input: !torch.vtensor<*,f32>, %index: !torch.vtensor<[],si64>) -> !torch.vtensor<[],f32> {
+  %zero = torch.constant.int 0
+  %false = torch.constant.bool false
+  %result = torch.aten.gather %input, %zero, %index, %false : !torch.vtensor<*,f32>, !torch.int, !torch.vtensor<[],si64>, !torch.bool -> !torch.vtensor<[],f32>
+  return %result : !torch.vtensor<[],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @gather_scalar_mismatched_result_type(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[],f32>, %[[INDEX:.*]]: !torch.vtensor<[],si64>)
+// CHECK-DAG: %[[ZERO:.*]] = torch.constant.int 0{{$}}
+// CHECK-DAG: %[[FALSE:.*]] = torch.constant.bool false
+// CHECK: %[[RESULT:.*]] = torch.aten.gather %[[INPUT]], %[[ZERO]], %[[INDEX]], %[[FALSE]] : !torch.vtensor<[],f32>, !torch.int, !torch.vtensor<[],si64>, !torch.bool -> !torch.vtensor<[],f16>
+// CHECK: return %[[RESULT]] : !torch.vtensor<[],f16>
+func.func @gather_scalar_mismatched_result_type(%input: !torch.vtensor<[],f32>, %index: !torch.vtensor<[],si64>) -> !torch.vtensor<[],f16> {
+  %zero = torch.constant.int 0
+  %false = torch.constant.bool false
+  %result = torch.aten.gather %input, %zero, %index, %false : !torch.vtensor<[],f32>, !torch.int, !torch.vtensor<[],si64>, !torch.bool -> !torch.vtensor<[],f16>
+  return %result : !torch.vtensor<[],f16>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @repeat_interleave_tensor
 // CHECK:         %[[REPEATS:.*]] = torch.aten.to.dtype %arg0{{.*}} -> !torch.vtensor<[2],si64>
 // CHECK:         %[[CUMSUM:.*]] = torch.aten.cumsum %[[REPEATS]]
@@ -198,6 +322,101 @@ func.func @matmul_no_decompose_3d_broadcast(%arg0: !torch.vtensor<[4,?,?],f32>, 
 }
 
 // -----
+// CHECK-LABEL: func.func @max_dim_scalar(
+// CHECK-SAME: %[[INPUT:[^:]+]]: !torch.vtensor<[],f32>
+// CHECK-NEXT: %[[ZERO:.*]] = torch.vtensor.literal(dense<0> : tensor<si64>) : !torch.vtensor<[],si64>
+// CHECK-NEXT: return %[[INPUT]], %[[ZERO]] : !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+func.func @max_dim_scalar(%arg0: !torch.vtensor<[],f32>) -> (!torch.vtensor<[],f32>, !torch.vtensor<[],si64>) {
+  %dim = torch.constant.int 0
+  %keepdim = torch.constant.bool false
+  %values, %indices = torch.aten.max.dim %arg0, %dim, %keepdim : !torch.vtensor<[],f32>, !torch.int, !torch.bool -> !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+  return %values, %indices : !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @max_dim_scalar_negative_dim(
+// CHECK-SAME: %[[INPUT:[^:]+]]: !torch.vtensor<[],f32>
+// CHECK-NEXT: %[[ZERO:.*]] = torch.vtensor.literal(dense<0> : tensor<si64>) : !torch.vtensor<[],si64>
+// CHECK-NEXT: return %[[INPUT]], %[[ZERO]] : !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+func.func @max_dim_scalar_negative_dim(%arg0: !torch.vtensor<[],f32>) -> (!torch.vtensor<[],f32>, !torch.vtensor<[],si64>) {
+  %dim = torch.constant.int -1
+  %keepdim = torch.constant.bool false
+  %values, %indices = torch.aten.max.dim %arg0, %dim, %keepdim : !torch.vtensor<[],f32>, !torch.int, !torch.bool -> !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+  return %values, %indices : !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @max_dim_scalar_f16_keepdim(
+// CHECK-SAME: %[[INPUT:[^:]+]]: !torch.vtensor<[],f16>
+// CHECK-NEXT: %[[ZERO:.*]] = torch.vtensor.literal(dense<0> : tensor<si64>) : !torch.vtensor<[],si64>
+// CHECK-NEXT: return %[[INPUT]], %[[ZERO]] : !torch.vtensor<[],f16>, !torch.vtensor<[],si64>
+func.func @max_dim_scalar_f16_keepdim(%arg0: !torch.vtensor<[],f16>) -> (!torch.vtensor<[],f16>, !torch.vtensor<[],si64>) {
+  %dim = torch.constant.int -1
+  %keepdim = torch.constant.bool true
+  %values, %indices = torch.aten.max.dim %arg0, %dim, %keepdim : !torch.vtensor<[],f16>, !torch.int, !torch.bool -> !torch.vtensor<[],f16>, !torch.vtensor<[],si64>
+  return %values, %indices : !torch.vtensor<[],f16>, !torch.vtensor<[],si64>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @max_dim_scalar_bf16_keepdim(
+// CHECK-SAME: %[[INPUT:[^:]+]]: !torch.vtensor<[],bf16>
+// CHECK-NEXT: %[[ZERO:.*]] = torch.vtensor.literal(dense<0> : tensor<si64>) : !torch.vtensor<[],si64>
+// CHECK-NEXT: return %[[INPUT]], %[[ZERO]] : !torch.vtensor<[],bf16>, !torch.vtensor<[],si64>
+func.func @max_dim_scalar_bf16_keepdim(%arg0: !torch.vtensor<[],bf16>) -> (!torch.vtensor<[],bf16>, !torch.vtensor<[],si64>) {
+  %dim = torch.constant.int 0
+  %keepdim = torch.constant.bool true
+  %values, %indices = torch.aten.max.dim %arg0, %dim, %keepdim : !torch.vtensor<[],bf16>, !torch.int, !torch.bool -> !torch.vtensor<[],bf16>, !torch.vtensor<[],si64>
+  return %values, %indices : !torch.vtensor<[],bf16>, !torch.vtensor<[],si64>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @max_dim_scalar_invalid_dim(
+// CHECK-SAME: %[[INPUT:[^:]+]]: !torch.vtensor<[],f32>
+// CHECK-DAG: %[[DIM:.*]] = torch.constant.int 1{{$}}
+// CHECK-DAG: %[[KEEPDIM:.*]] = torch.constant.bool false{{$}}
+// CHECK: %[[VALUES:.*]], %[[INDICES:.*]] = torch.aten.max.dim %[[INPUT]], %[[DIM]], %[[KEEPDIM]] : !torch.vtensor<[],f32>, !torch.int, !torch.bool -> !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+// CHECK-NEXT: return %[[VALUES]], %[[INDICES]] : !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+func.func @max_dim_scalar_invalid_dim(%arg0: !torch.vtensor<[],f32>) -> (!torch.vtensor<[],f32>, !torch.vtensor<[],si64>) {
+  %dim = torch.constant.int 1
+  %keepdim = torch.constant.bool false
+  %values, %indices = torch.aten.max.dim %arg0, %dim, %keepdim : !torch.vtensor<[],f32>, !torch.int, !torch.bool -> !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+  return %values, %indices : !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @max_dim_scalar_dynamic_dim(
+// CHECK-SAME: %[[INPUT:[^:]+]]: !torch.vtensor<[],f32>, %[[DIM:[^:]+]]: !torch.int
+// CHECK: %[[KEEPDIM:.*]] = torch.constant.bool false{{$}}
+// CHECK: %[[VALUES:.*]], %[[INDICES:.*]] = torch.aten.max.dim %[[INPUT]], %[[DIM]], %[[KEEPDIM]] : !torch.vtensor<[],f32>, !torch.int, !torch.bool -> !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+// CHECK-NEXT: return %[[VALUES]], %[[INDICES]] : !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+func.func @max_dim_scalar_dynamic_dim(%arg0: !torch.vtensor<[],f32>, %arg1: !torch.int) -> (!torch.vtensor<[],f32>, !torch.vtensor<[],si64>) {
+  %keepdim = torch.constant.bool false
+  %values, %indices = torch.aten.max.dim %arg0, %arg1, %keepdim : !torch.vtensor<[],f32>, !torch.int, !torch.bool -> !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+  return %values, %indices : !torch.vtensor<[],f32>, !torch.vtensor<[],si64>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @max_dim_scalar_complex(
+// CHECK-SAME: %[[INPUT:[^:]+]]: !torch.vtensor<[],complex<f32>>
+// CHECK-DAG: %[[DIM:.*]] = torch.constant.int 0{{$}}
+// CHECK-DAG: %[[KEEPDIM:.*]] = torch.constant.bool false{{$}}
+// CHECK: %[[VALUES:.*]], %[[INDICES:.*]] = torch.aten.max.dim %[[INPUT]], %[[DIM]], %[[KEEPDIM]] : !torch.vtensor<[],complex<f32>>, !torch.int, !torch.bool -> !torch.vtensor<[],complex<f32>>, !torch.vtensor<[],si64>
+// CHECK-NEXT: return %[[VALUES]], %[[INDICES]] : !torch.vtensor<[],complex<f32>>, !torch.vtensor<[],si64>
+func.func @max_dim_scalar_complex(%arg0: !torch.vtensor<[],complex<f32>>) -> (!torch.vtensor<[],complex<f32>>, !torch.vtensor<[],si64>) {
+  %dim = torch.constant.int 0
+  %keepdim = torch.constant.bool false
+  %values, %indices = torch.aten.max.dim %arg0, %dim, %keepdim : !torch.vtensor<[],complex<f32>>, !torch.int, !torch.bool -> !torch.vtensor<[],complex<f32>>, !torch.vtensor<[],si64>
+  return %values, %indices : !torch.vtensor<[],complex<f32>>, !torch.vtensor<[],si64>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @argmax_rank_1
 // CHECK:         %[[I0:.*]] = torch.constant.int 0
 // CHECK:         %[[FALSE:.*]] = torch.constant.bool false
@@ -1312,9 +1531,13 @@ func.func @channel_shuffle(%arg0: !torch.vtensor<[1,8,4,4],f32>) -> !torch.vtens
 // CHECK:         %[[ONE:.*]] = torch.constant.float 1.000000e+00
 // CHECK:         %[[THRESHOLD:.*]] = torch.constant.float 2.000000e+01
 // CHECK:         %[[SCALED:.*]] = torch.aten.mul.Scalar %arg0, %[[ONE]]
-// CHECK:         %[[EXP:.*]] = torch.aten.exp %[[SCALED]]
+// CHECK:         %[[ABS:.*]] = torch.aten.abs %[[SCALED]]
+// CHECK:         %[[NEG:.*]] = torch.aten.neg %[[ABS]]
+// CHECK:         %[[EXP:.*]] = torch.aten.exp %[[NEG]]
 // CHECK:         %[[LOG1P:.*]] = torch.aten.log1p %[[EXP]]
-// CHECK:         %[[SOFTPLUS:.*]] = torch.aten.div.Scalar %[[LOG1P]], %[[ONE]]
+// CHECK:         %[[RELU:.*]] = torch.aten.relu %[[SCALED]]
+// CHECK:         %[[SUM:.*]] = torch.aten.add.Tensor %[[RELU]], %[[LOG1P]]
+// CHECK:         %[[SOFTPLUS:.*]] = torch.aten.div.Scalar %[[SUM]], %[[ONE]]
 // CHECK:         %[[GT:.*]] = torch.aten.gt.Scalar %[[SCALED]], %[[THRESHOLD]]
 // CHECK:         %[[SOFTPLUS_STABLE:.*]] = torch.aten.where.self %[[GT]], %arg0, %[[SOFTPLUS]]
 // CHECK:         %[[TANH:.*]] = torch.aten.tanh %[[SOFTPLUS_STABLE]]
@@ -1636,6 +1859,121 @@ func.func @torch.aten.linalg_vector_norm$neg_inf(%arg0: !torch.vtensor<[5],f32>)
 
 // -----
 
+// Scalars accept dim 0, dim -1, and an empty dimension list. keepdim does
+// not add a dimension to a scalar result.
+// CHECK-LABEL: func.func @scalar_amin_amax(
+// CHECK-SAME: %[[F32:.*]]: !torch.vtensor<[],f32>, %[[F16:.*]]: !torch.vtensor<[],f16>, %[[BF16:.*]]: !torch.vtensor<[],bf16>)
+// CHECK-NOT: torch.aten.amin
+// CHECK-NOT: torch.aten.amax
+// CHECK: return %[[F32]], %[[F16]], %[[BF16]], %[[BF16]]
+func.func @scalar_amin_amax(%arg0: !torch.vtensor<[],f32>, %arg1: !torch.vtensor<[],f16>, %arg2: !torch.vtensor<[],bf16>) -> (!torch.vtensor<[],f32>, !torch.vtensor<[],f16>, !torch.vtensor<[],bf16>, !torch.vtensor<[],bf16>) {
+  %zero = torch.constant.int 0
+  %minus_one = torch.constant.int -1
+  %dim_zero = torch.prim.ListConstruct %zero : (!torch.int) -> !torch.list<int>
+  %dim_minus_one = torch.prim.ListConstruct %minus_one : (!torch.int) -> !torch.list<int>
+  %empty = torch.prim.ListConstruct : () -> !torch.list<int>
+  %false = torch.constant.bool false
+  %true = torch.constant.bool true
+  %0 = torch.aten.amin %arg0, %dim_zero, %false : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],f32>
+  %1 = torch.aten.amax %arg1, %dim_minus_one, %true : !torch.vtensor<[],f16>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],f16>
+  %2 = torch.aten.amin %arg2, %empty, %true : !torch.vtensor<[],bf16>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],bf16>
+  %3 = torch.aten.amax %arg2, %empty, %false : !torch.vtensor<[],bf16>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],bf16>
+  return %0, %1, %2, %3 : !torch.vtensor<[],f32>, !torch.vtensor<[],f16>, !torch.vtensor<[],bf16>, !torch.vtensor<[],bf16>
+}
+
+// -----
+
+// Invalid axes and repeated scalar dimensions must not become identities.
+// CHECK-LABEL: func.func @scalar_amin_amax_invalid_dims(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[],f32>)
+// CHECK-DAG: %[[ONE:.*]] = torch.constant.int 1{{$}}
+// CHECK-DAG: %[[MINUS_TWO:.*]] = torch.constant.int -2{{$}}
+// CHECK-DAG: %[[ZERO:.*]] = torch.constant.int 0{{$}}
+// CHECK-DAG: %[[MINUS_ONE:.*]] = torch.constant.int -1{{$}}
+// CHECK-DAG: %[[FALSE:.*]] = torch.constant.bool false
+// CHECK-DAG: %[[TOO_LARGE:.*]] = torch.prim.ListConstruct %[[ONE]] : (!torch.int) -> !torch.list<int>
+// CHECK-DAG: %[[TOO_SMALL:.*]] = torch.prim.ListConstruct %[[MINUS_TWO]] : (!torch.int) -> !torch.list<int>
+// CHECK-DAG: %[[DUPLICATE_DIMS:.*]] = torch.prim.ListConstruct %[[ZERO]], %[[ZERO]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK-DAG: %[[ALIASED_DIMS:.*]] = torch.prim.ListConstruct %[[ZERO]], %[[MINUS_ONE]] : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK: %[[MIN:.*]] = torch.aten.amin %[[INPUT]], %[[TOO_LARGE]], %[[FALSE]] : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],f32>
+// CHECK: %[[MAX:.*]] = torch.aten.amax %[[INPUT]], %[[TOO_SMALL]], %[[FALSE]] : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],f32>
+// CHECK: %[[DUPLICATE:.*]] = torch.aten.amin %[[INPUT]], %[[DUPLICATE_DIMS]], %[[FALSE]] : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],f32>
+// CHECK: %[[ALIASED:.*]] = torch.aten.amax %[[INPUT]], %[[ALIASED_DIMS]], %[[FALSE]] : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],f32>
+// CHECK: return %[[MIN]], %[[MAX]], %[[DUPLICATE]], %[[ALIASED]] : !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>
+func.func @scalar_amin_amax_invalid_dims(%arg0: !torch.vtensor<[],f32>) -> (!torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>) {
+  %one = torch.constant.int 1
+  %minus_two = torch.constant.int -2
+  %zero = torch.constant.int 0
+  %minus_one = torch.constant.int -1
+  %too_large = torch.prim.ListConstruct %one : (!torch.int) -> !torch.list<int>
+  %too_small = torch.prim.ListConstruct %minus_two : (!torch.int) -> !torch.list<int>
+  %duplicate = torch.prim.ListConstruct %zero, %zero : (!torch.int, !torch.int) -> !torch.list<int>
+  %aliased = torch.prim.ListConstruct %zero, %minus_one : (!torch.int, !torch.int) -> !torch.list<int>
+  %false = torch.constant.bool false
+  %0 = torch.aten.amin %arg0, %too_large, %false : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],f32>
+  %1 = torch.aten.amax %arg0, %too_small, %false : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],f32>
+  %2 = torch.aten.amin %arg0, %duplicate, %false : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],f32>
+  %3 = torch.aten.amax %arg0, %aliased, %false : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],f32>
+  return %0, %1, %2, %3 : !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @scalar_amin_unknown_dim(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[],f32>, %[[DIMS:.*]]: !torch.list<int>)
+// CHECK: %[[FALSE:.*]] = torch.constant.bool false
+// CHECK: %[[MIN:.*]] = torch.aten.amin %[[INPUT]], %[[DIMS]], %[[FALSE]] : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],f32>
+// CHECK: return %[[MIN]] : !torch.vtensor<[],f32>
+func.func @scalar_amin_unknown_dim(%arg0: !torch.vtensor<[],f32>, %dim: !torch.list<int>) -> !torch.vtensor<[],f32> {
+  %false = torch.constant.bool false
+  %0 = torch.aten.amin %arg0, %dim, %false : !torch.vtensor<[],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
+}
+
+// -----
+
+// Non-scalar reductions still select values along their specified dimensions.
+// CHECK-LABEL: func.func @nonscalar_amin_amax(
+// CHECK: %[[MIN:.*]], %{{.*}} = torch.aten.min.dim
+// CHECK: %[[MAX:.*]], %{{.*}} = torch.aten.max.dim
+// CHECK: return %[[MIN]], %[[MAX]]
+func.func @nonscalar_amin_amax(%arg0: !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[2],f32>, !torch.vtensor<[2,1],f32>) {
+  %one = torch.constant.int 1
+  %dim = torch.prim.ListConstruct %one : (!torch.int) -> !torch.list<int>
+  %false = torch.constant.bool false
+  %true = torch.constant.bool true
+  %0 = torch.aten.amin %arg0, %dim, %false : !torch.vtensor<[2,3],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[2],f32>
+  %1 = torch.aten.amax %arg0, %dim, %true : !torch.vtensor<[2,3],f32>, !torch.list<int>, !torch.bool -> !torch.vtensor<[2,1],f32>
+  return %0, %1 : !torch.vtensor<[2],f32>, !torch.vtensor<[2,1],f32>
+}
+
+// -----
+
+// Scalar infinite norms become abs, not the unmodified scalar input.
+// CHECK-LABEL: func.func @scalar_infinite_vector_norm(
+// CHECK: %[[NEG_ABS:.*]] = torch.aten.abs %arg0
+// CHECK: %[[POS_ABS:.*]] = torch.aten.abs %arg1
+// CHECK-NOT: torch.aten.amin
+// CHECK-NOT: torch.aten.amax
+// CHECK-NOT: torch.aten.linalg_vector_norm
+// CHECK: return %[[NEG_ABS]], %[[POS_ABS]]
+func.func @scalar_infinite_vector_norm(%arg0: !torch.vtensor<[],f32>, %arg1: !torch.vtensor<[],bf16>) -> (!torch.vtensor<[],f32>, !torch.vtensor<[],bf16>) {
+  %neg_inf = torch.constant.float 0xFFF0000000000000
+  %pos_inf = torch.constant.float 0x7FF0000000000000
+  %zero = torch.constant.int 0
+  %minus_one = torch.constant.int -1
+  %dim_zero = torch.prim.ListConstruct %zero : (!torch.int) -> !torch.list<int>
+  %dim_minus_one = torch.prim.ListConstruct %minus_one : (!torch.int) -> !torch.list<int>
+  %false = torch.constant.bool false
+  %true = torch.constant.bool true
+  %none = torch.constant.none
+  %0 = torch.aten.linalg_vector_norm %arg0, %neg_inf, %dim_zero, %false, %none : !torch.vtensor<[],f32>, !torch.float, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[],f32>
+  %1 = torch.aten.linalg_vector_norm %arg1, %pos_inf, %dim_minus_one, %true, %none : !torch.vtensor<[],bf16>, !torch.float, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[],bf16>
+  return %0, %1 : !torch.vtensor<[],f32>, !torch.vtensor<[],bf16>
+}
+
+// -----
+
 // ord = 0: linalg_vector_norm decomposes to the count of nonzeros,
 // sum(|x| != 0), via abs + ne.Scalar + sum.dim_IntList.
 // CHECK-LABEL: func.func @torch.aten.linalg_vector_norm$zero(
@@ -1721,4 +2059,85 @@ func.func @torch.aten.linalg_vector_norm$zero_dim_keepdim(%arg0: !torch.vtensor<
   %dtype = torch.constant.none
   %0 = torch.aten.linalg_vector_norm %arg0, %ord, %dim, %keepdim, %dtype : !torch.vtensor<[3,4],f32>, !torch.float, !torch.list<int>, !torch.bool, !torch.none -> !torch.vtensor<[3,1],f32>
   return %0 : !torch.vtensor<[3,1],f32>
+}
+
+// -----
+
+// logaddexp is decomposed to the numerically stable form
+//   max(a, b) + log1p(exp(-|a - b|))
+// rather than the naive log(exp(a) + exp(b)) (which overflows to +inf in fp32
+// once a or b exceeds ~88). Only ever exponentiating -|a - b| <= 0 avoids this.
+// When a == b == +/-inf the diff is NaN, so an inf-mask on max(a, b) selects
+// that infinity (matching PyTorch) instead of returning NaN.
+// CHECK-LABEL: func.func @torch.aten.logaddexp(
+// CHECK-SAME:      %[[A:.*]]: !torch.vtensor<[3,4],f32>, %[[B:.*]]: !torch.vtensor<[3,4],f32>
+// CHECK:         %[[SUB:.*]] = torch.aten.sub.Tensor %[[A]], %[[B]]
+// CHECK:         %[[ABS:.*]] = torch.aten.abs %[[SUB]]
+// CHECK:         %[[NEG:.*]] = torch.aten.neg %[[ABS]]
+// CHECK:         %[[MAX:.*]] = torch.aten.maximum %[[A]], %[[B]]
+// CHECK:         %[[EXP:.*]] = torch.aten.exp %[[NEG]]
+// CHECK:         %[[LOG1P:.*]] = torch.aten.log1p %[[EXP]]
+// CHECK:         %[[STABLE:.*]] = torch.aten.add.Tensor %[[MAX]], %[[LOG1P]]
+// isinf(max) is itself decomposed within this pass to abs(max) == inf.
+// CHECK:         %[[ABSMAX:.*]] = torch.aten.abs %[[MAX]]
+// CHECK:         %[[ISINF:.*]] = torch.aten.eq.Scalar %[[ABSMAX]], %{{.*}}
+// CHECK:         %[[RES:.*]] = torch.aten.where.self %[[ISINF]], %[[MAX]], %[[STABLE]]
+// CHECK-NOT:     torch.aten.logaddexp
+// CHECK:         return %[[RES]]
+func.func @torch.aten.logaddexp(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32> {
+  %0 = torch.aten.logaddexp %arg0, %arg1 : !torch.vtensor<[3,4],f32>, !torch.vtensor<[3,4],f32> -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
+// logaddexp2 uses the base-2 analogue of the stable form:
+//   max(a, b) + log2(1 + 2^(-|a - b|)).
+// The same inf-mask on max(a, b) selects a +/-inf input over the NaN diff.
+// CHECK-LABEL: func.func @torch.aten.logaddexp2(
+// CHECK-SAME:      %[[A:.*]]: !torch.vtensor<[3,4],f32>, %[[B:.*]]: !torch.vtensor<[3,4],f32>
+// CHECK:         %[[SUB:.*]] = torch.aten.sub.Tensor %[[A]], %[[B]]
+// CHECK:         %[[ABS:.*]] = torch.aten.abs %[[SUB]]
+// CHECK:         %[[NEG:.*]] = torch.aten.neg %[[ABS]]
+// CHECK:         %[[MAX:.*]] = torch.aten.maximum %[[A]], %[[B]]
+// CHECK:         %[[POW:.*]] = torch.aten.pow.Scalar %{{.*}}, %[[NEG]]
+// CHECK:         %[[ADD1:.*]] = torch.aten.add.Scalar %[[POW]]
+// CHECK:         %[[LOG2:.*]] = torch.aten.log2 %[[ADD1]]
+// CHECK:         %[[STABLE:.*]] = torch.aten.add.Tensor %[[MAX]], %[[LOG2]]
+// isinf(max) is itself decomposed within this pass to abs(max) == inf.
+// CHECK:         %[[ABSMAX:.*]] = torch.aten.abs %[[MAX]]
+// CHECK:         %[[ISINF:.*]] = torch.aten.eq.Scalar %[[ABSMAX]], %{{.*}}
+// CHECK:         %[[RES:.*]] = torch.aten.where.self %[[ISINF]], %[[MAX]], %[[STABLE]]
+// CHECK-NOT:     torch.aten.logaddexp2
+// CHECK:         return %[[RES]]
+func.func @torch.aten.logaddexp2(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32> {
+  %0 = torch.aten.logaddexp2 %arg0, %arg1 : !torch.vtensor<[3,4],f32>, !torch.vtensor<[3,4],f32> -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
+// softplus(x, beta, threshold) uses the numerically stable inner arm
+//   (max(z, 0) + log1p(exp(-|z|))) / beta,  z = x * beta
+// which only ever exponentiates -|z| <= 0. The threshold select is kept so
+// the op still honors its `threshold` argument.
+// CHECK-LABEL: func.func @torch.aten.softplus(
+// CHECK-SAME:      %[[X:.*]]: !torch.vtensor<[3,4],f32>
+// CHECK:         %[[Z:.*]] = torch.aten.mul.Scalar %[[X]], %{{.*}}
+// CHECK:         %[[ABS:.*]] = torch.aten.abs %[[Z]]
+// CHECK:         %[[NEG:.*]] = torch.aten.neg %[[ABS]]
+// CHECK:         %[[EXP:.*]] = torch.aten.exp %[[NEG]]
+// CHECK:         %[[LOG1P:.*]] = torch.aten.log1p %[[EXP]]
+// CHECK:         %[[RELU:.*]] = torch.aten.relu %[[Z]]
+// CHECK:         %[[SUM:.*]] = torch.aten.add.Tensor %[[RELU]], %[[LOG1P]]
+// CHECK:         %[[OUT:.*]] = torch.aten.div.Scalar %[[SUM]], %{{.*}}
+// CHECK:         %[[COND:.*]] = torch.aten.gt.Scalar %[[Z]], %{{.*}}
+// CHECK:         %[[RES:.*]] = torch.aten.where.self %[[COND]], %[[X]], %[[OUT]]
+// CHECK-NOT:     torch.aten.softplus
+// CHECK:         return %[[RES]]
+func.func @torch.aten.softplus(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32> {
+  %beta = torch.constant.int 1
+  %threshold = torch.constant.int 20
+  %0 = torch.aten.softplus %arg0, %beta, %threshold : !torch.vtensor<[3,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
 }

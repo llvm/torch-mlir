@@ -1017,12 +1017,19 @@ Value PoolSizeCalculator<NumOfDims>::getPoolSize(
     Value ODim = castIndexToInt64(b, location, IndexODim);
     Value DDim = b.createOrFold<arith::ConstantOp>(
         location, b.getI64IntegerAttr(strideInts[i]));
-    Value PadDim = b.createOrFold<arith::ConstantOp>(
+    Value PadBeginDim = b.createOrFold<arith::ConstantOp>(
         location, b.getI64IntegerAttr(paddingInts[i]));
+    // Asymmetric padding is encoded as [begin..., end...].
+    int64_t padEndInt = (int64_t)paddingInts.size() == 2 * NumOfDims
+                            ? paddingInts[i + NumOfDims]
+                            : paddingInts[i];
+    Value PadEndDim = b.createOrFold<arith::ConstantOp>(
+        location, b.getI64IntegerAttr(padEndInt));
     Value DilDim = b.createOrFold<arith::ConstantOp>(
         location, b.getI64IntegerAttr(dilationInts[i]));
     Value ODimDDim = b.createOrFold<arith::MulIOp>(location, ODim, DDim);
-    Value IDim0 = b.createOrFold<arith::SubIOp>(location, ODimDDim, PadDim);
+    Value IDim0 =
+        b.createOrFold<arith::SubIOp>(location, ODimDDim, PadBeginDim);
     Value IDim = castIndexToInt64(b, location, InputSpatialDimSizes[i]);
 
     // Effective window end: IDim0 + (kernel - 1) * dilation + 1
@@ -1034,9 +1041,10 @@ Value PoolSizeCalculator<NumOfDims>::getPoolSize(
         b.createOrFold<arith::AddIOp>(location, KernelM1Dil, cstOne);
     Value IDim0KDim =
         b.createOrFold<arith::AddIOp>(location, IDim0, EffectiveKernel);
-    Value IDimPadDim = b.createOrFold<arith::AddIOp>(location, IDim, PadDim);
+    Value IDimPadEndDim =
+        b.createOrFold<arith::AddIOp>(location, IDim, PadEndDim);
     Value IDim1 =
-        b.createOrFold<arith::MinSIOp>(location, IDim0KDim, IDimPadDim);
+        b.createOrFold<arith::MinSIOp>(location, IDim0KDim, IDimPadEndDim);
 
     Value IDim1Clamped = b.createOrFold<arith::MinSIOp>(location, IDim1, IDim);
 
@@ -1606,8 +1614,6 @@ template <> struct AdaptivePoolingOpTraits<Aten_AdaptiveAvgPool3dOp> {
 
 template <typename OpTy>
 class ConvertAtenAdaptivePoolOp : public OpConversionPattern<OpTy> {
-  using OpConversionPattern<OpTy>::OpConversionPattern;
-
 public:
   ConvertAtenAdaptivePoolOp(TypeConverter &typeConverter, MLIRContext *context,
                             bool allowNonFinites)
@@ -1855,19 +1861,19 @@ void mlir::torch::torch_to_linalg::populatePoolingPatternsAndLegality(
   target.addIllegalOp<AtenAdaptiveAvgPool1dOp, AtenAdaptiveAvgPool2dOp,
                       AtenAdaptiveAvgPool3dOp, Aten_AdaptiveAvgPool3dOp>();
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveAvgPool1dOp>>(
-      typeConverter, context);
+      typeConverter, context, allowNonFinites);
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveAvgPool2dOp>>(
-      typeConverter, context);
+      typeConverter, context, allowNonFinites);
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveAvgPool3dOp>>(
-      typeConverter, context);
+      typeConverter, context, allowNonFinites);
   patterns.add<ConvertAtenAdaptivePoolOp<Aten_AdaptiveAvgPool3dOp>>(
-      typeConverter, context);
+      typeConverter, context, allowNonFinites);
   target.addIllegalOp<AtenAdaptiveMaxPool1dOp, AtenAdaptiveMaxPool2dOp,
                       AtenAdaptiveMaxPool3dOp>();
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveMaxPool1dOp>>(
-      typeConverter, context);
+      typeConverter, context, allowNonFinites);
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveMaxPool2dOp>>(
-      typeConverter, context);
+      typeConverter, context, allowNonFinites);
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveMaxPool3dOp>>(
-      typeConverter, context);
+      typeConverter, context, allowNonFinites);
 }

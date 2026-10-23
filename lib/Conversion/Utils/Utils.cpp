@@ -351,13 +351,14 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
   if (auto dtypeFloat = dyn_cast<mlir::FloatType>(dtype)) {
     if (auto scalarFloat = dyn_cast<mlir::FloatType>(scalarType)) {
       if (scalarFloat.getWidth() == 16 && dtypeFloat.getWidth() == 16) {
-        auto scalarF32 = arith::ExtFOp::create(b, loc, b.getF32Type(), scalar);
+        auto scalarF32 =
+            arith::ExtFOp::create(b, loc, b.getF32Type(), scalar, {});
         return arith::TruncFOp::create(b, loc, dtype, scalarF32);
       }
       if (scalarFloat.getWidth() > dtypeFloat.getWidth())
         return arith::TruncFOp::create(b, loc, dtype, scalar);
       // Only scalarFloat width < dtypeFloat width can reach here.
-      return arith::ExtFOp::create(b, loc, dtype, scalar);
+      return arith::ExtFOp::create(b, loc, dtype, scalar, {});
     }
     assert(isa<mlir::IntegerType>(scalarType));
     if (scalarType.isSignlessInteger(1) ||
@@ -411,7 +412,7 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
           arith::ConstantOp::create(b, loc, b.getZeroAttr(complexElementType));
 
       if (complexElementType.getWidth() > dtypeFloat.getWidth()) {
-        realVal = arith::ExtFOp::create(b, loc, complexElementType, scalar);
+        realVal = arith::ExtFOp::create(b, loc, complexElementType, scalar, {});
       } else if (complexElementType.getWidth() < dtypeFloat.getWidth()) {
         realVal = arith::TruncFOp::create(b, loc, complexElementType, scalar);
       } else {
@@ -444,12 +445,14 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
 
 Value materializeScalarToDtype(OpBuilder &b, Location loc,
                                const TypeConverter *converter, Value scalar,
-                               Type dtype) {
+                               Type dtype, Type srcOriginalDtype) {
   Type convertedType = converter->convertType(scalar.getType());
   if (scalar.getType() != convertedType)
     scalar =
         converter->materializeTargetConversion(b, loc, convertedType, scalar);
-  return convertScalarToDtype(b, loc, scalar, dtype);
+  return convertScalarToDtype(
+      b, loc, scalar, dtype,
+      srcOriginalDtype ? std::optional<Type>(srcOriginalDtype) : std::nullopt);
 }
 
 Value toPositiveValidDim(ConversionPatternRewriter &rewriter, Location loc,

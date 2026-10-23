@@ -1768,6 +1768,21 @@ def ColumnStack0dModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class GatherScalarModule(torch.nn.Module):
+    @export
+    @annotate_args([None, ([], torch.float32, True), ([], torch.int64, True)])
+    def forward(self, tensor, index):
+        return torch.gather(tensor, 0, index), torch.gather(tensor, -1, index)
+
+
+@register_test_case(module_factory=lambda: GatherScalarModule())
+def GatherScalarModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor(-3.25), torch.tensor(0, dtype=torch.int64))
+
+
+# ==============================================================================
+
+
 class GatherModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -2384,6 +2399,64 @@ class SoftplusModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: SoftplusModule())
 def SoftplusModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 3))
+
+
+# ==============================================================================
+
+
+class SoftplusLargeMagnitudeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.softplus(x)
+
+
+@register_test_case(module_factory=lambda: SoftplusLargeMagnitudeModule())
+def SoftplusLargeMagnitudeModule_basic(module, tu: TestUtils):
+    # Mixes large- and small-magnitude inputs of both signs. Large positives
+    # (x > 20) take the threshold shortcut (return x); the rest flow through the
+    # decomposition's stable arm. Checks softplus numerics stay correct across a
+    # wide input range.
+    module.forward(
+        torch.tensor([[100.0, -100.0, 90.0], [-90.0, 0.5, -0.5], [200.0, -200.0, 1.0]])
+    )
+
+
+# ==============================================================================
+
+
+class SoftplusHighThresholdModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.softplus(x, 1, 100)
+
+
+@register_test_case(module_factory=lambda: SoftplusHighThresholdModule())
+def SoftplusHighThresholdModule_basic(module, tu: TestUtils):
+    # threshold = 100 keeps the ONNX export's outer threshold select (x > 100)
+    # from short-circuiting these inputs. The ONNX binder emits aten.softplus
+    # with the default threshold = 20, so inputs in (20, ~88) take the
+    # decomposition's inner threshold branch (x > 20 -> return x). They stay
+    # below the fp32 exp overflow point (~88.7) so eager softplus (which uses
+    # the naive log1p(exp(x)) inner formula) stays finite and matches.
+    module.forward(torch.tensor([[25.0, 50.0, 80.0], [21.0, 60.0, 42.0]]))
 
 
 # ==============================================================================
@@ -5595,6 +5668,18 @@ def AtenEmbeddingBagLastBagBoundaryModule_basic(module, tu: TestUtils):
 
 
 # ==============================================================================
+
+
+class CumsumScalarModule(torch.nn.Module):
+    @export
+    @annotate_args([None, ([], torch.float32, True)])
+    def forward(self, val):
+        return torch.ops.aten.cumsum(val, 0), torch.ops.aten.cumsum(val, -1)
+
+
+@register_test_case(module_factory=lambda: CumsumScalarModule())
+def CumsumScalarModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand())
 
 
 class CumsumModule(torch.nn.Module):

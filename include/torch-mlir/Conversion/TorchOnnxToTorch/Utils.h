@@ -15,6 +15,7 @@
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include <utility>
 
 class Endian {
 private:
@@ -40,6 +41,18 @@ Value createConstantIntList(OpBinder binder,
                             ArrayRef<int64_t> cstInput);
 
 Torch::ValueTensorType getQTorchTypeFromTorchIntType(Type ty);
+
+inline bool isSupportedQuantizeDequantizeLinearDtype(Type type) {
+  // TODO: Support uint16 once Torch::getScalarTypeForType can map it.
+  return type.isUnsignedInteger(8) || type.isSignedInteger(8) ||
+         type.isSignedInteger(16) || type.isSignedInteger(32) ||
+         isa<Float4E2M1FNType, Float8E4M3FNType, Float8E4M3FNUZType,
+             Float8E5M2Type, Float8E5M2FNUZType>(type);
+}
+
+std::pair<Value, Value>
+createQuantizationBounds(ConversionPatternRewriter &rewriter, Location loc,
+                         IntegerType dtype);
 
 template <typename T>
 Value getItemOp(OpBinder binder, ConversionPatternRewriter &rewriter,

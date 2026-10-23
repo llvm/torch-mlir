@@ -7,9 +7,25 @@ repo_root="$(cd $this_dir/../.. && pwd)"
 torch_version="${1:-unknown}"
 
 export PYTHONPATH="$repo_root/build/tools/torch-mlir/python_packages/torch_mlir:$repo_root/projects/pt1"
+# The reference backend needs this runtime library when generated code calls
+# memrefCopy. Export its path so RefBackendInvoker can load it into the JIT.
+export MLIR_C_RUNNER_UTILS="$repo_root/build/lib/libmlir_c_runner_utils.so"
 
-echo "::group::Run ONNX e2e integration tests"
+if [ ! -f "$MLIR_C_RUNNER_UTILS" ]; then
+  echo "Missing MLIR C runner library: $MLIR_C_RUNNER_UTILS" >&2
+  exit 1
+fi
+
+echo "::group::Run ONNX exported from torch authored op e2e integration tests"
 python3 -m e2e_testing.main --config=onnx -v
+echo "::endgroup::"
+
+echo "::group::Run ONNX authored op e2e integration tests (linalg)"
+python3 -m onnx_e2e_test.main --config linalg -v
+echo "::endgroup::"
+
+echo "::group::Run ONNX authored op e2e integration tests (TOSA)"
+python3 -m onnx_e2e_test.main --config tosa -v
 echo "::endgroup::"
 
 case $torch_version in

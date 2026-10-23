@@ -107,7 +107,7 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
 // resulting builtin scalar to the requested builtin dtype.
 Value materializeScalarToDtype(OpBuilder &b, Location loc,
                                const TypeConverter *converter, Value scalar,
-                               Type dtype);
+                               Type dtype, Type srcOriginalDtype = {});
 
 Value toPositiveValidDim(ConversionPatternRewriter &rewriter, Location loc,
                          Value torchOptionalInt, Value builtinInt,

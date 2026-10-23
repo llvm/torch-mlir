@@ -1436,6 +1436,39 @@ def ReduceMaxKeepDimReturnBoth_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ReduceMaxScalarModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([], torch.float32, True)])
+    def forward(self, a):
+        value, index = torch.ops.aten.max(a, 0, keepdim=False)
+        kept_value, kept_index = torch.ops.aten.max(a, 0, keepdim=True)
+        negative_value, negative_index = torch.ops.aten.max(a, -1, keepdim=False)
+        negative_kept_value, negative_kept_index = torch.ops.aten.max(
+            a, -1, keepdim=True
+        )
+        return (
+            value,
+            index,
+            kept_value,
+            kept_index,
+            negative_value,
+            negative_index,
+            negative_kept_value,
+            negative_kept_index,
+        )
+
+
+@register_test_case(module_factory=lambda: ReduceMaxScalarModule())
+def ReduceMaxScalarModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor(-3.5, dtype=torch.float32))
+
+
+# ==============================================================================
+
+
 class ReduceMaxAllDims(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -2250,6 +2283,30 @@ class ReduceLNegInfNormModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReduceLNegInfNormModule())
 def ReduceLNegInfNormModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5))
+
+
+# ==============================================================================
+
+
+class LinalgVectorNormScalarInfiniteModule(torch.nn.Module):
+    @export
+    @annotate_args([None, ([], torch.float32, True)])
+    def forward(self, a):
+        return (
+            torch.linalg.vector_norm(a, ord=float("-inf"), dim=0),
+            torch.linalg.vector_norm(a, ord=float("-inf"), dim=-1),
+            torch.linalg.vector_norm(a, ord=float("-inf"), dim=0, keepdim=True),
+            torch.linalg.vector_norm(a, ord=float("-inf"), dim=-1, keepdim=True),
+            torch.linalg.vector_norm(a, ord=float("inf"), dim=0),
+            torch.linalg.vector_norm(a, ord=float("inf"), dim=-1),
+            torch.linalg.vector_norm(a, ord=float("inf"), dim=0, keepdim=True),
+            torch.linalg.vector_norm(a, ord=float("inf"), dim=-1, keepdim=True),
+        )
+
+
+@register_test_case(module_factory=lambda: LinalgVectorNormScalarInfiniteModule())
+def LinalgVectorNormScalarInfiniteModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor(-3.25))
 
 
 # ==============================================================================

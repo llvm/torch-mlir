@@ -3265,6 +3265,37 @@ void AtenMaskedFillTensorOp::getCanonicalizationPatterns(
 }
 
 //===----------------------------------------------------------------------===//
+// AtenCumsumOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenCumsumOp::fold(FoldAdaptor adaptor) {
+  auto inputType = dyn_cast<ValueTensorType>(getSelf().getType());
+  if (!inputType || inputType != getType() || !inputType.hasSizes() ||
+      !inputType.getSizes().empty() || !inputType.hasDtype())
+    return {};
+
+  // Floating-point scalar cumsum is an identity unless dtype changes.
+  // Integer inputs can be promoted even when dtype is None.
+  if (!isa<Float16Type, BFloat16Type, Float32Type, Float64Type>(
+          inputType.getDtype()))
+    return {};
+
+  int64_t dim;
+  if (!matchPattern(getDim(), m_TorchConstantInt(&dim)) ||
+      (dim != 0 && dim != -1))
+    return {};
+
+  if (!isa<Torch::NoneType>(getDtype().getType())) {
+    int64_t dtype;
+    if (!matchPattern(getDtype(), m_TorchConstantInt(&dtype)) ||
+        dtype !=
+            static_cast<int64_t>(getScalarTypeForType(inputType.getDtype())))
+      return {};
+  }
+  return getSelf();
+}
+
+//===----------------------------------------------------------------------===//
 // AtenCloneOp
 //===----------------------------------------------------------------------===//
 
@@ -7871,4 +7902,66 @@ ParseResult OnnxVariantRotaryEmbeddingOp::parse(OpAsmParser &parser,
 void OnnxVariantRotaryEmbeddingOp::print(OpAsmPrinter &p) {
   p << " " << getOperands() << " : " << getOperandTypes() << " -> "
     << getResult().getType();
+}
+
+//===----------------------------------------------------------------------===//
+// QuantizedDecomposedQuantizePerTokenOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verifyPerTokenQuantShapes(Operation *op,
+                                               BaseTensorType inputType,
+                                               BaseTensorType scalesType,
+                                               BaseTensorType zpType) {
+  if (!inputType.hasSizes() || !scalesType.hasSizes() || !zpType.hasSizes())
+    return success();
+
+  ArrayRef<int64_t> inputShape = inputType.getSizes();
+  ArrayRef<int64_t> scalesShape = scalesType.getSizes();
+  ArrayRef<int64_t> zpShape = zpType.getSizes();
+  int64_t inputRank = static_cast<int64_t>(inputShape.size());
+
+  if (inputRank < 1)
+    return op->emitOpError("input must have at least 1 dimension");
+
+  if (static_cast<int64_t>(scalesShape.size()) != inputRank)
+    return op->emitOpError("scales must have the same rank as input");
+
+  if (static_cast<int64_t>(zpShape.size()) != inputRank)
+    return op->emitOpError("zero_points must have the same rank as input");
+
+  if (zpShape[inputRank - 1] != ShapedType::kDynamic &&
+      zpShape[inputRank - 1] != 1)
+    return op->emitOpError(
+        "zero_points last dimension must be 1 for per-token quantization");
+
+  if (zpShape != scalesShape)
+    return op->emitOpError("zero_points shape must match scales shape");
+
+  for (int64_t i = 0; i < inputRank - 1; ++i) {
+    if (inputShape[i] != ShapedType::kDynamic &&
+        scalesShape[i] != ShapedType::kDynamic &&
+        inputShape[i] != scalesShape[i])
+      return op->emitOpError(
+          "scales leading dimensions must match input dimensions");
+  }
+
+  return success();
+}
+
+LogicalResult QuantizedDecomposedQuantizePerTokenOp::verify() {
+  return verifyPerTokenQuantShapes(
+      *this, cast<BaseTensorType>(getInput().getType()),
+      cast<BaseTensorType>(getScales().getType()),
+      cast<BaseTensorType>(getZeroPoints().getType()));
+}
+
+//===----------------------------------------------------------------------===//
+// QuantizedDecomposedDequantizePerTokenOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult QuantizedDecomposedDequantizePerTokenOp::verify() {
+  return verifyPerTokenQuantShapes(
+      *this, cast<BaseTensorType>(getInput().getType()),
+      cast<BaseTensorType>(getScales().getType()),
+      cast<BaseTensorType>(getZeroPoints().getType()));
 }

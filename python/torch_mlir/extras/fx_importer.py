@@ -56,6 +56,7 @@ from torch._ops import (
 from torch._subclasses import (
     FakeTensor as TorchFakeTensor,
 )
+from torch._subclasses.fake_tensor import unset_fake_temporarily
 
 from torch.fx import (
     Graph,
@@ -2221,6 +2222,21 @@ class GraphNodeImporter:
                     loc=loc,
                 )
 
+    def _import_get_attr(self, loc: Location, node: Node) -> None:
+        """Bind an attribute once, resolving its qualified path from the module."""
+        # Use the same (Node, result_index) key as bind_node_value and
+        # resolve_node_value; one get_attr may feed multiple operations.
+        if (node, 0) in self._v:
+            return
+        obj = node.graph.owning_module
+        for component in node.target.split("."):
+            assert hasattr(
+                obj, component
+            ), f"Attempting to retrieve attribute '{node.target}' from module, but no such attribute exists"
+            obj = getattr(obj, component)
+        with loc:
+            self.bind_node_value(node, self._import_literal(obj))
+
     def _import_argument(
         self, loc: Location, arg: NodeArgument, expected_jit_type=None
     ) -> Value:
@@ -2231,15 +2247,8 @@ class GraphNodeImporter:
             if arg in self._multi_result_nodes:
                 raise RuntimeError(f"Attempt to de-reference a multi-result node")
 
-            # catch references to dynamically created constant attributes and make sure they have an origin in our module
-            if arg.op == "get_attr" and (arg.target, 0) not in self._v:
-                gm = arg.graph.owning_module
-                assert hasattr(
-                    gm, arg.target
-                ), f"Attempting to retrieve attribute '{arg.target}' from module, but no such attribute exists"
-                obj = getattr(gm, arg.target)
-                with loc:
-                    self.bind_node_value(arg, self._import_literal(obj))
+            if arg.op == "get_attr":
+                self._import_get_attr(loc, arg)
 
             argument_value = self.resolve_node_value(arg)
         elif isinstance(arg, torch_fx.immutable_collections.immutable_list):
@@ -2397,14 +2406,8 @@ class GraphNodeImporter:
             if isinstance(operand, Node):
                 if operand in self._multi_result_nodes:
                     raise RuntimeError(f"Attempt to de-reference a multi-result node")
-                if operand.op == "get_attr" and (operand, 0) not in self._v:
-                    gm = operand.graph.owning_module
-                    assert hasattr(
-                        gm, operand.target
-                    ), f"Attempting to retrieve attribute '{operand.target}' from module, but no such attribute exists"
-                    obj = getattr(gm, operand.target)
-                    with loc:
-                        self.bind_node_value(operand, self._import_literal(obj))
+                if operand.op == "get_attr":
+                    self._import_get_attr(loc, operand)
                 val = self.resolve_node_value(operand)
                 val_type = str(val.type)
                 assert (
@@ -2561,13 +2564,37 @@ def _make_vtensor_literal_op(
         assert (
             npy_dtype is not None
         ), f"Can not create literal tensor for unsupported datatype: {tensor.dtype}"
-        # We need a raw buffer of data in order to create an ElementsAttr for the invocation of torch.vtensor.literal,
-        # but torch.Tensor does not fulfill the python buffer/array interface hence we must convert to a numpy array to get
-        # a raw buffer of our data. We can't call torch.Tensor.numpy() directly because this internally forces a call to
-        # detach() which throws an error as we are operating in a FakeTensorMode, hence the simplest way to get this raw
-        # buffer is via the indirection: Tensor -> list -> numpy array. This allows us to create a vtensor literal as
-        # desired, but also limits which data types we can support in this function (see TORCH_DTYPE_TO_NPY_TYPE above)
-        np_tensor = np.array(tensor.tolist()).astype(npy_dtype)
+        if (
+            not isinstance(tensor, TorchFakeTensor)
+            and not tensor.is_meta
+            and tensor.layout == torch.strided
+            and tensor.dtype != torch.bool
+            and all(type(dim) is int for dim in tensor.shape)
+            and tensor.numel() > 1
+        ):
+            # Only concrete tensors with known storage reach this branch; do
+            # not disable fake mode to materialize a fake or symbolic tensor.
+            # A byte view avoids per-element Python objects and preserves exact
+            # low-precision encodings. The resource's explicit MLIR tensor type
+            # supplies the element type; uint8 is only the buffer transport.
+            # Copy because the resource retains its buffer: later mutations of
+            # the source tensor must not change the imported constant.
+            with unset_fake_temporarily():
+                np_tensor = (
+                    tensor.detach()
+                    .cpu()
+                    .resolve_conj()
+                    .resolve_neg()
+                    .contiguous()
+                    # A singleton final dimension can retain a non-unit stride.
+                    .reshape(-1)
+                    .view(torch.uint8)
+                    .numpy()
+                    .copy()
+                )
+        else:
+            # Retain the existing conversion for splats and special tensors.
+            np_tensor = np.array(tensor.tolist()).astype(npy_dtype)
         # One element constants are more optimizable as splat DenseElementsAttr. DenseResourceElementsAttr does not
         # support splats, so don't use it for that case. In addition, at the time of writing, it has bugs with handling
         # 0d tensors.
@@ -2581,6 +2608,8 @@ def _make_vtensor_literal_op(
                 type=element_type, array=np_tensor, shape=np_tensor.shape
             )
         else:
+            # Reinterpret, without converting values, so the buffer advertises
+            # the same element alignment as the original typed NumPy path.
             bytes_view = np_tensor.view(npy_dtype)
             tensor_type = create_mlir_tensor_type(tensor)
             shape_desc = "_".join([str(d) for d in tensor.shape])

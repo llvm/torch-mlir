@@ -7,17 +7,17 @@
 // CHECK-LABEL: func.func @convTransposeNegativeEffectivePadding
 // CHECK-SAME:  %[[INPUT:.*]]: !torch.vtensor<[1,64,1,100],f32>) -> !torch.vtensor<[1,64,2,200],f32> {
 // CHECK:  %[[IN_TENSOR:.*]] = torch_c.to_builtin_tensor %[[INPUT]] : !torch.vtensor<[1,64,1,100],f32> -> tensor<1x64x1x100xf32>
-// CHECK:  %[[WEIGHT:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<64x64x3x3xf32>}> : () -> tensor<64x64x3x3xf32>
-// CHECK:  %[[BIAS:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<64xf32>}> : () -> tensor<64xf32>
-// CHECK:  %[[ZP0:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
-// CHECK:  %[[ZP1:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
-// CHECK:  %[[TRANS_IN:.*]] = tosa.transpose %[[IN_TENSOR]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<1x64x1x100xf32>) -> tensor<1x1x100x64xf32>
-// CHECK:  %[[W_OHWI:.*]] = tosa.transpose %[[WEIGHT]] {perms = array<i32: 1, 2, 3, 0>} : (tensor<64x64x3x3xf32>) -> tensor<64x3x3x64xf32>
-// CHECK:  %[[TCONV:.*]] = tosa.transpose_conv2d %[[TRANS_IN]], %[[W_OHWI]], %[[BIAS]], %[[ZP0]], %[[ZP1]] {acc_type = f32, out_pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 2, 2>} : (tensor<1x1x100x64xf32>, tensor<64x3x3x64xf32>, tensor<64xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x3x201x64xf32>
-// CHECK-DAG: %[[START_SHAPE:.*]] = tosa.const_shape  {values = dense<[0, 1, 1, 0]> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK-DAG: %[[SLICE_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 2, 200, 64]> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK:  %[[WEIGHT:.*]] = tosa.const values(dense<0.000000e+00> : tensor<64x64x3x3xf32>) : () -> tensor<64x64x3x3xf32>
+// CHECK:  %[[BIAS:.*]] = tosa.const values(dense<0.000000e+00> : tensor<64xf32>) : () -> tensor<64xf32>
+// CHECK:  %[[ZP0:.*]] = tosa.const values(dense<0.000000e+00> : tensor<1xf32>) : () -> tensor<1xf32>
+// CHECK:  %[[ZP1:.*]] = tosa.const values(dense<0.000000e+00> : tensor<1xf32>) : () -> tensor<1xf32>
+// CHECK:  %[[TRANS_IN:.*]] = tosa.transpose %[[IN_TENSOR]] perms([0, 2, 3, 1]) : (tensor<1x64x1x100xf32>) -> tensor<1x1x100x64xf32>
+// CHECK:  %[[W_OHWI:.*]] = tosa.transpose %[[WEIGHT]] perms([1, 2, 3, 0]) : (tensor<64x64x3x3xf32>) -> tensor<64x3x3x64xf32>
+// CHECK:  %[[TCONV:.*]] = tosa.transpose_conv2d %[[TRANS_IN]], %[[W_OHWI]], %[[BIAS]], %[[ZP0]], %[[ZP1]] out_pad([0, 0, 0, 0]) stride([2, 2]) acc_type(f32) : (tensor<1x1x100x64xf32>, tensor<64x3x3x64xf32>, tensor<64xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x3x201x64xf32>
+// CHECK-DAG: %[[START_SHAPE:.*]] = tosa.const_shape values(dense<[0, 1, 1, 0]> : tensor<4xindex>) : () -> !tosa.shape<4>
+// CHECK-DAG: %[[SLICE_SHAPE:.*]] = tosa.const_shape values(dense<[1, 2, 200, 64]> : tensor<4xindex>) : () -> !tosa.shape<4>
 // CHECK: %[[SLICE_0:.*]] = tosa.slice %[[TCONV]], %[[START_SHAPE]], %[[SLICE_SHAPE]] : (tensor<1x3x201x64xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<1x2x200x64xf32>
-// CHECK:  %[[TRANS_OUT:.*]] = tosa.transpose %[[SLICE_0]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<1x2x200x64xf32>) -> tensor<1x64x2x200xf32>
+// CHECK:  %[[TRANS_OUT:.*]] = tosa.transpose %[[SLICE_0]] perms([0, 3, 1, 2]) : (tensor<1x2x200x64xf32>) -> tensor<1x64x2x200xf32>
 // CHECK:  %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[TRANS_OUT]] : tensor<1x64x2x200xf32> -> !torch.vtensor<[1,64,2,200],f32>
 // CHECK:  return %[[RESULT]] : !torch.vtensor<[1,64,2,200],f32>
 // CHECK: }
@@ -55,9 +55,9 @@ func.func @convTransposePositiveEffectivePadding(%arg0: !torch.vtensor<[1,2,4,4]
 
 // -----
 // CHECK-LABEL: func.func @convTransposeAsymmetricCrop
-// CHECK: %[[TCONV:.*]] = tosa.transpose_conv2d {{.*}} {acc_type = f32, out_pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 3, 3>} {{.*}} -> tensor<1x24x24x2xf32>
-// CHECK-DAG: %[[START_SHAPE:.*]] = tosa.const_shape {values = dense<[0, 2, 2, 0]> : tensor<4xindex>} : () -> !tosa.shape<4>
-// CHECK-DAG: %[[SLICE_SHAPE:.*]] = tosa.const_shape {values = dense<[1, 22, 22, 2]> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK: %[[TCONV:.*]] = tosa.transpose_conv2d {{.*}} out_pad([0, 0, 0, 0]) stride([3, 3]) acc_type(f32) {{.*}} -> tensor<1x24x24x2xf32>
+// CHECK-DAG: %[[START_SHAPE:.*]] = tosa.const_shape values(dense<[0, 2, 2, 0]> : tensor<4xindex>) : () -> !tosa.shape<4>
+// CHECK-DAG: %[[SLICE_SHAPE:.*]] = tosa.const_shape values(dense<[1, 22, 22, 2]> : tensor<4xindex>) : () -> !tosa.shape<4>
 // CHECK: tosa.slice %[[TCONV]], %[[START_SHAPE]], %[[SLICE_SHAPE]] : (tensor<1x24x24x2xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<1x22x22x2xf32>
 func.func @convTransposeAsymmetricCrop(%arg0: !torch.vtensor<[1,2,8,8],f32>, %arg1: !torch.vtensor<[2,2,3,3],f32>) -> !torch.vtensor<[1,2,22,22],f32> {
     %true = torch.constant.bool true
