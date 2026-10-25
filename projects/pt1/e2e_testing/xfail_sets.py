@@ -3719,7 +3719,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "RandnLikeModule_basic",
     "RandnModule_basic",
     "ReduceAllDimEmpty_basic",
-    "ReduceAnyDimsFloatModule_basic",
     "ReduceFrobeniusNormComplexModule_basic",
     "ReduceL1NormComplexModule_basic",
     "ReduceL2NormComplexModule_basic",
