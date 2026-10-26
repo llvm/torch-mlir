@@ -1070,6 +1070,82 @@ def ScatterAddDynamicModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ScatterReduceDeprecatedFloatModule(torch.nn.Module):
+    reduce_type: str
+
+    def __init__(self, reduce_type: str):
+        super().__init__()
+        self.reduce_type = reduce_type
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+            ([-1, -1, -1], torch.int64, True),
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, input, index, src):
+        return torch.ops.aten.scatter(input, 0, index, src, reduce=self.reduce_type)
+
+
+@register_test_case(module_factory=lambda: ScatterReduceDeprecatedFloatModule("add"))
+def ScatterReduceDeprecatedFloatAddModule(module, tu: TestUtils):
+    module.forward(tu.rand(10, 8, 6), tu.randint(2, 4, 3, high=4), tu.rand(5, 8, 6))
+
+
+@register_test_case(
+    module_factory=lambda: ScatterReduceDeprecatedFloatModule("multiply")
+)
+def ScatterReduceDeprecatedFloatMultiplyModule(module, tu: TestUtils):
+    module.forward(tu.rand(10, 8, 6), tu.randint(2, 4, 3, high=4), tu.rand(5, 8, 6))
+
+
+# ==============================================================================
+
+
+class ScatterReduceDeprecatedIntModule(torch.nn.Module):
+    reduce_type: str
+
+    def __init__(self, reduce_type: str):
+        super().__init__()
+        self.reduce_type = reduce_type
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.int64, True),
+            ([-1, -1, -1], torch.int64, True),
+            ([-1, -1, -1], torch.int64, True),
+        ]
+    )
+    def forward(self, input, index, src):
+        return torch.ops.aten.scatter(input, 0, index, src, reduce=self.reduce_type)
+
+
+@register_test_case(module_factory=lambda: ScatterReduceDeprecatedIntModule("add"))
+def ScatterReduceDeprecatedIntAddModule(module, tu: TestUtils):
+    module.forward(
+        tu.randint(10, 8, 6, high=10),
+        tu.randint(2, 4, 3, high=4),
+        tu.randint(5, 8, 6, high=10),
+    )
+
+
+@register_test_case(module_factory=lambda: ScatterReduceDeprecatedIntModule("multiply"))
+def ScatterReduceDeprecatedIntMultiplyModule(module, tu: TestUtils):
+    module.forward(
+        tu.randint(10, 8, 6, high=10),
+        tu.randint(2, 4, 3, high=4),
+        tu.randint(5, 8, 6, high=10),
+    )
+
+
+# ==============================================================================
+
+
 class ScatterReduceFloatModule(torch.nn.Module):
     include_self: bool
     reduce_type: str
