@@ -111,6 +111,24 @@ public:
 } // namespace
 
 namespace {
+class ConvertAtenNotOp : public OpConversionPattern<Aten__Not__Op> {
+public:
+  using OpConversionPattern<Aten__Not__Op>::OpConversionPattern;
+  LogicalResult matchAndRewrite(
+      Aten__Not__Op op,
+      typename OpConversionPattern<Aten__Not__Op>::OpAdaptor adaptor,
+      ConversionPatternRewriter &rewriter) const override {
+    Value self = adaptor.getSelf();
+    rewriter.replaceOpWithNewOp<arith::XOrIOp>(
+        op, self,
+        arith::ConstantIntOp::create(rewriter, op.getLoc(), /*value=*/1,
+                                     /*bitwidth=*/1));
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 template <typename AtenOp, typename UnaryOp>
 class ConvertAtenUnaryOp : public OpConversionPattern<AtenOp> {
 public:
@@ -564,6 +582,8 @@ public:
         typeConverter, context);
     patterns.add<ConvertAtenBinaryOp<AtenNeBoolOp, arith::XOrIOp>>(
         typeConverter, context);
+    target.addIllegalOp<Aten__Not__Op>();
+    patterns.add<ConvertAtenNotOp>(typeConverter, context);
     patterns.add<ConvertAtenUnaryOp<AtenCeilFloatOp, math::CeilOp>>(
         typeConverter, context);
     target.addIllegalOp<AtenSqrtIntOp>();
