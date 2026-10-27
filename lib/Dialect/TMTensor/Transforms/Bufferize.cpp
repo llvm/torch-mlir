@@ -126,6 +126,13 @@ public:
     // One-Shot sees the read-after-write and preserves the value. `read_only`
     // is truthful -- a TMTensor op never writes an `ins` operand -- and keeps
     // the crossing from counting as a write as well.
+    //
+    // `to_buffer` is pure, so a CSE between this pass and One-Shot can merge
+    // two crossings of the same tensor, which moves the later op's read up to
+    // the earlier one. A canonicalization after that CSE restores each read:
+    // it folds a `memref.load` of a `read_only` crossing into a
+    // `tensor.extract` at the load. A pipeline that runs CSE here must
+    // therefore also canonicalize before One-Shot.
     SmallVector<Value> inputs;
     for (OpOperand *opOperand : op.getInputOperands()) {
       auto tensorType = dyn_cast<RankedTensorType>(opOperand->get().getType());
