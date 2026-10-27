@@ -114,10 +114,9 @@ namespace {
 class ConvertAtenNotOp : public OpConversionPattern<Aten__Not__Op> {
 public:
   using OpConversionPattern<Aten__Not__Op>::OpConversionPattern;
-  LogicalResult matchAndRewrite(
-      Aten__Not__Op op,
-      typename OpConversionPattern<Aten__Not__Op>::OpAdaptor adaptor,
-      ConversionPatternRewriter &rewriter) const override {
+  LogicalResult
+  matchAndRewrite(Aten__Not__Op op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
     Value self = adaptor.getSelf();
     rewriter.replaceOpWithNewOp<arith::XOrIOp>(
         op, self,
