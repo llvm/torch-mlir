@@ -220,7 +220,7 @@ class OnnxTestCase:
         # Local imports so that the pure descriptor path (registration) does not
         # pull in the reference evaluator / numpy input machinery.
         from .config import materialize_inputs
-        from .reference import create_reference_evaluator
+        from .reference import run_reference
 
         annotations = cls._input_annotations()
         # A -1 in an annotation shape marks a dynamic dim: TensorPlaceholder /
@@ -273,7 +273,7 @@ class OnnxTestCase:
         feed = {
             annotation[0]: arr for (annotation, arr) in zip(annotations, numpy_inputs)
         }
-        golden = create_reference_evaluator(probe_model).run(None, feed)
+        golden = run_reference(probe_model, feed)
 
         # Pass 2: rebuild with concrete, inferred output value_infos so the
         # importer sees correct result types (and check_model passes).

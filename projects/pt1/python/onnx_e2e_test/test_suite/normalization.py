@@ -15,27 +15,34 @@ from onnx_e2e_test.registry import register_onnx_test
 #
 # RMS-style layer norm over the last dimension of the residual sum
 # s = input + skip (+ bias). Up to four outputs, in order:
-#   0: output             = s * inv_std_var * gamma
-#   1: mean               (vestigial for the simplified variant; zeros)
-#   2: inv_std_var        = 1 / sqrt(mean(s^2, axis=-1) + epsilon)
+#   0: output              = s * inv_std_var * gamma
+#   1: mean                (vestigial for the simplified variant; zeros)
+#   2: inv_std_var         = 1 / sqrt(mean(s^2, axis=-1) + epsilon)
 #   3: input_skip_bias_sum = s
 # The reference implementation lives in onnx_e2e_test.reference.
 #
-# Note: the ONNX Runtime CPU kernel used as the reference does not compute the
-# mean and inv_std_var outputs (it returns None for them even when requested),
-# and its schema has no stash_type attribute. The e2e tests therefore declare
-# all four node outputs but only compare output and input_skip_bias_sum.
-# inv_std_var is covered by the lit tests in simple_ops_q_to_z.mlir.
+# All four outputs are graph outputs and are compared against ONNX Runtime.
+# ONNX Runtime computes mean and inv_std_var on the CPU kernel only since
+# version 1.30.0; older versions return None, which the reference runner
+# rejects with an explicit error.
 # ==============================================================================
 
-_SSLN_NODE_OUTPUTS = ["output", "mean", "inv_std_var", "input_skip_bias_sum"]
-_SSLN_GRAPH_OUTPUTS = ["output", "input_skip_bias_sum"]
+_SSLN_OUTPUTS = ["output", "mean", "inv_std_var", "input_skip_bias_sum"]
+
+
+def _ssln_node(inputs, epsilon=1.0e-5):
+    return onnx.helper.make_node(
+        "SkipSimplifiedLayerNormalization",
+        inputs,
+        _SSLN_OUTPUTS,
+        domain="com.microsoft",
+        epsilon=epsilon,
+    )
 
 
 @register_onnx_test
 class OnnxSkipSimplifiedLayerNormalization_f32_basic(OnnxTestCase):
-    # f32 inputs: no upcast path. The node declares all four outputs so the
-    # multi-output lowering is exercised end to end.
+    # f32 inputs: no upcast path.
     extra_opsets = {"com.microsoft": 1}
 
     @annotate_inputs(
@@ -46,14 +53,7 @@ class OnnxSkipSimplifiedLayerNormalization_f32_basic(OnnxTestCase):
         ]
     )
     def graph(self):
-        node = onnx.helper.make_node(
-            "SkipSimplifiedLayerNormalization",
-            ["input", "skip", "gamma"],
-            _SSLN_NODE_OUTPUTS,
-            domain="com.microsoft",
-            epsilon=1.0e-5,
-        )
-        return [node], _SSLN_GRAPH_OUTPUTS
+        return [_ssln_node(["input", "skip", "gamma"])], _SSLN_OUTPUTS
 
 
 @register_onnx_test
@@ -71,14 +71,25 @@ class OnnxSkipSimplifiedLayerNormalization_f32_bias(OnnxTestCase):
         ]
     )
     def graph(self):
-        node = onnx.helper.make_node(
-            "SkipSimplifiedLayerNormalization",
-            ["input", "skip", "gamma", "bias"],
-            _SSLN_NODE_OUTPUTS,
-            domain="com.microsoft",
-            epsilon=1.0e-5,
-        )
-        return [node], _SSLN_GRAPH_OUTPUTS
+        return [_ssln_node(["input", "skip", "gamma", "bias"])], _SSLN_OUTPUTS
+
+
+@register_onnx_test
+class OnnxSkipSimplifiedLayerNormalization_f32_statistics(OnnxTestCase):
+    # Mirrors ONNX Runtime's SkipSimplifiedLayerNormStatistics test shape
+    # ([1, 1, 4] input, [1, 1, 1] statistics), with a wider value range so the
+    # inv_std_var output is not dominated by epsilon.
+    extra_opsets = {"com.microsoft": 1}
+
+    @annotate_inputs(
+        [
+            ("input", torch.float32, [1, 1, 4], (-4.0, 4.0)),
+            ("skip", torch.float32, [1, 1, 4], (-1.0, 1.0)),
+            ("gamma", torch.float32, [4]),
+        ]
+    )
+    def graph(self):
+        return [_ssln_node(["input", "skip", "gamma"], epsilon=1.0e-12)], _SSLN_OUTPUTS
 
 
 @register_onnx_test
@@ -96,11 +107,4 @@ class OnnxSkipSimplifiedLayerNormalization_f16(OnnxTestCase):
         ]
     )
     def graph(self):
-        node = onnx.helper.make_node(
-            "SkipSimplifiedLayerNormalization",
-            ["input", "skip", "gamma"],
-            _SSLN_NODE_OUTPUTS,
-            domain="com.microsoft",
-            epsilon=1.0e-5,
-        )
-        return [node], _SSLN_GRAPH_OUTPUTS
+        return [_ssln_node(["input", "skip", "gamma"])], _SSLN_OUTPUTS

@@ -21,3 +21,24 @@ def create_reference_evaluator(model):
             providers=["CPUExecutionProvider"],
         )
     return ReferenceEvaluator(model)
+
+
+def run_reference(model, feed):
+    """Run *model* through the reference evaluator and return its outputs.
+
+    Raises if the reference returns None for any declared graph output.
+    Older ONNX Runtime versions skip optional outputs (e.g. mean and
+    inv_std_var of SkipSimplifiedLayerNormalization before 1.30.0), which
+    would otherwise silently drop them from the comparison.
+    """
+    outputs = create_reference_evaluator(model).run(None, feed)
+    missing = [
+        info.name for info, out in zip(model.graph.output, outputs) if out is None
+    ]
+    if missing:
+        raise RuntimeError(
+            "Reference evaluator returned None for output(s) "
+            f"{missing}; the installed reference (e.g. onnxruntime) may be "
+            "too old to compute them."
+        )
+    return outputs
