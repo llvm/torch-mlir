@@ -34,6 +34,9 @@ def _scale_initializer(name: str, value: float):
 # ==============================================================================
 
 
+# ==============================================================================
+
+
 class _MatMulIntegerToFloat(OnnxTestCase):
     extra_opsets = _EXTRA_OPSETS
     optional_inputs = ()
@@ -60,6 +63,9 @@ class _MatMulIntegerToFloat(OnnxTestCase):
         return [node], ["y"], initializers
 
 
+# ==============================================================================
+
+
 @register_onnx_test
 class OnnxMatMulIntegerToFloat_missingOptional(_MatMulIntegerToFloat):
     @annotate_inputs(
@@ -70,6 +76,9 @@ class OnnxMatMulIntegerToFloat_missingOptional(_MatMulIntegerToFloat):
     )
     def graph(self):
         return super().graph()
+
+
+# ==============================================================================
 
 
 @register_onnx_test
@@ -85,6 +94,9 @@ class OnnxMatMulIntegerToFloat_aZeroPoint(_MatMulIntegerToFloat):
     )
     def graph(self):
         return super().graph()
+
+
+# ==============================================================================
 
 
 @register_onnx_test
@@ -103,6 +115,9 @@ class OnnxMatMulIntegerToFloat_bZeroPoint(_MatMulIntegerToFloat):
     )
     def graph(self):
         return super().graph()
+
+
+# ==============================================================================
 
 
 @register_onnx_test
@@ -127,6 +142,9 @@ class OnnxMatMulIntegerToFloat_runtimeQParams(_MatMulIntegerToFloat):
         return super().graph()
 
 
+# ==============================================================================
+
+
 @register_onnx_test
 class OnnxMatMulIntegerToFloat_bias(_MatMulIntegerToFloat):
     optional_inputs = ("", "", "bias")
@@ -139,6 +157,9 @@ class OnnxMatMulIntegerToFloat_bias(_MatMulIntegerToFloat):
     )
     def graph(self):
         return super().graph()
+
+
+# ==============================================================================
 
 
 @register_onnx_test
@@ -163,6 +184,9 @@ class OnnxMatMulIntegerToFloat_perColumn(_MatMulIntegerToFloat):
         return super().graph()
 
 
+# ==============================================================================
+
+
 @register_onnx_test
 class OnnxMatMulIntegerToFloat_mixedQParams(_MatMulIntegerToFloat):
     # B broadcasts its scalar scale alongside per-column zero points.
@@ -179,6 +203,9 @@ class OnnxMatMulIntegerToFloat_mixedQParams(_MatMulIntegerToFloat):
         return super().graph()
 
 
+# ==============================================================================
+
+
 @register_onnx_test
 class OnnxMatMulIntegerToFloat_batchedWeights(_MatMulIntegerToFloat):
     # A [2,4,3] @ B [3,5] -> Y [2,4,5], with B shared across batches.
@@ -188,6 +215,9 @@ class OnnxMatMulIntegerToFloat_batchedWeights(_MatMulIntegerToFloat):
     @annotate_inputs([("a", torch.int8, [2, 4, 3], (-128, 128))])
     def graph(self):
         return super().graph()
+
+
+# ==============================================================================
 
 
 @register_onnx_test
