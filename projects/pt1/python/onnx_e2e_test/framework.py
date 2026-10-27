@@ -62,6 +62,7 @@ def build_model(
     ir_version: int = _DEFAULT_IR_VERSION,
     validate: bool = True,
     extra_opsets: Optional[dict[str, int]] = None,
+    value_infos: Optional[list] = None,
 ) -> onnx.ModelProto:
     """Build an ``onnx.ModelProto`` with the graph name hard-coded to
     ``"main_graph"``.
@@ -83,6 +84,8 @@ def build_model(
             for the pass-1 probe model, whose outputs are intentionally
             shapeless (the checker requires a shape).
         extra_opsets: Additional operator domains and their versions.
+        value_infos: Optional list of ``onnx.ValueInfoProto`` objects typing
+            intermediate (non-input, non-output) tensors.
 
     Returns:
         An ``onnx.ModelProto`` (validated unless ``validate`` is False).
@@ -93,6 +96,7 @@ def build_model(
         inputs=inputs,
         outputs=outputs,
         initializer=initializers or [],
+        value_info=value_infos or [],
     )
     model = onnx.helper.make_model(
         graph,
@@ -243,8 +247,18 @@ class OnnxTestCase:
         # Pass 1: run a model with shapeless outputs through the reference
         # evaluator to learn each output's concrete shape and dtype. This model
         # is not validated (check_model requires a shape); it exists only to run.
+        # Intermediate node outputs are also exposed on the probe so their
+        # types can also be recorded as value_info.
+        graph_names = set(output_names)
+        graph_names.update(name for (name, *_rest) in annotations)
+        intermediate_names = []
+        for node in nodes:
+            for out in node.output:
+                if out and out not in graph_names and out not in intermediate_names:
+                    intermediate_names.append(out)
+        probe_names = list(output_names) + intermediate_names
         probe_outputs = [
-            onnx.helper.make_empty_tensor_value_info(name) for name in output_names
+            onnx.helper.make_empty_tensor_value_info(name) for name in probe_names
         ]
         probe_model = build_model(
             nodes,
@@ -263,19 +277,21 @@ class OnnxTestCase:
 
         # Pass 2: rebuild with concrete, inferred output value_infos so the
         # importer sees correct result types (and check_model passes).
-        output_infos = [
+        inferred_infos = [
             onnx.helper.make_tensor_value_info(
                 name,
                 onnx.helper.np_dtype_to_tensor_dtype(arr.dtype),
                 list(arr.shape),
             )
-            for name, arr in zip(output_names, golden)
+            for name, arr in zip(probe_names, golden)
         ]
+        num_outputs = len(output_names)
         return build_model(
             nodes,
             input_infos,
-            output_infos,
+            inferred_infos[:num_outputs],
             initializers=initializers,
             opset=cls.opset,
             extra_opsets=cls.extra_opsets,
+            value_infos=inferred_infos[num_outputs:],
         )

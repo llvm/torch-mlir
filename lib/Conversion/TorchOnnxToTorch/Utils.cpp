@@ -190,14 +190,40 @@ LogicalResult mlir::torch::onnx_c::createDequantizeTensor(
   if (!inputTy || !inputTy.hasSizes())
     return failure();
 
-  Torch::ValueTensorType makeTensorTy = getQTorchTypeFromTorchIntType(inputTy);
-  Value quantizedInput = Torch::Aten_MakePerTensorQuantizedTensorOp::create(
-      rewriter, loc, makeTensorTy, input, scale, zeroPoint);
+  if (!inputTy.hasDtype() || !isa<IntegerType>(inputTy.getDtype()))
+    return failure();
+  auto inputETy = cast<IntegerType>(inputTy.getDtype());
+
+  Value inputETyConst = Torch::getDtypeIntValueForType(rewriter, loc, inputETy);
+  auto [minInt, maxInt] = createQuantizationBounds(rewriter, loc, inputETy);
+  Value noneOutDtype = Torch::ConstantNoneOp::create(rewriter, loc);
 
   Torch::ValueTensorType resultTy = rewriter.getType<Torch::ValueTensorType>(
       inputTy.getSizes(), rewriter.getF32Type());
-  output = Torch::AtenDequantizeSelfOp::create(rewriter, loc, resultTy,
-                                               quantizedInput);
+  output = Torch::QuantizedDecomposedDequantizePerTensorOp::create(
+      rewriter, loc, resultTy, input, scale, zeroPoint, minInt, maxInt,
+      inputETyConst, noneOutDtype);
+
+  return success();
+}
+
+LogicalResult mlir::torch::onnx_c::createQuantizeTensor(
+    ConversionPatternRewriter &rewriter, Location loc, Value input, Value scale,
+    Value zeroPoint, Torch::ValueTensorType resultType, Value &output) {
+  if (!resultType.hasSizes())
+    return failure();
+
+  if (!resultType.hasDtype() || !isa<IntegerType>(resultType.getDtype()))
+    return failure();
+  auto resultETy = cast<IntegerType>(resultType.getDtype());
+
+  Value resultETyConst =
+      Torch::getDtypeIntValueForType(rewriter, loc, resultETy);
+  auto [minInt, maxInt] = createQuantizationBounds(rewriter, loc, resultETy);
+
+  output = Torch::QuantizedDecomposedQuantizePerTensorOp::create(
+      rewriter, loc, resultType, input, scale, zeroPoint, minInt, maxInt,
+      resultETyConst);
 
   return success();
 }
