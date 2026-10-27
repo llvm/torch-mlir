@@ -2980,31 +2980,27 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         // round, then cast to uint8
         preZeroPoint =
             Torch::AtenRoundOp::create(rewriter, loc, scaleType, preZeroPoint);
-        Type qTy = rewriter.getType<Torch::QUInt8Type>();
-        auto qTensorTy = rewriter.getType<Torch::ValueTensorType>(
-            resultType.getOptionalSizes(), qTy);
-        auto torchqTy = Torch::getScalarTypeForType(qTy);
-        Value tyConst = Torch::ConstantIntOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(rewriter.getIntegerType(64),
-                                    static_cast<int64_t>(torchqTy)));
+        auto zpElemTy = cast<IntegerType>(zeroPointType.getDtype());
+        Value tyConst = Torch::getDtypeIntValueForType(rewriter, loc, zpElemTy);
+
         Value none = Torch::ConstantNoneOp::create(rewriter, loc);
         Value cstFalse = Torch::ConstantBoolOp::create(rewriter, loc, false);
         Value zeroPointTensor = Torch::AtenToDtypeOp::create(
             rewriter, loc, zeroPointType, preZeroPoint, tyConst,
             /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
             /*memory_format=*/none);
-        // extract scale and zeroPoint scalars to pass to
-        // AtenQuantizePerTensorOp
+
+        // extract scale and zeroPoint scalars to pass to createQuantizeTensor
         zeroPoint = Torch::AtenItemOp::create(
             rewriter, loc, rewriter.getType<Torch::IntType>(), zeroPointTensor);
         scale = Torch::AtenItemOp::create(
             rewriter, loc, rewriter.getType<Torch::FloatType>(), scaleTensor);
-        Value quantizedTensor = Torch::AtenQuantizePerTensorOp::create(
-            rewriter, loc, qTensorTy, input, scale, zeroPoint, tyConst);
-        // get uint8 tensor output
-        Value output = Torch::AtenIntReprOp::create(rewriter, loc, resultType,
-                                                    quantizedTensor);
+        // get tensor output
+        Value output;
+        if (failed(createQuantizeTensor(rewriter, loc, input, scale, zeroPoint,
+                                        resultType, output)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to create quantized output tensor");
         rewriter.replaceOp(binder.op, {output, scaleTensor, zeroPointTensor});
         return success();
       });
