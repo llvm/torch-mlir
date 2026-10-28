@@ -426,6 +426,7 @@ FX_IMPORTER_XFAIL_SET = {
     "AtenTopKNaNInfStaticModule_basic",
     "AtenTopKSmallestNaNInfStaticModule_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
+    "AvgPool2dCHWModule_basic",
     "QuantizedReluInt32_basic",
     "QuantizedReluInt8_basic",
     "QuantizedReluUint8_basic",
@@ -520,8 +521,6 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
     "Aten_TrilinearModuleSumdims_basic",
     "SliceOutOfLowerBoundEndIndexModule_basic",
     "RollModule_basic",
-    "AdaptiveAvgPool2dDynamicNoBatch_basic",
-    "AvgPool2dCHWModule_basic",
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
@@ -643,6 +642,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "Aten_EmbeddingBagExample_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
     "AvgPool2dCeilPadNonUnitaryStrides_basic",
+    "AvgPool2dCeilScalarKernelStride_basic",
     "AvgPool2dCeilNoPadStridedIncludePadding_basic",
     "AvgPool2dCeilPaddingStridedIncludePadding_basic",
     "AvgPool2dDiffKernelsStridesNoPadCeilPadNotIncluded_basic",
@@ -2410,6 +2410,7 @@ TOSA_PASS_SET = {
     "MaxPool2dStaticModule_basic",
     "MaxPool3dEmptyStrideStaticModule_basic",
     "MaxPool3dStaticCeilModeTrueModule_basic",
+    "MaxPool3dStaticCeilModeUnitKernelDimModule_basic",
     "MaxPool3dStaticModule_basic",
     "MeanModule_basic",
     "MeanDimRank0Module_basic",
@@ -4557,6 +4558,7 @@ ONNX_TOSA_XFAIL_SET = {
     "MaxPool3dModuleRandomSimple_basic",
     "MaxPool3dModule_basic",
     "MaxPool3dStaticCeilModeTrueModule_basic",
+    "MaxPool3dStaticCeilModeUnitKernelDimModule_basic",
     "MaxPool3dStaticModule_basic",
     "MaxPool3dWithIndicesAllNegativeValuesModule_basic",
     "MaxPool3dWithIndicesAllOnesModule_basic",
