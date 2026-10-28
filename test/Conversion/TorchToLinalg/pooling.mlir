@@ -131,7 +131,7 @@ func.func @forward_max_pool3d_ceil_mode_unit_kernel(%arg0: !torch.vtensor<[1,3,6
   %int5 = torch.constant.int 5
   %int1 = torch.constant.int 1
   %int0 = torch.constant.int 0
-  %true = torch.constant.bool true
+  %ceil_mode = torch.constant.bool true
   %kernel_size = torch.prim.ListConstruct %int7, %int5, %int1 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
   %stride = torch.prim.ListConstruct %int1, %int1, %int1 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
   %padding = torch.prim.ListConstruct %int0, %int0, %int0 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
@@ -146,8 +146,37 @@ func.func @forward_max_pool3d_ceil_mode_unit_kernel(%arg0: !torch.vtensor<[1,3,6
   // CHECK: linalg.generic
   // CHECK-SAME: ins(%[[PADDED]], %[[KERNEL]] : tensor<1x3x64x33x56xf32>, tensor<7x5x1xf32>)
   // CHECK-SAME: outs(%[[OUT]] : tensor<1x3x58x29x56xf32>)
-  %4 = torch.aten.max_pool3d %arg0, %kernel_size, %stride, %padding, %dilation, %true : !torch.vtensor<[1,3,64,33,56],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,58,29,56],f32>
+  %4 = torch.aten.max_pool3d %arg0, %kernel_size, %stride, %padding, %dilation, %ceil_mode : !torch.vtensor<[1,3,64,33,56],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,58,29,56],f32>
   return %4 : !torch.vtensor<[1,3,58,29,56],f32>
+}
+
+// -----
+
+// With kernel 3 and stride 2, the last window starts at index 4 and reads
+// through 6, the last element of the input, so ceil_mode adds nothing.
+// CHECK-LABEL: func @forward_max_pool2d_ceil_mode_strided_exact_fit
+func.func @forward_max_pool2d_ceil_mode_strided_exact_fit(%arg0: !torch.vtensor<[1,3,7,7],f32>) -> !torch.vtensor<[1,3,3,3],f32> {
+  %int3 = torch.constant.int 3
+  %int2 = torch.constant.int 2
+  %int1 = torch.constant.int 1
+  %int0 = torch.constant.int 0
+  %ceil_mode = torch.constant.bool true
+  %kernel_size = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[IN:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[1,3,7,7],f32> -> tensor<1x3x7x7xf32>
+  // CHECK: %[[NEUTRAL:.*]] = arith.constant 0xFF800000 : f32
+  // CHECK: %[[PADDED:.*]] = tensor.pad %[[IN]] low[0, 0, 0, 0] high[0, 0, 0, 0]
+  // CHECK:   tensor.yield %[[NEUTRAL]] : f32
+  // CHECK: } : tensor<1x3x7x7xf32> to tensor<1x3x7x7xf32>
+  // CHECK: %[[OUT:.*]] = linalg.fill ins(%[[NEUTRAL]] : f32) outs(%{{.*}} : tensor<1x3x3x3xf32>) -> tensor<1x3x3x3xf32>
+  // CHECK: %[[KERNEL:.*]] = tensor.empty() : tensor<3x3xf32>
+  // CHECK: linalg.pooling_nchw_max {dilations = dense<1> : vector<2xi64>, strides = dense<2> : vector<2xi64>}
+  // CHECK-SAME: ins(%[[PADDED]], %[[KERNEL]] : tensor<1x3x7x7xf32>, tensor<3x3xf32>)
+  // CHECK-SAME: outs(%[[OUT]] : tensor<1x3x3x3xf32>)
+  %4 = torch.aten.max_pool2d %arg0, %kernel_size, %stride, %padding, %dilation, %ceil_mode : !torch.vtensor<[1,3,7,7],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,3,3],f32>
+  return %4 : !torch.vtensor<[1,3,3,3],f32>
 }
 
 // -----
@@ -159,7 +188,7 @@ func.func @forward_max_pool3d_ceil_mode_partial_window(%arg0: !torch.vtensor<[1,
   %int3 = torch.constant.int 3
   %int1 = torch.constant.int 1
   %int0 = torch.constant.int 0
-  %true = torch.constant.bool true
+  %ceil_mode = torch.constant.bool true
   %kernel_size = torch.prim.ListConstruct %int3, %int3, %int3 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
   %stride = torch.prim.ListConstruct %int3, %int3, %int3 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
   %padding = torch.prim.ListConstruct %int0, %int0, %int0 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
@@ -174,7 +203,7 @@ func.func @forward_max_pool3d_ceil_mode_partial_window(%arg0: !torch.vtensor<[1,
   // CHECK: linalg.generic
   // CHECK-SAME: ins(%[[PADDED]], %[[KERNEL]] : tensor<1x3x12x12x12xf32>, tensor<3x3x3xf32>)
   // CHECK-SAME: outs(%[[OUT]] : tensor<1x3x4x4x4xf32>)
-  %4 = torch.aten.max_pool3d %arg0, %kernel_size, %stride, %padding, %dilation, %true : !torch.vtensor<[1,3,10,10,10],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,4,4,4],f32>
+  %4 = torch.aten.max_pool3d %arg0, %kernel_size, %stride, %padding, %dilation, %ceil_mode : !torch.vtensor<[1,3,10,10,10],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,4,4,4],f32>
   return %4 : !torch.vtensor<[1,3,4,4,4],f32>
 }
 
@@ -186,7 +215,7 @@ func.func @forward_max_pool3d_with_indices_ceil_mode_partial_window(%arg0: !torc
   %int3 = torch.constant.int 3
   %int1 = torch.constant.int 1
   %int0 = torch.constant.int 0
-  %true = torch.constant.bool true
+  %ceil_mode = torch.constant.bool true
   %kernel_size = torch.prim.ListConstruct %int3, %int3, %int3 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
   %stride = torch.prim.ListConstruct %int3, %int3, %int3 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
   %padding = torch.prim.ListConstruct %int0, %int0, %int0 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
@@ -201,7 +230,7 @@ func.func @forward_max_pool3d_with_indices_ceil_mode_partial_window(%arg0: !torc
   // CHECK: linalg.generic
   // CHECK-SAME: ins(%[[PADDED]], %[[KERNEL]] : tensor<1x3x12x12x12xf32>, tensor<3x3x3xf32>)
   // CHECK-SAME: outs(%[[OUT]] : tensor<1x3x4x4x4xf32>)
-  %4, %5 = torch.aten.max_pool3d_with_indices %arg0, %kernel_size, %stride, %padding, %dilation, %true : !torch.vtensor<[1,3,10,10,10],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,4,4,4],f32>, !torch.vtensor<[1,3,4,4,4],si64>
+  %4, %5 = torch.aten.max_pool3d_with_indices %arg0, %kernel_size, %stride, %padding, %dilation, %ceil_mode : !torch.vtensor<[1,3,10,10,10],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,4,4,4],f32>, !torch.vtensor<[1,3,4,4,4],si64>
   return %4, %5 : !torch.vtensor<[1,3,4,4,4],f32>, !torch.vtensor<[1,3,4,4,4],si64>
 }
 
@@ -214,7 +243,7 @@ func.func @forward_max_pool3d_ceil_mode_dynamic_dim(%arg0: !torch.vtensor<[1,3,?
   %int3 = torch.constant.int 3
   %int1 = torch.constant.int 1
   %int0 = torch.constant.int 0
-  %true = torch.constant.bool true
+  %ceil_mode = torch.constant.bool true
   %kernel_size = torch.prim.ListConstruct %int3, %int3, %int3 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
   %stride = torch.prim.ListConstruct %int3, %int3, %int3 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
   %padding = torch.prim.ListConstruct %int0, %int0, %int0 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
@@ -229,7 +258,7 @@ func.func @forward_max_pool3d_ceil_mode_dynamic_dim(%arg0: !torch.vtensor<[1,3,?
   // CHECK: linalg.generic
   // CHECK-SAME: ins(%[[PADDED]], %[[KERNEL]] : tensor<1x3x?x12x12xf32>, tensor<3x3x3xf32>)
   // CHECK-SAME: outs(%[[OUT]] : tensor<1x3x?x4x4xf32>)
-  %4 = torch.aten.max_pool3d %arg0, %kernel_size, %stride, %padding, %dilation, %true : !torch.vtensor<[1,3,?,10,10],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,?,4,4],f32>
+  %4 = torch.aten.max_pool3d %arg0, %kernel_size, %stride, %padding, %dilation, %ceil_mode : !torch.vtensor<[1,3,?,10,10],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,?,4,4],f32>
   return %4 : !torch.vtensor<[1,3,?,4,4],f32>
 }
 
@@ -241,7 +270,7 @@ func.func @forward_max_pool3d_ceil_mode_dynamic_dim_unit_stride(%arg0: !torch.vt
   %int3 = torch.constant.int 3
   %int1 = torch.constant.int 1
   %int0 = torch.constant.int 0
-  %true = torch.constant.bool true
+  %ceil_mode = torch.constant.bool true
   %kernel_size = torch.prim.ListConstruct %int1, %int3, %int3 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
   %stride = torch.prim.ListConstruct %int1, %int3, %int3 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
   %padding = torch.prim.ListConstruct %int0, %int0, %int0 : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
@@ -256,7 +285,7 @@ func.func @forward_max_pool3d_ceil_mode_dynamic_dim_unit_stride(%arg0: !torch.vt
   // CHECK: linalg.generic
   // CHECK-SAME: ins(%[[PADDED]], %[[KERNEL]] : tensor<1x3x?x12x12xf32>, tensor<1x3x3xf32>)
   // CHECK-SAME: outs(%[[OUT]] : tensor<1x3x?x4x4xf32>)
-  %4 = torch.aten.max_pool3d %arg0, %kernel_size, %stride, %padding, %dilation, %true : !torch.vtensor<[1,3,?,10,10],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,?,4,4],f32>
+  %4 = torch.aten.max_pool3d %arg0, %kernel_size, %stride, %padding, %dilation, %ceil_mode : !torch.vtensor<[1,3,?,10,10],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,?,4,4],f32>
   return %4 : !torch.vtensor<[1,3,?,4,4],f32>
 }
 
@@ -270,7 +299,7 @@ func.func @forward_max_pool2d_ceil_mode_explicit_padding(%arg0: !torch.vtensor<[
   %int4 = torch.constant.int 4
   %int3 = torch.constant.int 3
   %int1 = torch.constant.int 1
-  %true = torch.constant.bool true
+  %ceil_mode = torch.constant.bool true
   %kernel_size = torch.prim.ListConstruct %int4, %int4 : (!torch.int, !torch.int) -> !torch.list<int>
   %stride = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
   %padding = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
@@ -285,7 +314,7 @@ func.func @forward_max_pool2d_ceil_mode_explicit_padding(%arg0: !torch.vtensor<[
   // CHECK: linalg.pooling_nchw_max {dilations = dense<1> : vector<2xi64>, strides = dense<3> : vector<2xi64>}
   // CHECK-SAME: ins(%[[PADDED]], %[[KERNEL]] : tensor<1x3x10x10xf32>, tensor<4x4xf32>)
   // CHECK-SAME: outs(%[[OUT]] : tensor<1x3x3x3xf32>)
-  %4 = torch.aten.max_pool2d %arg0, %kernel_size, %stride, %padding, %dilation, %true : !torch.vtensor<[1,3,7,7],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,3,3],f32>
+  %4 = torch.aten.max_pool2d %arg0, %kernel_size, %stride, %padding, %dilation, %ceil_mode : !torch.vtensor<[1,3,7,7],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,3,3],f32>
   return %4 : !torch.vtensor<[1,3,3,3],f32>
 }
 
@@ -299,7 +328,7 @@ func.func @forward_max_pool2d_ceil_mode_dropped_window_with_padding(%arg0: !torc
   %int4 = torch.constant.int 4
   %int3 = torch.constant.int 3
   %int1 = torch.constant.int 1
-  %true = torch.constant.bool true
+  %ceil_mode = torch.constant.bool true
   %kernel_size = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
   %stride = torch.prim.ListConstruct %int4, %int4 : (!torch.int, !torch.int) -> !torch.list<int>
   %padding = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
@@ -314,7 +343,7 @@ func.func @forward_max_pool2d_ceil_mode_dropped_window_with_padding(%arg0: !torc
   // CHECK: linalg.pooling_nchw_max {dilations = dense<1> : vector<2xi64>, strides = dense<4> : vector<2xi64>}
   // CHECK-SAME: ins(%[[PADDED]], %[[KERNEL]] : tensor<1x3x9x9xf32>, tensor<3x3xf32>)
   // CHECK-SAME: outs(%[[OUT]] : tensor<1x3x2x2xf32>)
-  %4 = torch.aten.max_pool2d %arg0, %kernel_size, %stride, %padding, %dilation, %true : !torch.vtensor<[1,3,7,7],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,2,2],f32>
+  %4 = torch.aten.max_pool2d %arg0, %kernel_size, %stride, %padding, %dilation, %ceil_mode : !torch.vtensor<[1,3,7,7],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,2,2],f32>
   return %4 : !torch.vtensor<[1,3,2,2],f32>
 }
 
@@ -333,7 +362,7 @@ func.func @forward_max_pool2d_ceil_mode_asymmetric_padding(%arg0: !torch.vtensor
   %int2 = torch.constant.int 2
   %int3 = torch.constant.int 3
   %int4 = torch.constant.int 4
-  %true = torch.constant.bool true
+  %ceil_mode = torch.constant.bool true
   %kernel_size = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
   %stride = torch.prim.ListConstruct %int4, %int4 : (!torch.int, !torch.int) -> !torch.list<int>
   %padding = torch.prim.ListConstruct %int2, %int0, %int0, %int2 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
@@ -344,7 +373,7 @@ func.func @forward_max_pool2d_ceil_mode_asymmetric_padding(%arg0: !torch.vtensor
   // CHECK: linalg.pooling_nchw_max {dilations = dense<1> : vector<2xi64>, strides = dense<4> : vector<2xi64>}
   // CHECK-SAME: ins(%[[PADDED]], %{{.*}} : tensor<1x3x11x9xf32>, tensor<3x3xf32>)
   // CHECK-SAME: outs(%{{.*}} : tensor<1x3x3x2xf32>)
-  %4 = torch.aten.max_pool2d %arg0, %kernel_size, %stride, %padding, %dilation, %true : !torch.vtensor<[1,3,7,7],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,3,2],f32>
+  %4 = torch.aten.max_pool2d %arg0, %kernel_size, %stride, %padding, %dilation, %ceil_mode : !torch.vtensor<[1,3,7,7],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,3,2],f32>
   return %4 : !torch.vtensor<[1,3,3,2],f32>
 }
 
@@ -357,7 +386,7 @@ func.func @forward_max_pool2d_ceil_mode_dynamic_kernel(%arg0: !torch.vtensor<[1,
   %int3 = torch.constant.int 3
   %int1 = torch.constant.int 1
   %int0 = torch.constant.int 0
-  %true = torch.constant.bool true
+  %ceil_mode = torch.constant.bool true
   %kernel_size = torch.prim.ListConstruct %arg1, %arg1 : (!torch.int, !torch.int) -> !torch.list<int>
   %stride = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
   %padding = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
@@ -367,7 +396,7 @@ func.func @forward_max_pool2d_ceil_mode_dynamic_kernel(%arg0: !torch.vtensor<[1,
   // CHECK: %[[PADDED:.*]] = tensor.pad %[[IN]] low[0, 0, 0, 0] high[0, 0, 3, 3]
   // CHECK:   tensor.yield %[[NEUTRAL]] : f32
   // CHECK: } : tensor<1x3x10x10xf32> to tensor<1x3x13x13xf32>
-  %4 = torch.aten.max_pool2d %arg0, %kernel_size, %stride, %padding, %dilation, %true : !torch.vtensor<[1,3,10,10],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,?,?],f32>
+  %4 = torch.aten.max_pool2d %arg0, %kernel_size, %stride, %padding, %dilation, %ceil_mode : !torch.vtensor<[1,3,10,10],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,3,?,?],f32>
   return %4 : !torch.vtensor<[1,3,?,?],f32>
 }
 
@@ -539,10 +568,10 @@ func.func @forward_avgpool_2d_ceil(%arg0: !torch.vtensor<[1,1,4,4],f32>) -> !tor
   %0 = torch.prim.ListConstruct %int3, %int3_0 : (!torch.int, !torch.int) -> !torch.list<int>
   %1 = torch.prim.ListConstruct %int0, %int0_1 : (!torch.int, !torch.int) -> !torch.list<int>
   %2 = torch.prim.ListConstruct %int2, %int2_2, %int1, %int1_3 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
-  %true = torch.constant.bool true
+  %ceil_mode = torch.constant.bool true
   %false = torch.constant.bool false
   %none = torch.constant.none
-  %3 = torch.aten.avg_pool2d %arg0, %0, %2, %1, %true, %false, %none : !torch.vtensor<[1,1,4,4],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1,2,2],f32>
+  %3 = torch.aten.avg_pool2d %arg0, %0, %2, %1, %ceil_mode, %false, %none : !torch.vtensor<[1,1,4,4],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1,2,2],f32>
   return %3 : !torch.vtensor<[1,1,2,2],f32>
 }
 
@@ -581,10 +610,10 @@ func.func @forward_avgpool_2d_ceil_dilated(%arg0: !torch.vtensor<[1,1,7,7],f32>)
   %0 = torch.prim.ListConstruct %int3, %int3_0 : (!torch.int, !torch.int) -> !torch.list<int>
   %1 = torch.prim.ListConstruct %int0, %int0_1 : (!torch.int, !torch.int) -> !torch.list<int>
   %2 = torch.prim.ListConstruct %int3_s, %int3_s2, %int2_d, %int2_d2 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
-  %true = torch.constant.bool true
+  %ceil_mode = torch.constant.bool true
   %false = torch.constant.bool false
   %none = torch.constant.none
-  %3 = torch.aten.avg_pool2d %arg0, %0, %2, %1, %true, %false, %none : !torch.vtensor<[1,1,7,7],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1,2,2],f32>
+  %3 = torch.aten.avg_pool2d %arg0, %0, %2, %1, %ceil_mode, %false, %none : !torch.vtensor<[1,1,7,7],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1,2,2],f32>
   return %3 : !torch.vtensor<[1,1,2,2],f32>
 }
 
@@ -708,12 +737,13 @@ func.func @forward_avgpool_2d_count_include_pad_asymmetric(%arg0: !torch.vtensor
 func.func @forward_avgpool_2d_unbatched(%arg0: !torch.vtensor<[3,10,10],f32>) -> !torch.vtensor<[3,4,4],f32> {
   %int3 = torch.constant.int 3
   %int0 = torch.constant.int 0
+  %ceil_mode = torch.constant.bool true
   %true = torch.constant.bool true
   %none = torch.constant.none
   %0 = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
   %1 = torch.prim.ListConstruct %int3, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
   %2 = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
   // expected-error @+1 {{failed to legalize operation 'torch.aten.avg_pool2d'}}
-  %3 = torch.aten.avg_pool2d %arg0, %0, %1, %2, %true, %true, %none : !torch.vtensor<[3,10,10],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[3,4,4],f32>
+  %3 = torch.aten.avg_pool2d %arg0, %0, %1, %2, %ceil_mode, %true, %none : !torch.vtensor<[3,10,10],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[3,4,4],f32>
   return %3 : !torch.vtensor<[3,4,4],f32>
 }

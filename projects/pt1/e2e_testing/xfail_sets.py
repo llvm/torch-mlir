@@ -432,6 +432,7 @@ FX_IMPORTER_XFAIL_SET = {
     "AtenTopKNaNInfStaticModule_basic",
     "AtenTopKSmallestNaNInfStaticModule_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
+    "AvgPool2dCHWModule_basic",
     "QuantizedReluInt32_basic",
     "QuantizedReluInt8_basic",
     "QuantizedReluUint8_basic",
@@ -526,8 +527,6 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
     "Aten_TrilinearModuleSumdims_basic",
     "SliceOutOfLowerBoundEndIndexModule_basic",
     "RollModule_basic",
-    "AdaptiveAvgPool2dDynamicNoBatch_basic",
-    "AvgPool2dCHWModule_basic",
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {

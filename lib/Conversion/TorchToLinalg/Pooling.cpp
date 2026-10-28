@@ -485,9 +485,9 @@ private:
     Value initValue =
         arith::ConstantOp::create(rewriter, op->getLoc(), smallestFPValueAttr);
 
-    paddedInput =
-        padInputTensor(op, rewriter, self, ceilMode, 3, strideInts, paddingInts,
-                       dilationInts, kernelSizeIntValues, initValue);
+    paddedInput = padInputTensor(op, rewriter, self, ceilMode,
+                                 /*dimensionality=*/3, strideInts, paddingInts,
+                                 dilationInts, kernelSizeIntValues, initValue);
 
     auto outTensorInitialized = computeOutputTensor(
         op, rewriter, self, 3, ceilMode, strideInts, paddingInts, dilationInts,
@@ -706,7 +706,8 @@ public:
 
     if (selfRank != Dim + 2)
       return rewriter.notifyMatchFailure(
-          op, "unimplemented: Does not support inputs with rank");
+          op, "unimplemented: only supports inputs with rank equal to the "
+              "number of spatial dimensions plus two");
 
     bool ceilMode;
     SmallVector<Value, Dim> kernelSizeIntValues;
