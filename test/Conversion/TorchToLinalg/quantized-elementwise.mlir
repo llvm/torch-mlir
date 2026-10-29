@@ -17,9 +17,9 @@
 // CHECK:         %[[EXT:.*]] = arith.extsi %[[IN]] : i8 to i64
 // Operand order matters here: (input - zp), not (zp - input).
 // CHECK:         %[[SUB:.*]] = arith.subi %[[EXT]], %[[ZP_I64]] : i64
+// CHECK:         %[[SUBF:.*]] = arith.sitofp %[[SUB]] : i64 to f32
 // CHECK:         %[[SCALE_F64:.*]] = torch_c.to_f64 %[[SCALE_F]]
 // CHECK:         %[[SCALE_F32:.*]] = arith.truncf %[[SCALE_F64]] : f64 to f32
-// CHECK:         %[[SUBF:.*]] = arith.sitofp %[[SUB]] : i64 to f32
 // CHECK:         %[[MUL:.*]] = arith.mulf %[[SUBF]], %[[SCALE_F32]] : f32
 // CHECK:         linalg.yield %[[MUL]] : f32
 func.func @standalone_dequantize_si8(
@@ -333,12 +333,13 @@ func.func @dequantize_per_channel_scale_truncation(
 
 // -----
 
-// The multiply uses the scale type and only its result is extended to the
-// explicit out_dtype.
+// f16 scales are extended to f32, in which the multiply runs.
 // CHECK-LABEL: func.func @dequantize_per_channel_scale_extension(
-// CHECK: %[[FP:.*]] = arith.sitofp %{{.*}} : i8 to f16
-// CHECK: %[[MUL:.*]] = arith.mulf %[[FP]], %{{.*}} : f16
-// CHECK: arith.extf %[[MUL]] : f16 to f32
+// CHECK: ^bb0(%[[IN:.*]]: i8, %[[SCALE:.*]]: f16, %{{.*}}: f32):
+// CHECK:   %[[FP:.*]] = arith.sitofp %[[IN]] : i8 to f32
+// CHECK:   %[[EXT_SCALE:.*]] = arith.extf %[[SCALE]] : f16 to f32
+// CHECK:   %[[MUL:.*]] = arith.mulf %[[FP]], %[[EXT_SCALE]] : f32
+// CHECK:   linalg.yield %[[MUL]] : f32
 func.func @dequantize_per_channel_scale_extension(
     %input: !torch.vtensor<[4,8],si8>,
     %scales: !torch.vtensor<[4],f16>)
@@ -649,11 +650,13 @@ func.func @dequantize_per_channel_group_unsigned_symmetric(
 
 // -----
 
-// Per-channel-group with f16 scales and f32 output: multiply in f16, then extend.
+// Per-channel-group with f16 scales and f32 output: the multiply runs in f32.
 // CHECK-LABEL: func.func @dequantize_per_channel_group_scale_extension(
-// CHECK: %[[FP:.*]] = arith.sitofp %{{.*}} : i8 to f16
-// CHECK: %[[MUL:.*]] = arith.mulf %[[FP]], %{{.*}} : f16
-// CHECK: arith.extf %[[MUL]] : f16 to f32
+// CHECK: ^bb0(%[[IN:.*]]: i8, %[[SCALE:.*]]: f16, %{{.*}}: f32):
+// CHECK:   %[[FP:.*]] = arith.sitofp %[[IN]] : i8 to f32
+// CHECK:   %[[EXT_SCALE:.*]] = arith.extf %[[SCALE]] : f16 to f32
+// CHECK:   %[[MUL:.*]] = arith.mulf %[[FP]], %[[EXT_SCALE]] : f32
+// CHECK:   linalg.yield %[[MUL]] : f32
 func.func @dequantize_per_channel_group_scale_extension(
     %input: !torch.vtensor<[4,16],si8>,
     %scales: !torch.vtensor<[4,4],f16>)
@@ -695,6 +698,95 @@ func.func @dequantize_per_channel_group_scale_truncation(
         !torch.none, !torch.int, !torch.int, !torch.int,
         !torch.int, !torch.int -> !torch.vtensor<[4,16],f16>
   return %out : !torch.vtensor<[4,16],f16>
+}
+
+// -----
+
+// Per-channel-group with a non-integral floating-point zero point, as HQQ
+// quantizers produce: subtract in f32, keeping the fraction, then truncate to
+// the f16 output.
+// onnxruntime's HQQ quantizer optimizes the zero point to a mean:
+// https://github.com/microsoft/onnxruntime/blob/69eeb2bb4aba4bf97f091d529222f1516dc98e49/onnxruntime/python/tools/quantization/matmul_nbits_quantizer.py#L581
+// CHECK-LABEL: func.func @dequantize_per_channel_group_float_zero_point(
+// CHECK: ^bb0(%[[IN:.*]]: i8, %[[SCALE:.*]]: f16, %[[ZP:.*]]: f16, %{{.*}}: f16):
+// CHECK:   %[[FP:.*]] = arith.uitofp %[[IN]] : i8 to f32
+// CHECK:   %[[EXT_ZP:.*]] = arith.extf %[[ZP]] : f16 to f32
+// CHECK:   %[[SUB:.*]] = arith.subf %[[FP]], %[[EXT_ZP]] : f32
+// CHECK:   %[[EXT_SCALE:.*]] = arith.extf %[[SCALE]] : f16 to f32
+// CHECK:   %[[MUL:.*]] = arith.mulf %[[SUB]], %[[EXT_SCALE]] : f32
+// CHECK:   %[[TRUNC:.*]] = arith.truncf %[[MUL]] : f32 to f16
+// CHECK:   linalg.yield %[[TRUNC]] : f16
+func.func @dequantize_per_channel_group_float_zero_point(
+    %input: !torch.vtensor<[4,16],ui8>,
+    %scales: !torch.vtensor<[4,4],f16>,
+    %zero_points: !torch.vtensor<[4,4],f16>)
+    -> !torch.vtensor<[4,16],f16> {
+  %qmin = torch.constant.int 0
+  %qmax = torch.constant.int 15
+  %dtype = torch.constant.int 0
+  %group_size = torch.constant.int 4
+  %out_dtype = torch.constant.int 5
+  %out = torch.quantized_decomposed.dequantize_per_channel_group
+      %input, %scales, %zero_points, %qmin, %qmax, %dtype, %group_size, %out_dtype
+      : !torch.vtensor<[4,16],ui8>, !torch.vtensor<[4,4],f16>,
+        !torch.vtensor<[4,4],f16>, !torch.int, !torch.int, !torch.int,
+        !torch.int, !torch.int -> !torch.vtensor<[4,16],f16>
+  return %out : !torch.vtensor<[4,16],f16>
+}
+
+// -----
+
+// choose_qparams_per_token's meta function types the scales as f64, which
+// FX-imported graphs carry; the scales are truncated so the dequantize stays in
+// f32:
+// https://github.com/pytorch/pytorch/blob/f3c0cf56a7577d677c37718c4edc41b8fc7fb51a/torch/ao/quantization/fx/_decomposed.py#L818-L825
+// CHECK-LABEL: func.func @dequantize_per_token_f64_scales(
+// CHECK: ^bb0(%[[IN:.*]]: i8, %[[SCALE:.*]]: f64, %[[ZP:.*]]: i64, %{{.*}}: f32):
+// CHECK:   %[[FP:.*]] = arith.sitofp %{{.*}} : i64 to f32
+// CHECK:   %[[TRUNC_SCALE:.*]] = arith.truncf %[[SCALE]] : f64 to f32
+// CHECK:   %[[MUL:.*]] = arith.mulf %[[FP]], %[[TRUNC_SCALE]] : f32
+// CHECK:   linalg.yield %[[MUL]] : f32
+func.func @dequantize_per_token_f64_scales(
+    %input: !torch.vtensor<[4,16],si8>,
+    %scales: !torch.vtensor<[4,1],f64>,
+    %zero_points: !torch.vtensor<[4,1],si64>)
+    -> !torch.vtensor<[4,16],f32> {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 1
+  %out_dtype = torch.constant.int 6
+  %out = torch.quantized_decomposed.dequantize_per_token
+      %input, %scales, %zero_points, %qmin, %qmax, %dtype, %out_dtype
+      : !torch.vtensor<[4,16],si8>, !torch.vtensor<[4,1],f64>,
+        !torch.vtensor<[4,1],si64>, !torch.int, !torch.int, !torch.int,
+        !torch.int -> !torch.vtensor<[4,16],f32>
+  return %out : !torch.vtensor<[4,16],f32>
+}
+
+// -----
+
+// The quantize side of the f64 scales above also runs in f32: the f16 input is
+// extended instead of the scales being truncated to f16.
+// CHECK-LABEL: func.func @quantize_per_token_f64_scales(
+// CHECK: ^bb0(%[[IN:.*]]: f16, %[[SCALE:.*]]: f64, %[[ZP:.*]]: i64, %{{.*}}: i8):
+// CHECK:   %[[EXT_IN:.*]] = arith.extf %[[IN]] : f16 to f32
+// CHECK:   %[[TRUNC_SCALE:.*]] = arith.truncf %[[SCALE]] : f64 to f32
+// CHECK:   %[[DIV:.*]] = arith.divf %[[EXT_IN]], %[[TRUNC_SCALE]] : f32
+// CHECK:   arith.fptosi %{{.*}} : f32 to i8
+func.func @quantize_per_token_f64_scales(
+    %input: !torch.vtensor<[4,16],f16>,
+    %scales: !torch.vtensor<[4,1],f64>,
+    %zero_points: !torch.vtensor<[4,1],si64>)
+    -> !torch.vtensor<[4,16],si8> {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 1
+  %out = torch.quantized_decomposed.quantize_per_token
+      %input, %scales, %zero_points, %qmin, %qmax, %dtype
+      : !torch.vtensor<[4,16],f16>, !torch.vtensor<[4,1],f64>,
+        !torch.vtensor<[4,1],si64>, !torch.int, !torch.int, !torch.int
+      -> !torch.vtensor<[4,16],si8>
+  return %out : !torch.vtensor<[4,16],si8>
 }
 
 // -----
@@ -955,6 +1047,60 @@ func.func @dequantize_per_token(
         !torch.vtensor<[4,1],si64>, !torch.int, !torch.int, !torch.int,
         !torch.int -> !torch.vtensor<[4,16],f32>
   return %out : !torch.vtensor<[4,16],f32>
+}
+
+// -----
+
+// Per-token dequantization with f32 zero points, the dtype eager
+// choose_qparams_per_token returns (its meta function reports si64):
+// https://github.com/pytorch/pytorch/blob/f3c0cf56a7577d677c37718c4edc41b8fc7fb51a/torch/ao/quantization/fx/_decomposed.py#L809
+// https://github.com/pytorch/pytorch/blob/f3c0cf56a7577d677c37718c4edc41b8fc7fb51a/torch/ao/quantization/fx/_decomposed.py#L818-L825
+// CHECK-LABEL: func.func @dequantize_per_token_float_zero_point(
+// CHECK: ^bb0(%[[IN:.*]]: i8, %[[SCALE:.*]]: f32, %[[ZP:.*]]: f32, %{{.*}}: f32):
+// CHECK:   %[[FP:.*]] = arith.sitofp %[[IN]] : i8 to f32
+// CHECK:   %[[SUB:.*]] = arith.subf %[[FP]], %[[ZP]] : f32
+// CHECK:   %[[MUL:.*]] = arith.mulf %[[SUB]], %[[SCALE]] : f32
+// CHECK:   linalg.yield %[[MUL]] : f32
+func.func @dequantize_per_token_float_zero_point(
+    %input: !torch.vtensor<[4,16],si8>,
+    %scales: !torch.vtensor<[4,1],f32>,
+    %zero_points: !torch.vtensor<[4,1],f32>)
+    -> !torch.vtensor<[4,16],f32> {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 1
+  %out_dtype = torch.constant.int 6
+  %out = torch.quantized_decomposed.dequantize_per_token
+      %input, %scales, %zero_points, %qmin, %qmax, %dtype, %out_dtype
+      : !torch.vtensor<[4,16],si8>, !torch.vtensor<[4,1],f32>,
+        !torch.vtensor<[4,1],f32>, !torch.int, !torch.int, !torch.int,
+        !torch.int -> !torch.vtensor<[4,16],f32>
+  return %out : !torch.vtensor<[4,16],f32>
+}
+
+// -----
+
+// Per-token quantization of an f16 input with f32 scales computes in f32
+// instead of truncating the scale to f16.
+// CHECK-LABEL: func.func @quantize_per_token_f16_input(
+// CHECK: ^bb0(%[[IN:.*]]: f16, %[[SCALE:.*]]: f32, %[[ZP:.*]]: i64, %{{.*}}: i8):
+// CHECK:   %[[EXT_IN:.*]] = arith.extf %[[IN]] : f16 to f32
+// CHECK:   %[[DIV:.*]] = arith.divf %[[EXT_IN]], %[[SCALE]] : f32
+// CHECK:   arith.fptosi %{{.*}} : f32 to i8
+func.func @quantize_per_token_f16_input(
+    %input: !torch.vtensor<[4,16],f16>,
+    %scales: !torch.vtensor<[4,1],f32>,
+    %zero_points: !torch.vtensor<[4,1],si64>)
+    -> !torch.vtensor<[4,16],si8> {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 1
+  %out = torch.quantized_decomposed.quantize_per_token
+      %input, %scales, %zero_points, %qmin, %qmax, %dtype
+      : !torch.vtensor<[4,16],f16>, !torch.vtensor<[4,1],f32>,
+        !torch.vtensor<[4,1],si64>, !torch.int, !torch.int, !torch.int
+      -> !torch.vtensor<[4,16],si8>
+  return %out : !torch.vtensor<[4,16],si8>
 }
 
 // -----
