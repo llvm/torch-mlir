@@ -1908,6 +1908,7 @@ public:
     // TOSA ReduceAll and ReduceAny ops only accept bool input
     if constexpr (std::is_same<AtenOpT, AtenAllDimOp>() ||
                   std::is_same<AtenOpT, AtenAnyDimOp>() ||
+                  std::is_same<AtenOpT, AtenAnyDimsOp>() ||
                   std::is_same<AtenOpT, AtenAllOp>() ||
                   std::is_same<AtenOpT, AtenAnyOp>()) {
       self = tosa::tosaCastTensorToType(
@@ -2056,6 +2057,70 @@ class ConvertAtenOneDimReductionOp
     auto reduceDimsType = RankedTensorType::get({1}, rewriter.getI64Type());
     reduceDimsAttr =
         DenseIntElementsAttr::get(reduceDimsType, llvm::ArrayRef({reduceDim}));
+
+    keepDims = false;
+    if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepDims)))
+      return rewriter.notifyMatchFailure(
+          op, "non-const keepdim parameter unsupported");
+
+    return success();
+  }
+};
+
+// Unlike the other list-dimension reductions, aten.any.dims distinguishes
+// dim=None (reduce all dimensions) from an explicit empty list (no reduction).
+class ConvertAtenAnyDimsOp
+    : public ConvertAtenReductionOp<AtenAnyDimsOp,
+                                    mlir::tosa::convertReduceAnyOp> {
+public:
+  using ConvertAtenReductionOp<
+      AtenAnyDimsOp, mlir::tosa::convertReduceAnyOp>::ConvertAtenReductionOp;
+  using OpAdaptor = AtenAnyDimsOp::Adaptor;
+
+  LogicalResult readReduceDimsAndKeepDims(AtenAnyDimsOp op, OpAdaptor adaptor,
+                                          ConversionPatternRewriter &rewriter,
+                                          ElementsAttr &reduceDimsAttr,
+                                          bool &keepDims) const override {
+    int64_t inputRank =
+        cast<RankedTensorType>(adaptor.getSelf().getType()).getRank();
+
+    SmallVector<int64_t> reduceDims;
+    if (isa<Torch::NoneType>(op.getDim().getType())) {
+      for (int64_t i = 0; i < inputRank; ++i)
+        reduceDims.push_back(i);
+    } else if (!matchPattern(op.getDim(),
+                             m_TorchListOfConstantInts(reduceDims))) {
+      return rewriter.notifyMatchFailure(op,
+                                         "non-const dim parameter unsupported");
+    }
+
+    if (inputRank == 0) {
+      if (reduceDims.size() > 1)
+        return rewriter.notifyMatchFailure(
+            op, "scalar reduce dim appears multiple times");
+      if (!reduceDims.empty() && reduceDims.front() != 0 &&
+          reduceDims.front() != -1)
+        return rewriter.notifyMatchFailure(
+            op, "scalar reduce dim is statically invalid");
+      reduceDims.clear();
+    }
+
+    for (auto dim : llvm::enumerate(reduceDims)) {
+      dim.value() = toPositiveDim(dim.value(), inputRank);
+      if (!isValidDim(dim.value(), inputRank))
+        return rewriter.notifyMatchFailure(op,
+                                           "reduce dim is statically invalid");
+      for (size_t previous = 0; previous < dim.index(); ++previous) {
+        if (reduceDims[previous] == dim.value())
+          return rewriter.notifyMatchFailure(
+              op, "reduce dim appears multiple times");
+      }
+    }
+
+    auto reduceDimsType = RankedTensorType::get(
+        {static_cast<int64_t>(reduceDims.size())}, rewriter.getI64Type());
+    reduceDimsAttr =
+        DenseIntElementsAttr::get(reduceDimsType, llvm::ArrayRef(reduceDims));
 
     keepDims = false;
     if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepDims)))
@@ -12931,6 +12996,10 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
   INSERT_NDIMS_REDUCTION_OP_PATTERN(AtenLinalgVectorNormOp,
                                     mlir::tosa::convertLinalgVectorNormOp)
 #undef INSERT_NDIMS_REDUCTION_OP_PATTERN
+
+  illegalOps.insert(AtenAnyDimsOp::getOperationName());
+  patterns.addWithLabel<ConvertAtenAnyDimsOp>(AtenAnyDimsOp::getOperationName(),
+                                              typeConverter, context);
 
 #define INSERT_ONEDIM_REDUCTION_OP_PATTERN(AtenOp, ConversionFunc)             \
   illegalOps.insert(AtenOp::getOperationName());                               \
