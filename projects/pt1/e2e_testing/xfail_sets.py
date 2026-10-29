@@ -3156,6 +3156,8 @@ ONNX_XFAIL_SET = {
     "TensorToInt_basic",
     "TestMultipleTensorAndPrimitiveTypesReturn_basic",
     "ThresholdBackward2dMixedModule_basic",
+    # The f16 matmul rounds differently from eager.
+    "TorchaoLinearInt4WeightOnlyPerAxisF16_basic",
     "TorchPrimLoopForLikeModule_basic",
     "TorchPrimLoopWhileLikeModule_basic",
     # RuntimeError: Detected that you are using FX to torch.jit.trace a dynamo-optimized function

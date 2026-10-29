@@ -1195,3 +1195,241 @@ func.func @dynamic_per_token_asymmetric_choose_quant_roundtrip(
         !torch.int -> !torch.vtensor<[?,?],f32>
   return %out : !torch.vtensor<[?,?],f32>
 }
+
+// -----
+
+// CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
+// CHECK: #[[TOKEN:.*]] = affine_map<(d0, d1, d2) -> (0, d1)>
+// CHECK-LABEL: func.func @quantize_affine_per_token(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[1,4,8],bf16>, %[[SCALES:.*]]: !torch.vtensor<[1,4],f32>, %[[ZPS:.*]]: !torch.vtensor<[1,4],f32>)
+// CHECK-DAG: %[[INPUT_T:.*]] = torch_c.to_builtin_tensor %[[INPUT]]
+// CHECK-DAG: %[[SCALES_T:.*]] = torch_c.to_builtin_tensor %[[SCALES]]
+// CHECK-DAG: %[[ZPS_T:.*]] = torch_c.to_builtin_tensor %[[ZPS]]
+// CHECK: %[[EMPTY:.*]] = tensor.empty() : tensor<1x4x8xi8>
+// CHECK: %[[GENERIC:.*]] = linalg.generic
+// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[TOKEN]], #[[TOKEN]], #[[IDENTITY]]]
+// CHECK-SAME: ins(%[[INPUT_T]], %[[SCALES_T]], %[[ZPS_T]] : tensor<1x4x8xbf16>, tensor<1x4xf32>, tensor<1x4xf32>)
+// CHECK-SAME: outs(%[[EMPTY]] : tensor<1x4x8xi8>)
+// CHECK: ^bb0(%[[IN:.*]]: bf16, %[[SCALE:.*]]: f32, %[[ZP:.*]]: f32, %{{.*}}: i8):
+// CHECK:   %[[EXT:.*]] = arith.extf %[[IN]] : bf16 to f32
+// CHECK:   %[[QMIN:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK:   %[[QMAX:.*]] = arith.constant 2.550000e+02 : f32
+// CHECK:   %[[DIV:.*]] = arith.divf %[[EXT]], %[[SCALE]] : f32
+// CHECK:   %[[ROUND:.*]] = math.roundeven %[[DIV]] : f32
+// CHECK:   %[[ADD:.*]] = arith.addf %[[ROUND]], %[[ZP]] : f32
+// CHECK:   %[[LOW:.*]] = arith.maximumf %[[ADD]], %[[QMIN]] : f32
+// CHECK:   %[[HIGH:.*]] = arith.minimumf %[[LOW]], %[[QMAX]] : f32
+// CHECK:   %[[RESULT:.*]] = arith.fptoui %[[HIGH]] : f32 to i8
+// CHECK:   linalg.yield %[[RESULT]] : i8
+func.func @quantize_affine_per_token(
+    %input: !torch.vtensor<[1,4,8],bf16>,
+    %scale: !torch.vtensor<[1,4],f32>,
+    %zero_point: !torch.vtensor<[1,4],f32>)
+    -> !torch.vtensor<[1,4,8],ui8> {
+  %int1 = torch.constant.int 1
+  %int8 = torch.constant.int 8
+  %dtype = torch.constant.int 0
+  %qmin = torch.constant.float 0.000000e+00
+  %none = torch.constant.none
+  %block_size = torch.prim.ListConstruct %int1, %int1, %int8
+      : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %out = torch.torchao.quantize_affine
+      %input, %block_size, %scale, %zero_point, %dtype, %qmin, %none
+      : !torch.vtensor<[1,4,8],bf16>, !torch.list<int>,
+        !torch.vtensor<[1,4],f32>, !torch.vtensor<[1,4],f32>, !torch.int,
+        !torch.float, !torch.none -> !torch.vtensor<[1,4,8],ui8>
+  return %out : !torch.vtensor<[1,4,8],ui8>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @quantize_affine_unsigned_zero_point(
+// CHECK: ^bb0(%[[IN:.*]]: f32, %[[SCALE:.*]]: bf16, %[[ZP:.*]]: i8, %{{.*}}: i8):
+// CHECK:   arith.constant 0.000000e+00 : f32
+// CHECK:   arith.constant 1.500000e+01 : f32
+// CHECK:   %[[SCALE_EXT:.*]] = arith.extf %[[SCALE]] : bf16 to f32
+// CHECK:   arith.uitofp %[[ZP]] : i8 to f32
+// CHECK:   arith.divf %[[IN]], %[[SCALE_EXT]] : f32
+func.func @quantize_affine_unsigned_zero_point(
+    %input: !torch.vtensor<[4,16],f32>,
+    %scale: !torch.vtensor<[4,1],bf16>,
+    %zero_point: !torch.vtensor<[4,1],ui8>)
+    -> !torch.vtensor<[4,16],ui8> {
+  %int1 = torch.constant.int 1
+  %int16 = torch.constant.int 16
+  %dtype = torch.constant.int 0
+  %none = torch.constant.none
+  %qmax = torch.constant.int 15
+  %block_size = torch.prim.ListConstruct %int1, %int16
+      : (!torch.int, !torch.int) -> !torch.list<int>
+  %out = torch.torchao.quantize_affine
+      %input, %block_size, %scale, %zero_point, %dtype, %none, %qmax
+      : !torch.vtensor<[4,16],f32>, !torch.list<int>,
+        !torch.vtensor<[4,1],bf16>, !torch.vtensor<[4,1],ui8>, !torch.int,
+        !torch.none, !torch.int -> !torch.vtensor<[4,16],ui8>
+  return %out : !torch.vtensor<[4,16],ui8>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @quantize_affine_float_zero_point(
+// CHECK: ^bb0(%[[IN:.*]]: bf16, %[[SCALE:.*]]: bf16, %[[ZP:.*]]: f32, %{{.*}}: i16):
+// CHECK:   %[[IN_EXT:.*]] = arith.extf %[[IN]] : bf16 to f32
+// CHECK:   %[[QMIN:.*]] = arith.constant -3.276800e+04 : f32
+// CHECK:   %[[QMAX:.*]] = arith.constant 3.276700e+04 : f32
+// CHECK:   %[[SCALE_EXT:.*]] = arith.extf %[[SCALE]] : bf16 to f32
+// CHECK:   %[[DIV:.*]] = arith.divf %[[IN_EXT]], %[[SCALE_EXT]] : f32
+// CHECK:   %[[ROUND:.*]] = math.roundeven %[[DIV]] : f32
+// CHECK:   %[[ADD:.*]] = arith.addf %[[ROUND]], %[[ZP]] : f32
+// CHECK:   %[[LOW:.*]] = arith.maximumf %[[ADD]], %[[QMIN]] : f32
+// CHECK:   %[[HIGH:.*]] = arith.minimumf %[[LOW]], %[[QMAX]] : f32
+// CHECK:   arith.fptosi %[[HIGH]] : f32 to i16
+func.func @quantize_affine_float_zero_point(
+    %input: !torch.vtensor<[4,16],bf16>,
+    %scale: !torch.vtensor<[4,1],bf16>,
+    %zero_point: !torch.vtensor<[4,1],f32>)
+    -> !torch.vtensor<[4,16],si16> {
+  %int1 = torch.constant.int 1
+  %int16 = torch.constant.int 16
+  %dtype = torch.constant.int 2
+  %none = torch.constant.none
+  %block_size = torch.prim.ListConstruct %int1, %int16
+      : (!torch.int, !torch.int) -> !torch.list<int>
+  %out = torch.torchao.quantize_affine
+      %input, %block_size, %scale, %zero_point, %dtype, %none, %none
+      : !torch.vtensor<[4,16],bf16>, !torch.list<int>,
+        !torch.vtensor<[4,1],bf16>, !torch.vtensor<[4,1],f32>, !torch.int,
+        !torch.none, !torch.none -> !torch.vtensor<[4,16],si16>
+  return %out : !torch.vtensor<[4,16],si16>
+}
+
+// -----
+
+// A non-constant block_size entry, such as a symbolic size from torch.export,
+// spans its dimension.
+// CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK: #[[TENSOR:.*]] = affine_map<(d0, d1) -> ()>
+// CHECK-LABEL: func.func @quantize_affine_per_tensor_dynamic(
+// CHECK: linalg.generic
+// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[TENSOR]], #[[TENSOR]], #[[IDENTITY]]]
+// CHECK-SAME: ins(%{{.*}}, %{{.*}}, %{{.*}} : tensor<2x?xf32>, tensor<f32>, tensor<i8>)
+func.func @quantize_affine_per_tensor_dynamic(
+    %input: !torch.vtensor<[2,?],f32>,
+    %scale: !torch.vtensor<[],f32>,
+    %zero_point: !torch.vtensor<[],ui8>,
+    %size: !torch.int) -> !torch.vtensor<[2,?],ui8> {
+  %int2 = torch.constant.int 2
+  %dtype = torch.constant.int 0
+  %none = torch.constant.none
+  %block_size = torch.prim.ListConstruct %int2, %size
+      : (!torch.int, !torch.int) -> !torch.list<int>
+  %out = torch.torchao.quantize_affine
+      %input, %block_size, %scale, %zero_point, %dtype, %none, %none
+      : !torch.vtensor<[2,?],f32>, !torch.list<int>, !torch.vtensor<[],f32>,
+        !torch.vtensor<[],ui8>, !torch.int, !torch.none, !torch.none
+        -> !torch.vtensor<[2,?],ui8>
+  return %out : !torch.vtensor<[2,?],ui8>
+}
+
+// -----
+
+// CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK: #[[GROUP:.*]] = affine_map<(d0, d1) -> (d0, d1 floordiv 8)>
+// CHECK-LABEL: func.func @dequantize_affine_per_group(
+// CHECK-SAME: %[[INPUT:.*]]: !torch.vtensor<[4,16],ui8>
+// CHECK-SAME: %[[SCALES:.*]]: !torch.vtensor<[4,2],f32>
+// CHECK-SAME: %[[ZPS:.*]]: !torch.vtensor<[4,2],si8>
+// CHECK-DAG: %[[INPUT_T:.*]] = torch_c.to_builtin_tensor %[[INPUT]]
+// CHECK-DAG: %[[SCALES_T:.*]] = torch_c.to_builtin_tensor %[[SCALES]]
+// CHECK-DAG: %[[ZPS_T:.*]] = torch_c.to_builtin_tensor %[[ZPS]]
+// CHECK: %[[EMPTY:.*]] = tensor.empty() : tensor<4x16xf32>
+// CHECK: %[[GENERIC:.*]] = linalg.generic
+// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[GROUP]], #[[GROUP]], #[[IDENTITY]]]
+// CHECK-SAME: ins(%[[INPUT_T]], %[[SCALES_T]], %[[ZPS_T]] : tensor<4x16xi8>, tensor<4x2xf32>, tensor<4x2xi8>)
+// CHECK-SAME: outs(%[[EMPTY]] : tensor<4x16xf32>)
+// CHECK: ^bb0(%[[IN:.*]]: i8, %[[SCALE:.*]]: f32, %[[ZP:.*]]: i8, %{{.*}}: f32):
+// CHECK:   %[[FP:.*]] = arith.uitofp %[[IN]] : i8 to f32
+// CHECK:   %[[ZPF:.*]] = arith.sitofp %[[ZP]] : i8 to f32
+// CHECK:   %[[SUB:.*]] = arith.subf %[[FP]], %[[ZPF]] : f32
+// CHECK:   %[[MUL:.*]] = arith.mulf %[[SUB]], %[[SCALE]] : f32
+// CHECK:   linalg.yield %[[MUL]] : f32
+func.func @dequantize_affine_per_group(
+    %input: !torch.vtensor<[4,16],ui8>,
+    %scale: !torch.vtensor<[4,2],f32>,
+    %zero_point: !torch.vtensor<[4,2],si8>)
+    -> !torch.vtensor<[4,16],f32> {
+  %int1 = torch.constant.int 1
+  %int8 = torch.constant.int 8
+  %dtype = torch.constant.int 0
+  %out_dtype = torch.constant.int 6
+  %none = torch.constant.none
+  %block_size = torch.prim.ListConstruct %int1, %int8
+      : (!torch.int, !torch.int) -> !torch.list<int>
+  %out = torch.torchao.dequantize_affine
+      %input, %block_size, %scale, %zero_point, %dtype, %none, %none, %out_dtype
+      : !torch.vtensor<[4,16],ui8>, !torch.list<int>, !torch.vtensor<[4,2],f32>,
+        !torch.vtensor<[4,2],si8>, !torch.int, !torch.none, !torch.none,
+        !torch.int -> !torch.vtensor<[4,16],f32>
+  return %out : !torch.vtensor<[4,16],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @dequantize_affine_unsigned_zero_point(
+// CHECK: ^bb0(%[[IN:.*]]: i8, %[[SCALE:.*]]: f32, %[[ZP:.*]]: i8, %{{.*}}: bf16):
+// CHECK:   %[[FP:.*]] = arith.uitofp %[[IN]] : i8 to f32
+// CHECK:   %[[ZPF:.*]] = arith.uitofp %[[ZP]] : i8 to f32
+// CHECK:   %[[SUB:.*]] = arith.subf %[[FP]], %[[ZPF]] : f32
+// CHECK:   %[[MUL:.*]] = arith.mulf %[[SUB]], %[[SCALE]] : f32
+// CHECK:   arith.truncf %[[MUL]] : f32 to bf16
+func.func @dequantize_affine_unsigned_zero_point(
+    %input: !torch.vtensor<[4,16],ui8>,
+    %scale: !torch.vtensor<[4,1],f32>,
+    %zero_point: !torch.vtensor<[4,1],ui8>)
+    -> !torch.vtensor<[4,16],bf16> {
+  %int1 = torch.constant.int 1
+  %int16 = torch.constant.int 16
+  %dtype = torch.constant.int 0
+  %out_dtype = torch.constant.int 15
+  %none = torch.constant.none
+  %block_size = torch.prim.ListConstruct %int1, %int16
+      : (!torch.int, !torch.int) -> !torch.list<int>
+  %out = torch.torchao.dequantize_affine
+      %input, %block_size, %scale, %zero_point, %dtype, %none, %none, %out_dtype
+      : !torch.vtensor<[4,16],ui8>, !torch.list<int>, !torch.vtensor<[4,1],f32>,
+        !torch.vtensor<[4,1],ui8>, !torch.int, !torch.none, !torch.none,
+        !torch.int -> !torch.vtensor<[4,16],bf16>
+  return %out : !torch.vtensor<[4,16],bf16>
+}
+
+// -----
+
+// CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK: #[[TENSOR:.*]] = affine_map<(d0, d1) -> ()>
+// CHECK-LABEL: func.func @dequantize_affine_per_tensor(
+// CHECK: %[[GENERIC:.*]] = linalg.generic
+// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[TENSOR]], #[[IDENTITY]]]
+// CHECK: ^bb0(%[[IN:.*]]: f8E4M3FN, %[[SCALE:.*]]: f32, %{{.*}}: bf16):
+// CHECK:   %[[FP:.*]] = arith.extf %[[IN]] : f8E4M3FN to f32
+// CHECK:   %[[MUL:.*]] = arith.mulf %[[FP]], %[[SCALE]] : f32
+// CHECK:   arith.truncf %[[MUL]] : f32 to bf16
+func.func @dequantize_affine_per_tensor(
+    %input: !torch.vtensor<[?,16],f8E4M3FN>,
+    %scale: !torch.vtensor<[],f32>)
+    -> !torch.vtensor<[?,16],bf16> {
+  %int0 = torch.constant.int 0
+  %int16 = torch.constant.int 16
+  %dtype = torch.constant.int 24
+  %out_dtype = torch.constant.int 15
+  %none = torch.constant.none
+  %size = torch.aten.size.int %input, %int0
+      : !torch.vtensor<[?,16],f8E4M3FN>, !torch.int -> !torch.int
+  %block_size = torch.prim.ListConstruct %size, %int16
+      : (!torch.int, !torch.int) -> !torch.list<int>
+  %out = torch.torchao.dequantize_affine
+      %input, %block_size, %scale, %none, %dtype, %none, %none, %out_dtype
+      : !torch.vtensor<[?,16],f8E4M3FN>, !torch.list<int>,
+        !torch.vtensor<[],f32>, !torch.none, !torch.int, !torch.none,
+        !torch.none, !torch.int -> !torch.vtensor<[?,16],bf16>
+  return %out : !torch.vtensor<[?,16],bf16>
+}

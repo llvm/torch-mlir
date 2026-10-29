@@ -65,3 +65,12 @@ def register_all_tests():
     from . import meshgrid
     from . import timeout
     from . import kl_div_loss
+
+    # torchao is optional and can fail to import with errors other than
+    # ImportError.
+    try:
+        import torchao  # noqa: F401
+    except Exception:
+        pass
+    else:
+        from . import torchao_quantized_models
