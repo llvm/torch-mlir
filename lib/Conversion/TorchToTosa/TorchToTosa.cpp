@@ -9056,28 +9056,29 @@ public:
               "and i64 indices");
 
     int64_t batch = rank == 4 ? inputTy.getDimSize(0) : 1;
-    int64_t channels, inputArea, outputArea, kernelArea, ignored;
+    int64_t channels, inputArea, outputArea, horizontalArea, horizontalElements,
+        verticalElements, ignored;
     int64_t kernelHeight = std::min(kernel[0], height);
     int64_t kernelWidth = std::min(kernel[1], width);
     if (llvm::MulOverflow(batch, inputTy.getDimSize(rank - 3), channels) ||
         llvm::MulOverflow(height, width, inputArea) ||
         llvm::MulOverflow(outHeight, outWidth, outputArea) ||
+        llvm::MulOverflow(height, outWidth, horizontalArea) ||
         llvm::MulOverflow(channels, inputArea, ignored) ||
         llvm::MulOverflow(channels, outputArea, ignored) ||
-        llvm::MulOverflow(kernelHeight, kernelWidth, kernelArea) ||
-        llvm::MulOverflow(kernelArea, outputArea, ignored) ||
-        static_cast<uint64_t>(outputArea) >
+        llvm::MulOverflow(horizontalArea, kernelWidth, horizontalElements) ||
+        llvm::MulOverflow(outputArea, kernelHeight, verticalElements) ||
+        llvm::MulOverflow(channels, horizontalElements, ignored) ||
+        llvm::MulOverflow(channels, verticalElements, ignored) ||
+        kernelHeight > std::numeric_limits<int32_t>::max() ||
+        kernelWidth > std::numeric_limits<int32_t>::max() ||
+        static_cast<uint64_t>(std::max(horizontalElements, verticalElements)) >
             std::numeric_limits<size_t>::max() / sizeof(int64_t))
       return rewriter.notifyMatchFailure(
           op, "max_pool2d_with_indices tensor size overflows");
 
     Location loc = op.getLoc();
     Type indexElementTy = indicesTy.getElementType();
-    auto planeTy = RankedTensorType::get({1, outputArea, channels}, elementTy);
-    auto indexPlaneTy =
-        RankedTensorType::get({1, outputArea, channels}, indexElementTy);
-    auto boolPlaneTy =
-        RankedTensorType::get({1, outputArea, channels}, rewriter.getI1Type());
     auto permutation = rewriter.getDenseI32ArrayAttr({0, 2, 1});
     // Fold N*C into gather's channels so spatial maps are shared across planes.
     Value input =
@@ -9087,71 +9088,148 @@ public:
         RankedTensorType::get({1, inputArea, channels}, elementTy), input,
         permutation);
 
-    Value maxValues, maxIndices;
-    for (int64_t kh = 0; kh < kernelHeight; ++kh) {
-      for (int64_t kw = 0; kw < kernelWidth; ++kw) {
-        SmallVector<int64_t> spatialIndices;
-        SmallVector<bool> validPositions;
-        spatialIndices.reserve(outputArea);
-        validPositions.reserve(outputArea);
-        bool allValid = true;
-        for (int64_t oh = 0; oh < outHeight; ++oh) {
-          int64_t rowStart = oh * stride[0];
-          for (int64_t ow = 0; ow < outWidth; ++ow) {
-            int64_t colStart = ow * stride[1];
-            bool valid = kh < height - rowStart && kw < width - colStart;
-            // Even masked gather indices must remain in bounds. Checking the
-            // offsets first also avoids overflowing coordinates in ceil tails.
-            spatialIndices.push_back(
-                valid ? (rowStart + kh) * width + colStart + kw : 0);
+    // Reduce horizontal windows, then vertical windows, carrying the original
+    // image indices. The number of TOSA operations does not grow with the
+    // kernel.
+    auto poolAxis = [&](Value values, Value indices,
+                        bool horizontal) -> FailureOr<std::pair<Value, Value>> {
+      int64_t rows = horizontal ? height : outHeight;
+      int64_t windowCount = horizontal ? horizontalArea : outputArea;
+      int64_t windowSize = horizontal ? kernelWidth : kernelHeight;
+      int64_t mapSize = horizontal ? horizontalElements : verticalElements;
+      SmallVector<int64_t> spatialIndices;
+      SmallVector<bool> validPositions;
+      spatialIndices.reserve(mapSize);
+      validPositions.reserve(mapSize);
+      for (int64_t row = 0; row < rows; ++row) {
+        for (int64_t col = 0; col < outWidth; ++col) {
+          int64_t start = horizontal ? col * stride[1] : row * stride[0];
+          int64_t extent = horizontal ? width : height;
+          for (int64_t k = 0; k < windowSize; ++k) {
+            bool valid = k < extent - start;
+            // Invalid ceil-tail positions still need an in-bounds gather index.
+            int64_t index = 0;
+            if (valid)
+              index = horizontal ? row * width + start + k
+                                 : (start + k) * outWidth + col;
+            spatialIndices.push_back(index);
             validPositions.push_back(valid);
-            allValid &= valid;
           }
         }
-        auto gatherIndices = tosa::getConstTensor<int64_t>(
-            rewriter, op, spatialIndices, {1, outputArea});
-        if (!gatherIndices)
-          return failure();
-        Value candidate = tosa::GatherOp::create(rewriter, loc, planeTy, input,
-                                                 *gatherIndices);
-        Value candidateIndices = reshapeTensor(
-            *gatherIndices, {1, outputArea, 1}, indexElementTy, rewriter, loc);
-        if (!maxValues) {
-          // With zero padding, every retained window starts at a valid input.
-          // Initialize from it so all -inf windows still select a valid index.
-          maxValues = candidate;
-          maxIndices = candidateIndices;
-          if (channels != 1)
-            maxIndices = tosa::TileOp::create(
-                rewriter, loc, indexPlaneTy, maxIndices,
-                tosa::getTosaConstShape(rewriter, loc, {1, 1, channels}));
-          continue;
-        }
-
-        Value nonNan = tosa::EqualOp::create(rewriter, loc, boolPlaneTy,
-                                             candidate, candidate);
-        Value isNan =
-            tosa::LogicalNotOp::create(rewriter, loc, boolPlaneTy, nonNan);
-        Value greater = tosa::GreaterOp::create(rewriter, loc, boolPlaneTy,
-                                                candidate, maxValues);
-        // Strict comparison keeps the first equal maximum; every NaN replaces
-        // the winner, matching Torch's last-NaN rule in row-major kernel order.
-        Value take = tosa::LogicalOrOp::create(rewriter, loc, boolPlaneTy,
-                                               greater, isNan);
-        if (!allValid) {
-          auto valid = tosa::getConstTensor<bool>(rewriter, op, validPositions,
-                                                  {1, outputArea, 1});
-          if (!valid)
-            return failure();
-          take = tosa::LogicalAndOp::create(rewriter, loc, boolPlaneTy, take,
-                                            *valid);
-        }
-        maxValues = tosa::SelectOp::create(rewriter, loc, planeTy, take,
-                                           candidate, maxValues);
-        maxIndices = tosa::SelectOp::create(rewriter, loc, indexPlaneTy, take,
-                                            candidateIndices, maxIndices);
       }
-    }
+      auto map = tosa::getConstTensor<int64_t>(rewriter, op, spatialIndices,
+                                               {1, mapSize});
+      auto valid = tosa::getConstTensor<bool>(rewriter, op, validPositions,
+                                              {windowCount, 1, windowSize});
+      if (!map || !valid)
+        return failure();
+
+      auto windowTy =
+          RankedTensorType::get({windowCount, channels, windowSize}, elementTy);
+      auto maskTy = windowTy.clone(rewriter.getI1Type());
+      auto scoreTy = windowTy.clone(rewriter.getI8Type());
+      auto reducedTy =
+          RankedTensorType::get({windowCount, channels, 1}, elementTy);
+      auto winnerTy =
+          RankedTensorType::get({windowCount, channels}, rewriter.getI32Type());
+      auto axis = rewriter.getI32IntegerAttr(2);
+      auto nanMode = tosa::NanPropagationModeAttr::get(
+          rewriter.getContext(), tosa::NanPropagationMode::PROPAGATE);
+      auto gatherWindows = [&](Value source) -> Value {
+        Type type = cast<RankedTensorType>(source.getType()).getElementType();
+        Value gathered = tosa::GatherOp::create(
+            rewriter, loc, RankedTensorType::get({1, mapSize, channels}, type),
+            source, *map);
+        gathered = reshapeTensor(gathered, {windowCount, windowSize, channels},
+                                 type, rewriter, loc);
+        return tosa::TransposeOp::create(rewriter, loc, windowTy.clone(type),
+                                         gathered, permutation);
+      };
+      Value windows = gatherWindows(values);
+      Value indexWindows;
+      if (indices) {
+        indexWindows = gatherWindows(indices);
+      } else {
+        indexWindows = reshapeTensor(*map, {windowCount, 1, windowSize},
+                                     indexElementTy, rewriter, loc);
+        if (channels != 1)
+          indexWindows = tosa::TileOp::create(
+              rewriter, loc, windowTy.clone(indexElementTy), indexWindows,
+              tosa::getTosaConstShape(rewriter, loc, {1, channels, 1}));
+      }
+
+      Value nonNan =
+          tosa::EqualOp::create(rewriter, loc, maskTy, windows, windows);
+      Value validNumeric =
+          tosa::LogicalAndOp::create(rewriter, loc, maskTy, nonNan, *valid);
+      Value isNan = tosa::LogicalNotOp::create(rewriter, loc, maskTy, nonNan);
+      Value validNan =
+          tosa::LogicalAndOp::create(rewriter, loc, maskTy, isNan, *valid);
+      auto scalarTy = RankedTensorType::get({1, 1, 1}, elementTy);
+      Value negativeInfinity = tosa::ConstOp::create(
+          rewriter, loc, scalarTy,
+          DenseElementsAttr::get(
+              scalarTy,
+              FloatAttr::get(
+                  elementTy,
+                  APFloat::getInf(
+                      cast<FloatType>(elementTy).getFloatSemantics(), true))));
+      Value numericWindows = tosa::SelectOp::create(
+          rewriter, loc, windowTy, validNumeric, windows, negativeInfinity);
+      Value maximum = tosa::ReduceMaxOp::create(rewriter, loc, reducedTy,
+                                                numericWindows, axis, nanMode);
+      Value ties =
+          tosa::EqualOp::create(rewriter, loc, maskTy, windows, maximum);
+      Value eligible =
+          tosa::LogicalAndOp::create(rewriter, loc, maskTy, validNumeric, ties);
+      Value scores = tosa::CastOp::create(rewriter, loc, scoreTy, eligible);
+      Value first = tosa::ArgMaxOp::create(rewriter, loc, winnerTy, scores,
+                                           axis, nanMode);
+
+      // Argmax keeps the first tie. Reverse NaN scores to find the last NaN,
+      // preserving Torch's row-major selection rule through both reductions.
+      Value nanScores = tosa::CastOp::create(rewriter, loc, scoreTy, validNan);
+      Value reversed =
+          tosa::ReverseOp::create(rewriter, loc, scoreTy, nanScores, axis);
+      Value fromEnd = tosa::ArgMaxOp::create(rewriter, loc, winnerTy, reversed,
+                                             axis, nanMode);
+      auto lastOffset = tosa::getConstTensor<int32_t>(
+          rewriter, op, {static_cast<int32_t>(windowSize - 1)}, {1, 1});
+      if (!lastOffset)
+        return failure();
+      Value last =
+          tosa::SubOp::create(rewriter, loc, winnerTy, *lastOffset, fromEnd);
+      Value hasNan = tosa::ReduceAnyOp::create(
+          rewriter, loc, reducedTy.clone(rewriter.getI1Type()), validNan, axis);
+      hasNan = reshapeTensor(hasNan, {windowCount, channels},
+                             rewriter.getI1Type(), rewriter, loc);
+      Value winner =
+          tosa::SelectOp::create(rewriter, loc, winnerTy, hasNan, last, first);
+      winner = reshapeTensor(winner, {windowCount * channels, 1},
+                             rewriter.getI32Type(), rewriter, loc);
+      auto selectWinner = [&](Value candidates) -> Value {
+        Type type =
+            cast<RankedTensorType>(candidates.getType()).getElementType();
+        candidates =
+            reshapeTensor(candidates, {windowCount * channels, windowSize, 1},
+                          type, rewriter, loc);
+        Value selected = tosa::GatherOp::create(
+            rewriter, loc,
+            RankedTensorType::get({windowCount * channels, 1, 1}, type),
+            candidates, winner);
+        return reshapeTensor(selected, {1, windowCount, channels}, type,
+                             rewriter, loc);
+      };
+      // Gather the winning value rather than returning ReduceMax, so equal
+      // positive/negative zeros retain the selected input's sign.
+      return std::make_pair(selectWinner(windows), selectWinner(indexWindows));
+    };
+    auto horizontal = poolAxis(input, Value(), true);
+    if (failed(horizontal))
+      return failure();
+    auto vertical = poolAxis(horizontal->first, horizontal->second, false);
+    if (failed(vertical))
+      return failure();
 
     auto restoreShape = [&](Value value, RankedTensorType resultTy) -> Value {
       Type resultElementTy = resultTy.getElementType();
@@ -9162,8 +9240,8 @@ public:
       return reshapeTensor(transposed, resultShape, resultElementTy, rewriter,
                            loc);
     };
-    rewriter.replaceOp(op, {restoreShape(maxValues, valuesTy),
-                            restoreShape(maxIndices, indicesTy)});
+    rewriter.replaceOp(op, {restoreShape(vertical->first, valuesTy),
+                            restoreShape(vertical->second, indicesTy)});
     return success();
   }
 };
