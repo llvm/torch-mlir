@@ -765,14 +765,16 @@ func.func @dequantize_per_token_f64_scales(
 
 // -----
 
-// The quantize side of the f64 scales above also runs in f32.
+// The quantize side of the f64 scales above also runs in f32: the f16 input is
+// extended instead of the scales being truncated to f16.
 // CHECK-LABEL: func.func @quantize_per_token_f64_scales(
-// CHECK: ^bb0(%[[IN:.*]]: f32, %[[SCALE:.*]]: f64, %[[ZP:.*]]: i64, %{{.*}}: i8):
+// CHECK: ^bb0(%[[IN:.*]]: f16, %[[SCALE:.*]]: f64, %[[ZP:.*]]: i64, %{{.*}}: i8):
+// CHECK:   %[[EXT_IN:.*]] = arith.extf %[[IN]] : f16 to f32
 // CHECK:   %[[TRUNC_SCALE:.*]] = arith.truncf %[[SCALE]] : f64 to f32
-// CHECK:   %[[DIV:.*]] = arith.divf %[[IN]], %[[TRUNC_SCALE]] : f32
+// CHECK:   %[[DIV:.*]] = arith.divf %[[EXT_IN]], %[[TRUNC_SCALE]] : f32
 // CHECK:   arith.fptosi %{{.*}} : f32 to i8
 func.func @quantize_per_token_f64_scales(
-    %input: !torch.vtensor<[4,16],f32>,
+    %input: !torch.vtensor<[4,16],f16>,
     %scales: !torch.vtensor<[4,1],f64>,
     %zero_points: !torch.vtensor<[4,1],si64>)
     -> !torch.vtensor<[4,16],si8> {
@@ -781,7 +783,7 @@ func.func @quantize_per_token_f64_scales(
   %dtype = torch.constant.int 1
   %out = torch.quantized_decomposed.quantize_per_token
       %input, %scales, %zero_points, %qmin, %qmax, %dtype
-      : !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,1],f64>,
+      : !torch.vtensor<[4,16],f16>, !torch.vtensor<[4,1],f64>,
         !torch.vtensor<[4,1],si64>, !torch.int, !torch.int, !torch.int
       -> !torch.vtensor<[4,16],si8>
   return %out : !torch.vtensor<[4,16],si8>
