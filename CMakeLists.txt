@@ -40,6 +40,8 @@ option(TORCH_MLIR_USE_INSTALLED_PYTORCH "If depending on PyTorch use it as insta
 
 option(TORCH_MLIR_ENABLE_REFBACKEND "Enable reference backend" ON)
 
+option(TORCH_MLIR_INCLUDE_TESTS "Generate Torch-MLIR test targets" ON)
+
 if(TORCH_MLIR_ENABLE_REFBACKEND)
   add_definitions(-DTORCH_MLIR_ENABLE_REFBACKEND)
 endif()
@@ -219,9 +221,6 @@ add_subdirectory(include)
 add_subdirectory(lib)
 add_subdirectory(tools)
 
-add_custom_target(check-torch-mlir-all)
-add_dependencies(check-torch-mlir-all check-torch-mlir)
-
 if(MLIR_ENABLE_BINDINGS_PYTHON)
   # If parent projects want to configure where to place the python packages,
   # respect that.
@@ -230,7 +229,11 @@ if(MLIR_ENABLE_BINDINGS_PYTHON)
   endif()
 endif()
 
-add_subdirectory(test)
+if(TORCH_MLIR_INCLUDE_TESTS)
+  add_custom_target(check-torch-mlir-all)
+  add_dependencies(check-torch-mlir-all check-torch-mlir)
+  add_subdirectory(test)
+endif()
 
 if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
   install(DIRECTORY include/torch-mlir include/torch-mlir-c include/torch-mlir-dialects
