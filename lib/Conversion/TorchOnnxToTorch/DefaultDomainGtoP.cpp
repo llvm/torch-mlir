@@ -2238,9 +2238,19 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
           b = transpose(b);
         }
 
-        if (binder.getNumOperands() == 2) {
-          rewriter.replaceOpWithNewOp<Torch::AtenMmOp>(binder.op, resultType, a,
-                                                       b);
+        if (binder.getNumOperands() == 2 ||
+            isa<Torch::NoneType>(binder.op->getOperand(2).getType())) {
+          Value mm = Torch::AtenMmOp::create(rewriter, binder.getLoc(),
+                                             resultType, a, b);
+          if (alpha == 1.0) {
+            rewriter.replaceOp(binder.op, mm);
+            return success();
+          }
+          Value constAlpha = Torch::ConstantFloatOp::create(
+              rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
+              rewriter.getF64FloatAttr(alpha));
+          rewriter.replaceOpWithNewOp<Torch::AtenMulScalarOp>(
+              binder.op, resultType, mm, constAlpha);
           return success();
         }
 

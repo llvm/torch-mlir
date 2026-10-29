@@ -286,6 +286,56 @@ def QuantizedDecomposedQuantizePerTensor_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class QuantizedDecomposedDequantizePerTensorUnsigned(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 8], torch.uint8, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.quantized_decomposed.dequantize_per_tensor.default(
+            x, 0.03, 200, 0, 255, torch.uint8
+        )
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedDequantizePerTensorUnsigned()
+)
+def QuantizedDecomposedDequantizePerTensorUnsigned_basic(module, tu: TestUtils):
+    module.forward(tu.randint(4, 8, low=0, high=256).to(torch.uint8))
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedQuantizePerTensorUnsigned(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 8], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        # The refbackend returns every i8 buffer as int8, so widen the uint8
+        # result to compare its values rather than its reinterpreted bits.
+        return torch.ops.quantized_decomposed.quantize_per_tensor.default(
+            x, 0.03, 200, 0, 255, torch.uint8
+        ).to(torch.int32)
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedQuantizePerTensorUnsigned()
+)
+def QuantizedDecomposedQuantizePerTensorUnsigned_basic(module, tu: TestUtils):
+    module.forward(10 * tu.rand(4, 8) - 5)
+
+
+# ==============================================================================
+
+
 class QuantizedDecomposedDequantizePerChannel(torch.nn.Module):
     @export
     @annotate_args(
@@ -344,6 +394,41 @@ def QuantizedDecomposedDequantizePerChannelUnsignedSymmetric_basic(
 # ==============================================================================
 
 
+class QuantizedDecomposedDequantizePerChannelUnsignedZeroPoint(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 8], torch.uint8, True),
+            ([8], torch.float32, True),
+            ([8], torch.uint8, True),
+        ]
+    )
+    def forward(self, x, scales, zero_points):
+        return torch.ops.quantized_decomposed.dequantize_per_channel.default(
+            x, scales, zero_points, 1, 0, 255, torch.uint8
+        )
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedDequantizePerChannelUnsignedZeroPoint()
+)
+def QuantizedDecomposedDequantizePerChannelUnsignedZeroPoint_basic(
+    module, tu: TestUtils
+):
+    # The eager reference subtracts the zero points in uint8, which wraps when
+    # an input is below its zero point, so the inputs stay above every zero
+    # point. Zero points >= 128 are the ones a sign extension would corrupt.
+    module.forward(
+        tu.randint(4, 8, low=192, high=256).to(torch.uint8),
+        tu.rand(8) + 0.01,
+        tu.randint(8, low=128, high=192).to(torch.uint8),
+    )
+
+
+# ==============================================================================
+
+
 class QuantizedDecomposedQuantizePerChannel(torch.nn.Module):
     @export
     @annotate_args(
@@ -367,3 +452,425 @@ def QuantizedDecomposedQuantizePerChannel_basic(module, tu: TestUtils):
         tu.rand(8) + 0.01,
         tu.randint(8, low=-128, high=127).to(torch.int64),
     )
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedDequantizePerChannelGroup(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 16], torch.int8, True),
+            ([4, 4], torch.float32, True),
+            ([4, 4], torch.int64, True),
+        ]
+    )
+    def forward(self, x, scales, zero_points):
+        return torch.ops.quantized_decomposed.dequantize_per_channel_group.default(
+            x, scales, zero_points, -128, 127, torch.int8, 4, torch.float32
+        )
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedDequantizePerChannelGroup()
+)
+def QuantizedDecomposedDequantizePerChannelGroup_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(4, 16, low=-128, high=127).to(torch.int8),
+        tu.rand(4, 4) + 0.01,
+        tu.randint(4, 4, low=-128, high=127).to(torch.int64),
+    )
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedDequantizePerChannelGroupUnsignedSymmetric(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([8, 32], torch.uint8, True),
+            ([8, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x, scales):
+        return torch.ops.quantized_decomposed.dequantize_per_channel_group.default(
+            x, scales, None, 0, 255, torch.uint8, 8, torch.float32
+        )
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedDequantizePerChannelGroupUnsignedSymmetric()
+)
+def QuantizedDecomposedDequantizePerChannelGroupUnsignedSymmetric_basic(
+    module, tu: TestUtils
+):
+    module.forward(
+        tu.randint(8, 32, low=128, high=255).to(torch.uint8),
+        tu.rand(8, 4) + 0.01,
+    )
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedQuantizePerChannelGroup(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 16], torch.float32, True),
+            ([4, 4], torch.float32, True),
+            ([4, 4], torch.int8, True),
+        ]
+    )
+    def forward(self, x, scales, zero_points):
+        return torch.ops.quantized_decomposed.quantize_per_channel_group.default(
+            x, scales, zero_points, -128, 127, torch.int8, 4
+        )
+
+
+@register_test_case(module_factory=lambda: QuantizedDecomposedQuantizePerChannelGroup())
+def QuantizedDecomposedQuantizePerChannelGroup_basic(module, tu: TestUtils):
+    module.forward(
+        10 * tu.rand(4, 16) - 5,
+        tu.rand(4, 4) + 0.01,
+        tu.randint(4, 4, low=-128, high=127).to(torch.int8),
+    )
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedPerChannelGroupGptqSingleCol(torch.nn.Module):
+    """GPTQ single-column quantize -> dequantize: group_size 128 must
+    be clamped to 16."""
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 16], torch.float32, True),
+            ([4, 1], torch.float32, True),
+            ([4, 1], torch.int64, True),
+        ]
+    )
+    def forward(self, x, scales, zero_points):
+        q = torch.ops.quantized_decomposed.quantize_per_channel_group.default(
+            x, scales, zero_points, -128, 127, torch.int8, 128
+        )
+        return torch.ops.quantized_decomposed.dequantize_per_channel_group.default(
+            q, scales, zero_points, -128, 127, torch.int8, 128, torch.float32
+        )
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedPerChannelGroupGptqSingleCol()
+)
+def QuantizedDecomposedPerChannelGroupGptqSingleCol_basic(module, tu: TestUtils):
+    module.forward(
+        10 * tu.rand(4, 16) - 5,
+        tu.rand(4, 1) + 0.01,
+        tu.randint(4, 1, low=-10, high=10).to(torch.int64),
+    )
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedQuantizePerChannelUnsignedZeroPoint(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 8], torch.float32, True),
+            ([8], torch.float32, True),
+            ([8], torch.uint8, True),
+        ]
+    )
+    def forward(self, x, scales, zero_points):
+        # The refbackend returns every i8 buffer as int8, so widen the uint8
+        # result to compare its values rather than its reinterpreted bits.
+        return torch.ops.quantized_decomposed.quantize_per_channel.default(
+            x, scales, zero_points, 1, 0, 255, torch.uint8
+        ).to(torch.int32)
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedQuantizePerChannelUnsignedZeroPoint()
+)
+def QuantizedDecomposedQuantizePerChannelUnsignedZeroPoint_basic(module, tu: TestUtils):
+    module.forward(
+        10 * tu.rand(4, 8) - 5,
+        tu.rand(8) + 0.01,
+        tu.randint(8, low=128, high=256).to(torch.uint8),
+    )
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedQuantizePerToken(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 16], torch.float32, True),
+            ([4, 1], torch.float32, True),
+            ([4, 1], torch.int64, True),
+        ]
+    )
+    def forward(self, x, scales, zero_points):
+        return torch.ops.quantized_decomposed.quantize_per_token.default(
+            x, scales, zero_points, -128, 127, torch.int8
+        )
+
+
+@register_test_case(module_factory=lambda: QuantizedDecomposedQuantizePerToken())
+def QuantizedDecomposedQuantizePerToken_basic(module, tu: TestUtils):
+    module.forward(
+        10 * tu.rand(4, 16) - 5,
+        tu.rand(4, 1) * 0.1 + 0.01,
+        tu.randint(4, 1, low=-10, high=10).to(torch.int64),
+    )
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedQuantizePerToken3D(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 4, 16], torch.float32, True),
+            ([2, 4, 1], torch.float32, True),
+            ([2, 4, 1], torch.int64, True),
+        ]
+    )
+    def forward(self, x, scales, zero_points):
+        return torch.ops.quantized_decomposed.quantize_per_token.default(
+            x, scales, zero_points, -128, 127, torch.int8
+        )
+
+
+@register_test_case(module_factory=lambda: QuantizedDecomposedQuantizePerToken3D())
+def QuantizedDecomposedQuantizePerToken3D_basic(module, tu: TestUtils):
+    module.forward(
+        10 * tu.rand(2, 4, 16) - 5,
+        tu.rand(2, 4, 1) * 0.1 + 0.01,
+        tu.randint(2, 4, 1, low=-10, high=10).to(torch.int64),
+    )
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedDequantizePerToken(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 16], torch.int8, True),
+            ([4, 1], torch.float32, True),
+            ([4, 1], torch.int64, True),
+        ]
+    )
+    def forward(self, x, scales, zero_points):
+        return torch.ops.quantized_decomposed.dequantize_per_token.default(
+            x, scales, zero_points, -128, 127, torch.int8, torch.float32
+        )
+
+
+@register_test_case(module_factory=lambda: QuantizedDecomposedDequantizePerToken())
+def QuantizedDecomposedDequantizePerToken_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(4, 16, low=-128, high=127).to(torch.int8),
+        tu.rand(4, 1) * 0.1 + 0.01,
+        tu.randint(4, 1, low=-10, high=10).to(torch.int64),
+    )
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedDequantizePerToken3D(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 4, 16], torch.int8, True),
+            ([2, 4, 1], torch.float32, True),
+            ([2, 4, 1], torch.int64, True),
+        ]
+    )
+    def forward(self, x, scales, zero_points):
+        return torch.ops.quantized_decomposed.dequantize_per_token.default(
+            x, scales, zero_points, -128, 127, torch.int8, torch.float32
+        )
+
+
+@register_test_case(module_factory=lambda: QuantizedDecomposedDequantizePerToken3D())
+def QuantizedDecomposedDequantizePerToken3D_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(2, 4, 16, low=-128, high=127).to(torch.int8),
+        tu.rand(2, 4, 1) * 0.1 + 0.01,
+        tu.randint(2, 4, 1, low=-10, high=10).to(torch.int64),
+    )
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedChooseQparamsPerTokenAsymmetric(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 16], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        scale, zp = (
+            torch.ops.quantized_decomposed.choose_qparams_per_token_asymmetric.default(
+                x, torch.int8
+            )
+        )
+        return scale, zp
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedChooseQparamsPerTokenAsymmetric()
+)
+def QuantizedDecomposedChooseQparamsPerTokenAsymmetric_basic(module, tu: TestUtils):
+    module.forward(10 * tu.rand(4, 16) - 5)
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedChooseQparamsPerTokenSymmetric(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 16], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        scale, zp = torch.ops.quantized_decomposed.choose_qparams_per_token.default(
+            x, torch.int8
+        )
+        return scale.to(torch.float32), zp.to(torch.float32)
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedChooseQparamsPerTokenSymmetric()
+)
+def QuantizedDecomposedChooseQparamsPerTokenSymmetric_basic(module, tu: TestUtils):
+    module.forward(10 * tu.rand(4, 16) - 5)
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedDynamicQuantPerTokenAsymmetric(torch.nn.Module):
+    """
+    Mimics dynamic per-token asymmetric activation quantization as used in
+    quantized LLM inference:
+      1. choose_qparams_per_token_asymmetric: compute per-token scale/zp
+      2. quantize_per_token: quantize activations to int8
+      3. dequantize_per_token: dequantize back to float32
+    """
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 16], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        scale, zp = (
+            torch.ops.quantized_decomposed.choose_qparams_per_token_asymmetric.default(
+                x, torch.int8
+            )
+        )
+        xq = torch.ops.quantized_decomposed.quantize_per_token.default(
+            x, scale, zp, -128, 127, torch.int8
+        )
+        return torch.ops.quantized_decomposed.dequantize_per_token.default(
+            xq, scale, zp, -128, 127, torch.int8, torch.float32
+        )
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedDynamicQuantPerTokenAsymmetric()
+)
+def QuantizedDecomposedDynamicQuantPerTokenAsymmetric_basic(module, tu: TestUtils):
+    module.forward(10 * tu.rand(4, 16) - 5)
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedDynamicQuantPerTokenAsymmetric3D(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 4, 16], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        scale, zp = (
+            torch.ops.quantized_decomposed.choose_qparams_per_token_asymmetric.default(
+                x, torch.int8
+            )
+        )
+        xq = torch.ops.quantized_decomposed.quantize_per_token.default(
+            x, scale, zp, -128, 127, torch.int8
+        )
+        return torch.ops.quantized_decomposed.dequantize_per_token.default(
+            xq, scale, zp, -128, 127, torch.int8, torch.float32
+        )
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedDynamicQuantPerTokenAsymmetric3D()
+)
+def QuantizedDecomposedDynamicQuantPerTokenAsymmetric3D_basic(module, tu: TestUtils):
+    module.forward(10 * tu.rand(2, 4, 16) - 5)
+
+
+# ==============================================================================
+
+
+class QuantizedDecomposedDynamicQuantPerTokenSymmetric(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 16], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        scale, zp = torch.ops.quantized_decomposed.choose_qparams_per_token.default(
+            x, torch.int8
+        )
+        xq = torch.ops.quantized_decomposed.quantize_per_token.default(
+            x, scale, zp, -128, 127, torch.int8
+        )
+        return torch.ops.quantized_decomposed.dequantize_per_token.default(
+            xq, scale, zp, -128, 127, torch.int8, torch.float32
+        )
+
+
+@register_test_case(
+    module_factory=lambda: QuantizedDecomposedDynamicQuantPerTokenSymmetric()
+)
+def QuantizedDecomposedDynamicQuantPerTokenSymmetric_basic(module, tu: TestUtils):
+    module.forward(10 * tu.rand(4, 16) - 5)

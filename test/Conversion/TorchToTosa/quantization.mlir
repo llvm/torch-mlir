@@ -5,20 +5,20 @@
 // CHECK-LABEL:   func.func @AtenMmQint8(
 // CHECK-SAME:      %[[LHS:.*]]: !torch.vtensor<[3,4],si8>,
 // CHECK-SAME:      %[[RHS:.*]]: !torch.vtensor<[4,3],si8>) -> !torch.vtensor<[3,3],f32> {
-// CHECK-DAG:           %[[SHIFT:.*]] = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
-// CHECK-DAG:           %[[OUT_SCALE:.*]] = "tosa.const"() <{values = dense<3.784000e-04> : tensor<1x1xf32>}> : () -> tensor<1x1xf32>
-// CHECK-DAG:           %[[MUL_OUT_SHAPE:.*]] = tosa.const_shape  {values = dense<3> : tensor<2xindex>} : () -> !tosa.shape<2>
-// CHECK-DAG:           %[[RHS_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 4, 3]> : tensor<3xindex>} : () -> !tosa.shape<3>
-// CHECK-DAG:           %[[LHS_SHAPE:.*]] = tosa.const_shape  {values = dense<[1, 3, 4]> : tensor<3xindex>} : () -> !tosa.shape<3>
-// CHECK-DAG:           %[[RHS_ZP:.*]] = "tosa.const"() <{values = dense<18> : tensor<1xi8>}> : () -> tensor<1xi8>
-// CHECK-DAG:           %[[LHS_ZP:.*]] = "tosa.const"() <{values = dense<-25> : tensor<1xi8>}> : () -> tensor<1xi8>
+// CHECK-DAG:           %[[SHIFT:.*]] = tosa.const values(dense<0> : tensor<1xi8>) : () -> tensor<1xi8>
+// CHECK-DAG:           %[[OUT_SCALE:.*]] = tosa.const values(dense<3.784000e-04> : tensor<1x1xf32>) : () -> tensor<1x1xf32>
+// CHECK-DAG:           %[[MUL_OUT_SHAPE:.*]] = tosa.const_shape values(dense<3> : tensor<2xindex>) : () -> !tosa.shape<2>
+// CHECK-DAG:           %[[RHS_SHAPE:.*]] = tosa.const_shape values(dense<[1, 4, 3]> : tensor<3xindex>) : () -> !tosa.shape<3>
+// CHECK-DAG:           %[[LHS_SHAPE:.*]] = tosa.const_shape values(dense<[1, 3, 4]> : tensor<3xindex>) : () -> !tosa.shape<3>
+// CHECK-DAG:           %[[RHS_ZP:.*]] = tosa.const values(dense<18> : tensor<1xi8>) : () -> tensor<1xi8>
+// CHECK-DAG:           %[[LHS_ZP:.*]] = tosa.const values(dense<-25> : tensor<1xi8>) : () -> tensor<1xi8>
 // CHECK:           %[[RHS_TENSOR:.*]] = torch_c.to_builtin_tensor %[[RHS]] : !torch.vtensor<[4,3],si8> -> tensor<4x3xi8>
 // CHECK:           %[[LHS_TENSOR:.*]] = torch_c.to_builtin_tensor %[[LHS]] : !torch.vtensor<[3,4],si8> -> tensor<3x4xi8>
 // CHECK:           %[[LHS_RESHAPED:.*]] = tosa.reshape %[[LHS_TENSOR]], %[[LHS_SHAPE]] : (tensor<3x4xi8>, !tosa.shape<3>) -> tensor<1x3x4xi8>
 // CHECK:           %[[RHS_RESHAPED:.*]] = tosa.reshape %[[RHS_TENSOR]], %[[RHS_SHAPE]] : (tensor<4x3xi8>, !tosa.shape<3>) -> tensor<1x4x3xi8>
 // CHECK:           %[[MATMUL:.*]] = tosa.matmul %[[LHS_RESHAPED]], %[[RHS_RESHAPED]], %[[LHS_ZP]], %[[RHS_ZP]] : (tensor<1x3x4xi8>, tensor<1x4x3xi8>, tensor<1xi8>, tensor<1xi8>) -> tensor<1x3x3xi32>
 // CHECK:           %[[MATMUL_RESHAPE:.*]] = tosa.reshape %[[MATMUL]], %[[MUL_OUT_SHAPE]] : (tensor<1x3x3xi32>, !tosa.shape<2>) -> tensor<3x3xi32>
-// CHECK:           %[[MATMUL_FP32:.*]] = tosa.cast %[[MATMUL_RESHAPE]] : (tensor<3x3xi32>) -> tensor<3x3xf32>
+// CHECK:           %[[MATMUL_FP32:.*]] = tosa.cast %[[MATMUL_RESHAPE]] input_unsigned(false) : (tensor<3x3xi32>) -> tensor<3x3xf32>
 // CHECK:           %[[OUT_SCALED:.*]] = tosa.mul %[[MATMUL_FP32]], %[[OUT_SCALE]], %[[SHIFT]] : (tensor<3x3xf32>, tensor<1x1xf32>, tensor<1xi8>) -> tensor<3x3xf32>
 // CHECK:           %[[RES:.*]] = torch_c.from_builtin_tensor %[[OUT_SCALED]] : tensor<3x3xf32> -> !torch.vtensor<[3,3],f32>
 // CHECK:           return %[[RES]]
@@ -46,11 +46,11 @@ func.func @AtenMmQint8(%arg0: !torch.vtensor<[3,4],si8>, %arg1: !torch.vtensor<[
 // -----
 // CHECK-LABEL:   func.func @quantization_per_tensor(
 // CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[2,4,4],f32>) -> !torch.vtensor<[2,4,4],!torch.qint8> {
-// CHECK:           %[[VAL_0:.*]] = "tosa.const"() <{values = dense<3.000000e+00> : tensor<1x1x1xf32>}> : () -> tensor<1x1x1xf32>
-// CHECK:           %[[VAL_1:.*]] = "tosa.const"() <{values = dense<2.000000e+00> : tensor<1x1x1xf32>}> : () -> tensor<1x1x1xf32>
-// CHECK:           %[[VAL_2:.*]] = "tosa.const"() <{values = dense<5.000000e-01> : tensor<1x1x1xf32>}> : () -> tensor<1x1x1xf32>
-// CHECK:           %[[VAL_3:.*]] = "tosa.const"() <{values = dense<1.000000e+01> : tensor<1x1x1xf32>}> : () -> tensor<1x1x1xf32>
-// CHECK:           %[[VAL_4:.*]] = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
+// CHECK:           %[[VAL_0:.*]] = tosa.const values(dense<3.000000e+00> : tensor<1x1x1xf32>) : () -> tensor<1x1x1xf32>
+// CHECK:           %[[VAL_1:.*]] = tosa.const values(dense<2.000000e+00> : tensor<1x1x1xf32>) : () -> tensor<1x1x1xf32>
+// CHECK:           %[[VAL_2:.*]] = tosa.const values(dense<5.000000e-01> : tensor<1x1x1xf32>) : () -> tensor<1x1x1xf32>
+// CHECK:           %[[VAL_3:.*]] = tosa.const values(dense<1.000000e+01> : tensor<1x1x1xf32>) : () -> tensor<1x1x1xf32>
+// CHECK:           %[[VAL_4:.*]] = tosa.const values(dense<0> : tensor<1xi8>) : () -> tensor<1xi8>
 // CHECK:           %[[TO_BUILTIN_TENSOR_0:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[2,4,4],f32> -> tensor<2x4x4xf32>
 // CHECK:           %[[MUL_0:.*]] = tosa.mul %[[TO_BUILTIN_TENSOR_0]], %[[VAL_3]], %[[VAL_4]] : (tensor<2x4x4xf32>, tensor<1x1x1xf32>, tensor<1xi8>) -> tensor<2x4x4xf32>
 // CHECK:           %[[FLOOR_0:.*]] = tosa.floor %[[MUL_0]] : (tensor<2x4x4xf32>) -> tensor<2x4x4xf32>
@@ -66,8 +66,8 @@ func.func @AtenMmQint8(%arg0: !torch.vtensor<[3,4],si8>, %arg1: !torch.vtensor<[
 // CHECK:           %[[LOGICAL_OR_0:.*]] = tosa.logical_or %[[GREATER_0]], %[[LOGICAL_AND_0]] : (tensor<2x4x4xi1>, tensor<2x4x4xi1>) -> tensor<2x4x4xi1>
 // CHECK:           %[[SELECT_0:.*]] = tosa.select %[[LOGICAL_OR_0]], %[[FLOOR_0]], %[[CEIL_0]] : (tensor<2x4x4xi1>, tensor<2x4x4xf32>, tensor<2x4x4xf32>) -> tensor<2x4x4xf32>
 // CHECK:           %[[ADD_0:.*]] = tosa.add %[[SELECT_0]], %[[VAL_0]] : (tensor<2x4x4xf32>, tensor<1x1x1xf32>) -> tensor<2x4x4xf32>
-// CHECK:           %[[CLAMP_0:.*]] = tosa.clamp %[[ADD_0]] {max_val = 1.270000e+02 : f32, min_val = -1.280000e+02 : f32} : (tensor<2x4x4xf32>) -> tensor<2x4x4xf32>
-// CHECK:           %[[CAST_0:.*]] = tosa.cast %[[CLAMP_0]] : (tensor<2x4x4xf32>) -> tensor<2x4x4xi8>
+// CHECK:           %[[CLAMP_0:.*]] = tosa.clamp %[[ADD_0]] min_val(-1.280000e+02 : f32) max_val(1.270000e+02 : f32) : (tensor<2x4x4xf32>) -> tensor<2x4x4xf32>
+// CHECK:           %[[CAST_0:.*]] = tosa.cast %[[CLAMP_0]] input_unsigned(false) : (tensor<2x4x4xf32>) -> tensor<2x4x4xi8>
 // CHECK:           %[[FROM_BUILTIN_TENSOR_0:.*]] = torch_c.from_builtin_tensor %[[CAST_0]] : tensor<2x4x4xi8> -> !torch.vtensor<[2,4,4],!torch.qint8>
 // CHECK:           return %[[FROM_BUILTIN_TENSOR_0]]
 func.func @quantization_per_tensor(%arg0: !torch.vtensor<[2,4,4],f32>) -> !torch.vtensor<[2,4,4],!torch.qint8> {
@@ -84,15 +84,15 @@ func.func @quantization_per_tensor(%arg0: !torch.vtensor<[2,4,4],f32>) -> !torch
 // CHECK-SAME:      %[[IN:.*]]: !torch.vtensor<[3,4,3,2],si8>,
 // CHECK-SAME:      %[[SCALE:.*]]: !torch.vtensor<[3],f32>,
 // CHECK-SAME:      %[[ZP:.*]]: !torch.vtensor<[3],si8>) -> !torch.vtensor<[3,4,3,2],f32> {
-// CHECK:           %[[MUL_SHIFT:.*]] = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
-// CHECK:           %[[QUANT_PARAM_SHAPE:.*]] = tosa.const_shape  {values = dense<[3, 1, 1, 1]> : tensor<4xindex>} : () -> !tosa.shape<4>
+// CHECK:           %[[MUL_SHIFT:.*]] = tosa.const values(dense<0> : tensor<1xi8>) : () -> tensor<1xi8>
+// CHECK:           %[[QUANT_PARAM_SHAPE:.*]] = tosa.const_shape values(dense<[3, 1, 1, 1]> : tensor<4xindex>) : () -> !tosa.shape<4>
 // CHECK:           %[[IN_TENSOR:.*]] = torch_c.to_builtin_tensor %[[IN]] : !torch.vtensor<[3,4,3,2],si8> -> tensor<3x4x3x2xi8>
-// CHECK:           %[[IN_I32:.*]] = tosa.cast %[[IN_TENSOR]] : (tensor<3x4x3x2xi8>) -> tensor<3x4x3x2xi32>
+// CHECK:           %[[IN_I32:.*]] = tosa.cast %[[IN_TENSOR]] input_unsigned(false) : (tensor<3x4x3x2xi8>) -> tensor<3x4x3x2xi32>
 // CHECK:           %[[ZP_TENSOR:.*]] = torch_c.to_builtin_tensor %[[ZP]] : !torch.vtensor<[3],si8> -> tensor<3xi8>
-// CHECK:           %[[ZP_I32:.*]] = tosa.cast %[[ZP_TENSOR]] : (tensor<3xi8>) -> tensor<3xi32>
+// CHECK:           %[[ZP_I32:.*]] = tosa.cast %[[ZP_TENSOR]] input_unsigned(false) : (tensor<3xi8>) -> tensor<3xi32>
 // CHECK:           %[[ZP_RESHAPED:.*]] = tosa.reshape %[[ZP_I32]], %[[QUANT_PARAM_SHAPE]] : (tensor<3xi32>, !tosa.shape<4>) -> tensor<3x1x1x1xi32>
 // CHECK:           %[[SUB:.*]] = tosa.sub %[[IN_I32]], %[[ZP_RESHAPED]] : (tensor<3x4x3x2xi32>, tensor<3x1x1x1xi32>) -> tensor<3x4x3x2xi32>
-// CHECK:           %[[SUB_CAST:.*]] = tosa.cast %[[SUB]] : (tensor<3x4x3x2xi32>) -> tensor<3x4x3x2xf32>
+// CHECK:           %[[SUB_CAST:.*]] = tosa.cast %[[SUB]] input_unsigned(false) : (tensor<3x4x3x2xi32>) -> tensor<3x4x3x2xf32>
 // CHECK:           %[[SCALE_TENSOR:.*]] = torch_c.to_builtin_tensor %[[SCALE]] : !torch.vtensor<[3],f32> -> tensor<3xf32>
 // CHECK:           %[[SCALE_RESHAPED:.*]] = tosa.reshape %[[SCALE_TENSOR]], %[[QUANT_PARAM_SHAPE]] : (tensor<3xf32>, !tosa.shape<4>) -> tensor<3x1x1x1xf32>
 // CHECK:           %[[MUL:.*]] = tosa.mul %[[SUB_CAST]], %[[SCALE_RESHAPED]], %[[MUL_SHIFT]] : (tensor<3x4x3x2xf32>, tensor<3x1x1x1xf32>, tensor<1xi8>) -> tensor<3x4x3x2xf32>
@@ -107,10 +107,10 @@ func.func @dequantize.self(%arg0: !torch.vtensor<[3,4,3,2],si8>, %arg1: !torch.v
 
 // -----
 // CHECK-LABEL:   func.func @quantized_conv(
-// CHECK:           %[[WTS_ZP:.*]] = "tosa.const"() <{values = dense<3> : tensor<1xi8>}> : () -> tensor<1xi8>
-// CHECK:           %[[IN_ZP:.*]] = "tosa.const"() <{values = dense<7> : tensor<1xi8>}> : () -> tensor<1xi8>
+// CHECK:           %[[WTS_ZP:.*]] = tosa.const values(dense<3> : tensor<1xi8>) : () -> tensor<1xi8>
+// CHECK:           %[[IN_ZP:.*]] = tosa.const values(dense<7> : tensor<1xi8>) : () -> tensor<1xi8>
 // CHECK:           %[[CONV:.*]] = tosa.conv2d
-// CHECK-SAME:      %[[IN_ZP]], %[[WTS_ZP]] {acc_type = i32, dilation = array<i64: 1, 1>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 1, 1>} : (tensor<?x7x8x4xi8>, tensor<3x3x2x4xi8>, tensor<?xi32>, tensor<1xi8>, tensor<1xi8>) -> tensor<?x5x7x3xi32>
+// CHECK-SAME:      %[[IN_ZP]], %[[WTS_ZP]] pad([0, 0, 0, 0]) stride([1, 1]) dilation([1, 1]) acc_type(i32) : (tensor<?x7x8x4xi8>, tensor<3x3x2x4xi8>, tensor<?xi32>, tensor<1xi8>, tensor<1xi8>) -> tensor<?x5x7x3xi32>
 // CHECK-NOT: torch.aten.quantize_per_tensor
 // CHECK-NOT: torch.aten.dequantize.self
 // CHECK-NOT: torch.aten._make_per_tensor_quantized_tensor
@@ -144,7 +144,7 @@ func.func @quantized_conv(%arg0: !torch.vtensor<[?,4,7,8],si8>, %arg1: !torch.vt
 
 // CHECK-LABEL:   func.func @quantized_conv_i16(
 // CHECK:           %[[CONV:.*]] = tosa.conv2d
-// CHECK-SAME:      {acc_type = i48,
+// CHECK-SAME:      acc_type(i48)
 func.func @quantized_conv_i16(%arg0: !torch.vtensor<[?,4,7,8],si16>, %arg1: !torch.vtensor<[3,4,3,2],si16>, %arg2: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,3,5,7],f32> {
   %false = torch.constant.bool false
   %int1 = torch.constant.int 1
@@ -178,12 +178,12 @@ func.func @quantized_conv_i16(%arg0: !torch.vtensor<[?,4,7,8],si16>, %arg1: !tor
 
 // CHECK-LABEL:   func.func @dequantize_per_tensor_basic(
 // CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[4,8],si8>) -> !torch.vtensor<[4,8],f32> {
-// CHECK-DAG:       %[[SCALE:.*]] = "tosa.const"() <{values = dense<3.000000e-02> : tensor<1x1xf32>}> : () -> tensor<1x1xf32>
-// CHECK-DAG:       %[[ZP:.*]] = "tosa.const"() <{values = dense<-10> : tensor<1x1xi32>}> : () -> tensor<1x1xi32>
+// CHECK-DAG:       %[[SCALE:.*]] = tosa.const values(dense<3.000000e-02> : tensor<1x1xf32>) : () -> tensor<1x1xf32>
+// CHECK-DAG:       %[[ZP:.*]] = tosa.const values(dense<-10> : tensor<1x1xi32>) : () -> tensor<1x1xi32>
 // CHECK:           %[[BUILTIN:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[4,8],si8> -> tensor<4x8xi8>
-// CHECK:           %[[CAST_INT:.*]] = tosa.cast %[[BUILTIN]] : (tensor<4x8xi8>) -> tensor<4x8xi32>
+// CHECK:           %[[CAST_INT:.*]] = tosa.cast %[[BUILTIN]] input_unsigned(false) : (tensor<4x8xi8>) -> tensor<4x8xi32>
 // CHECK:           %[[SUB:.*]] = tosa.sub %[[CAST_INT]], %[[ZP]] : (tensor<4x8xi32>, tensor<1x1xi32>) -> tensor<4x8xi32>
-// CHECK:           %[[CAST_FP:.*]] = tosa.cast %[[SUB]] : (tensor<4x8xi32>) -> tensor<4x8xf32>
+// CHECK:           %[[CAST_FP:.*]] = tosa.cast %[[SUB]] input_unsigned(false) : (tensor<4x8xi32>) -> tensor<4x8xf32>
 // CHECK:           %[[MUL:.*]] = tosa.mul %[[CAST_FP]], %[[SCALE]]
 // CHECK:           %[[RES:.*]] = torch_c.from_builtin_tensor %[[MUL]] : tensor<4x8xf32> -> !torch.vtensor<[4,8],f32>
 // CHECK:           return %[[RES]]

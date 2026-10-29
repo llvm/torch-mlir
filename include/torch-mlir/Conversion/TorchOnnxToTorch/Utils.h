@@ -15,6 +15,7 @@
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
+#include <utility>
 
 class Endian {
 private:
@@ -40,6 +41,18 @@ Value createConstantIntList(OpBinder binder,
                             ArrayRef<int64_t> cstInput);
 
 Torch::ValueTensorType getQTorchTypeFromTorchIntType(Type ty);
+
+inline bool isSupportedQuantizeDequantizeLinearDtype(Type type) {
+  // TODO: Support uint16 once Torch::getScalarTypeForType can map it.
+  return type.isUnsignedInteger(8) || type.isSignedInteger(8) ||
+         type.isSignedInteger(16) || type.isSignedInteger(32) ||
+         isa<Float4E2M1FNType, Float8E4M3FNType, Float8E4M3FNUZType,
+             Float8E5M2Type, Float8E5M2FNUZType>(type);
+}
+
+std::pair<Value, Value>
+createQuantizationBounds(ConversionPatternRewriter &rewriter, Location loc,
+                         IntegerType dtype);
 
 template <typename T>
 Value getItemOp(OpBinder binder, ConversionPatternRewriter &rewriter,
@@ -127,10 +140,25 @@ LogicalResult extractPerTensorQuantizationArguments(
     ConversionPatternRewriter &rewriter, Location loc, Value inScale,
     Value inZeroPoint, Value &outScale, Value &outZeroPoint);
 
-/// This utility takes as input a quantized tensor and dequantizes it.
+/// This utility takes as input an integer tensor along with its per-tensor
+/// affine quantization parameters (scale, zero point) and dequantizes it to
+/// a floating point tensor using `quantized_decomposed.dequantize_per_tensor`
+/// (PT2E representation). `input` must be a `ValueTensorType` with a known
+/// integer dtype and known sizes.
 LogicalResult createDequantizeTensor(ConversionPatternRewriter &rewriter,
                                      Location loc, Value input, Value scale,
                                      Value zeroPoint, Value &output);
+
+/// This utility takes as input a floating point tensor along with per-tensor
+/// affine quantization parameters (scale, zero point) and quantizes it to
+/// `resultType`'s integer element type using
+/// `quantized_decomposed.quantize_per_tensor` (PT2E representation).
+/// `resultType` must have known sizes and an integer dtype.
+LogicalResult createQuantizeTensor(ConversionPatternRewriter &rewriter,
+                                   Location loc, Value input, Value scale,
+                                   Value zeroPoint,
+                                   Torch::ValueTensorType resultType,
+                                   Value &output);
 
 } // namespace mlir::torch::onnx_c
 

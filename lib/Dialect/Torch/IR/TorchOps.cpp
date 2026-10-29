@@ -2849,10 +2849,17 @@ OpFoldResult AtenSelectIntOp::fold(FoldAdaptor adaptor) {
   if (!dimAttr || !indexAttr || bty.getNumElements() != 1)
     return nullptr;
 
-  auto dim = dimAttr.getInt();
-  auto index = indexAttr.getInt();
+  int64_t rank = selfTy.getRank();
+  int64_t dim = toPositiveDim(dimAttr.getInt(), rank);
+  if (!isValidDim(dim, rank))
+    return nullptr;
 
-  for (int i = 0, s = selfTy.getRank(); i < s; ++i) {
+  int64_t dimSize = selfTy.getDimSize(dim);
+  int64_t index = toPositiveDim(indexAttr.getInt(), dimSize);
+  if (!isValidDim(index, dimSize))
+    return nullptr;
+
+  for (int i = 0, s = rank; i < s; ++i) {
     if (i != dim && selfTy.getDimSize(i) != 1)
       return nullptr;
   }
@@ -3258,6 +3265,37 @@ void AtenMaskedFillTensorOp::getCanonicalizationPatterns(
 }
 
 //===----------------------------------------------------------------------===//
+// AtenCumsumOp
+//===----------------------------------------------------------------------===//
+
+OpFoldResult AtenCumsumOp::fold(FoldAdaptor adaptor) {
+  auto inputType = dyn_cast<ValueTensorType>(getSelf().getType());
+  if (!inputType || inputType != getType() || !inputType.hasSizes() ||
+      !inputType.getSizes().empty() || !inputType.hasDtype())
+    return {};
+
+  // Floating-point scalar cumsum is an identity unless dtype changes.
+  // Integer inputs can be promoted even when dtype is None.
+  if (!isa<Float16Type, BFloat16Type, Float32Type, Float64Type>(
+          inputType.getDtype()))
+    return {};
+
+  int64_t dim;
+  if (!matchPattern(getDim(), m_TorchConstantInt(&dim)) ||
+      (dim != 0 && dim != -1))
+    return {};
+
+  if (!isa<Torch::NoneType>(getDtype().getType())) {
+    int64_t dtype;
+    if (!matchPattern(getDtype(), m_TorchConstantInt(&dtype)) ||
+        dtype !=
+            static_cast<int64_t>(getScalarTypeForType(inputType.getDtype())))
+      return {};
+  }
+  return getSelf();
+}
+
+//===----------------------------------------------------------------------===//
 // AtenCloneOp
 //===----------------------------------------------------------------------===//
 
@@ -3328,16 +3366,17 @@ LogicalResult AtenSortOp::fold(FoldAdaptor adaptor,
   if (!indicesType || !indicesType.hasStaticShape())
     return failure();
 
-  bool unaryDim = false;
   IntegerAttr dimAttribute = dyn_cast_if_present<IntegerAttr>(adaptor.getDim());
   if (!dimAttribute)
     return failure();
-  int64_t dimInt = dimAttribute.getValue().getSExtValue();
-  if (dimInt < 0)
-    dimInt += operandType.getSizes().size();
-  if (dimAttribute) {
-    unaryDim = operandType.getSizes()[dimInt] == 1;
-  }
+  int64_t dim = dimAttribute.getValue().getSExtValue();
+  int64_t rank = operandType.getSizes().size();
+  int64_t effectiveRank = std::max<int64_t>(rank, 1);
+  int64_t normalizedDim = toPositiveDim(dim, effectiveRank);
+  if (!isValidDim(normalizedDim, effectiveRank))
+    return failure();
+
+  bool unaryDim = rank == 0 || operandType.getSizes()[normalizedDim] == 1;
 
   OpBuilder builder(getContext());
   if (unaryDim || llvm::all_of(operandType.getSizes(),
@@ -5213,7 +5252,7 @@ OpFoldResult AtenOnesOp::fold(FoldAdaptor adaptor) {
   }
 
   Type resultType = getResult().getType();
-  BaseTensorType resultTensorType = dyn_cast<BaseTensorType>(resultType);
+  ValueTensorType resultTensorType = dyn_cast<ValueTensorType>(resultType);
   if (!resultTensorType || !resultTensorType.hasDtype() ||
       !resultTensorType.hasSizes()) {
     return nullptr;
@@ -5252,7 +5291,7 @@ OpFoldResult AtenZerosOp::fold(FoldAdaptor adaptor) {
   }
 
   Type resultType = getResult().getType();
-  BaseTensorType resultTensorType = dyn_cast<BaseTensorType>(resultType);
+  ValueTensorType resultTensorType = dyn_cast<ValueTensorType>(resultType);
   if (!resultTensorType || !resultTensorType.hasDtype() ||
       !resultTensorType.hasSizes()) {
     return nullptr;
@@ -5293,7 +5332,7 @@ OpFoldResult AtenFullOp::fold(FoldAdaptor adaptor) {
   }
 
   Type resultType = getResult().getType();
-  BaseTensorType resultTensorType = dyn_cast<BaseTensorType>(resultType);
+  ValueTensorType resultTensorType = dyn_cast<ValueTensorType>(resultType);
   if (!resultTensorType || !resultTensorType.hasDtype() ||
       !resultTensorType.hasSizes()) {
     return nullptr;
@@ -7863,4 +7902,196 @@ ParseResult OnnxVariantRotaryEmbeddingOp::parse(OpAsmParser &parser,
 void OnnxVariantRotaryEmbeddingOp::print(OpAsmPrinter &p) {
   p << " " << getOperands() << " : " << getOperandTypes() << " -> "
     << getResult().getType();
+}
+
+//===----------------------------------------------------------------------===//
+// QuantizedDecomposedQuantizePerTokenOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verifyPerTokenQuantShapes(Operation *op,
+                                               BaseTensorType inputType,
+                                               BaseTensorType scalesType,
+                                               BaseTensorType zpType) {
+  if (!inputType.hasSizes() || !scalesType.hasSizes() || !zpType.hasSizes())
+    return success();
+
+  ArrayRef<int64_t> inputShape = inputType.getSizes();
+  ArrayRef<int64_t> scalesShape = scalesType.getSizes();
+  ArrayRef<int64_t> zpShape = zpType.getSizes();
+  int64_t inputRank = static_cast<int64_t>(inputShape.size());
+
+  if (inputRank < 1)
+    return op->emitOpError("input must have at least 1 dimension");
+
+  if (static_cast<int64_t>(scalesShape.size()) != inputRank)
+    return op->emitOpError("scales must have the same rank as input");
+
+  if (static_cast<int64_t>(zpShape.size()) != inputRank)
+    return op->emitOpError("zero_points must have the same rank as input");
+
+  if (zpShape[inputRank - 1] != ShapedType::kDynamic &&
+      zpShape[inputRank - 1] != 1)
+    return op->emitOpError(
+        "zero_points last dimension must be 1 for per-token quantization");
+
+  if (zpShape != scalesShape)
+    return op->emitOpError("zero_points shape must match scales shape");
+
+  for (int64_t i = 0; i < inputRank - 1; ++i) {
+    if (inputShape[i] != ShapedType::kDynamic &&
+        scalesShape[i] != ShapedType::kDynamic &&
+        inputShape[i] != scalesShape[i])
+      return op->emitOpError(
+          "scales leading dimensions must match input dimensions");
+  }
+
+  return success();
+}
+
+LogicalResult QuantizedDecomposedQuantizePerTokenOp::verify() {
+  return verifyPerTokenQuantShapes(
+      *this, cast<BaseTensorType>(getInput().getType()),
+      cast<BaseTensorType>(getScales().getType()),
+      cast<BaseTensorType>(getZeroPoints().getType()));
+}
+
+//===----------------------------------------------------------------------===//
+// QuantizedDecomposedDequantizePerTokenOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult QuantizedDecomposedDequantizePerTokenOp::verify() {
+  return verifyPerTokenQuantShapes(
+      *this, cast<BaseTensorType>(getInput().getType()),
+      cast<BaseTensorType>(getScales().getType()),
+      cast<BaseTensorType>(getZeroPoints().getType()));
+}
+
+//===----------------------------------------------------------------------===//
+// TorchaoQuantizeAffineOp
+//===----------------------------------------------------------------------===//
+
+static LogicalResult verifyPerBlockQuantShapes(Operation *op, Value input,
+                                               Value blockSize, Value scale,
+                                               Value zeroPoint) {
+  auto scaleType = cast<BaseTensorType>(scale.getType());
+  if (scaleType.hasDtype() &&
+      !isa<mlir::Float16Type, mlir::BFloat16Type, mlir::Float32Type,
+           mlir::Float64Type>(scaleType.getDtype()))
+    return op->emitOpError("scale must have an f16, bf16, f32 or f64 dtype");
+  auto zeroPointType = dyn_cast<BaseTensorType>(zeroPoint.getType());
+  if (zeroPointType && zeroPointType.hasDtype() &&
+      !isa<mlir::IntegerType, mlir::Float16Type, mlir::BFloat16Type,
+           mlir::Float32Type, mlir::Float64Type>(zeroPointType.getDtype()))
+    return op->emitOpError(
+        "zero_point must have an integer, f16, bf16, f32 or f64 dtype");
+
+  // torchao reshapes `scale` and `zero_point` to the blocks, so only their
+  // element counts are checked.
+  int64_t scaleNumel =
+      scaleType.hasSizes() ? getNumel(scaleType.getSizes()) : kUnknownSize;
+  if (zeroPointType && zeroPointType.hasSizes()) {
+    int64_t zeroPointNumel = getNumel(zeroPointType.getSizes());
+    if (scaleNumel != kUnknownSize && zeroPointNumel != kUnknownSize &&
+        zeroPointNumel != scaleNumel)
+      return op->emitOpError("zero_point must have as many elements as scale");
+  }
+
+  SmallVector<Value> entries;
+  auto inputType = cast<BaseTensorType>(input.getType());
+  if (!getListConstructElements(blockSize, entries) || !inputType.hasSizes())
+    return success();
+
+  ArrayRef<int64_t> inputShape = inputType.getSizes();
+  if (entries.size() != inputShape.size())
+    return op->emitOpError(
+        "block_size must have one entry per input dimension");
+
+  SmallVector<int64_t> numBlocksPerDim;
+  for (auto [entry, size] : llvm::zip_equal(entries, inputShape)) {
+    int64_t block;
+    if (!matchPattern(entry, m_TorchConstantInt(&block))) {
+      numBlocksPerDim.push_back(kUnknownSize);
+      continue;
+    }
+    // Entries below 1, which torchao's quantize_ API never produces, are
+    // rejected.
+    if (block < 1 || (size != kUnknownSize && size % block != 0))
+      return op->emitOpError(
+          "block_size entries must be positive divisors of the input sizes");
+    numBlocksPerDim.push_back(size == kUnknownSize ? kUnknownSize
+                                                   : size / block);
+  }
+
+  int64_t numBlocks = getNumel(numBlocksPerDim);
+  if (scaleNumel != kUnknownSize && numBlocks != kUnknownSize &&
+      scaleNumel != numBlocks)
+    return op->emitOpError("scale must have one element per block");
+  return success();
+}
+
+// Checks that the real tensor `real` has an f16, bf16 or f32 dtype.
+static LogicalResult verifyPerBlockRealDtype(Operation *op, StringRef name,
+                                             Value real) {
+  auto realType = cast<BaseTensorType>(real.getType());
+  if (realType.hasDtype() &&
+      !isa<mlir::Float16Type, mlir::BFloat16Type, mlir::Float32Type>(
+          realType.getDtype()))
+    return op->emitOpError() << name << " must have an f16, bf16 or f32 dtype";
+  return success();
+}
+
+// Checks that `dtype` is a torchao storage dtype, is the dtype of `quantized`,
+// and bounds `quant_min` and `quant_max`.
+static LogicalResult verifyPerBlockQuantDtype(Operation *op, StringRef name,
+                                              Value dtype, Value quantized,
+                                              Value quantMin, Value quantMax) {
+  int64_t dtypeInt;
+  if (!matchPattern(dtype, m_TorchConstantInt(&dtypeInt)))
+    return success();
+  using torch_upstream::ScalarType;
+  auto scalarType = static_cast<ScalarType>(dtypeInt);
+  std::optional<std::pair<double, double>> dtypeBounds =
+      getTorchaoDtypeBounds(dtypeInt);
+  if (!dtypeBounds &&
+      !llvm::is_contained({ScalarType::Float8_e4m3fn, ScalarType::Float8_e5m2,
+                           ScalarType::Float8_e4m3fnuz,
+                           ScalarType::Float8_e5m2fnuz},
+                          scalarType))
+    return op->emitOpError()
+           << name << " must be uint8, int8, int16, int32 or a float8 dtype";
+  auto quantizedType = cast<BaseTensorType>(quantized.getType());
+  if (quantizedType.hasDtype() &&
+      quantizedType.getDtype() !=
+          *getTypeForScalarType(op->getContext(), scalarType))
+    return op->emitOpError()
+           << name << " must be the dtype of the quantized tensor";
+  FailureOr<std::pair<double, double>> bounds =
+      getTorchaoQuantBounds(quantMin, quantMax, dtype);
+  if (succeeded(bounds) && (bounds->first < dtypeBounds->first ||
+                            bounds->second > dtypeBounds->second))
+    return op->emitOpError()
+           << "quant_min and quant_max must lie within the bounds of " << name;
+  return success();
+}
+
+LogicalResult TorchaoQuantizeAffineOp::verify() {
+  if (failed(verifyPerBlockQuantShapes(*this, getInput(), getBlockSize(),
+                                       getScale(), getZeroPoint())) ||
+      failed(verifyPerBlockRealDtype(*this, "input", getInput())))
+    return failure();
+  return verifyPerBlockQuantDtype(*this, "output_dtype", getOutputDtype(),
+                                  getResult(), getQuantMin(), getQuantMax());
+}
+
+//===----------------------------------------------------------------------===//
+// TorchaoDequantizeAffineOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult TorchaoDequantizeAffineOp::verify() {
+  if (failed(verifyPerBlockQuantShapes(*this, getInput(), getBlockSize(),
+                                       getScale(), getZeroPoint())) ||
+      failed(verifyPerBlockRealDtype(*this, "result", getResult())))
+    return failure();
+  return verifyPerBlockQuantDtype(*this, "input_dtype", getInputDtype(),
+                                  getInput(), getQuantMin(), getQuantMax());
 }

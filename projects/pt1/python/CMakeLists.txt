@@ -7,8 +7,9 @@ set(CMAKE_PLATFORM_NO_VERSIONED_SONAME ON)
 # argument.
 set(TORCH_MLIR_PYTHON_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}/torch_mlir")
 
-# We vendor our own MLIR instance in the `torch_mlir` namespace.
-add_compile_definitions("MLIR_PYTHON_PACKAGE_PREFIX=torch_mlir.")
+# We vendor our own MLIR instance in the configured package namespace.
+add_compile_definitions(
+  "MLIR_PYTHON_PACKAGE_PREFIX=${TORCH_MLIR_PYTHON_PACKAGE_PREFIX}.")
 
 # ################################################################################
 # # Sources
@@ -42,6 +43,9 @@ if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER)
   add_subdirectory(torch_mlir/jit_ir_importer)
   add_subdirectory(torch_mlir/csrc/jit_ir_importer)
   add_subdirectory(torch_mlir_e2e_test)
+  # onnx_e2e_test reuses the torch_mlir_e2e_test harness (framework,
+  # reporting, backends), so it is only built when that suite is.
+  add_subdirectory(onnx_e2e_test)
 endif()
 
 ################################################################################
@@ -60,6 +64,7 @@ if(TORCH_MLIR_ENABLE_JIT_IR_IMPORTER)
     TorchMLIRJITIRImporter
     TorchMLIRJITIRImporterPybind
     TorchMLIRE2ETestPythonModules
+    OnnxE2ETestPythonModules
   )
 endif()
 

@@ -748,14 +748,46 @@ func.func @test_deform_conv(%arg0: !torch.vtensor<[1,1,7,6],f32>, %arg1: !torch.
 
 // -----
 
+// CHECK-LABEL: @test_dequantizelinear_missing_zp
+func.func @test_dequantizelinear_missing_zp(%arg0: !torch.vtensor<[6],si8>, %arg1: !torch.vtensor<[],f32>) -> !torch.vtensor<[6],f32> attributes {torch.onnx_meta.opset_version = 19 : si64} {
+  // CHECK-NOT: torch.aten.zeros_like
+  // CHECK: %[[SCALE:.+]] = torch.aten.item %arg1 : !torch.vtensor<[],f32> -> !torch.float
+  // CHECK-NEXT: %[[ZP:.+]] = torch.constant.int 0
+  // CHECK-NOT: torch.aten.zeros_like
+  // CHECK-NOT: torch.aten.item
+  // CHECK: %[[DEQ:.+]] = torch.quantized_decomposed.dequantize_per_tensor %arg0, %[[SCALE]], %[[ZP]],
+  // CHECK-NEXT: return %[[DEQ]]
+  %0 = torch.operator "onnx.DequantizeLinear"(%arg0, %arg1) : (!torch.vtensor<[6],si8>, !torch.vtensor<[],f32>) -> !torch.vtensor<[6],f32>
+  return %0 : !torch.vtensor<[6],f32>
+}
+
+// -----
+
+// CHECK-LABEL: @test_dequantizelinear_per_channel_missing_zp
+func.func @test_dequantizelinear_per_channel_missing_zp(%arg0: !torch.vtensor<[2,3],si8>, %arg1: !torch.vtensor<[3],f32>) -> !torch.vtensor<[2,3],f32> attributes {torch.onnx_meta.opset_version = 19 : si64} {
+  // CHECK-NOT: torch.aten.zeros_like
+  // CHECK: %[[ZP:.+]] = torch.constant.none
+  // CHECK-NOT: torch.aten.zeros_like
+  // CHECK: %[[DEQ:.+]] = torch.quantized_decomposed.dequantize_per_channel %arg0, %arg1, %[[ZP]],
+  // CHECK-SAME: : !torch.vtensor<[2,3],si8>, !torch.vtensor<[3],f32>, !torch.none,
+  // CHECK-NEXT: return %[[DEQ]]
+  %0 = torch.operator "onnx.DequantizeLinear"(%arg0, %arg1) {torch.onnx.axis = 1 : si64} : (!torch.vtensor<[2,3],si8>, !torch.vtensor<[3],f32>) -> !torch.vtensor<[2,3],f32>
+  return %0 : !torch.vtensor<[2,3],f32>
+}
+
+// -----
+
 // CHECK-LABEL: @test_dequantizelinear_si8
 func.func @test_dequantizelinear_si8(%arg0: !torch.vtensor<[6],si8>, %arg1: !torch.vtensor<[],f32>, %arg2: !torch.vtensor<[],si8>) -> !torch.vtensor<[6],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 19 : si64} {
   %0 = torch.operator "onnx.DequantizeLinear"(%arg0, %arg1, %arg2) : (!torch.vtensor<[6],si8>, !torch.vtensor<[],f32>, !torch.vtensor<[],si8>) -> !torch.vtensor<[6],f32>
   // CHECK: %[[SCALE:.+]] = torch.aten.item %arg1 : !torch.vtensor<[],f32> -> !torch.float
   // CHECK: %[[ZP:.+]] = torch.aten.item %arg2 : !torch.vtensor<[],si8> -> !torch.int
-  // CHECK: %[[MAKE:.+]] = torch.aten._make_per_tensor_quantized_tensor %arg0, %[[SCALE]], %[[ZP]]
-  // CHECK: %[[DEQ:.+]] = torch.aten.dequantize.self %[[MAKE]]
-  // CHECK: return %[[DEQ]]
+  // CHECK: %[[OUT_DTYPE:.+]] = torch.constant.int 6
+  // CHECK: %[[DTYPE:.+]] = torch.constant.int 1
+  // CHECK: %[[SI8_MIN:.+]] = torch.constant.int -128
+  // CHECK: %[[SI8_MAX:.+]] = torch.constant.int 127
+  // CHECK: %[[DEQ:.+]] = torch.quantized_decomposed.dequantize_per_tensor %arg0, %[[SCALE]], %[[ZP]], %[[SI8_MIN]], %[[SI8_MAX]], %[[DTYPE]], %[[OUT_DTYPE]] : !torch.vtensor<[6],si8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[6],f32>
+  // CHECK: return %[[DEQ]] : !torch.vtensor<[6],f32>
   return %0 : !torch.vtensor<[6],f32>
 }
 
@@ -766,9 +798,12 @@ func.func @test_dequantizelinear_si16(%arg0: !torch.vtensor<[6],si16>, %arg1: !t
   %0 = torch.operator "onnx.DequantizeLinear"(%arg0, %arg1, %arg2) : (!torch.vtensor<[6],si16>, !torch.vtensor<[],f32>, !torch.vtensor<[],si16>) -> !torch.vtensor<[6],f32>
   // CHECK: %[[SCALE:.+]] = torch.aten.item %arg1 : !torch.vtensor<[],f32> -> !torch.float
   // CHECK: %[[ZP:.+]] = torch.aten.item %arg2 : !torch.vtensor<[],si16> -> !torch.int
-  // CHECK: %[[MAKE:.+]] = torch.aten._make_per_tensor_quantized_tensor %arg0, %[[SCALE]], %[[ZP]]
-  // CHECK: %[[DEQ:.+]] = torch.aten.dequantize.self %[[MAKE]]
-  // CHECK: return %[[DEQ]]
+  // CHECK: %[[OUT_DTYPE:.+]] = torch.constant.int 6
+  // CHECK: %[[DTYPE:.+]] = torch.constant.int 2
+  // CHECK: %[[SI16_MIN:.+]] = torch.constant.int -32768
+  // CHECK: %[[SI16_MAX:.+]] = torch.constant.int 32767
+  // CHECK: %[[DEQ:.+]] = torch.quantized_decomposed.dequantize_per_tensor %arg0, %[[SCALE]], %[[ZP]], %[[SI16_MIN]], %[[SI16_MAX]], %[[DTYPE]], %[[OUT_DTYPE]] : !torch.vtensor<[6],si16>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[6],f32>
+  // CHECK: return %[[DEQ]] : !torch.vtensor<[6],f32>
   return %0 : !torch.vtensor<[6],f32>
 }
 
@@ -779,9 +814,12 @@ func.func @test_dequantizelinear_ui8(%arg0: !torch.vtensor<[6],ui8>, %arg1: !tor
   %0 = torch.operator "onnx.DequantizeLinear"(%arg0, %arg1, %arg2) : (!torch.vtensor<[6],ui8>, !torch.vtensor<[],f32>, !torch.vtensor<[],ui8>) -> !torch.vtensor<[6],f32>
   // CHECK: %[[SCALE:.+]] = torch.aten.item %arg1 : !torch.vtensor<[],f32> -> !torch.float
   // CHECK: %[[ZP:.+]] = torch.aten.item %arg2 : !torch.vtensor<[],ui8> -> !torch.int
-  // CHECK: %[[MAKE:.+]] = torch.aten._make_per_tensor_quantized_tensor %arg0, %[[SCALE]], %[[ZP]]
-  // CHECK: %[[DEQ:.+]] = torch.aten.dequantize.self %[[MAKE]]
-  // CHECK: return %[[DEQ]]
+  // CHECK: %[[OUT_DTYPE:.+]] = torch.constant.int 6
+  // CHECK: %[[DTYPE:.+]] = torch.constant.int 0
+  // CHECK: %[[UI8_MIN:.+]] = torch.constant.int 0
+  // CHECK: %[[UI8_MAX:.+]] = torch.constant.int 255
+  // CHECK: %[[DEQ:.+]] = torch.quantized_decomposed.dequantize_per_tensor %arg0, %[[SCALE]], %[[ZP]], %[[UI8_MIN]], %[[UI8_MAX]], %[[DTYPE]], %[[OUT_DTYPE]] : !torch.vtensor<[6],ui8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[6],f32>
+  // CHECK: return %[[DEQ]] : !torch.vtensor<[6],f32>
   return %0 : !torch.vtensor<[6],f32>
 }
 
@@ -792,9 +830,12 @@ func.func @test_dequantizelinear_i32(%arg0: !torch.vtensor<[6],si32>, %arg1: !to
   %0 = torch.operator "onnx.DequantizeLinear"(%arg0, %arg1, %arg2) : (!torch.vtensor<[6],si32>, !torch.vtensor<[],f32>, !torch.vtensor<[],si32>) -> !torch.vtensor<[6],f32>
   // CHECK: %[[SCALE:.+]] = torch.aten.item %arg1 : !torch.vtensor<[],f32> -> !torch.float
   // CHECK: %[[ZP:.+]] = torch.aten.item %arg2 : !torch.vtensor<[],si32> -> !torch.int
-  // CHECK: %[[MAKE:.+]] = torch.aten._make_per_tensor_quantized_tensor %arg0, %[[SCALE]], %[[ZP]]
-  // CHECK: %[[DEQ:.+]] = torch.aten.dequantize.self %[[MAKE]]
-  // CHECK: return %[[DEQ]]
+  // CHECK: %[[OUT_DTYPE:.+]] = torch.constant.int 6
+  // CHECK: %[[DTYPE:.+]] = torch.constant.int 3
+  // CHECK: %[[SI32_MIN:.+]] = torch.constant.int -2147483648
+  // CHECK: %[[SI32_MAX:.+]] = torch.constant.int 2147483647
+  // CHECK: %[[DEQ:.+]] = torch.quantized_decomposed.dequantize_per_tensor %arg0, %[[SCALE]], %[[ZP]], %[[SI32_MIN]], %[[SI32_MAX]], %[[DTYPE]], %[[OUT_DTYPE]] : !torch.vtensor<[6],si32>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[6],f32>
+  // CHECK: return %[[DEQ]] : !torch.vtensor<[6],f32>
   return %0 : !torch.vtensor<[6],f32>
 }
 
@@ -820,10 +861,13 @@ func.func @test_dequantizelinear_fp8(%arg0: !torch.vtensor<[6],f8E4M3FN>, %arg1:
 // CHECK-LABEL: @test_dequantizelinear_per_channel_si8
 func.func @test_dequantizelinear_per_channel_si8(%arg0: !torch.vtensor<[64,3,3,3],si8>, %arg1: !torch.vtensor<[64],f32>, %arg2: !torch.vtensor<[64],si8>) -> !torch.vtensor<[64,3,3,3],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 21 : si64} {
   %0 = torch.operator "onnx.DequantizeLinear"(%arg0, %arg1, %arg2) {torch.onnx.axis = 0 : si64} : (!torch.vtensor<[64,3,3,3],si8>, !torch.vtensor<[64],f32>, !torch.vtensor<[64],si8>) -> !torch.vtensor<[64,3,3,3],f32>
+  // CHECK: %[[OUT_DTYPE:.+]] = torch.constant.int 6
+  // CHECK: %[[DTYPE:.+]] = torch.constant.int 1
+  // CHECK: %[[SI8_MIN:.+]] = torch.constant.int -128
+  // CHECK: %[[SI8_MAX:.+]] = torch.constant.int 127
   // CHECK: %[[AXIS:.+]] = torch.constant.int 0
-  // CHECK: %[[MAKE:.+]] = torch.aten._make_per_channel_quantized_tensor %arg0, %arg1, %arg2,
-  // CHECK: %[[DEQ:.+]] = torch.aten.dequantize.self %[[MAKE]]
-  // CHECK: return %[[DEQ]]
+  // CHECK: %[[DEQ:.+]] = torch.quantized_decomposed.dequantize_per_channel %arg0, %arg1, %arg2, %[[AXIS]], %[[SI8_MIN]], %[[SI8_MAX]], %[[DTYPE]], %[[OUT_DTYPE]] : !torch.vtensor<[64,3,3,3],si8>, !torch.vtensor<[64],f32>, !torch.vtensor<[64],si8>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[64,3,3,3],f32>
+  // CHECK: return %[[DEQ]] : !torch.vtensor<[64,3,3,3],f32>
   return %0 : !torch.vtensor<[64,3,3,3],f32>
 }
 
@@ -966,11 +1010,112 @@ func.func @test_averagepool_1d_default(%arg0: !torch.vtensor<[1,3,32],f32>) -> !
 
 // -----
 
+// ceil_mode with count_include_pad == 0: the pad-excluding divisor and ONNX's
+// ceil split are resolved by a ones-mask ratio -- pad the input and a ones mask
+// with the ONNX split pads, pool both (count_include_pad, floor mode), then
+// divide. The full-kernel divisor cancels, leaving the valid-element average.
 // CHECK-LABEL: @test_averagepool_2d_ceil
+// CHECK:         %[[PAD_IN:.*]] = torch.aten.constant_pad_nd %arg0, %{{.*}}, %{{.*}} : !torch.vtensor<[1,1,4,4],f32>, !torch.list<int>, !torch.float -> !torch.vtensor<[1,1,?,?],f32>
+// CHECK:         %[[ONES:.*]] = torch.aten.ones_like %arg0
+// CHECK:         %[[PAD_ONES:.*]] = torch.aten.constant_pad_nd %[[ONES]], %{{.*}}, %{{.*}}
+// CHECK:         %[[NUM:.*]] = torch.aten.avg_pool2d %[[PAD_IN]], %{{.*}}, %{{.*}}, %{{.*}}, %false, %true, %none
+// CHECK:         %[[DEN:.*]] = torch.aten.avg_pool2d %[[PAD_ONES]], %{{.*}}, %{{.*}}, %{{.*}}, %false, %true, %none
+// CHECK:         torch.aten.div.Tensor %[[NUM]], %[[DEN]]
 func.func @test_averagepool_2d_ceil(%arg0: !torch.vtensor<[1,1,4,4],f32>) -> !torch.vtensor<[1,1,2,2],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 19 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
-  // CHECK: torch.aten.avg_pool2d %arg0, %0, %2, %1, %true, %false, %none : !torch.vtensor<[1,1,4,4],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1,2,2],f32>
   %0 = torch.operator "onnx.AveragePool"(%arg0) {torch.onnx.ceil_mode = 1 : si64, torch.onnx.kernel_shape = [3 : si64, 3 : si64], torch.onnx.strides = [2 : si64, 2 : si64]} : (!torch.vtensor<[1,1,4,4],f32>) -> !torch.vtensor<[1,1,2,2],f32>
   return %0 : !torch.vtensor<[1,1,2,2],f32>
+}
+
+// -----
+
+// ONNX ceil_mode grows the output by splitting the extra extent between the
+// leading and trailing edges, which differs from PyTorch's trailing-only ceil.
+// With count_include_pad set, the divisor is the full kernel area, so the ONNX
+// ceil padding is resolved into explicit (asymmetric) pads and the op is lowered
+// as a plain floor-mode pool -- ceil_mode becomes false and the pad list carries
+// the ONNX split (here H: begin 1, end 2; W: begin/end 1).
+// CHECK-LABEL: @test_averagepool_2d_ceil_count_include_pad
+// CHECK:         %[[PAD:.*]] = torch.prim.ListConstruct %int1, %int1{{.*}}, %int2, %int1{{.*}} : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:         %[[CEIL:.*]] = torch.constant.bool false
+// CHECK:         %[[CIP:.*]] = torch.constant.bool true
+// CHECK:         torch.aten.avg_pool2d %arg0, %{{.*}}, %{{.*}}, %[[PAD]], %[[CEIL]], %[[CIP]], %none
+func.func @test_averagepool_2d_ceil_count_include_pad(%arg0: !torch.vtensor<[1,2,10,11],f32>) -> !torch.vtensor<[1,2,6,6],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 19 : si64} {
+  %0 = torch.operator "onnx.AveragePool"(%arg0) {torch.onnx.ceil_mode = 1 : si64, torch.onnx.count_include_pad = 1 : si64, torch.onnx.kernel_shape = [3 : si64, 3 : si64], torch.onnx.pads = [1 : si64, 1 : si64, 1 : si64, 1 : si64], torch.onnx.strides = [2 : si64, 2 : si64]} : (!torch.vtensor<[1,2,10,11],f32>) -> !torch.vtensor<[1,2,6,6],f32>
+  return %0 : !torch.vtensor<[1,2,6,6],f32>
+}
+
+// -----
+
+// Static input but a dynamic result extent: the static "bake the split into the
+// pad attr" path cannot size the split (it would read an unknown result dim), so
+// this must fall through to the runtime `constant_pad_nd` + zero-padded,
+// floor-mode pool path -- the same one used when the input is dynamic. The ONNX
+// split pads are still derived at runtime (size.int / ge / Int.bool / sub), and
+// the pool itself carries zero padding, so the original [1,1] pads must NOT
+// appear as the pool's padding arg on %arg0.
+// The input extent is a compile-time constant here (static input), so the split
+// is derived from constant ints -- but still through the runtime drop logic
+// (ge -> Int.bool -> sub), not the static bake-into-attr path.
+// CHECK-LABEL: @test_averagepool_2d_ceil_count_include_pad_static_in_dynamic_out
+// CHECK:         %[[DROP:.*]] = torch.aten.ge.int %{{.*}}, %{{.*}} : !torch.int, !torch.int -> !torch.bool
+// CHECK:         %[[DROPI:.*]] = torch.aten.Int.bool %[[DROP]]
+// CHECK:         %[[PADDED:.*]] = torch.aten.constant_pad_nd %arg0
+// CHECK:         %[[ZEROPAD:.*]] = torch.prim.ListConstruct %int0{{.*}}, %int0{{.*}} : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:         %[[CEIL:.*]] = torch.constant.bool false
+// CHECK:         %[[CIP:.*]] = torch.constant.bool true
+// CHECK:         torch.aten.avg_pool2d %[[PADDED]], %{{.*}}, %{{.*}}, %[[ZEROPAD]], %[[CEIL]], %[[CIP]], %none
+func.func @test_averagepool_2d_ceil_count_include_pad_static_in_dynamic_out(%arg0: !torch.vtensor<[1,2,10,11],f32>) -> !torch.vtensor<[1,2,?,?],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 19 : si64} {
+  %0 = torch.operator "onnx.AveragePool"(%arg0) {torch.onnx.ceil_mode = 1 : si64, torch.onnx.count_include_pad = 1 : si64, torch.onnx.kernel_shape = [3 : si64, 3 : si64], torch.onnx.pads = [1 : si64, 1 : si64, 1 : si64, 1 : si64], torch.onnx.strides = [2 : si64, 2 : si64]} : (!torch.vtensor<[1,2,10,11],f32>) -> !torch.vtensor<[1,2,?,?],f32>
+  return %0 : !torch.vtensor<[1,2,?,?],f32>
+}
+
+// -----
+
+// Same as above but with a dynamic spatial dim: the ONNX ceil split depends on
+// the runtime extent, so it is materialized as a runtime `constant_pad_nd` in
+// front of a zero-padded, floor-mode pool (count_include_pad keeps the injected
+// zeros in the divisor, reproducing ONNX). The pool itself has zero padding and
+// ceil_mode false.
+// CHECK-LABEL: @test_averagepool_2d_ceil_count_include_pad_dynamic
+// The split pads are derived from the runtime extent, including ONNX's
+// trailing-window drop (ge -> Int.bool -> sub) that a plain ceil-div misses.
+// CHECK:         %[[DIM:.*]] = torch.aten.size.int %arg0
+// CHECK:         %[[DROP:.*]] = torch.aten.ge.int %{{.*}}, %{{.*}} : !torch.int, !torch.int -> !torch.bool
+// CHECK:         %[[DROPI:.*]] = torch.aten.Int.bool %[[DROP]]
+// CHECK:         torch.aten.sub.int %{{.*}}, %[[DROPI]]
+// CHECK:         %[[PADLIST:.*]] = torch.prim.ListConstruct %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:         %[[PADVAL:.*]] = torch.constant.float 0.000000e+00
+// CHECK:         %[[PADDED:.*]] = torch.aten.constant_pad_nd %arg0, %[[PADLIST]], %[[PADVAL]]
+// CHECK:         %[[ZEROPAD:.*]] = torch.prim.ListConstruct %int0{{.*}}, %int0{{.*}} : (!torch.int, !torch.int) -> !torch.list<int>
+// CHECK:         %[[CEIL:.*]] = torch.constant.bool false
+// CHECK:         %[[CIP:.*]] = torch.constant.bool true
+// CHECK:         torch.aten.avg_pool2d %[[PADDED]], %{{.*}}, %{{.*}}, %[[ZEROPAD]], %[[CEIL]], %[[CIP]], %none
+func.func @test_averagepool_2d_ceil_count_include_pad_dynamic(%arg0: !torch.vtensor<[1,2,?,?],f32>) -> !torch.vtensor<[1,2,?,?],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 19 : si64} {
+  %0 = torch.operator "onnx.AveragePool"(%arg0) {torch.onnx.ceil_mode = 1 : si64, torch.onnx.count_include_pad = 1 : si64, torch.onnx.kernel_shape = [3 : si64, 3 : si64], torch.onnx.pads = [1 : si64, 1 : si64, 1 : si64, 1 : si64], torch.onnx.strides = [2 : si64, 2 : si64]} : (!torch.vtensor<[1,2,?,?],f32>) -> !torch.vtensor<[1,2,?,?],f32>
+  return %0 : !torch.vtensor<[1,2,?,?],f32>
+}
+
+// -----
+
+// count_include_pad == 0 with a dynamic spatial dim: same ones-mask ratio, but
+// the ONNX split pads are computed with runtime integer arithmetic from the
+// input extent before feeding the two pooled branches.
+// CHECK-LABEL: @test_averagepool_2d_ceil_no_count_include_pad_dynamic
+// The split pads are derived from the runtime extent, including ONNX's
+// trailing-window drop (ge -> Int.bool -> sub) that a plain ceil-div misses.
+// CHECK:         %[[DIM:.*]] = torch.aten.size.int %arg0
+// CHECK:         %[[DROP:.*]] = torch.aten.ge.int %{{.*}}, %{{.*}} : !torch.int, !torch.int -> !torch.bool
+// CHECK:         %[[DROPI:.*]] = torch.aten.Int.bool %[[DROP]]
+// CHECK:         torch.aten.sub.int %{{.*}}, %[[DROPI]]
+// CHECK:         %[[PAD_IN:.*]] = torch.aten.constant_pad_nd %arg0
+// CHECK:         %[[ONES:.*]] = torch.aten.ones_like %arg0
+// CHECK:         %[[PAD_ONES:.*]] = torch.aten.constant_pad_nd %[[ONES]]
+// CHECK:         %[[NUM:.*]] = torch.aten.avg_pool2d %[[PAD_IN]], %{{.*}}, %{{.*}}, %{{.*}}, %false, %true, %none
+// CHECK:         %[[DEN:.*]] = torch.aten.avg_pool2d %[[PAD_ONES]], %{{.*}}, %{{.*}}, %{{.*}}, %false, %true, %none
+// CHECK:         torch.aten.div.Tensor %[[NUM]], %[[DEN]]
+func.func @test_averagepool_2d_ceil_no_count_include_pad_dynamic(%arg0: !torch.vtensor<[1,2,?,?],f32>) -> !torch.vtensor<[1,2,?,?],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 19 : si64} {
+  %0 = torch.operator "onnx.AveragePool"(%arg0) {torch.onnx.ceil_mode = 1 : si64, torch.onnx.count_include_pad = 0 : si64, torch.onnx.kernel_shape = [3 : si64, 3 : si64], torch.onnx.pads = [1 : si64, 1 : si64, 1 : si64, 1 : si64], torch.onnx.strides = [2 : si64, 2 : si64]} : (!torch.vtensor<[1,2,?,?],f32>) -> !torch.vtensor<[1,2,?,?],f32>
+  return %0 : !torch.vtensor<[1,2,?,?],f32>
 }
 
 // -----

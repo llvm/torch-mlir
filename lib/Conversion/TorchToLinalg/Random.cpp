@@ -293,7 +293,7 @@ public:
     auto sumBody = [&](OpBuilder &b, Location loc, ValueRange payloadArgs) {
       Value input = payloadArgs[0];
       if (srcWidth < 64)
-        input = arith::ExtFOp::create(b, loc, f64Ty, input);
+        input = arith::ExtFOp::create(b, loc, f64Ty, input, {});
       if (srcWidth > 64)
         input = arith::TruncFOp::create(b, loc, f64Ty, input);
       Value result = payloadArgs[1];
@@ -338,7 +338,8 @@ public:
                 }
                 Value currWeight = tensor::ExtractOp::create(b, loc, self, ind);
                 if (srcWidth < 64)
-                  currWeight = arith::ExtFOp::create(b, loc, f64Ty, currWeight);
+                  currWeight =
+                      arith::ExtFOp::create(b, loc, f64Ty, currWeight, {});
                 if (srcWidth > 64)
                   currWeight =
                       arith::TruncFOp::create(b, loc, f64Ty, currWeight);

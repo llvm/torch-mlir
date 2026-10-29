@@ -27,6 +27,7 @@ from typing import (
     Sequence,
     Set,
     Tuple,
+    Type,
     TYPE_CHECKING,
     Union,
     Iterable,
@@ -55,6 +56,7 @@ from torch._ops import (
 from torch._subclasses import (
     FakeTensor as TorchFakeTensor,
 )
+from torch._subclasses.fake_tensor import unset_fake_temporarily
 
 from torch.fx import (
     Graph,
@@ -157,6 +159,7 @@ TORCH_DTYPE_TO_MLIR_TYPE_ASM = {
     torch.float32: "f32",
     torch.float64: "f64",
     torch.uint8: "ui8",
+    torch.uint32: "ui32",
     torch.int8: "si8",
     torch.int16: "si16",
     torch.int32: "si32",
@@ -187,6 +190,7 @@ TORCH_DTYPE_TO_MLIR_TYPE: Dict[torch.dtype, Callable[[], IrType]] = {
     torch.float32: lambda: F32Type.get(),
     torch.float64: lambda: F64Type.get(),
     torch.uint8: lambda: IntegerType.get_unsigned(8),
+    torch.uint32: lambda: IntegerType.get_unsigned(32),
     torch.int8: lambda: IntegerType.get_signed(8),
     torch.int16: lambda: IntegerType.get_signed(16),
     torch.int32: lambda: IntegerType.get_signed(32),
@@ -215,6 +219,7 @@ TORCH_DTYPE_TO_NPY_TYPE = {
     # torch.qint8: None, # no equivalent np datatype
     # torch.quint8: None,
     torch.uint8: np.uint8,
+    torch.uint32: np.uint32,
     torch.int8: np.int8,
     torch.int16: np.int16,
     torch.int32: np.int32,
@@ -252,6 +257,7 @@ TORCH_DTYPE_TO_INT = {
     # torch.quint8: 13,
     # torch.qint32 14
     torch.bfloat16: 15,
+    torch.uint32: 28,
 }
 # Type entries added only in torch with higher version
 OPTIONAL_TORCH_DTYPE_TO_INT = {
@@ -259,8 +265,8 @@ OPTIONAL_TORCH_DTYPE_TO_INT = {
     "float8_e4m3fn": 24,
     "float8_e5m2fnuz": 25,
     "float8_e4m3fnuz": 26,
-    "float8_e8m0fnu": 28,
-    "float4_e2m1fn_x2": 29,
+    "float8_e8m0fnu": 44,
+    "float4_e2m1fn_x2": 45,
 }
 for dtype_str, dtype_int in OPTIONAL_TORCH_DTYPE_TO_INT.items():
     if hasattr(torch, dtype_str):
@@ -549,6 +555,9 @@ class FxImporter:
       be one reference tracker per import, but this can be injected to share
       the same uniqueing across imports (i.e. if building multiple functions
       into the same context or module).
+    * graph_node_importer_cls: A GraphNodeImporter subclass used for each
+      imported FX graph. It can extend or override node importing behavior,
+      including ``_import_hop_<name>`` methods for higher-order operators.
     """
 
     __slots__ = [
@@ -558,6 +567,7 @@ class FxImporter:
         "_m_ip",
         "_py_attr_tracker",
         "_hooks",
+        "_graph_node_importer_cls",
         "symbol_table",
         "_graph_module_to_func_name",
         "_func_name_counter",
@@ -571,6 +581,7 @@ class FxImporter:
         config_check: bool = True,
         py_attr_tracker: Optional["RefTracker"] = None,
         hooks: Optional[FxImporterHooks] = None,
+        graph_node_importer_cls: Optional[Type["GraphNodeImporter"]] = None,
     ):
         if module is not None:
             assert context is None, "If configuring with a Module, context must be None"
@@ -586,6 +597,7 @@ class FxImporter:
         self._cc = ContextCache(self._c, py_attr_tracker=self._py_attr_tracker)
         self._m_ip = InsertionPoint(self._m.body)
         self._hooks = hooks or FxImporterHooks()
+        self._graph_node_importer_cls = graph_node_importer_cls or GraphNodeImporter
         self.symbol_table = SymbolTable(self._m.operation)
         self._hooks.prepare_module(self._m.operation)
         # Used specifically in HOPs to map module IDs to function names
@@ -694,7 +706,7 @@ class FxImporter:
         # producer for the output.
         user_outputs: List[Optional[Node]] = []
         user_output_types: List[IrType] = []
-        for i, output_spec in enumerate(sig.output_specs):
+        for output_spec in sig.output_specs:
             kind = output_spec.kind
             arg = output_spec.arg
             if kind == OutputKind.USER_OUTPUT:
@@ -712,7 +724,7 @@ class FxImporter:
                     )
                 elif isinstance(arg, ConstantArgument):
                     # Constant Outputs don't have a node so we will only store their values
-                    constant_output_values[i] = arg.value
+                    constant_output_values[len(user_outputs)] = arg.value
                     # Placeholder for constant outputs in the node list
                     user_outputs.append(None)
                     user_output_types.append(self._cc.value_info_to_type(arg.value))
@@ -821,7 +833,7 @@ class FxImporter:
             func_op.attributes["torch.assume_strict_symbolic_shapes"] = UnitAttr.get()
             entry_block = Block.create_at_start(func_op.body, ftype.inputs)
 
-        node_importer = GraphNodeImporter(
+        node_importer = self._graph_node_importer_cls(
             self,
             self._c,
             self._cc,
@@ -1072,7 +1084,7 @@ class FxImporter:
                 visibility=func_visibility,
             )
             entry_block = Block.create_at_start(func.body, ftype.inputs)
-        node_importer = GraphNodeImporter(
+        node_importer = self._graph_node_importer_cls(
             self,
             self._c,
             self._cc,
@@ -1272,7 +1284,7 @@ class ContextCache:
 
         raise NotImplementedError(
             f"Could not deduce type from value info: "
-            f"tensor_meta={tensor_meta}, val={val} {type(val)}, sparsity={sparsity}"
+            f"tensor_meta={tensor_meta}, val={val} {type(val)}"
         )
 
     def tensor_metadata_to_type(
@@ -2210,6 +2222,21 @@ class GraphNodeImporter:
                     loc=loc,
                 )
 
+    def _import_get_attr(self, loc: Location, node: Node) -> None:
+        """Bind an attribute once, resolving its qualified path from the module."""
+        # Use the same (Node, result_index) key as bind_node_value and
+        # resolve_node_value; one get_attr may feed multiple operations.
+        if (node, 0) in self._v:
+            return
+        obj = node.graph.owning_module
+        for component in node.target.split("."):
+            assert hasattr(
+                obj, component
+            ), f"Attempting to retrieve attribute '{node.target}' from module, but no such attribute exists"
+            obj = getattr(obj, component)
+        with loc:
+            self.bind_node_value(node, self._import_literal(obj))
+
     def _import_argument(
         self, loc: Location, arg: NodeArgument, expected_jit_type=None
     ) -> Value:
@@ -2220,15 +2247,8 @@ class GraphNodeImporter:
             if arg in self._multi_result_nodes:
                 raise RuntimeError(f"Attempt to de-reference a multi-result node")
 
-            # catch references to dynamically created constant attributes and make sure they have an origin in our module
-            if arg.op == "get_attr" and (arg.target, 0) not in self._v:
-                gm = arg.graph.owning_module
-                assert hasattr(
-                    gm, arg.target
-                ), f"Attempting to retrieve attribute '{arg.target}' from module, but no such attribute exists"
-                obj = getattr(gm, arg.target)
-                with loc:
-                    self.bind_node_value(arg, self._import_literal(obj))
+            if arg.op == "get_attr":
+                self._import_get_attr(loc, arg)
 
             argument_value = self.resolve_node_value(arg)
         elif isinstance(arg, torch_fx.immutable_collections.immutable_list):
@@ -2386,14 +2406,8 @@ class GraphNodeImporter:
             if isinstance(operand, Node):
                 if operand in self._multi_result_nodes:
                     raise RuntimeError(f"Attempt to de-reference a multi-result node")
-                if operand.op == "get_attr" and (operand, 0) not in self._v:
-                    gm = operand.graph.owning_module
-                    assert hasattr(
-                        gm, operand.target
-                    ), f"Attempting to retrieve attribute '{operand.target}' from module, but no such attribute exists"
-                    obj = getattr(gm, operand.target)
-                    with loc:
-                        self.bind_node_value(operand, self._import_literal(obj))
+                if operand.op == "get_attr":
+                    self._import_get_attr(loc, operand)
                 val = self.resolve_node_value(operand)
                 val_type = str(val.type)
                 assert (
@@ -2550,13 +2564,37 @@ def _make_vtensor_literal_op(
         assert (
             npy_dtype is not None
         ), f"Can not create literal tensor for unsupported datatype: {tensor.dtype}"
-        # We need a raw buffer of data in order to create an ElementsAttr for the invocation of torch.vtensor.literal,
-        # but torch.Tensor does not fulfill the python buffer/array interface hence we must convert to a numpy array to get
-        # a raw buffer of our data. We can't call torch.Tensor.numpy() directly because this internally forces a call to
-        # detach() which throws an error as we are operating in a FakeTensorMode, hence the simplest way to get this raw
-        # buffer is via the indirection: Tensor -> list -> numpy array. This allows us to create a vtensor literal as
-        # desired, but also limits which data types we can support in this function (see TORCH_DTYPE_TO_NPY_TYPE above)
-        np_tensor = np.array(tensor.tolist()).astype(npy_dtype)
+        if (
+            not isinstance(tensor, TorchFakeTensor)
+            and not tensor.is_meta
+            and tensor.layout == torch.strided
+            and tensor.dtype != torch.bool
+            and all(type(dim) is int for dim in tensor.shape)
+            and tensor.numel() > 1
+        ):
+            # Only concrete tensors with known storage reach this branch; do
+            # not disable fake mode to materialize a fake or symbolic tensor.
+            # A byte view avoids per-element Python objects and preserves exact
+            # low-precision encodings. The resource's explicit MLIR tensor type
+            # supplies the element type; uint8 is only the buffer transport.
+            # Copy because the resource retains its buffer: later mutations of
+            # the source tensor must not change the imported constant.
+            with unset_fake_temporarily():
+                np_tensor = (
+                    tensor.detach()
+                    .cpu()
+                    .resolve_conj()
+                    .resolve_neg()
+                    .contiguous()
+                    # A singleton final dimension can retain a non-unit stride.
+                    .reshape(-1)
+                    .view(torch.uint8)
+                    .numpy()
+                    .copy()
+                )
+        else:
+            # Retain the existing conversion for splats and special tensors.
+            np_tensor = np.array(tensor.tolist()).astype(npy_dtype)
         # One element constants are more optimizable as splat DenseElementsAttr. DenseResourceElementsAttr does not
         # support splats, so don't use it for that case. In addition, at the time of writing, it has bugs with handling
         # 0d tensors.
@@ -2570,6 +2608,8 @@ def _make_vtensor_literal_op(
                 type=element_type, array=np_tensor, shape=np_tensor.shape
             )
         else:
+            # Reinterpret, without converting values, so the buffer advertises
+            # the same element alignment as the original typed NumPy path.
             bytes_view = np_tensor.view(npy_dtype)
             tensor_type = create_mlir_tensor_type(tensor)
             shape_desc = "_".join([str(d) for d in tensor.shape])

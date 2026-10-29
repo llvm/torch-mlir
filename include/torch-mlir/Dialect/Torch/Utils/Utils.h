@@ -48,6 +48,8 @@ inline torch_upstream::ScalarType getScalarTypeForType(Type type) {
     return torch_upstream::ScalarType::Half;
   if (type.isUnsignedInteger(8))
     return torch_upstream::ScalarType::Byte;
+  if (type.isUnsignedInteger(32))
+    return torch_upstream::ScalarType::UInt32;
   if (type.isSignedInteger(8))
     return torch_upstream::ScalarType::Char;
   if (isa<QUInt8Type>(type))
@@ -125,6 +127,8 @@ getTypeForScalarType(MLIRContext *context,
     return mlir::Float16Type::get(context);
   case torch_upstream::ScalarType::Byte:
     return mlir::IntegerType::get(context, 8, mlir::IntegerType::Unsigned);
+  case torch_upstream::ScalarType::UInt32:
+    return mlir::IntegerType::get(context, 32, mlir::IntegerType::Unsigned);
   case torch_upstream::ScalarType::Char:
     return mlir::IntegerType::get(context, 8, mlir::IntegerType::Signed);
   case torch_upstream::ScalarType::QUInt8:
@@ -238,6 +242,21 @@ SmallVector<int64_t> makeShapeTorchCompatible(ArrayRef<int64_t> shape);
 ValueTensorType getTensorTypeFromShapeValues(ArrayRef<Value> shapes,
                                              Type dtype);
 Value getTensorDimSize(PatternRewriter &rewriter, Value tensor, int64_t dim);
+
+// Returns the bounds of a uint8, int8, int16 or int32 `dtypeInt`, as in
+// torchao's `_DTYPE_TO_QVALUE_BOUNDS`.
+std::optional<std::pair<double, double>>
+getTorchaoDtypeBounds(int64_t dtypeInt);
+
+// Returns the constant `quantMin` and `quantMax` of a torchao quantization op,
+// with None as the bound of `dtype`.
+FailureOr<std::pair<double, double>>
+getTorchaoQuantBounds(Value quantMin, Value quantMax, Value dtype);
+
+// Returns the `block_size` entries of a torchao quantization op, with a
+// non-constant entry, which spans its dimension, as its size in `inputSizes`.
+FailureOr<SmallVector<int64_t>>
+getTorchaoBlockSize(Value blockSize, ArrayRef<int64_t> inputSizes);
 
 // In Dynamo import paths, we can assume that dynamic dimensions are strictly
 // quantities and are not ambiguous with '1' symbols that can be interpreted

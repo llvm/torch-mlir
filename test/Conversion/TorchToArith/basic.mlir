@@ -82,6 +82,18 @@ func.func @torch.aten.__or__.bool(%arg0: !torch.bool, %arg1: !torch.bool) -> !to
   return %0 : !torch.bool
 }
 
+// CHECK-LABEL:   func.func @torch.aten.__not__(
+// CHECK-SAME:                            %[[ARG_TORCH:.*]]: !torch.bool) -> !torch.bool {
+// CHECK-DAG:       %[[ARG:.*]] = torch_c.to_i1 %[[ARG_TORCH]]
+// CHECK-DAG:       %[[TRUE:.*]] = arith.constant true
+// CHECK:           %[[NOT:.*]] = arith.xori %[[ARG]], %[[TRUE]] : i1
+// CHECK:           %[[TORCH_BOOL:.*]] = torch_c.from_i1 %[[NOT]]
+// CHECK:           return %[[TORCH_BOOL]] : !torch.bool
+func.func @torch.aten.__not__(%arg0: !torch.bool) -> !torch.bool {
+  %0 = torch.aten.__not__ %arg0 : !torch.bool -> !torch.bool
+  return %0 : !torch.bool
+}
+
 // CHECK-LABEL:   func.func @torch.aten.eq.int(
 // CHECK-SAME:                            %[[LHS:.*]]: !torch.int,
 // CHECK-SAME:                            %[[RHS:.*]]: !torch.int) -> !torch.bool {

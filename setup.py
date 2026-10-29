@@ -16,6 +16,12 @@
 #   TORCH_MLIR_ENABLE_LTC:
 #       enables the Lazy Tensor Core Backend
 #
+#   TORCH_MLIR_ENABLE_STABLEHLO:
+#       enables the StableHLO Backend
+#
+#   CMAKE_DISABLE_PRECOMPILE_HEADERS:
+#       disables precompiled headers during CMake build
+#
 #   LLVM_INSTALL_DIR:
 #       build the project *out-of-tree* using the built llvm-project
 #
@@ -83,8 +89,12 @@ PACKAGE_VERSION = os.getenv("TORCH_MLIR_PYTHON_PACKAGE_VERSION", "0.0.1")
 
 # If true, enable LTC build by default
 TORCH_MLIR_ENABLE_LTC = _check_env_flag("TORCH_MLIR_ENABLE_LTC", True)
+TORCH_MLIR_ENABLE_STABLEHLO = _check_env_flag("TORCH_MLIR_ENABLE_STABLEHLO", True)
 TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS = _check_env_flag(
     "TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS", True
+)
+CMAKE_DISABLE_PRECOMPILE_HEADERS = _check_env_flag(
+    "CMAKE_DISABLE_PRECOMPILE_HEADERS", True
 )
 LLVM_INSTALL_DIR = os.getenv("LLVM_INSTALL_DIR", None)
 SRC_DIR = pathlib.Path(__file__).parent.absolute()
@@ -135,9 +145,14 @@ class CMakeBuild(build_py):
             f"-DCMAKE_C_VISIBILITY_PRESET=hidden",
             f"-DCMAKE_CXX_VISIBILITY_PRESET=hidden",
             f"-DTORCH_MLIR_ENABLE_LTC={'ON' if TORCH_MLIR_ENABLE_LTC else 'OFF'}",
+            f"-DTORCH_MLIR_ENABLE_STABLEHLO={'ON' if TORCH_MLIR_ENABLE_STABLEHLO else 'OFF'}",
             f"-DTORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS={'OFF' if TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else 'ON'}",
             f"-DMLIR_ENABLE_PYTHON_STABLE_ABI={'ON' if use_stable_abi else 'OFF'}",
+            f"-DCMAKE_DISABLE_PRECOMPILE_HEADERS={'ON' if CMAKE_DISABLE_PRECOMPILE_HEADERS else 'OFF'}",
         ]
+        for compiler_var in ["CMAKE_C_COMPILER", "CMAKE_CXX_COMPILER"]:
+            if compiler_var in os.environ:
+                cmake_config_args.append(f"-D{compiler_var}={os.environ[compiler_var]}")
         if LLVM_INSTALL_DIR:
             cmake_config_args += [
                 f"-DMLIR_DIR='{LLVM_INSTALL_DIR}/lib/cmake/mlir/'",

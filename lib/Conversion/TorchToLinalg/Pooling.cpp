@@ -115,11 +115,14 @@ static Value padInputTensor(Operation *op, ConversionPatternRewriter &rewriter,
                             Value self, bool ceilMode, int64_t dimensionality,
                             SmallVectorImpl<int64_t> &strideInts,
                             SmallVectorImpl<int64_t> &paddingInts,
+                            SmallVectorImpl<int64_t> &dilationInts,
+                            SmallVectorImpl<Value> &kernelSizeIntValues,
                             Value initValue) {
   SmallVector<int64_t> lowPaddingIncludingNC = {0, 0};
   SmallVector<int64_t> highPaddingIncludingNC = {0, 0};
 
-  unsigned selfRank = cast<RankedTensorType>(self.getType()).getRank();
+  auto selfType = cast<RankedTensorType>(self.getType());
+  unsigned selfRank = selfType.getRank();
   unsigned paddingIntsSize = paddingInts.size();
 
   if (paddingIntsSize == 2 * (selfRank - 2)) {
@@ -135,8 +138,36 @@ static Value padInputTensor(Operation *op, ConversionPatternRewriter &rewriter,
   }
 
   if (ceilMode) {
+    ArrayRef<int64_t> inputShape = selfType.getShape();
     for (int64_t i = 0; i < dimensionality; ++i) {
-      highPaddingIncludingNC[i + 2] += strideInts[i];
+      int64_t stride = strideInts[i];
+      // A unit stride has zero deficit at any extent or kernel size, so this
+      // also covers dynamic dimensions.
+      if (stride == 1)
+        continue;
+      int64_t inputDim = inputShape[i + 2];
+      std::optional<int64_t> kernelSize =
+          getConstantIntValue(kernelSizeIntValues[i]);
+      if (inputDim == ShapedType::kDynamic || !kernelSize) {
+        // Without static extents, pad by a full stride, which covers the
+        // largest possible deficit of stride - 1.
+        highPaddingIncludingNC[i + 2] += stride;
+        continue;
+      }
+      // Pad only up to what the last window reads. `lastWindowStart` mirrors
+      // torch_to_linalg::getOutputDimForPoolOps, including its drop of a window
+      // starting entirely inside the padded region.
+      int64_t totalPadding =
+          lowPaddingIncludingNC[i + 2] + highPaddingIncludingNC[i + 2];
+      int64_t dilatedKernel = dilationInts[i] * (*kernelSize - 1) + 1;
+      int64_t lastWindowStart =
+          llvm::divideCeilSigned(inputDim + totalPadding - dilatedKernel,
+                                 stride) *
+          stride;
+      if (lastWindowStart >= inputDim + lowPaddingIncludingNC[i + 2])
+        lastWindowStart -= stride;
+      highPaddingIncludingNC[i + 2] += std::max<int64_t>(
+          0, lastWindowStart + dilatedKernel - (inputDim + totalPadding));
     }
   }
 
@@ -163,8 +194,9 @@ static LogicalResult createPoolingOp(
   Value initValue =
       arith::ConstantOp::create(rewriter, loc, cast<TypedAttr>(initValueAttr));
 
-  paddedInput = padInputTensor(op, rewriter, self, ceilMode, dimensionality,
-                               strideInts, paddingInts, initValue);
+  paddedInput =
+      padInputTensor(op, rewriter, self, ceilMode, dimensionality, strideInts,
+                     paddingInts, dilationInts, kernelSizeIntValues, initValue);
 
   auto outTensorInitialized = computeOutputTensor(
       op, rewriter, self, dimensionality, ceilMode, strideInts, paddingInts,
@@ -453,8 +485,9 @@ private:
     Value initValue =
         arith::ConstantOp::create(rewriter, op->getLoc(), smallestFPValueAttr);
 
-    paddedInput = padInputTensor(op, rewriter, self, ceilMode, 3, strideInts,
-                                 paddingInts, initValue);
+    paddedInput = padInputTensor(op, rewriter, self, ceilMode,
+                                 /*dimensionality=*/3, strideInts, paddingInts,
+                                 dilationInts, kernelSizeIntValues, initValue);
 
     auto outTensorInitialized = computeOutputTensor(
         op, rewriter, self, 3, ceilMode, strideInts, paddingInts, dilationInts,
@@ -673,7 +706,8 @@ public:
 
     if (selfRank != Dim + 2)
       return rewriter.notifyMatchFailure(
-          op, "unimplemented: Does not support inputs with rank");
+          op, "unimplemented: only supports inputs with rank equal to the "
+              "number of spatial dimensions plus two");
 
     bool ceilMode;
     SmallVector<Value, Dim> kernelSizeIntValues;
@@ -1017,12 +1051,19 @@ Value PoolSizeCalculator<NumOfDims>::getPoolSize(
     Value ODim = castIndexToInt64(b, location, IndexODim);
     Value DDim = b.createOrFold<arith::ConstantOp>(
         location, b.getI64IntegerAttr(strideInts[i]));
-    Value PadDim = b.createOrFold<arith::ConstantOp>(
+    Value PadBeginDim = b.createOrFold<arith::ConstantOp>(
         location, b.getI64IntegerAttr(paddingInts[i]));
+    // Asymmetric padding is encoded as [begin..., end...].
+    int64_t padEndInt = (int64_t)paddingInts.size() == 2 * NumOfDims
+                            ? paddingInts[i + NumOfDims]
+                            : paddingInts[i];
+    Value PadEndDim = b.createOrFold<arith::ConstantOp>(
+        location, b.getI64IntegerAttr(padEndInt));
     Value DilDim = b.createOrFold<arith::ConstantOp>(
         location, b.getI64IntegerAttr(dilationInts[i]));
     Value ODimDDim = b.createOrFold<arith::MulIOp>(location, ODim, DDim);
-    Value IDim0 = b.createOrFold<arith::SubIOp>(location, ODimDDim, PadDim);
+    Value IDim0 =
+        b.createOrFold<arith::SubIOp>(location, ODimDDim, PadBeginDim);
     Value IDim = castIndexToInt64(b, location, InputSpatialDimSizes[i]);
 
     // Effective window end: IDim0 + (kernel - 1) * dilation + 1
@@ -1034,9 +1075,10 @@ Value PoolSizeCalculator<NumOfDims>::getPoolSize(
         b.createOrFold<arith::AddIOp>(location, KernelM1Dil, cstOne);
     Value IDim0KDim =
         b.createOrFold<arith::AddIOp>(location, IDim0, EffectiveKernel);
-    Value IDimPadDim = b.createOrFold<arith::AddIOp>(location, IDim, PadDim);
+    Value IDimPadEndDim =
+        b.createOrFold<arith::AddIOp>(location, IDim, PadEndDim);
     Value IDim1 =
-        b.createOrFold<arith::MinSIOp>(location, IDim0KDim, IDimPadDim);
+        b.createOrFold<arith::MinSIOp>(location, IDim0KDim, IDimPadEndDim);
 
     Value IDim1Clamped = b.createOrFold<arith::MinSIOp>(location, IDim1, IDim);
 
@@ -1139,8 +1181,13 @@ LogicalResult ConvertAtenAvgPoolOp<OpTy, PoolingOpTy, Dim>::matchAndRewrite(
   const TypeConverter *typeConverter = this->getTypeConverter();
   Value self = adaptor.getSelf();
 
-  Type inputElementType =
-      cast<RankedTensorType>(self.getType()).getElementType();
+  auto selfType = cast<RankedTensorType>(self.getType());
+  if (selfType.getRank() != Dim + 2)
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: only supports inputs with rank equal to the number "
+            "of spatial dimensions plus two");
+
+  Type inputElementType = selfType.getElementType();
   Type resultType = typeConverter->convertType(op.getType());
   Type resultElementType = cast<RankedTensorType>(resultType).getElementType();
 
@@ -1606,8 +1653,6 @@ template <> struct AdaptivePoolingOpTraits<Aten_AdaptiveAvgPool3dOp> {
 
 template <typename OpTy>
 class ConvertAtenAdaptivePoolOp : public OpConversionPattern<OpTy> {
-  using OpConversionPattern<OpTy>::OpConversionPattern;
-
 public:
   ConvertAtenAdaptivePoolOp(TypeConverter &typeConverter, MLIRContext *context,
                             bool allowNonFinites)
@@ -1855,19 +1900,19 @@ void mlir::torch::torch_to_linalg::populatePoolingPatternsAndLegality(
   target.addIllegalOp<AtenAdaptiveAvgPool1dOp, AtenAdaptiveAvgPool2dOp,
                       AtenAdaptiveAvgPool3dOp, Aten_AdaptiveAvgPool3dOp>();
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveAvgPool1dOp>>(
-      typeConverter, context);
+      typeConverter, context, allowNonFinites);
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveAvgPool2dOp>>(
-      typeConverter, context);
+      typeConverter, context, allowNonFinites);
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveAvgPool3dOp>>(
-      typeConverter, context);
+      typeConverter, context, allowNonFinites);
   patterns.add<ConvertAtenAdaptivePoolOp<Aten_AdaptiveAvgPool3dOp>>(
-      typeConverter, context);
+      typeConverter, context, allowNonFinites);
   target.addIllegalOp<AtenAdaptiveMaxPool1dOp, AtenAdaptiveMaxPool2dOp,
                       AtenAdaptiveMaxPool3dOp>();
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveMaxPool1dOp>>(
-      typeConverter, context);
+      typeConverter, context, allowNonFinites);
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveMaxPool2dOp>>(
-      typeConverter, context);
+      typeConverter, context, allowNonFinites);
   patterns.add<ConvertAtenAdaptivePoolOp<AtenAdaptiveMaxPool3dOp>>(
-      typeConverter, context);
+      typeConverter, context, allowNonFinites);
 }
