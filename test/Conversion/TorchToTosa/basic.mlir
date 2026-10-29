@@ -3148,15 +3148,15 @@ func.func @torch.aten.round(%arg0: !torch.vtensor<[3,4,5],f32>) -> !torch.vtenso
 // CHECK-LABEL: func.func @torch.aten.avg_pool2d$divisor_override_f32(
 // CHECK-SAME: %[[ARG:.*]]: !torch.vtensor<[1,3,9,9],f32>
 // CHECK: %[[INPUT:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[1,3,9,9],f32> -> tensor<1x3x9x9xf32>
-// CHECK: %[[NHWC:.*]] = tosa.transpose %[[INPUT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<1x3x9x9xf32>) -> tensor<1x9x9x3xf32>
-// CHECK-DAG: %[[WEIGHT:.*]] = "tosa.const"() <{values = dense<1.000000e+00> : tensor<3x3x3x1xf32>}> : () -> tensor<3x3x3x1xf32>
-// CHECK-DAG: %[[BIAS:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<3xf32>}> : () -> tensor<3xf32>
-// CHECK-DAG: %[[ZERO:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
-// CHECK: %[[SUM:.*]] = tosa.depthwise_conv2d %[[NHWC]], %[[WEIGHT]], %[[BIAS]], %[[ZERO]], %[[ZERO]] {acc_type = f32, dilation = array<i64: 1, 1>, pad = array<i64: 1, 1, 1, 1>, stride = array<i64: 1, 1>} : (tensor<1x9x9x3xf32>, tensor<3x3x3x1xf32>, tensor<3xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x9x9x3xf32>
-// CHECK: %[[RECIP:.*]] = "tosa.const"() <{values = dense<5.000000e-01> : tensor<1x1x1x1xf32>}> : () -> tensor<1x1x1x1xf32>
-// CHECK: %[[SHIFT:.*]] = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
+// CHECK: %[[NHWC:.*]] = tosa.transpose %[[INPUT]] perms([0, 2, 3, 1]) : (tensor<1x3x9x9xf32>) -> tensor<1x9x9x3xf32>
+// CHECK-DAG: %[[WEIGHT:.*]] = tosa.const values(dense<1.000000e+00> : tensor<3x3x3x1xf32>) : () -> tensor<3x3x3x1xf32>
+// CHECK-DAG: %[[BIAS:.*]] = tosa.const values(dense<0.000000e+00> : tensor<3xf32>) : () -> tensor<3xf32>
+// CHECK-DAG: %[[ZERO:.*]] = tosa.const values(dense<0.000000e+00> : tensor<1xf32>) : () -> tensor<1xf32>
+// CHECK: %[[SUM:.*]] = tosa.depthwise_conv2d %[[NHWC]], %[[WEIGHT]], %[[BIAS]], %[[ZERO]], %[[ZERO]] pad([1, 1, 1, 1]) stride([1, 1]) dilation([1, 1]) acc_type(f32) : (tensor<1x9x9x3xf32>, tensor<3x3x3x1xf32>, tensor<3xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x9x9x3xf32>
+// CHECK: %[[RECIP:.*]] = tosa.const values(dense<5.000000e-01> : tensor<1x1x1x1xf32>) : () -> tensor<1x1x1x1xf32>
+// CHECK: %[[SHIFT:.*]] = tosa.const values(dense<0> : tensor<1xi8>) : () -> tensor<1xi8>
 // CHECK: %[[SCALED:.*]] = tosa.mul %[[SUM]], %[[RECIP]], %[[SHIFT]] : (tensor<1x9x9x3xf32>, tensor<1x1x1x1xf32>, tensor<1xi8>) -> tensor<1x9x9x3xf32>
-// CHECK: %[[NCHW:.*]] = tosa.transpose %[[SCALED]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<1x9x9x3xf32>) -> tensor<1x3x9x9xf32>
+// CHECK: %[[NCHW:.*]] = tosa.transpose %[[SCALED]] perms([0, 3, 1, 2]) : (tensor<1x9x9x3xf32>) -> tensor<1x3x9x9xf32>
 // CHECK: %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[NCHW]] : tensor<1x3x9x9xf32> -> !torch.vtensor<[1,3,9,9],f32>
 // CHECK: return %[[RESULT]] : !torch.vtensor<[1,3,9,9],f32>
 func.func @torch.aten.avg_pool2d$divisor_override_f32(%arg0: !torch.vtensor<[1,3,9,9],f32>) -> !torch.vtensor<[1,3,9,9],f32> {
@@ -3178,17 +3178,17 @@ func.func @torch.aten.avg_pool2d$divisor_override_f32(%arg0: !torch.vtensor<[1,3
 // CHECK-LABEL: func.func @torch.aten.avg_pool2d$divisor_override_f16(
 // CHECK-SAME: %[[ARG:.*]]: !torch.vtensor<[1,3,9,9],f16>
 // CHECK: %[[INPUT:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[1,3,9,9],f16> -> tensor<1x3x9x9xf16>
-// CHECK: %[[NHWC:.*]] = tosa.transpose %[[INPUT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<1x3x9x9xf16>) -> tensor<1x9x9x3xf16>
-// CHECK: %[[WIDE:.*]] = tosa.cast %[[NHWC]] : (tensor<1x9x9x3xf16>) -> tensor<1x9x9x3xf32>
-// CHECK-DAG: %[[WEIGHT:.*]] = "tosa.const"() <{values = dense<1.000000e+00> : tensor<3x3x3x1xf32>}> : () -> tensor<3x3x3x1xf32>
-// CHECK-DAG: %[[BIAS:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<3xf32>}> : () -> tensor<3xf32>
-// CHECK-DAG: %[[ZERO:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
-// CHECK: %[[SUM:.*]] = tosa.depthwise_conv2d %[[WIDE]], %[[WEIGHT]], %[[BIAS]], %[[ZERO]], %[[ZERO]] {acc_type = f32, dilation = array<i64: 1, 1>, pad = array<i64: 1, 1, 1, 1>, stride = array<i64: 1, 1>} : (tensor<1x9x9x3xf32>, tensor<3x3x3x1xf32>, tensor<3xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x9x9x3xf32>
-// CHECK: %[[RECIP:.*]] = "tosa.const"() <{values = dense<5.000000e-01> : tensor<1x1x1x1xf32>}> : () -> tensor<1x1x1x1xf32>
-// CHECK: %[[SHIFT:.*]] = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
+// CHECK: %[[NHWC:.*]] = tosa.transpose %[[INPUT]] perms([0, 2, 3, 1]) : (tensor<1x3x9x9xf16>) -> tensor<1x9x9x3xf16>
+// CHECK: %[[WIDE:.*]] = tosa.cast %[[NHWC]] input_unsigned(false) : (tensor<1x9x9x3xf16>) -> tensor<1x9x9x3xf32>
+// CHECK-DAG: %[[WEIGHT:.*]] = tosa.const values(dense<1.000000e+00> : tensor<3x3x3x1xf32>) : () -> tensor<3x3x3x1xf32>
+// CHECK-DAG: %[[BIAS:.*]] = tosa.const values(dense<0.000000e+00> : tensor<3xf32>) : () -> tensor<3xf32>
+// CHECK-DAG: %[[ZERO:.*]] = tosa.const values(dense<0.000000e+00> : tensor<1xf32>) : () -> tensor<1xf32>
+// CHECK: %[[SUM:.*]] = tosa.depthwise_conv2d %[[WIDE]], %[[WEIGHT]], %[[BIAS]], %[[ZERO]], %[[ZERO]] pad([1, 1, 1, 1]) stride([1, 1]) dilation([1, 1]) acc_type(f32) : (tensor<1x9x9x3xf32>, tensor<3x3x3x1xf32>, tensor<3xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x9x9x3xf32>
+// CHECK: %[[RECIP:.*]] = tosa.const values(dense<5.000000e-01> : tensor<1x1x1x1xf32>) : () -> tensor<1x1x1x1xf32>
+// CHECK: %[[SHIFT:.*]] = tosa.const values(dense<0> : tensor<1xi8>) : () -> tensor<1xi8>
 // CHECK: %[[SCALED:.*]] = tosa.mul %[[SUM]], %[[RECIP]], %[[SHIFT]] : (tensor<1x9x9x3xf32>, tensor<1x1x1x1xf32>, tensor<1xi8>) -> tensor<1x9x9x3xf32>
-// CHECK: %[[NCHW:.*]] = tosa.transpose %[[SCALED]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<1x9x9x3xf32>) -> tensor<1x3x9x9xf32>
-// CHECK: %[[NARROW:.*]] = tosa.cast %[[NCHW]] : (tensor<1x3x9x9xf32>) -> tensor<1x3x9x9xf16>
+// CHECK: %[[NCHW:.*]] = tosa.transpose %[[SCALED]] perms([0, 3, 1, 2]) : (tensor<1x9x9x3xf32>) -> tensor<1x3x9x9xf32>
+// CHECK: %[[NARROW:.*]] = tosa.cast %[[NCHW]] input_unsigned(false) : (tensor<1x3x9x9xf32>) -> tensor<1x3x9x9xf16>
 // CHECK: %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[NARROW]] : tensor<1x3x9x9xf16> -> !torch.vtensor<[1,3,9,9],f16>
 // CHECK: return %[[RESULT]] : !torch.vtensor<[1,3,9,9],f16>
 func.func @torch.aten.avg_pool2d$divisor_override_f16(%arg0: !torch.vtensor<[1,3,9,9],f16>) -> !torch.vtensor<[1,3,9,9],f16> {
@@ -3210,17 +3210,17 @@ func.func @torch.aten.avg_pool2d$divisor_override_f16(%arg0: !torch.vtensor<[1,3
 // CHECK-LABEL: func.func @torch.aten.avg_pool2d$divisor_override_bf16(
 // CHECK-SAME: %[[ARG:.*]]: !torch.vtensor<[1,3,9,9],bf16>
 // CHECK: %[[INPUT:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[1,3,9,9],bf16> -> tensor<1x3x9x9xbf16>
-// CHECK: %[[NHWC:.*]] = tosa.transpose %[[INPUT]] {perms = array<i32: 0, 2, 3, 1>} : (tensor<1x3x9x9xbf16>) -> tensor<1x9x9x3xbf16>
-// CHECK: %[[WIDE:.*]] = tosa.cast %[[NHWC]] : (tensor<1x9x9x3xbf16>) -> tensor<1x9x9x3xf32>
-// CHECK-DAG: %[[WEIGHT:.*]] = "tosa.const"() <{values = dense<1.000000e+00> : tensor<3x3x3x1xf32>}> : () -> tensor<3x3x3x1xf32>
-// CHECK-DAG: %[[BIAS:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<3xf32>}> : () -> tensor<3xf32>
-// CHECK-DAG: %[[ZERO:.*]] = "tosa.const"() <{values = dense<0.000000e+00> : tensor<1xf32>}> : () -> tensor<1xf32>
-// CHECK: %[[SUM:.*]] = tosa.depthwise_conv2d %[[WIDE]], %[[WEIGHT]], %[[BIAS]], %[[ZERO]], %[[ZERO]] {acc_type = f32, dilation = array<i64: 1, 1>, pad = array<i64: 1, 1, 1, 1>, stride = array<i64: 1, 1>} : (tensor<1x9x9x3xf32>, tensor<3x3x3x1xf32>, tensor<3xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x9x9x3xf32>
-// CHECK: %[[RECIP:.*]] = "tosa.const"() <{values = dense<5.000000e-01> : tensor<1x1x1x1xf32>}> : () -> tensor<1x1x1x1xf32>
-// CHECK: %[[SHIFT:.*]] = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : () -> tensor<1xi8>
+// CHECK: %[[NHWC:.*]] = tosa.transpose %[[INPUT]] perms([0, 2, 3, 1]) : (tensor<1x3x9x9xbf16>) -> tensor<1x9x9x3xbf16>
+// CHECK: %[[WIDE:.*]] = tosa.cast %[[NHWC]] input_unsigned(false) : (tensor<1x9x9x3xbf16>) -> tensor<1x9x9x3xf32>
+// CHECK-DAG: %[[WEIGHT:.*]] = tosa.const values(dense<1.000000e+00> : tensor<3x3x3x1xf32>) : () -> tensor<3x3x3x1xf32>
+// CHECK-DAG: %[[BIAS:.*]] = tosa.const values(dense<0.000000e+00> : tensor<3xf32>) : () -> tensor<3xf32>
+// CHECK-DAG: %[[ZERO:.*]] = tosa.const values(dense<0.000000e+00> : tensor<1xf32>) : () -> tensor<1xf32>
+// CHECK: %[[SUM:.*]] = tosa.depthwise_conv2d %[[WIDE]], %[[WEIGHT]], %[[BIAS]], %[[ZERO]], %[[ZERO]] pad([1, 1, 1, 1]) stride([1, 1]) dilation([1, 1]) acc_type(f32) : (tensor<1x9x9x3xf32>, tensor<3x3x3x1xf32>, tensor<3xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x9x9x3xf32>
+// CHECK: %[[RECIP:.*]] = tosa.const values(dense<5.000000e-01> : tensor<1x1x1x1xf32>) : () -> tensor<1x1x1x1xf32>
+// CHECK: %[[SHIFT:.*]] = tosa.const values(dense<0> : tensor<1xi8>) : () -> tensor<1xi8>
 // CHECK: %[[SCALED:.*]] = tosa.mul %[[SUM]], %[[RECIP]], %[[SHIFT]] : (tensor<1x9x9x3xf32>, tensor<1x1x1x1xf32>, tensor<1xi8>) -> tensor<1x9x9x3xf32>
-// CHECK: %[[NCHW:.*]] = tosa.transpose %[[SCALED]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<1x9x9x3xf32>) -> tensor<1x3x9x9xf32>
-// CHECK: %[[NARROW:.*]] = tosa.cast %[[NCHW]] : (tensor<1x3x9x9xf32>) -> tensor<1x3x9x9xbf16>
+// CHECK: %[[NCHW:.*]] = tosa.transpose %[[SCALED]] perms([0, 3, 1, 2]) : (tensor<1x9x9x3xf32>) -> tensor<1x3x9x9xf32>
+// CHECK: %[[NARROW:.*]] = tosa.cast %[[NCHW]] input_unsigned(false) : (tensor<1x3x9x9xf32>) -> tensor<1x3x9x9xbf16>
 // CHECK: %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[NARROW]] : tensor<1x3x9x9xbf16> -> !torch.vtensor<[1,3,9,9],bf16>
 // CHECK: return %[[RESULT]] : !torch.vtensor<[1,3,9,9],bf16>
 func.func @torch.aten.avg_pool2d$divisor_override_bf16(%arg0: !torch.vtensor<[1,3,9,9],bf16>) -> !torch.vtensor<[1,3,9,9],bf16> {
@@ -3240,10 +3240,10 @@ func.func @torch.aten.avg_pool2d$divisor_override_bf16(%arg0: !torch.vtensor<[1,
 
 // Negative divisors are valid. Also cover rank-3 input and output restoration.
 // CHECK-LABEL: func.func @torch.aten.avg_pool2d$negative_divisor_chw(
-// CHECK: %[[SUM:.*]] = tosa.depthwise_conv2d %{{.*}} {acc_type = f32, dilation = array<i64: 1, 1>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 1, 1>} : (tensor<1x3x3x2xf32>, tensor<3x3x2x1xf32>, tensor<2xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x1x1x2xf32>
-// CHECK: %[[RECIP:.*]] = "tosa.const"() <{values = dense<-5.000000e-01> : tensor<1x1x1x1xf32>}> : () -> tensor<1x1x1x1xf32>
+// CHECK: %[[SUM:.*]] = tosa.depthwise_conv2d %{{.*}} pad([0, 0, 0, 0]) stride([1, 1]) dilation([1, 1]) acc_type(f32) : (tensor<1x3x3x2xf32>, tensor<3x3x2x1xf32>, tensor<2xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x1x1x2xf32>
+// CHECK: %[[RECIP:.*]] = tosa.const values(dense<-5.000000e-01> : tensor<1x1x1x1xf32>) : () -> tensor<1x1x1x1xf32>
 // CHECK: %[[SCALED:.*]] = tosa.mul %[[SUM]], %[[RECIP]], %{{.*}} : (tensor<1x1x1x2xf32>, tensor<1x1x1x1xf32>, tensor<1xi8>) -> tensor<1x1x1x2xf32>
-// CHECK: %[[NCHW:.*]] = tosa.transpose %[[SCALED]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<1x1x1x2xf32>) -> tensor<1x2x1x1xf32>
+// CHECK: %[[NCHW:.*]] = tosa.transpose %[[SCALED]] perms([0, 3, 1, 2]) : (tensor<1x1x1x2xf32>) -> tensor<1x2x1x1xf32>
 // CHECK: %[[CHW:.*]] = tosa.reshape %[[NCHW]], %{{.*}} : (tensor<1x2x1x1xf32>, !tosa.shape<3>) -> tensor<2x1x1xf32>
 // CHECK: %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[CHW]] : tensor<2x1x1xf32> -> !torch.vtensor<[2,1,1],f32>
 // CHECK: return %[[RESULT]] : !torch.vtensor<[2,1,1],f32>
@@ -3265,10 +3265,10 @@ func.func @torch.aten.avg_pool2d$negative_divisor_chw(%arg0: !torch.vtensor<[2,3
 // Ceil mode retains the partial last window; implicit zeros must not change
 // the fixed divisor, even when count_include_pad is true.
 // CHECK-LABEL: func.func @torch.aten.avg_pool2d$divisor_override_partial_ceil(
-// CHECK: %[[SUM:.*]] = tosa.depthwise_conv2d %{{.*}} {acc_type = f32, dilation = array<i64: 1, 1>, pad = array<i64: 1, 2, 1, 2>, stride = array<i64: 2, 2>} : (tensor<1x4x4x2xf32>, tensor<3x3x2x1xf32>, tensor<2xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x3x3x2xf32>
-// CHECK: %[[RECIP:.*]] = "tosa.const"() <{values = dense<5.000000e-01> : tensor<1x1x1x1xf32>}> : () -> tensor<1x1x1x1xf32>
+// CHECK: %[[SUM:.*]] = tosa.depthwise_conv2d %{{.*}} pad([1, 2, 1, 2]) stride([2, 2]) dilation([1, 1]) acc_type(f32) : (tensor<1x4x4x2xf32>, tensor<3x3x2x1xf32>, tensor<2xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x3x3x2xf32>
+// CHECK: %[[RECIP:.*]] = tosa.const values(dense<5.000000e-01> : tensor<1x1x1x1xf32>) : () -> tensor<1x1x1x1xf32>
 // CHECK: %[[SCALED:.*]] = tosa.mul %[[SUM]], %[[RECIP]], %{{.*}} : (tensor<1x3x3x2xf32>, tensor<1x1x1x1xf32>, tensor<1xi8>) -> tensor<1x3x3x2xf32>
-// CHECK: %[[NCHW:.*]] = tosa.transpose %[[SCALED]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<1x3x3x2xf32>) -> tensor<1x2x3x3xf32>
+// CHECK: %[[NCHW:.*]] = tosa.transpose %[[SCALED]] perms([0, 3, 1, 2]) : (tensor<1x3x3x2xf32>) -> tensor<1x2x3x3xf32>
 // CHECK: %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[NCHW]] : tensor<1x2x3x3xf32> -> !torch.vtensor<[1,2,3,3],f32>
 // CHECK: return %[[RESULT]] : !torch.vtensor<[1,2,3,3],f32>
 func.func @torch.aten.avg_pool2d$divisor_override_partial_ceil(%arg0: !torch.vtensor<[1,2,4,4],f32>) -> !torch.vtensor<[1,2,3,3],f32> {
@@ -3288,14 +3288,14 @@ func.func @torch.aten.avg_pool2d$divisor_override_partial_ceil(%arg0: !torch.vte
 // A ceil-mode window starting at input_size is discarded. Trim the unused
 // trailing row/column before a zero-pad convolution instead of emitting a 3x3 result.
 // CHECK-LABEL: func.func @torch.aten.avg_pool2d$divisor_override_drop_last_window(
-// CHECK: %[[NHWC:.*]] = tosa.transpose %{{.*}} {perms = array<i32: 0, 2, 3, 1>} : (tensor<1x2x4x4xf32>) -> tensor<1x4x4x2xf32>
-// CHECK-DAG: %[[START:.*]] = tosa.const_shape {{.*}}values = dense<0> : tensor<4xindex>
-// CHECK-DAG: %[[SIZE:.*]] = tosa.const_shape {{.*}}values = dense<[1, 3, 3, 2]> : tensor<4xindex>
+// CHECK: %[[NHWC:.*]] = tosa.transpose %{{.*}} perms([0, 2, 3, 1]) : (tensor<1x2x4x4xf32>) -> tensor<1x4x4x2xf32>
+// CHECK-DAG: %[[START:.*]] = tosa.const_shape values(dense<0> : tensor<4xindex>)
+// CHECK-DAG: %[[SIZE:.*]] = tosa.const_shape values(dense<[1, 3, 3, 2]> : tensor<4xindex>)
 // CHECK: %[[SLICE:.*]] = tosa.slice %[[NHWC]], %[[START]], %[[SIZE]] : (tensor<1x4x4x2xf32>, !tosa.shape<4>, !tosa.shape<4>) -> tensor<1x3x3x2xf32>
-// CHECK: %[[SUM:.*]] = tosa.depthwise_conv2d %[[SLICE]], %{{.*}} {acc_type = f32, dilation = array<i64: 1, 1>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 2, 2>} : (tensor<1x3x3x2xf32>, tensor<1x1x2x1xf32>, tensor<2xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x2x2x2xf32>
-// CHECK: %[[RECIP:.*]] = "tosa.const"() <{values = dense<5.000000e-01> : tensor<1x1x1x1xf32>}> : () -> tensor<1x1x1x1xf32>
+// CHECK: %[[SUM:.*]] = tosa.depthwise_conv2d %[[SLICE]], %{{.*}} pad([0, 0, 0, 0]) stride([2, 2]) dilation([1, 1]) acc_type(f32) : (tensor<1x3x3x2xf32>, tensor<1x1x2x1xf32>, tensor<2xf32>, tensor<1xf32>, tensor<1xf32>) -> tensor<1x2x2x2xf32>
+// CHECK: %[[RECIP:.*]] = tosa.const values(dense<5.000000e-01> : tensor<1x1x1x1xf32>) : () -> tensor<1x1x1x1xf32>
 // CHECK: %[[SCALED:.*]] = tosa.mul %[[SUM]], %[[RECIP]], %{{.*}} : (tensor<1x2x2x2xf32>, tensor<1x1x1x1xf32>, tensor<1xi8>) -> tensor<1x2x2x2xf32>
-// CHECK: %[[NCHW:.*]] = tosa.transpose %[[SCALED]] {perms = array<i32: 0, 3, 1, 2>} : (tensor<1x2x2x2xf32>) -> tensor<1x2x2x2xf32>
+// CHECK: %[[NCHW:.*]] = tosa.transpose %[[SCALED]] perms([0, 3, 1, 2]) : (tensor<1x2x2x2xf32>) -> tensor<1x2x2x2xf32>
 // CHECK: %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[NCHW]] : tensor<1x2x2x2xf32> -> !torch.vtensor<[1,2,2,2],f32>
 // CHECK: return %[[RESULT]] : !torch.vtensor<[1,2,2,2],f32>
 func.func @torch.aten.avg_pool2d$divisor_override_drop_last_window(%arg0: !torch.vtensor<[1,2,4,4],f32>) -> !torch.vtensor<[1,2,2,2],f32> {
