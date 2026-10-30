@@ -1,4 +1,5 @@
 // RUN: torch-mlir-opt <%s -convert-torch-to-tosa -split-input-file -verify-diagnostics | FileCheck %s
+// RUN: torch-mlir-opt <%s -convert-torch-to-tosa -split-input-file -verify-diagnostics | FileCheck %s --check-prefix=POOL-GATHERS
 
 // CHECK-LABEL:   func.func @torch.aten.tanh$basic(
 // CHECK-SAME:                                %[[ARG:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
@@ -5760,6 +5761,226 @@ func.func @torch.aten.max_pool2d$asymmetric_pad(%arg0: !torch.vtensor<[?,3,1024,
   %dilation = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
   %0 = torch.aten.max_pool2d %arg0, %kernel, %stride, %padding, %dilation, %false : !torch.vtensor<[?,3,1024,512],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[?,3,512,255],f32>
   return %0 : !torch.vtensor<[?,3,512,255],f32>
+}
+
+// -----
+
+// The last horizontal ceil window is partial. Exclude invalid positions from
+// both numeric and NaN candidates, select the first numeric tie or last NaN,
+// and gather the selected value and its original spatial index together.
+// CHECK-LABEL: func.func @torch.aten.max_pool2d_with_indices$partial_ceil_f32(
+// CHECK: %[[POOL_VALID:.*]] = tosa.const values(dense<{{.*}}true, true, false{{.*}}> : tensor<9x1x3xi1>)
+// CHECK: tosa.gather {{.*}} : (tensor<1x18x2xf32>, tensor<1x27xi64>) -> tensor<1x27x2xf32>
+// CHECK: %[[POOL_WINDOWS:.*]] = tosa.transpose {{.*}} -> tensor<9x2x3xf32>
+// CHECK: %[[POOL_EQUAL:.*]] = tosa.equal %[[POOL_WINDOWS]], %[[POOL_WINDOWS]]
+// CHECK: %[[POOL_NUMERIC:.*]] = tosa.logical_and %[[POOL_EQUAL]], %[[POOL_VALID]]
+// CHECK: %[[POOL_IS_NAN:.*]] = tosa.logical_not %[[POOL_EQUAL]]
+// CHECK: %[[POOL_NANS:.*]] = tosa.logical_and %[[POOL_IS_NAN]], %[[POOL_VALID]]
+// CHECK: %[[POOL_NEG_INF:.*]] = tosa.const values(dense<0xFF800000> : tensor<1x1x1xf32>)
+// CHECK: %[[POOL_MASKED:.*]] = tosa.select %[[POOL_NUMERIC]], %[[POOL_WINDOWS]], %[[POOL_NEG_INF]]
+// CHECK: %[[POOL_MAX:.*]] = tosa.reduce_max %[[POOL_MASKED]] axis(2)
+// CHECK: %[[POOL_TIES:.*]] = tosa.equal %[[POOL_WINDOWS]], %[[POOL_MAX]]
+// CHECK: %[[POOL_ELIGIBLE:.*]] = tosa.logical_and %[[POOL_NUMERIC]], %[[POOL_TIES]]
+// CHECK: %[[POOL_SCORES:.*]] = tosa.cast %[[POOL_ELIGIBLE]]
+// CHECK: %[[POOL_FIRST:.*]] = tosa.argmax %[[POOL_SCORES]] axis(2)
+// CHECK: %[[POOL_NAN_SCORES:.*]] = tosa.cast %[[POOL_NANS]]
+// CHECK: %[[POOL_REVERSED:.*]] = tosa.reverse %[[POOL_NAN_SCORES]] axis(2)
+// CHECK: %[[POOL_FROM_END:.*]] = tosa.argmax %[[POOL_REVERSED]] axis(2)
+// CHECK: %[[POOL_K_MINUS_ONE:.*]] = tosa.const values(dense<2> : tensor<1x1xi32>)
+// CHECK: %[[POOL_LAST:.*]] = tosa.sub %[[POOL_K_MINUS_ONE]], %[[POOL_FROM_END]]
+// CHECK: %[[POOL_HAS_NAN:.*]] = tosa.reduce_any %[[POOL_NANS]] axis(2)
+// CHECK: %[[POOL_HAS_NAN_FLAT:.*]] = tosa.reshape %[[POOL_HAS_NAN]]
+// CHECK: %[[POOL_WINNER:.*]] = tosa.select %[[POOL_HAS_NAN_FLAT]], %[[POOL_LAST]], %[[POOL_FIRST]]
+// CHECK: %[[POOL_WINNER_FLAT:.*]] = tosa.reshape %[[POOL_WINNER]]
+// CHECK: %[[POOL_ORIGINAL_VALUES:.*]] = tosa.reshape %[[POOL_WINDOWS]]
+// CHECK: tosa.gather %[[POOL_ORIGINAL_VALUES]], %[[POOL_WINNER_FLAT]] : (tensor<18x3x1xf32>, tensor<18x1xi32>) -> tensor<18x1x1xf32>
+// CHECK: tosa.gather %{{.*}}, %[[POOL_WINNER_FLAT]] : (tensor<18x3x1xi64>, tensor<18x1xi32>) -> tensor<18x1x1xi64>
+// CHECK: %[[POOL_VERTICAL:.*]] = tosa.const values(dense<{{.*}}0, 3, 6, 1, 4, 7, 2, 5, 8{{.*}}> : tensor<1x9xi64>)
+// CHECK: tosa.gather %{{.*}}, %[[POOL_VERTICAL]] : (tensor<1x9x2xf32>, tensor<1x9xi64>) -> tensor<1x9x2xf32>
+// CHECK: tosa.gather %{{.*}}, %[[POOL_VERTICAL]] : (tensor<1x9x2xi64>, tensor<1x9xi64>) -> tensor<1x9x2xi64>
+// CHECK: tosa.reduce_max {{.*}} : (tensor<3x2x3xf32>) -> tensor<3x2x1xf32>
+// CHECK: tosa.reshape {{.*}} -> tensor<1x2x1x3xf32>
+// CHECK: tosa.reshape {{.*}} -> tensor<1x2x1x3xi64>
+func.func @torch.aten.max_pool2d_with_indices$partial_ceil_f32(%arg0: !torch.vtensor<[1,2,3,6],f32>) -> (!torch.vtensor<[1,2,1,3],f32>, !torch.vtensor<[1,2,1,3],si64>) {
+  %zero = torch.constant.int 0
+  %one = torch.constant.int 1
+  %two = torch.constant.int 2
+  %three = torch.constant.int 3
+  %true = torch.constant.bool true
+  %kernel = torch.prim.ListConstruct %three, %three : (!torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %two, %two : (!torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %zero, %zero : (!torch.int, !torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %one, %one : (!torch.int, !torch.int) -> !torch.list<int>
+  %values, %indices = torch.aten.max_pool2d_with_indices %arg0, %kernel, %stride, %padding, %dilation, %true : !torch.vtensor<[1,2,3,6],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,2,1,3],f32>, !torch.vtensor<[1,2,1,3],si64>
+  return %values, %indices : !torch.vtensor<[1,2,1,3],f32>, !torch.vtensor<[1,2,1,3],si64>
+}
+
+// -----
+
+// Rank-3 input, singleton lists, and K=1 retain original indices for every
+// channel. Ceil mode must drop the window whose start would be 4.
+// CHECK-LABEL: func.func @torch.aten.max_pool2d_with_indices$rank3_kernel1_f16(
+// CHECK: tosa.const values(dense<{{.*}}0, 2, 4, 6, 8, 10, 12, 14{{.*}}> : tensor<1x8xi64>)
+// CHECK: tosa.gather {{.*}} : (tensor<1x16x2xf16>, tensor<1x8xi64>) -> tensor<1x8x2xf16>
+// CHECK: tosa.tile {{.*}} : (tensor<8x1x1xi64>, !tosa.shape<3>) -> tensor<8x2x1xi64>
+// CHECK: tosa.reduce_max {{.*}} : (tensor<8x2x1xf16>) -> tensor<8x2x1xf16>
+// CHECK: tosa.const values(dense<{{.*}}0, 1, 4, 5{{.*}}> : tensor<1x4xi64>)
+// CHECK: tosa.reduce_max {{.*}} : (tensor<4x2x1xf16>) -> tensor<4x2x1xf16>
+// CHECK: tosa.reshape {{.*}} -> tensor<2x2x2xf16>
+// CHECK: tosa.reshape {{.*}} -> tensor<2x2x2xi64>
+func.func @torch.aten.max_pool2d_with_indices$rank3_kernel1_f16(%arg0: !torch.vtensor<[2,4,4],f16>) -> (!torch.vtensor<[2,2,2],f16>, !torch.vtensor<[2,2,2],si64>) {
+  %zero = torch.constant.int 0
+  %one = torch.constant.int 1
+  %two = torch.constant.int 2
+  %true = torch.constant.bool true
+  %kernel = torch.prim.ListConstruct %one : (!torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %two : (!torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %zero : (!torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %one : (!torch.int) -> !torch.list<int>
+  %values, %indices = torch.aten.max_pool2d_with_indices %arg0, %kernel, %stride, %padding, %dilation, %true : !torch.vtensor<[2,4,4],f16>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[2,2,2],f16>, !torch.vtensor<[2,2,2],si64>
+  return %values, %indices : !torch.vtensor<[2,2,2],f16>, !torch.vtensor<[2,2,2],si64>
+}
+
+// -----
+
+// Batch and channel planes share spatial indices, with values kept in bf16.
+// CHECK-LABEL: func.func @torch.aten.max_pool2d_with_indices$batched_floor_bf16(
+// CHECK: tosa.gather {{.*}} : (tensor<1x18x4xbf16>, tensor<1x18xi64>) -> tensor<1x18x4xbf16>
+// CHECK: tosa.tile {{.*}} : (tensor<6x1x3xi64>, !tosa.shape<3>) -> tensor<6x4x3xi64>
+// CHECK: tosa.reduce_max {{.*}} : (tensor<6x4x3xbf16>) -> tensor<6x4x1xbf16>
+// CHECK: tosa.gather {{.*}} : (tensor<24x3x1xi64>, tensor<24x1xi32>) -> tensor<24x1x1xi64>
+// CHECK: tosa.reduce_max {{.*}} : (tensor<2x4x3xbf16>) -> tensor<2x4x1xbf16>
+// CHECK: tosa.gather {{.*}} : (tensor<8x3x1xi64>, tensor<8x1xi32>) -> tensor<8x1x1xi64>
+// CHECK: tosa.reshape {{.*}} -> tensor<2x2x1x2xbf16>
+// CHECK: tosa.reshape {{.*}} -> tensor<2x2x1x2xi64>
+func.func @torch.aten.max_pool2d_with_indices$batched_floor_bf16(%arg0: !torch.vtensor<[2,2,3,6],bf16>) -> (!torch.vtensor<[2,2,1,2],bf16>, !torch.vtensor<[2,2,1,2],si64>) {
+  %zero = torch.constant.int 0
+  %one = torch.constant.int 1
+  %two = torch.constant.int 2
+  %three = torch.constant.int 3
+  %false = torch.constant.bool false
+  %kernel = torch.prim.ListConstruct %three, %three : (!torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %two, %two : (!torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %zero, %zero : (!torch.int, !torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %one, %one : (!torch.int, !torch.int) -> !torch.list<int>
+  %values, %indices = torch.aten.max_pool2d_with_indices %arg0, %kernel, %stride, %padding, %dilation, %false : !torch.vtensor<[2,2,3,6],bf16>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[2,2,1,2],bf16>, !torch.vtensor<[2,2,1,2],si64>
+  return %values, %indices : !torch.vtensor<[2,2,1,2],bf16>, !torch.vtensor<[2,2,1,2],si64>
+}
+
+// -----
+
+// Empty stride defaults to the kernel. A kernel larger than the input can
+// still produce a valid partial window in ceil mode (signed ceil division).
+// CHECK-LABEL: func.func @torch.aten.max_pool2d_with_indices$empty_stride_ceil(
+// CHECK: tosa.gather {{.*}} : (tensor<1x4x1xf32>, tensor<1x4xi64>) -> tensor<1x4x1xf32>
+// CHECK: tosa.reduce_max {{.*}} : (tensor<2x1x2xf32>) -> tensor<2x1x1xf32>
+// CHECK: tosa.reduce_max {{.*}} : (tensor<1x1x2xf32>) -> tensor<1x1x1xf32>
+// CHECK: tosa.reshape {{.*}} -> tensor<1x1x1x1xf32>
+// CHECK: tosa.reshape {{.*}} -> tensor<1x1x1x1xi64>
+func.func @torch.aten.max_pool2d_with_indices$empty_stride_ceil(%arg0: !torch.vtensor<[1,1,2,2],f32>) -> (!torch.vtensor<[1,1,1,1],f32>, !torch.vtensor<[1,1,1,1],si64>) {
+  %zero = torch.constant.int 0
+  %one = torch.constant.int 1
+  %three = torch.constant.int 3
+  %true = torch.constant.bool true
+  %kernel = torch.prim.ListConstruct %three : (!torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct : () -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %zero : (!torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %one : (!torch.int) -> !torch.list<int>
+  %values, %indices = torch.aten.max_pool2d_with_indices %arg0, %kernel, %stride, %padding, %dilation, %true : !torch.vtensor<[1,1,2,2],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,1,1,1],f32>, !torch.vtensor<[1,1,1,1],si64>
+  return %values, %indices : !torch.vtensor<[1,1,1,1],f32>, !torch.vtensor<[1,1,1,1],si64>
+}
+
+// -----
+
+// A large kernel still needs only horizontal and vertical reductions, with
+// seven gathers overall rather than one gather/select chain per kernel element.
+// POOL-GATHERS-LABEL: func.func @torch.aten.max_pool2d_with_indices$global32(
+// POOL-GATHERS-COUNT-7: tosa.gather
+// POOL-GATHERS-NOT: tosa.gather
+// POOL-GATHERS: return
+// CHECK-LABEL: func.func @torch.aten.max_pool2d_with_indices$global32(
+// CHECK: tosa.gather {{.*}} : (tensor<1x1024x1xf32>, tensor<1x1024xi64>) -> tensor<1x1024x1xf32>
+// CHECK: tosa.reduce_max {{.*}} : (tensor<32x1x32xf32>) -> tensor<32x1x1xf32>
+// CHECK: tosa.reduce_max {{.*}} : (tensor<1x1x32xf32>) -> tensor<1x1x1xf32>
+// CHECK-NOT: tosa.reduce_max
+// CHECK: tosa.reshape {{.*}} -> tensor<1x1x1x1xf32>
+// CHECK: tosa.reshape {{.*}} -> tensor<1x1x1x1xi64>
+func.func @torch.aten.max_pool2d_with_indices$global32(%arg0: !torch.vtensor<[1,1,32,32],f32>) -> (!torch.vtensor<[1,1,1,1],f32>, !torch.vtensor<[1,1,1,1],si64>) {
+  %zero = torch.constant.int 0
+  %one = torch.constant.int 1
+  %size = torch.constant.int 32
+  %false = torch.constant.bool false
+  %kernel = torch.prim.ListConstruct %size, %size : (!torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %one, %one : (!torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %zero, %zero : (!torch.int, !torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %one, %one : (!torch.int, !torch.int) -> !torch.list<int>
+  %values, %indices = torch.aten.max_pool2d_with_indices %arg0, %kernel, %stride, %padding, %dilation, %false : !torch.vtensor<[1,1,32,32],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,1,1,1],f32>, !torch.vtensor<[1,1,1,1],si64>
+  return %values, %indices : !torch.vtensor<[1,1,1,1],f32>, !torch.vtensor<[1,1,1,1],si64>
+}
+
+// -----
+
+func.func @torch.aten.max_pool2d_with_indices$unsupported_padding(%arg0: !torch.vtensor<[1,2,3,6],f32>) -> (!torch.vtensor<[1,2,2,4],f32>, !torch.vtensor<[1,2,2,4],si64>) {
+  %one = torch.constant.int 1
+  %two = torch.constant.int 2
+  %three = torch.constant.int 3
+  %true = torch.constant.bool true
+  %kernel = torch.prim.ListConstruct %three : (!torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %two : (!torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %one : (!torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %one : (!torch.int) -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.max_pool2d_with_indices'}}
+  %values, %indices = torch.aten.max_pool2d_with_indices %arg0, %kernel, %stride, %padding, %dilation, %true : !torch.vtensor<[1,2,3,6],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,2,2,4],f32>, !torch.vtensor<[1,2,2,4],si64>
+  return %values, %indices : !torch.vtensor<[1,2,2,4],f32>, !torch.vtensor<[1,2,2,4],si64>
+}
+
+// -----
+
+func.func @torch.aten.max_pool2d_with_indices$unsupported_dilation(%arg0: !torch.vtensor<[1,1,4,4],f32>) -> (!torch.vtensor<[1,1,2,2],f32>, !torch.vtensor<[1,1,2,2],si64>) {
+  %zero = torch.constant.int 0
+  %one = torch.constant.int 1
+  %two = torch.constant.int 2
+  %false = torch.constant.bool false
+  %kernel = torch.prim.ListConstruct %two : (!torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %one : (!torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %zero : (!torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %two : (!torch.int) -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.max_pool2d_with_indices'}}
+  %values, %indices = torch.aten.max_pool2d_with_indices %arg0, %kernel, %stride, %padding, %dilation, %false : !torch.vtensor<[1,1,4,4],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,1,2,2],f32>, !torch.vtensor<[1,1,2,2],si64>
+  return %values, %indices : !torch.vtensor<[1,1,2,2],f32>, !torch.vtensor<[1,1,2,2],si64>
+}
+
+// -----
+
+func.func @torch.aten.max_pool2d_with_indices$unsupported_dynamic_shape(%arg0: !torch.vtensor<[1,2,?,6],f32>) -> (!torch.vtensor<[1,2,?,3],f32>, !torch.vtensor<[1,2,?,3],si64>) {
+  %zero = torch.constant.int 0
+  %one = torch.constant.int 1
+  %two = torch.constant.int 2
+  %three = torch.constant.int 3
+  %true = torch.constant.bool true
+  %kernel = torch.prim.ListConstruct %three : (!torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %two : (!torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %zero : (!torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %one : (!torch.int) -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.max_pool2d_with_indices'}}
+  %values, %indices = torch.aten.max_pool2d_with_indices %arg0, %kernel, %stride, %padding, %dilation, %true : !torch.vtensor<[1,2,?,6],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,2,?,3],f32>, !torch.vtensor<[1,2,?,3],si64>
+  return %values, %indices : !torch.vtensor<[1,2,?,3],f32>, !torch.vtensor<[1,2,?,3],si64>
+}
+
+// -----
+
+func.func @torch.aten.max_pool2d_with_indices$unsupported_dynamic_ceil(%arg0: !torch.vtensor<[1,2,3,6],f32>, %ceil: !torch.bool) -> (!torch.vtensor<[1,2,1,3],f32>, !torch.vtensor<[1,2,1,3],si64>) {
+  %zero = torch.constant.int 0
+  %one = torch.constant.int 1
+  %two = torch.constant.int 2
+  %three = torch.constant.int 3
+  %kernel = torch.prim.ListConstruct %three : (!torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %two : (!torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %zero : (!torch.int) -> !torch.list<int>
+  %dilation = torch.prim.ListConstruct %one : (!torch.int) -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.max_pool2d_with_indices'}}
+  %values, %indices = torch.aten.max_pool2d_with_indices %arg0, %kernel, %stride, %padding, %dilation, %ceil : !torch.vtensor<[1,2,3,6],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool -> !torch.vtensor<[1,2,1,3],f32>, !torch.vtensor<[1,2,1,3],si64>
+  return %values, %indices : !torch.vtensor<[1,2,1,3],f32>, !torch.vtensor<[1,2,1,3],si64>
 }
 
 // -----
