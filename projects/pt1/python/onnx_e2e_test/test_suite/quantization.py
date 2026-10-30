@@ -673,8 +673,8 @@ class _MatMulNBits(OnnxTestCase):
     accuracy_level = 0
     # "none", "packed" (bit-packed uint8) or "float".
     zero_points = "none"
-    # Flattened [N * k_blocks] scales and zero points, accepted for
-    # compatibility with older models.
+    # Flattened scales and zero points: [N * k_blocks], or
+    # [N * ceil(k_blocks * bits / 8)] for packed zero points.
     flat_qparams = False
     bias = False
 

@@ -1,6 +1,6 @@
 // RUN: torch-mlir-opt %s -split-input-file -verify-diagnostics -convert-torch-onnx-to-torch
 
-// g_idx assigns arbitrary blocks to rows of K.
+// g_idx is deprecated, and the spec defines no semantics for it.
 func.func @matmul_nbits_group_index(
     %a: !torch.vtensor<[2,32],f32>,
     %b: !torch.vtensor<[4,2,8],ui8>,

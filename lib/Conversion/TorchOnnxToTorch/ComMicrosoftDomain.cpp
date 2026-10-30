@@ -221,8 +221,8 @@ Value createMatMulIntegerToFloatDequantize(ConversionPatternRewriter &rewriter,
 
 namespace {
 
-/// The weight layout that the MatMulNBits attributes determine, following
-/// onnxruntime's contrib_ops/cpu/quantization/matmul_nbits_helper.h.
+/// The weight layout that the MatMulNBits attributes determine, as the
+/// com.microsoft.MatMulNBits spec defines it.
 struct NBitsLayout {
   /// Input features: A's last dimension.
   int64_t k;
@@ -272,9 +272,9 @@ static bool hasShape(Value value, ArrayRef<int64_t> sizes) {
   return type.hasSizes() && type.getSizes() == sizes;
 }
 
-/// Returns whether `value` has the per-block shape [rows, columns]. The
-/// flattened [rows * columns] form is accepted for compatibility with older
-/// models, as onnxruntime's CheckInputs does.
+/// Returns whether `value` has the per-block shape [rows, columns] or its
+/// flattened form [rows * columns]. The spec gives only [rows, columns]; the
+/// flattened form is accepted because onnxruntime's HQQ quantizer emits it.
 static bool hasBlockShape(Value value, int64_t rows, int64_t columns) {
   return hasShape(value, {rows, columns}) || hasShape(value, {rows * columns});
 }
@@ -326,9 +326,7 @@ matchMatMulNBits(OpBinder binder, ConversionPatternRewriter &rewriter) {
     return rewriter.notifyMatchFailure(
         binder.op, "unsupported: weight_prepacked selects an "
                    "execution-provider specific layout of B");
-  // g_idx is deprecated in the schema and no onnxruntime quantizer emits it.
-  // Its arbitrary block assignment per row of K has no per-channel-group
-  // representation.
+  // g_idx is deprecated, and the spec defines no semantics for it.
   if (groupIndex)
     return rewriter.notifyMatchFailure(binder.op, "unsupported: g_idx input");
 
@@ -381,9 +379,9 @@ matchMatMulNBits(OpBinder binder, ConversionPatternRewriter &rewriter) {
       return rewriter.notifyMatchFailure(
           binder.op, "expected bias of A's dtype and shape [N]");
   }
-  // onnxruntime's CPU kernel (GetComputeType in matmul_nbits.cc) quantizes A
-  // for accuracy_level 4 only, and keeps A in floating point for
-  // floating-point zero points, which have no prepacked int8 path.
+  // onnxruntime's CPU kernel quantizes A for accuracy_level 4 only
+  // (GetComputeType in matmul_nbits.cc), and its PrePack keeps A in floating
+  // point for floating-point zero points, which have no int8 path.
   bool quantizeA = accuracyLevel == 4 && !unpackedZeroPoints;
   return MatMulNBitsInfo{a,    weight,     scales,    zeroPoints,
                          bias, resultType, quantizeA, layout};
@@ -527,13 +525,10 @@ static Value createNBitsWeight(ConversionPatternRewriter &rewriter,
 
 /// Returns A', the activation that linear multiplies with the dequantized
 /// weight: `a` zero padded from K to paddedK, so the padding of B's last block
-/// meets zeros, and with `quantizeA` additionally after the dynamic int8
-/// quantization that accuracy_level 4 permits, matching onnxruntime's CPU
-/// QuantizeARow_CompInt8: each row is split into blocks of block_size along K
-/// and every block is quantized symmetrically with scale max(|a|) / 127, then
-/// dequantized. The zero padding leaves the max of the last block unchanged.
-/// choose_qparams_per_token additionally clamps max(|a|) to at least 1e-5,
-/// which changes only blocks whose values all lie below 1e-5.
+/// meets zeros. With `quantizeA`, A' is also quantized to int8 and dequantized
+/// again, as accuracy_level 4 permits: per block of block_size along K, with
+/// the symmetric scale max(|a|) / 127 that choose_qparams_per_token picks. The
+/// zero padding leaves the max of the last block unchanged.
 static Value createNBitsActivation(ConversionPatternRewriter &rewriter,
                                    Location loc, const NBitsLayout &layout,
                                    Value a, bool quantizeA) {
@@ -570,7 +565,8 @@ static Value createNBitsActivation(ConversionPatternRewriter &rewriter,
   auto int8 = rewriter.getIntegerType(8, /*isSigned=*/true);
   SmallVector<int64_t> qparamSizes(blockedSizes);
   qparamSizes.back() = 1;
-  // onnxruntime computes the activation scales in f32 for every input type.
+  // onnxruntime's CPU kernel computes the activation scales in f32, also for
+  // f16 A.
   auto scalesType = rewriter.getType<Torch::ValueTensorType>(
       qparamSizes, rewriter.getF32Type());
   auto zeroPointsType = rewriter.getType<Torch::ValueTensorType>(
