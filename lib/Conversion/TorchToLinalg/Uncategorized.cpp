@@ -1865,15 +1865,6 @@ static SmallVector<AffineMap> getPerChannelIndexingMaps(OpBuilder &b,
   return maps;
 }
 
-// Returns the non-negative input dimension a constant `axisValue` names; the
-// op verifier has checked that it is in [-rank, rank).
-static FailureOr<int64_t> getPerChannelAxis(Value axisValue, int64_t rank) {
-  int64_t axis;
-  if (!matchPattern(axisValue, m_TorchConstantInt(&axis)))
-    return failure();
-  return toPositiveDim(axis, rank);
-}
-
 class ConvertQuantizedDecomposedQuantizePerChannelOp
     : public OpConversionPattern<QuantizedDecomposedQuantizePerChannelOp> {
 public:
@@ -1888,15 +1879,14 @@ public:
     Value scales = adaptor.getScales();
     Value zeroPoints = adaptor.getZeroPoints();
     auto inputType = dyn_cast<RankedTensorType>(input.getType());
-    auto scalesType = dyn_cast<RankedTensorType>(scales.getType());
-    auto zeroPointsType = dyn_cast<RankedTensorType>(zeroPoints.getType());
     auto resultType = dyn_cast<RankedTensorType>(
         getTypeConverter()->convertType(op.getResult().getType()));
-    if (!inputType || !scalesType || !zeroPointsType || !resultType)
+    if (!inputType || !isa<RankedTensorType>(scales.getType()) ||
+        !isa<RankedTensorType>(zeroPoints.getType()) || !resultType)
       return rewriter.notifyMatchFailure(op, "expected ranked tensors");
-    FailureOr<int64_t> axis =
-        getPerChannelAxis(op.getAxis(), inputType.getRank());
-    if (failed(axis))
+    std::optional<int64_t> axis = matchLegalConstantIndexIntoListOfSize(
+        op.getAxis(), inputType.getRank());
+    if (!axis)
       return rewriter.notifyMatchFailure(op, "expected a constant axis");
 
     int64_t quantMin, quantMax;
@@ -1955,14 +1945,13 @@ public:
     Value scales = adaptor.getScales();
     Value zeroPoints = adaptor.getZeroPoints();
     auto inputType = dyn_cast<RankedTensorType>(input.getType());
-    auto scalesType = dyn_cast<RankedTensorType>(scales.getType());
     auto resultType = dyn_cast<RankedTensorType>(
         getTypeConverter()->convertType(op.getResult().getType()));
-    if (!inputType || !scalesType || !resultType)
+    if (!inputType || !isa<RankedTensorType>(scales.getType()) || !resultType)
       return rewriter.notifyMatchFailure(op, "expected ranked tensors");
-    FailureOr<int64_t> axis =
-        getPerChannelAxis(op.getAxis(), inputType.getRank());
-    if (failed(axis))
+    std::optional<int64_t> axis = matchLegalConstantIndexIntoListOfSize(
+        op.getAxis(), inputType.getRank());
+    if (!axis)
       return rewriter.notifyMatchFailure(op, "expected a constant axis");
 
     bool hasZeroPoints = isa<RankedTensorType>(zeroPoints.getType());

@@ -7,10 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// Verifiers for the PT2E quantized_decomposed ops. Each check mirrors an
-// assertion of the reference implementation in
-// torch/ao/quantization/fx/_decomposed.py and applies only when the operands
-// carry the information statically.
+// Verifiers for the per-tensor, per-channel and per-channel-group PT2E
+// quantized_decomposed ops.
 //
 //===----------------------------------------------------------------------===//
 
@@ -24,15 +22,14 @@ using namespace mlir::torch::Torch;
 
 using torch_upstream::ScalarType;
 
-// The dtype codes in _DTYPE_TO_QVALUE_BOUNDS, i.e. the dtypes PT2E quantizes
-// to.
+/// The dtypes PT2E quantizes to.
 static constexpr ScalarType kStorageDtypes[] = {
     ScalarType::Byte,         ScalarType::Char,   ScalarType::Short,
     ScalarType::Int,          ScalarType::UInt16, ScalarType::Float8_e5m2,
     ScalarType::Float8_e4m3fn};
 
-// Returns the tensor element type of the storage dtype `dtype`, or a null type
-// if PT2E does not quantize to `dtype`.
+/// Returns the element type of the storage dtype `dtype`, or a null type if
+/// `dtype` is not a storage dtype.
 static Type getStorageType(MLIRContext *context, int64_t dtype) {
   switch (dtype) {
   case static_cast<int64_t>(ScalarType::Byte):
@@ -54,6 +51,7 @@ static Type getStorageType(MLIRContext *context, int64_t dtype) {
   }
 }
 
+/// Returns true if `type` is a storage element type.
 static bool isStorageType(Type type) {
   return llvm::any_of(kStorageDtypes, [&](ScalarType dtype) {
     return getStorageType(type.getContext(), static_cast<int64_t>(dtype)) ==
@@ -61,9 +59,9 @@ static bool isStorageType(Type type) {
   });
 }
 
-// Returns the inclusive range of `storageType`, a PT2E storage type. Float8
-// bounds are truncated to integers, as _DTYPE_TO_QVALUE_BOUNDS does.
+/// Returns the inclusive integer range of the storage type `storageType`.
 static std::pair<int64_t, int64_t> getStorageRange(Type storageType) {
+  assert(isStorageType(storageType) && "expected a PT2E storage type");
   if (auto integerType = dyn_cast<IntegerType>(storageType)) {
     unsigned width = integerType.getWidth();
     if (integerType.isUnsigned())
@@ -77,62 +75,84 @@ static std::pair<int64_t, int64_t> getStorageRange(Type storageType) {
   return {-largest, largest};
 }
 
-// Verifies the contract every quantized_decomposed op shares. `realType` and
-// `storageType` are the types of the floating-point and the quantized tensor
-// operand or result of `op`.
-static LogicalResult verifyQuantization(Operation *op, BaseTensorType realType,
-                                        BaseTensorType storageType, Value dtype,
-                                        Value quantMin, Value quantMax) {
-  if (realType.hasDtype() && !isa<mlir::FloatType>(realType.getDtype()))
-    return op->emitOpError(
-               "expected the real tensor to have a floating-point dtype, "
-               "but got ")
-           << realType.getDtype();
+/// Returns the value of `value` if it is a constant int.
+static std::optional<int64_t> matchConstantInt(Value value) {
+  int64_t intValue;
+  if (matchPattern(value, m_TorchConstantInt(&intValue)))
+    return intValue;
+  return std::nullopt;
+}
 
-  Type storageElementType =
-      storageType.hasDtype() ? storageType.getDtype() : Type();
+/// Verifies that `bound`, if set, is representable in `storageType`.
+static LogicalResult verifyBound(Operation *op, StringRef name,
+                                 std::optional<int64_t> bound,
+                                 Type storageType) {
+  if (!bound)
+    return success();
+  auto [storageMin, storageMax] = getStorageRange(storageType);
+  if (*bound >= storageMin && *bound <= storageMax)
+    return success();
+  return op->emitOpError("expected ") << name << " to be representable in "
+                                      << storageType << ", but got " << *bound;
+}
+
+/// Verifies that `type`, named `name` in diagnostics, has a floating-point
+/// dtype if its dtype is known.
+static LogicalResult verifyFloatDtype(Operation *op, StringRef name,
+                                      BaseTensorType type) {
+  if (type.hasDtype() && !isa<mlir::FloatType>(type.getDtype()))
+    return op->emitOpError("expected ")
+           << name << " to have a floating-point dtype, but got "
+           << type.getDtype();
+  return success();
+}
+
+/// Verifies the dtypes and the quant_min/quant_max bounds of `op`. `realType`
+/// and `storageType` are the types of its floating-point and quantized tensors,
+/// which diagnostics call `realName` and `storageName`.
+static LogicalResult verifyQuantization(Operation *op, BaseTensorType realType,
+                                        StringRef realName,
+                                        BaseTensorType storageType,
+                                        StringRef storageName, Value dtype,
+                                        Value quantMin, Value quantMax) {
+  if (failed(verifyFloatDtype(op, realName, realType)))
+    return failure();
+
+  Type storageElementType = storageType.getOptionalDtype();
   if (storageElementType && !isStorageType(storageElementType))
-    return op->emitOpError("expected the storage tensor to have a PT2E "
-                           "storage dtype, but got ")
+    return op->emitOpError("expected ")
+           << storageName << " to have a PT2E storage dtype, but got "
            << storageElementType;
 
   int64_t dtypeCode;
   if (matchPattern(dtype, m_TorchConstantInt(&dtypeCode))) {
-    Type dtypeType = getStorageType(op->getContext(), dtypeCode);
-    if (!dtypeType)
+    Type expectedStorageType = getStorageType(op->getContext(), dtypeCode);
+    if (!expectedStorageType)
       return op->emitOpError("expected dtype to be a PT2E storage dtype, but "
                              "got dtype code ")
              << dtypeCode;
-    if (storageElementType && storageElementType != dtypeType)
+    if (storageElementType && storageElementType != expectedStorageType)
       return op->emitOpError("expected dtype code ")
-             << dtypeCode << " (" << dtypeType
-             << ") to match the storage tensor dtype " << storageElementType;
-    storageElementType = dtypeType;
+             << dtypeCode << " (" << expectedStorageType << ") to match the "
+             << storageName << " dtype " << storageElementType;
+    storageElementType = expectedStorageType;
   }
 
-  int64_t quantMinValue, quantMaxValue;
-  bool hasQuantMin = matchPattern(quantMin, m_TorchConstantInt(&quantMinValue));
-  bool hasQuantMax = matchPattern(quantMax, m_TorchConstantInt(&quantMaxValue));
-  if (hasQuantMin && hasQuantMax && quantMinValue > quantMaxValue)
+  std::optional<int64_t> quantMinValue = matchConstantInt(quantMin);
+  std::optional<int64_t> quantMaxValue = matchConstantInt(quantMax);
+  if (quantMinValue && quantMaxValue && *quantMinValue > *quantMaxValue)
     return op->emitOpError("expected quant_min to not exceed quant_max, but "
                            "got [")
-           << quantMinValue << ", " << quantMaxValue << "]";
+           << *quantMinValue << ", " << *quantMaxValue << "]";
   if (!storageElementType)
     return success();
-  auto [storageMin, storageMax] = getStorageRange(storageElementType);
-  for (auto [name, hasValue, value] :
-       {std::make_tuple("quant_min", hasQuantMin, quantMinValue),
-        std::make_tuple("quant_max", hasQuantMax, quantMaxValue)}) {
-    if (hasValue && (value < storageMin || value > storageMax))
-      return op->emitOpError("expected ")
-             << name << " to be representable in " << storageElementType
-             << ", but got " << value;
-  }
-  return success();
+  if (failed(verifyBound(op, "quant_min", quantMinValue, storageElementType)))
+    return failure();
+  return verifyBound(op, "quant_max", quantMaxValue, storageElementType);
 }
 
-// Verifies that the dequantized `resultType` has the dtype `outDtype` selects.
-// A None `outDtype` selects float32.
+/// Verifies that `outDtype` is None or a floating-point dtype code and that
+/// `resultType` has the dtype it selects (f32 for None).
 static LogicalResult verifyOutDtype(Operation *op, BaseTensorType resultType,
                                     Value outDtype) {
   Type expected;
@@ -149,8 +169,8 @@ static LogicalResult verifyOutDtype(Operation *op, BaseTensorType resultType,
                                        static_cast<ScalarType>(outDtypeCode));
       break;
     default:
-      return op->emitOpError("expected the output dtype to be a "
-                             "floating-point dtype, but got dtype code ")
+      return op->emitOpError("expected out_dtype to be a floating-point "
+                             "dtype, but got dtype code ")
              << outDtypeCode;
     }
   }
@@ -160,100 +180,97 @@ static LogicalResult verifyOutDtype(Operation *op, BaseTensorType resultType,
   return success();
 }
 
-// Verifies that `scales` and `zeroPoints` hold one value per index of dimension
-// `axis` of `inputType`. `zeroPoints` is None for symmetric quantization. Its
-// dtype is not constrained: per_channel_affine_float_qparams observers produce
-// floating-point zero points.
-// https://github.com/pytorch/pytorch/blob/f3c0cf56a7577d677c37718c4edc41b8fc7fb51a/torch/ao/quantization/observer.py#L398-L405
-static LogicalResult verifyPerChannelParameters(Operation *op,
-                                                BaseTensorType inputType,
-                                                Value scales, Value zeroPoints,
-                                                Value axis) {
-  auto scalesType = cast<BaseTensorType>(scales.getType());
-  if (scalesType.hasDtype() && !isa<mlir::FloatType>(scalesType.getDtype()))
-    return op->emitOpError("expected scales to have a floating-point dtype, "
-                           "but got ")
-           << scalesType.getDtype();
+/// Verifies the dtypes and bounds of the quantize op `op`.
+template <typename OpTy> static LogicalResult verifyQuantizeOp(OpTy op) {
+  return verifyQuantization(op, cast<BaseTensorType>(op.getInput().getType()),
+                            "input", cast<BaseTensorType>(op.getType()),
+                            "result", op.getDtype(), op.getQuantMin(),
+                            op.getQuantMax());
+}
+
+/// Verifies the dtypes and bounds of the dequantize op `op`.
+template <typename OpTy> static LogicalResult verifyDequantizeOp(OpTy op) {
+  auto resultType = cast<BaseTensorType>(op.getType());
+  if (failed(verifyQuantization(op, resultType, "result",
+                                cast<BaseTensorType>(op.getInput().getType()),
+                                "input", op.getDtype(), op.getQuantMin(),
+                                op.getQuantMax())))
+    return failure();
+  return verifyOutDtype(op, resultType, op.getOutDtype());
+}
+
+/// Verifies that the scales and zero points of `op` have one element per index
+/// of the input dimension `axis`.
+template <typename OpTy>
+static LogicalResult verifyPerChannelParameters(OpTy op) {
+  auto scalesType = cast<BaseTensorType>(op.getScales().getType());
+  if (failed(verifyFloatDtype(op, "scales", scalesType)))
+    return failure();
   int64_t scalesLength = kUnknownSize;
   if (scalesType.hasSizes()) {
     if (scalesType.getSizes().size() != 1)
-      return op->emitOpError("expected scales to have rank 1, but got rank ")
+      return op.emitOpError("expected scales to have rank 1, but got rank ")
              << scalesType.getSizes().size();
     scalesLength = scalesType.getSizes()[0];
   }
 
-  if (auto zeroPointsType = dyn_cast<BaseTensorType>(zeroPoints.getType())) {
-    if (zeroPointsType.hasSizes()) {
-      ArrayRef<int64_t> sizes = zeroPointsType.getSizes();
-      if (sizes.size() != 1)
-        return op->emitOpError(
-                   "expected zero_points to have rank 1, but got rank ")
-               << sizes.size();
-      if (sizes[0] != kUnknownSize && scalesLength != kUnknownSize &&
-          sizes[0] != scalesLength)
-        return op->emitOpError("expected zero_points to have the length of "
-                               "scales, but got ")
-               << sizes[0] << " and " << scalesLength;
-    }
+  auto zeroPointsType = dyn_cast<BaseTensorType>(op.getZeroPoints().getType());
+  if (zeroPointsType && zeroPointsType.hasSizes()) {
+    ArrayRef<int64_t> sizes = zeroPointsType.getSizes();
+    if (sizes.size() != 1)
+      return op.emitOpError(
+                 "expected zero_points to have rank 1, but got rank ")
+             << sizes.size();
+    if (sizes[0] != kUnknownSize && scalesLength != kUnknownSize &&
+        sizes[0] != scalesLength)
+      return op.emitOpError("expected zero_points to have the length of "
+                            "scales, but got ")
+             << sizes[0] << " and " << scalesLength;
   }
 
+  auto inputType = cast<BaseTensorType>(op.getInput().getType());
   int64_t axisValue;
   if (!inputType.hasSizes() ||
-      !matchPattern(axis, m_TorchConstantInt(&axisValue)))
+      !matchPattern(op.getAxis(), m_TorchConstantInt(&axisValue)))
     return success();
   ArrayRef<int64_t> inputSizes = inputType.getSizes();
   int64_t rank = inputSizes.size();
   int64_t channelDim = toPositiveDim(axisValue, rank);
   if (!isValidDim(channelDim, rank))
-    return op->emitOpError("expected axis to be in [")
+    return op.emitOpError("expected axis to be in [")
            << -rank << ", " << rank << "), but got " << axisValue;
   int64_t channels = inputSizes[channelDim];
   if (channels != kUnknownSize && scalesLength != kUnknownSize &&
       channels != scalesLength)
-    return op->emitOpError("expected scales to have one element per index of "
-                           "input dimension ")
+    return op.emitOpError("expected scales to have one element per index of "
+                          "input dimension ")
            << channelDim << " (" << channels << "), but got " << scalesLength;
   return success();
 }
 
 LogicalResult QuantizedDecomposedQuantizePerTensorOp::verify() {
-  return verifyQuantization(*this, cast<BaseTensorType>(getInput().getType()),
-                            cast<BaseTensorType>(getType()), getDtype(),
-                            getQuantMin(), getQuantMax());
+  return verifyQuantizeOp(*this);
 }
 
 LogicalResult QuantizedDecomposedDequantizePerTensorOp::verify() {
-  auto resultType = cast<BaseTensorType>(getType());
-  if (failed(verifyQuantization(*this, resultType,
-                                cast<BaseTensorType>(getInput().getType()),
-                                getDtype(), getQuantMin(), getQuantMax())))
-    return failure();
-  return verifyOutDtype(*this, resultType, getOutDtype());
+  return verifyDequantizeOp(*this);
 }
 
 LogicalResult QuantizedDecomposedQuantizePerChannelOp::verify() {
-  auto inputType = cast<BaseTensorType>(getInput().getType());
-  if (failed(verifyQuantization(*this, inputType,
-                                cast<BaseTensorType>(getType()), getDtype(),
-                                getQuantMin(), getQuantMax())))
+  if (failed(verifyQuantizeOp(*this)))
     return failure();
-  return verifyPerChannelParameters(*this, inputType, getScales(),
-                                    getZeroPoints(), getAxis());
+  return verifyPerChannelParameters(*this);
 }
 
 LogicalResult QuantizedDecomposedDequantizePerChannelOp::verify() {
-  auto inputType = cast<BaseTensorType>(getInput().getType());
-  auto resultType = cast<BaseTensorType>(getType());
-  if (failed(verifyQuantization(*this, resultType, inputType, getDtype(),
-                                getQuantMin(), getQuantMax())) ||
-      failed(verifyOutDtype(*this, resultType, getOutDtype())))
+  if (failed(verifyDequantizeOp(*this)))
     return failure();
-  return verifyPerChannelParameters(*this, inputType, getScales(),
-                                    getZeroPoints(), getAxis());
+  return verifyPerChannelParameters(*this);
 }
 
-static int64_t getEffectiveGroupSize(Value input, Value scales,
-                                     int64_t groupSize) {
+/// Implements `getEffectiveGroupSize` of the per-channel-group ops.
+static int64_t computeEffectiveGroupSize(Value input, Value scales,
+                                         int64_t groupSize) {
   auto inputType = cast<BaseTensorType>(input.getType());
   auto scalesType = cast<BaseTensorType>(scales.getType());
   if (!inputType.hasSizes() || !scalesType.hasSizes() ||
@@ -268,20 +285,16 @@ static int64_t getEffectiveGroupSize(Value input, Value scales,
 
 int64_t QuantizedDecomposedQuantizePerChannelGroupOp::getEffectiveGroupSize(
     int64_t groupSize) {
-  return ::getEffectiveGroupSize(getInput(), getScales(), groupSize);
+  return computeEffectiveGroupSize(getInput(), getScales(), groupSize);
 }
 
 int64_t QuantizedDecomposedDequantizePerChannelGroupOp::getEffectiveGroupSize(
     int64_t groupSize) {
-  return ::getEffectiveGroupSize(getInput(), getScales(), groupSize);
+  return computeEffectiveGroupSize(getInput(), getScales(), groupSize);
 }
 
-// Verifies that the rank-2 `scales` and `zeroPoints` of `OpTy` hold one value
-// per group of `group_size` consecutive elements in each row of the rank-2
-// input. `zeroPoints` is None for symmetric dequantization. Its dtype is not
-// constrained: torchao's group_quantize_tensor_symmetric
-// (torchao/quantization/utils.py) passes zero points in the float precision
-// of the scales.
+/// Verifies that the scales and zero points of `op` have one element per group
+/// of `group_size` elements in each input row.
 template <typename OpTy>
 static LogicalResult verifyPerChannelGroupParameters(OpTy op) {
   auto inputType = cast<BaseTensorType>(op.getInput().getType());
@@ -289,10 +302,8 @@ static LogicalResult verifyPerChannelGroupParameters(OpTy op) {
   if (inputType.hasSizes() && inputType.getSizes().size() != 2)
     return op.emitOpError("expected input to have rank 2, but got rank ")
            << inputType.getSizes().size();
-  if (scalesType.hasDtype() && !isa<mlir::FloatType>(scalesType.getDtype()))
-    return op.emitOpError("expected scales to have a floating-point dtype, "
-                          "but got ")
-           << scalesType.getDtype();
+  if (failed(verifyFloatDtype(op, "scales", scalesType)))
+    return failure();
   if (scalesType.hasSizes() && scalesType.getSizes().size() != 2)
     return op.emitOpError("expected scales to have rank 2, but got rank ")
            << scalesType.getSizes().size();
@@ -337,8 +348,8 @@ static LogicalResult verifyPerChannelGroupParameters(OpTy op) {
   if (rowLength == kUnknownSize)
     return success();
   int64_t effectiveGroupSize = op.getEffectiveGroupSize(groupSize);
-  // Whether a group size beyond the row length means one group per row
-  // depends on the dynamic number of group columns.
+  // Accept a group size beyond the row length when the scale columns are
+  // dynamic.
   if (effectiveGroupSize > rowLength && groups == kUnknownSize)
     return success();
   if (rowLength % effectiveGroupSize != 0)
@@ -353,20 +364,13 @@ static LogicalResult verifyPerChannelGroupParameters(OpTy op) {
 }
 
 LogicalResult QuantizedDecomposedQuantizePerChannelGroupOp::verify() {
-  if (failed(verifyQuantization(*this,
-                                cast<BaseTensorType>(getInput().getType()),
-                                cast<BaseTensorType>(getType()), getDtype(),
-                                getQuantMin(), getQuantMax())))
+  if (failed(verifyQuantizeOp(*this)))
     return failure();
   return verifyPerChannelGroupParameters(*this);
 }
 
 LogicalResult QuantizedDecomposedDequantizePerChannelGroupOp::verify() {
-  auto resultType = cast<BaseTensorType>(getType());
-  if (failed(verifyQuantization(*this, resultType,
-                                cast<BaseTensorType>(getInput().getType()),
-                                getDtype(), getQuantMin(), getQuantMax())) ||
-      failed(verifyOutDtype(*this, resultType, getOutDtype())))
+  if (failed(verifyDequantizeOp(*this)))
     return failure();
   return verifyPerChannelGroupParameters(*this);
 }

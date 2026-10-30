@@ -422,8 +422,7 @@ func.func @torch.aten._scaled_mm_v2$nv_blockwise_1x16_tensorwise_scales(
   return %0 : !torch.vtensor<[128,128],bf16>
 }
 
-// The quantized_decomposed verifiers check only static information: unknown
-// sizes and dtypes, and non-constant dtype codes and bounds, verify.
+// Unknown sizes and dtypes, and non-constant dtype codes and bounds.
 // CHECK-LABEL: func.func @quantized_decomposed_unknown_types(
 func.func @quantized_decomposed_unknown_types(%arg0: !torch.vtensor, %arg1: !torch.vtensor, %arg2: !torch.vtensor, %quant_min: !torch.int, %dtype: !torch.int) -> !torch.vtensor {
   %scale = torch.constant.float 5.000000e-01
@@ -449,8 +448,7 @@ func.func @quantized_decomposed_dynamic_channels(%arg0: !torch.vtensor<[4,?],f32
   return %0 : !torch.vtensor<[4,?],ui8>
 }
 
-// Floating-point per-channel zero points, as per_channel_affine_float_qparams
-// observers produce.
+// Floating-point per-channel zero points.
 // CHECK-LABEL: func.func @quantized_decomposed_per_channel_float_zero_points(
 func.func @quantized_decomposed_per_channel_float_zero_points(%arg0: !torch.vtensor<[4,8],f32>, %arg1: !torch.vtensor<[4],f32>, %arg2: !torch.vtensor<[4],f32>) -> !torch.vtensor<[4,8],f32> {
   %axis = torch.constant.int 0
@@ -465,7 +463,7 @@ func.func @quantized_decomposed_per_channel_float_zero_points(%arg0: !torch.vten
   return %1 : !torch.vtensor<[4,8],f32>
 }
 
-// PT2E also quantizes to float8 and uint16 storage.
+// Float8 and uint16 storage.
 // CHECK-LABEL: func.func @quantized_decomposed_storage_dtypes(
 func.func @quantized_decomposed_storage_dtypes(%arg0: !torch.vtensor<[4,8],f8E4M3FN>, %arg1: !torch.vtensor<[4,8],f32>) -> (!torch.vtensor<[4,8],bf16>, !torch.vtensor<[4,8],ui16>) {
   %scale = torch.constant.float 5.000000e-01
@@ -484,9 +482,8 @@ func.func @quantized_decomposed_storage_dtypes(%arg0: !torch.vtensor<[4,8],f8E4M
   return %0, %1 : !torch.vtensor<[4,8],bf16>, !torch.vtensor<[4,8],ui16>
 }
 
-// Group quantization accepts the floating-point zero points torchao passes,
-// a group_size beyond the row length with one group column, and a dynamic
-// group count that decides whether such a group_size applies.
+// Group quantization with floating-point zero points, a group_size beyond the
+// row length with one group column, and a dynamic group count.
 // CHECK-LABEL: func.func @quantized_decomposed_per_channel_group(
 func.func @quantized_decomposed_per_channel_group(%arg0: !torch.vtensor<[4,16],f32>, %arg1: !torch.vtensor<[4,4],f32>, %arg2: !torch.vtensor<[4,1],f32>, %arg3: !torch.vtensor<[4,?],f32>) -> (!torch.vtensor<[4,16],si8>, !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,16],f32>) {
   %quant_min = torch.constant.int -8

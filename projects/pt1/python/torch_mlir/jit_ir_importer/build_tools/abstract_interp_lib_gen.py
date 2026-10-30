@@ -6503,9 +6503,9 @@ def quantized_decomposed〇quantize_per_tensor〡shape(input: List[int], scale: 
 
 @not_present_in_registry
 def quantized_decomposed〇quantize_per_tensor〡dtype(input_rank_dtype: Tuple[int, int], scale: float, zero_point: int, quant_min: int, quant_max: int, dtype: int) -> int:
-    # The output dtype is the integer type encoded by the `dtype` arg
+    # The output dtype is the storage dtype encoded by the `dtype` arg
     # (e.g. torch.int8 = 1, torch.uint8 = 0).  Return it directly so that
-    # dtype-refinement propagates the correct integer element type.
+    # dtype-refinement propagates the storage element type.
     return dtype
 
 @not_present_in_registry

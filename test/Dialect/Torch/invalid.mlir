@@ -1198,7 +1198,7 @@ func.func @torch.quantized_decomposed.quantize_per_tensor$invalid_real_dtype(%ar
   %quant_min = torch.constant.int -128
   %quant_max = torch.constant.int 127
   %dtype = torch.constant.int 1
-  // expected-error @+1 {{'torch.quantized_decomposed.quantize_per_tensor' op expected the real tensor to have a floating-point dtype, but got 'si32'}}
+  // expected-error @+1 {{'torch.quantized_decomposed.quantize_per_tensor' op expected input to have a floating-point dtype, but got 'si32'}}
   %0 = torch.quantized_decomposed.quantize_per_tensor %arg0, %scale, %zero_point, %quant_min, %quant_max, %dtype : !torch.vtensor<[4,8],si32>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,8],si8>
   return %0 : !torch.vtensor<[4,8],si8>
 }
@@ -1264,7 +1264,7 @@ func.func @torch.quantized_decomposed.dequantize_per_tensor$invalid_dtype_mismat
   %quant_max = torch.constant.int 127
   %dtype = torch.constant.int 2
   %out_dtype = torch.constant.none
-  // expected-error @+1 {{'torch.quantized_decomposed.dequantize_per_tensor' op expected dtype code 2 ('si16') to match the storage tensor dtype 'si8'}}
+  // expected-error @+1 {{'torch.quantized_decomposed.dequantize_per_tensor' op expected dtype code 2 ('si16') to match the input dtype 'si8'}}
   %0 = torch.quantized_decomposed.dequantize_per_tensor %arg0, %scale, %zero_point, %quant_min, %quant_max, %dtype, %out_dtype : !torch.vtensor<[4,8],si8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.none -> !torch.vtensor<[4,8],f32>
   return %0 : !torch.vtensor<[4,8],f32>
 }
@@ -1278,7 +1278,7 @@ func.func @torch.quantized_decomposed.dequantize_per_tensor$invalid_storage_dtyp
   %quant_max = torch.constant.int 127
   %dtype = torch.constant.int 4
   %out_dtype = torch.constant.none
-  // expected-error @+1 {{'torch.quantized_decomposed.dequantize_per_tensor' op expected the storage tensor to have a PT2E storage dtype, but got 'si64'}}
+  // expected-error @+1 {{'torch.quantized_decomposed.dequantize_per_tensor' op expected input to have a PT2E storage dtype, but got 'si64'}}
   %0 = torch.quantized_decomposed.dequantize_per_tensor %arg0, %scale, %zero_point, %quant_min, %quant_max, %dtype, %out_dtype : !torch.vtensor<[4,8],si64>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.none -> !torch.vtensor<[4,8],f32>
   return %0 : !torch.vtensor<[4,8],f32>
 }
@@ -1292,7 +1292,7 @@ func.func @torch.quantized_decomposed.dequantize_per_tensor$invalid_result_dtype
   %quant_max = torch.constant.int 127
   %dtype = torch.constant.int 1
   %out_dtype = torch.constant.int 4
-  // expected-error @+1 {{'torch.quantized_decomposed.dequantize_per_tensor' op expected the real tensor to have a floating-point dtype, but got 'si64'}}
+  // expected-error @+1 {{'torch.quantized_decomposed.dequantize_per_tensor' op expected result to have a floating-point dtype, but got 'si64'}}
   %0 = torch.quantized_decomposed.dequantize_per_tensor %arg0, %scale, %zero_point, %quant_min, %quant_max, %dtype, %out_dtype : !torch.vtensor<[4,8],si8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,8],si64>
   return %0 : !torch.vtensor<[4,8],si64>
 }
@@ -1306,7 +1306,7 @@ func.func @torch.quantized_decomposed.dequantize_per_tensor$invalid_out_dtype_in
   %quant_max = torch.constant.int 127
   %dtype = torch.constant.int 1
   %out_dtype = torch.constant.int 4
-  // expected-error @+1 {{'torch.quantized_decomposed.dequantize_per_tensor' op expected the output dtype to be a floating-point dtype, but got dtype code 4}}
+  // expected-error @+1 {{'torch.quantized_decomposed.dequantize_per_tensor' op expected out_dtype to be a floating-point dtype, but got dtype code 4}}
   %0 = torch.quantized_decomposed.dequantize_per_tensor %arg0, %scale, %zero_point, %quant_min, %quant_max, %dtype, %out_dtype : !torch.vtensor<[4,8],si8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,8],f32>
   return %0 : !torch.vtensor<[4,8],f32>
 }

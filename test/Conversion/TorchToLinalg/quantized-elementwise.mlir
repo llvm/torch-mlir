@@ -1026,11 +1026,8 @@ func.func @quantize_per_token(
 
 // -----
 
-// Per-channel quantization with floating-point zero points, as
-// per_channel_affine_float_qparams observers produce. Quantize adds the zero
-// point after rounding, as the PT2E reference does:
-// https://github.com/pytorch/pytorch/blob/f3c0cf56a7577d677c37718c4edc41b8fc7fb51a/torch/ao/quantization/fx/_decomposed.py#L641
-// Dequantize subtracts it in f32.
+// Per-channel quantization with floating-point zero points. Quantize adds the
+// zero point after rounding; dequantize subtracts it in f32.
 // CHECK-LABEL: func.func @per_channel_float_zero_points(
 // CHECK: ^bb0(%[[IN:.*]]: f32, %[[SCALE:.*]]: f32, %[[ZP:.*]]: f32, %{{.*}}: i8):
 // CHECK:   %[[DIV:.*]] = arith.divf %[[IN]], %[[SCALE]] : f32
