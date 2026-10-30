@@ -289,6 +289,8 @@ matchMatMulNBits(OpBinder binder, ConversionPatternRewriter &rewriter) {
                    "and the K, N and block_size attributes");
   }
   Value *optionalInputs[] = {&zeroPoints, &groupIndex, &bias};
+  // Empty ONNX input names become None without shifting later inputs, so bias
+  // may be present even when zero_points or g_idx is omitted.
   for (int64_t i = 3; i < binder.getNumOperands(); ++i) {
     if (isa<Torch::NoneType>(binder.op->getOperand(i).getType()))
       continue;
@@ -297,7 +299,7 @@ matchMatMulNBits(OpBinder binder, ConversionPatternRewriter &rewriter) {
           binder.op, "expected tensor or None optional inputs");
   }
 
-  if (bits != 2 && bits != 4 && bits != 8)
+  if (!llvm::is_contained({2, 4, 8}, bits))
     return rewriter.notifyMatchFailure(binder.op, "bits must be 2, 4 or 8");
   if (blockSize < 16 || !llvm::isPowerOf2_64(blockSize))
     return rewriter.notifyMatchFailure(
@@ -327,10 +329,10 @@ matchMatMulNBits(OpBinder binder, ConversionPatternRewriter &rewriter) {
                      valuesPerByte,
                      llvm::divideCeilSigned(kBlocks, valuesPerByte)};
   auto aType = cast<Torch::ValueTensorType>(a.getType());
-  if (!aType.hasDtype() || !aType.hasSizes() || aType.getSizes().empty() ||
+  if (!aType.hasDtype() || aType.getSizes().empty() ||
       !isa<Float32Type, Float16Type, BFloat16Type>(aType.getDtype()))
     return rewriter.notifyMatchFailure(binder.op,
-                                       "expected ranked f32, f16 or bf16 A");
+                                       "expected f32, f16 or bf16 A");
   Type floatType = aType.getDtype();
   if (aType.getSizes().back() != k)
     return rewriter.notifyMatchFailure(
@@ -396,8 +398,7 @@ Value reshapeToBlockShape(OpBinder binder, ConversionPatternRewriter &rewriter,
 //   (packed[..., None] >> [0, bits, 2 * bits, ...]) & (2^bits - 1)
 Value unpackLastDimension(ConversionPatternRewriter &rewriter, Location loc,
                           Value packed, int64_t bits) {
-  MLIRContext *context = rewriter.getContext();
-  auto uint8 = IntegerType::get(context, 8, IntegerType::Unsigned);
+  auto uint8 = rewriter.getIntegerType(8, /*isSigned=*/false);
   int64_t valuesPerByte = 8 / bits;
   SmallVector<int64_t> sizes(
       cast<Torch::ValueTensorType>(packed.getType()).getSizes());
@@ -422,7 +423,8 @@ Value unpackLastDimension(ConversionPatternRewriter &rewriter, Location loc,
       rewriter.getType<Torch::ValueTensorType>(expandedSizes, uint8);
   Value shifted = Torch::AtenBitwiseRightShiftTensorOp::create(
       rewriter, loc, valuesType, expanded, shifts);
-  Value mask = Torch::ConstantIntOp::create(rewriter, loc, (1 << bits) - 1);
+  Value mask =
+      Torch::ConstantIntOp::create(rewriter, loc, llvm::maxUIntN(bits));
   Value values = Torch::AtenBitwiseAndScalarOp::create(
       rewriter, loc, valuesType, shifted, mask);
 
@@ -444,8 +446,7 @@ Value createNBitsWeight(OpBinder binder, ConversionPatternRewriter &rewriter,
                         const NBitsLayout &layout, Value weight, Value scales,
                         Value zeroPoints, Type floatType) {
   Location loc = binder.getLoc();
-  MLIRContext *context = rewriter.getContext();
-  auto uint8 = IntegerType::get(context, 8, IntegerType::Unsigned);
+  auto uint8 = rewriter.getIntegerType(8, /*isSigned=*/false);
   int64_t n = layout.n;
 
   Value quantized = weight;
@@ -489,9 +490,8 @@ Value createNBitsWeight(OpBinder binder, ConversionPatternRewriter &rewriter,
         reshapeToBlockShape(binder, rewriter, zeroPoints, n, layout.kBlocks);
   }
 
-  Value quantMin = Torch::ConstantIntOp::create(rewriter, loc, 0);
-  Value quantMax =
-      Torch::ConstantIntOp::create(rewriter, loc, (1 << layout.bits) - 1);
+  auto [quantMin, quantMax] = createQuantizationBounds(
+      rewriter, loc, rewriter.getIntegerType(layout.bits, /*isSigned=*/false));
   Value storageDtype = Torch::getDtypeIntValueForType(rewriter, loc, uint8);
   Value groupSize =
       Torch::ConstantIntOp::create(rewriter, loc, layout.blockSize);
@@ -515,7 +515,6 @@ Value createBlockQuantizedActivation(OpBinder binder,
                                      ConversionPatternRewriter &rewriter,
                                      const NBitsLayout &layout, Value a) {
   Location loc = binder.getLoc();
-  MLIRContext *context = rewriter.getContext();
   auto aType = cast<Torch::ValueTensorType>(a.getType());
   Type floatType = aType.getDtype();
   SmallVector<int64_t> blockedSizes(aType.getSizes());
@@ -529,14 +528,14 @@ Value createBlockQuantizedActivation(OpBinder binder,
       createConstantIntList(binder, rewriter,
                             {layout.kBlocks, layout.blockSize}));
 
-  auto int8 = IntegerType::get(context, 8, IntegerType::Signed);
+  auto int8 = rewriter.getIntegerType(8, /*isSigned=*/true);
   SmallVector<int64_t> qparamSizes(blockedSizes);
   qparamSizes.back() = 1;
   // onnxruntime computes the activation scales in f32 for every input type.
   auto scalesType = rewriter.getType<Torch::ValueTensorType>(
       qparamSizes, rewriter.getF32Type());
   auto zeroPointsType = rewriter.getType<Torch::ValueTensorType>(
-      qparamSizes, rewriter.getIntegerType(64, true));
+      qparamSizes, rewriter.getIntegerType(64, /*isSigned=*/true));
   Value storageDtype = Torch::getDtypeIntValueForType(rewriter, loc, int8);
   auto qparams = Torch::QuantizedDecomposedChooseQparamsPerTokenOp::create(
       rewriter, loc, scalesType, zeroPointsType, blocked, storageDtype);
