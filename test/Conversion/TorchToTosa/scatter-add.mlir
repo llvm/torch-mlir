@@ -70,16 +70,20 @@ func.func @scatter_add_1d_i32_indices(%self: !torch.vtensor<[4],f32>, %index: !t
 // Keep the sum and self addition in f32. For self=[-40000], index=[0,0],
 // and src=[40000,40000,0], reducing in f16 would overflow before adding self.
 // CHECK-LABEL: func.func @scatter_add_f16(
+// CHECK: %[[ORIGINAL:.*]] = torch_c.to_builtin_tensor %arg0
 // CHECK: %[[SLICE:.*]] = tosa.slice {{.*}} -> tensor<2xf16>
 // CHECK: %[[SRC:.*]] = tosa.cast %[[SLICE]]{{.*}} : (tensor<2xf16>) -> tensor<2xf32>
 // CHECK: %[[UPDATES:.*]] = tosa.reshape %[[SRC]], {{.*}} -> tensor<2x1xf32>
 // CHECK: %[[SELECTED:.*]] = tosa.select {{.*}}, %[[UPDATES]], {{.*}} -> tensor<2x1xf32>
 // CHECK: %[[SUM:.*]] = tosa.reduce_sum %[[SELECTED]] axis(0) : (tensor<2x1xf32>) -> tensor<1x1xf32>
+// CHECK: %[[TOUCHED:.*]] = tosa.reduce_any %{{.*}} axis(0) : (tensor<2x1xi1>) -> tensor<1x1xi1>
 // CHECK: %[[SELF:.*]] = tosa.cast %{{.*}} : (tensor<1xf16>) -> tensor<1xf32>
 // CHECK: %[[FLAT_SELF:.*]] = tosa.reshape %[[SELF]], {{.*}} -> tensor<1x1xf32>
 // CHECK: %[[ADDED:.*]] = tosa.add %[[FLAT_SELF]], %[[SUM]] : (tensor<1x1xf32>, tensor<1x1xf32>) -> tensor<1x1xf32>
 // CHECK: %[[RESULT:.*]] = tosa.reshape %[[ADDED]], {{.*}} -> tensor<1xf32>
-// CHECK: tosa.cast %[[RESULT]]{{.*}} : (tensor<1xf32>) -> tensor<1xf16>
+// CHECK: %[[NARROWED:.*]] = tosa.cast %[[RESULT]]{{.*}} : (tensor<1xf32>) -> tensor<1xf16>
+// CHECK: %[[MASK:.*]] = tosa.reshape %[[TOUCHED]], {{.*}} -> tensor<1xi1>
+// CHECK: tosa.select %[[MASK]], %[[NARROWED]], %[[ORIGINAL]] : (tensor<1xi1>, tensor<1xf16>, tensor<1xf16>) -> tensor<1xf16>
 func.func @scatter_add_f16(%self: !torch.vtensor<[1],f16>, %index: !torch.vtensor<[2],si64>, %src: !torch.vtensor<[3],f16>) -> !torch.vtensor<[1],f16> {
   %dim = torch.constant.int 0
   %result = torch.aten.scatter_add %self, %dim, %index, %src : !torch.vtensor<[1],f16>, !torch.int, !torch.vtensor<[2],si64>, !torch.vtensor<[3],f16> -> !torch.vtensor<[1],f16>
@@ -177,12 +181,17 @@ func.func @scatter_add_large_vector(%self: !torch.vtensor<[10000],f32>, %index: 
 // Share negative-dim handling, source slicing, and f32 accumulation with the
 // dense path. The segmented scan and final addition stay in f32.
 // CHECK-LABEL: func.func @scatter_add_sorted_f16(
+// CHECK: %[[ORIGINAL:.*]] = torch_c.to_builtin_tensor %arg0
 // CHECK: tosa.slice {{.*}} -> tensor<2x513xf16>
 // CHECK: tosa.cast {{.*}} : (tensor<2x513xf16>) -> tensor<2x513xf32>
 // CHECK: tosa.gather {{.*}} -> tensor<1x1026x1xf32>
 // CHECK: tosa.scatter {{.*}} -> tensor<1x2050x1xf32>
+// CHECK: %[[FLAGS:.*]] = tosa.scatter {{.*}} -> tensor<1x2050x1xi1>
+// CHECK: %[[TOUCHED:.*]] = tosa.slice %[[FLAGS]], {{.*}} -> tensor<1x1024x1xi1>
 // CHECK: tosa.add {{.*}} -> tensor<1x1024xf32>
-// CHECK: tosa.cast {{.*}} : (tensor<2x512xf32>) -> tensor<2x512xf16>
+// CHECK: %[[NARROWED:.*]] = tosa.cast {{.*}} : (tensor<2x512xf32>) -> tensor<2x512xf16>
+// CHECK: %[[MASK:.*]] = tosa.reshape {{.*}} -> tensor<2x512xi1>
+// CHECK: tosa.select %[[MASK]], %[[NARROWED]], %[[ORIGINAL]] : (tensor<2x512xi1>, tensor<2x512xf16>, tensor<2x512xf16>) -> tensor<2x512xf16>
 func.func @scatter_add_sorted_f16(%self: !torch.vtensor<[2,512],f16>, %index: !torch.vtensor<[2,513],si64>, %src: !torch.vtensor<[2,514],f16>) -> !torch.vtensor<[2,512],f16> {
   %dim = torch.constant.int -1
   %result = torch.aten.scatter_add %self, %dim, %index, %src : !torch.vtensor<[2,512],f16>, !torch.int, !torch.vtensor<[2,513],si64>, !torch.vtensor<[2,514],f16> -> !torch.vtensor<[2,512],f16>

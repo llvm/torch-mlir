@@ -525,6 +525,9 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
+    # StableHLO scatter lowering fails bufferization for these signed-zero tests.
+    "ScatterAddDenseSignedZeroModule_basic",
+    "ScatterAddSortedSignedZeroModule_basic",
     "ArgsortTensor_basic",
     "ArgsortTensorInteger_basic",
     "AddFloatIntModule_basic",

@@ -118,7 +118,8 @@ static Value emitInclusiveScanByPowersOfTwo(Value running,
 //   indices = tosa.select(same_as_next_key, [4,5,6,7], keys) // [0,1,6,2]
 //   scratch = tosa.scatter(zeros<1x8x1>, indices, sums)
 //   result = tosa.slice(scratch, first four rows)        // [11,5,10,0]
-static FailureOr<Value>
+// Return both the sums and a mask of destinations that received updates.
+static FailureOr<std::pair<Value, Value>>
 buildScatterAddSortedSums(AtenScatterAddOp op, Value flatIndex, Value flatSrc,
                           int64_t destinations,
                           ConversionPatternRewriter &rewriter) {
@@ -274,11 +275,26 @@ buildScatterAddSortedSums(AtenScatterAddOp op, Value flatIndex, Value flatSrc,
   auto scratch = tosa::getZerosLikeTensor(rewriter, op, scratchType);
   if (!scratch)
     return failure();
-  Value scattered = tosa::ScatterOp::create(
-      rewriter, loc, scratchType, *scratch,
-      reshape(scatterIndices, scatterIndexType), values);
-  return reshape(slice(scattered, 0, destinations),
-                 RankedTensorType::get({1, destinations}, elementType));
+  Value uniqueIndices = reshape(scatterIndices, scatterIndexType);
+  Value scattered = tosa::ScatterOp::create(rewriter, loc, scratchType,
+                                            *scratch, uniqueIndices, values);
+  Value sums = reshape(slice(scattered, 0, destinations),
+                       RankedTensorType::get({1, destinations}, elementType));
+
+  // Reuse the unique indices to mark segment ends. A zero sum still counts
+  // as an update; it must not be confused with an untouched destination.
+  auto touchedType = scratchType.clone(rewriter.getI1Type());
+  auto untouched = tosa::getZerosLikeTensor(rewriter, op, touchedType);
+  auto ones =
+      tosa::getSplatConstTensor<bool>(rewriter, op, true, {1, updates, 1});
+  if (!untouched || !ones)
+    return failure();
+  Value touched = tosa::ScatterOp::create(rewriter, loc, touchedType,
+                                          *untouched, uniqueIndices, *ones);
+  touched =
+      reshape(slice(touched, 0, destinations),
+              RankedTensorType::get({1, destinations}, rewriter.getI1Type()));
+  return std::make_pair(sums, touched);
 }
 
 static SmallVector<int64_t> permuteShape(ArrayRef<int64_t> originalShape,
@@ -7514,6 +7530,7 @@ LogicalResult ConvertAtenOp<AtenScatterSrcOp>::matchAndRewriteImpl(
 // Higher-rank inputs also use strides and offsets to flatten destinations.
 // Both policies cast narrow floating-point inputs to the default accumulation
 // type before summing and adding self, then cast the result back afterwards.
+// Select the original self at untouched destinations to preserve signed zeros.
 template <>
 LogicalResult ConvertAtenOp<AtenScatterAddOp>::matchAndRewriteImpl(
     AtenScatterAddOp op, OpAdaptor adaptor,
@@ -7649,7 +7666,7 @@ LogicalResult ConvertAtenOp<AtenScatterAddOp>::matchAndRewriteImpl(
   flatIndex =
       tosa::AddOp::create(rewriter, loc, flatIndexType, flatIndex, *offset);
 
-  Value summed;
+  Value summed, touched;
   if (useDense) {
     SmallVector<int32_t> positions;
     positions.reserve(destinations);
@@ -7673,12 +7690,15 @@ LogicalResult ConvertAtenOp<AtenScatterAddOp>::matchAndRewriteImpl(
         tosa::SelectOp::create(rewriter, loc, matrixType, mask, src, *zero);
     summed = tosa::ReduceSumOp::create(rewriter, loc, flatInputType, selected,
                                        rewriter.getI32IntegerAttr(0));
+    touched = tosa::ReduceAnyOp::create(
+        rewriter, loc, flatInputType.clone(rewriter.getI1Type()), mask,
+        rewriter.getI32IntegerAttr(0));
   } else {
     auto sortedSums =
         buildScatterAddSortedSums(op, flatIndex, src, destinations, rewriter);
     if (failed(sortedSums))
       return rewriter.notifyMatchFailure(op, "failed to build sort-based sums");
-    summed = *sortedSums;
+    std::tie(summed, touched) = *sortedSums;
   }
   input = tosa::tosaCastTensorToType(rewriter, input,
                                      inputType.clone(accumulationType))
@@ -7688,6 +7708,9 @@ LogicalResult ConvertAtenOp<AtenScatterAddOp>::matchAndRewriteImpl(
       tosa::AddOp::create(rewriter, loc, flatInputType, flatInput, summed);
   result = reshape(result, resultType.clone(accumulationType));
   result = tosa::tosaCastTensorToType(rewriter, result, resultType).value();
+  Value touchedMask = reshape(touched, resultType.clone(rewriter.getI1Type()));
+  result = tosa::SelectOp::create(rewriter, loc, resultType, touchedMask,
+                                  result, adaptor.getSelf());
   rewriter.replaceOp(op, result);
   return success();
 }

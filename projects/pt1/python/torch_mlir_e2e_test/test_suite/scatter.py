@@ -1134,6 +1134,68 @@ def ScatterAddSortedFloat16Module_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ScatterAddDenseSignedZeroModule(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4], torch.float32, True),
+            ([3], torch.int64, True),
+            ([3], torch.float32, True),
+        ]
+    )
+    def forward(self, input, index, src):
+        result = torch.ops.aten.scatter_add(input, 0, index, src)
+        # Division turns signed zeros into signed infinities, which the
+        # numerical comparator distinguishes even though -0.0 == +0.0.
+        return result, torch.ones_like(result) / result
+
+
+@register_test_case(module_factory=lambda: ScatterAddDenseSignedZeroModule())
+def ScatterAddDenseSignedZeroModule_basic(module, tu: TestUtils):
+    # Preserve the untouched -0.0 at 0, but update the -0.0 at 2 even when
+    # its updates sum to zero. Destination 3 preserves an untouched +0.0.
+    module.forward(
+        torch.tensor([-0.0, 1.0, -0.0, 0.0]),
+        torch.tensor([1, 2, 2]),
+        torch.tensor([1.0, 1.0, -1.0]),
+    )
+
+
+class ScatterAddSortedSignedZeroModule(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1024], torch.float32, True),
+            ([1025], torch.int64, True),
+            ([1025], torch.float32, True),
+        ]
+    )
+    def forward(self, input, index, src):
+        result = torch.ops.aten.scatter_add(input, 0, index, src)
+        return result, torch.ones_like(result) / result
+
+
+@register_test_case(module_factory=lambda: ScatterAddSortedSignedZeroModule())
+def ScatterAddSortedSignedZeroModule_basic(module, tu: TestUtils):
+    # The 1025x1024 product selects sorting. Include repeated destinations,
+    # a touched -0.0 with a zero update sum, and untouched zeros of both signs.
+    input = torch.ones(1024)
+    input[0] = -0.0
+    input[2] = -0.0
+    input[3] = 0.0
+    index = torch.ones(1025, dtype=torch.int64)
+    index[-2:] = 2
+    src = torch.zeros(1025)
+    src[0] = 1.0
+    src[-2:] = torch.tensor([1.0, -1.0])
+    module.forward(input, index, src)
+
+
+# ==============================================================================
+
+
 class ScatterAddDynamicModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
