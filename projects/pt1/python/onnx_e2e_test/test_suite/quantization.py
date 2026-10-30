@@ -662,3 +662,140 @@ class QLinearAddQLinearSigmoidFused_i8_basic(_QLinearAddQLinearSigmoidFused):
     )
     def graph(self):
         return super().graph()
+
+
+class _MatMulNBits(OnnxTestCase):
+    extra_opsets = {"com.microsoft": 1}
+    k = 64
+    n = 5
+    bits = 4
+    block_size = 32
+    accuracy_level = 0
+    # "none", "packed" (bit-packed uint8) or "float".
+    zero_points = "none"
+    # Flattened scales and zero points: [N * k_blocks], or
+    # [N * ceil(k_blocks * bits / 8)] for packed zero points.
+    flat_qparams = False
+    bias = False
+
+    def graph(self):
+        rng = np.random.default_rng(0)
+        k_blocks = -(-self.k // self.block_size)
+        values_per_byte = 8 // self.bits
+        tensors = {
+            "b": rng.integers(
+                0,
+                256,
+                (self.n, k_blocks, self.block_size // values_per_byte),
+                dtype=np.uint8,
+            ),
+            # Power-of-two scales and quarter-step zero points keep the
+            # dequantized weights exact in f32.
+            "scales": 2.0
+            ** rng.integers(-6, -2, (self.n, k_blocks)).astype(np.float32),
+        }
+        if self.zero_points == "packed":
+            tensors["zero_points"] = rng.integers(
+                0, 256, (self.n, -(-k_blocks // values_per_byte)), dtype=np.uint8
+            )
+        elif self.zero_points == "float":
+            tensors["zero_points"] = (
+                rng.integers(0, 4 * (1 << self.bits), (self.n, k_blocks)) / 4
+            ).astype(np.float32)
+        if self.flat_qparams:
+            for name in ("scales", "zero_points"):
+                if name in tensors:
+                    tensors[name] = tensors[name].reshape(-1)
+        if self.bias:
+            tensors["bias"] = np.array([-2.0, -0.5, 0.0, 1.0, 3.0], dtype=np.float32)
+
+        inputs = ["a", "b", "scales"]
+        inputs.append("zero_points" if "zero_points" in tensors else "")
+        if self.bias:
+            # An empty name keeps the deprecated g_idx slot ahead of bias.
+            inputs += ["", "bias"]
+        runtime_inputs = {annotation[0] for annotation in self._input_annotations()}
+        initializers = [
+            onnx.numpy_helper.from_array(tensors[name], name=name)
+            for name in inputs
+            if name and name not in runtime_inputs
+        ]
+        node = onnx.helper.make_node(
+            "MatMulNBits",
+            inputs,
+            ["y"],
+            domain="com.microsoft",
+            K=self.k,
+            N=self.n,
+            bits=self.bits,
+            block_size=self.block_size,
+            accuracy_level=self.accuracy_level,
+        )
+        return [node], ["y"], initializers
+
+
+@register_onnx_test
+class OnnxMatMulNBits_4bit(_MatMulNBits):
+    @annotate_inputs([("a", torch.float32, [3, 64], (-2.0, 2.0))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class OnnxMatMulNBits_8bit_zeroPointBias(_MatMulNBits):
+    bits = 8
+    zero_points = "packed"
+    bias = True
+
+    @annotate_inputs([("a", torch.float32, [2, 3, 64], (-2.0, 2.0))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class OnnxMatMulNBits_raggedK(_MatMulNBits):
+    # K = 40 leaves the last of three blocks padded, and the three 4-bit
+    # zero points of a row occupy two bytes with one padding slot.
+    k = 40
+    block_size = 16
+    zero_points = "packed"
+    flat_qparams = True
+
+    @annotate_inputs([("a", torch.float32, [3, 40], (-2.0, 2.0))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class OnnxMatMulNBits_floatZeroPoint(_MatMulNBits):
+    zero_points = "float"
+    flat_qparams = True
+
+    @annotate_inputs([("a", torch.float32, [3, 64], (-2.0, 2.0))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class OnnxMatMulNBits_accuracyLevel4(_MatMulNBits):
+    # Dynamic int8 quantization of A per K-block, with a padded last block.
+    k = 40
+    block_size = 16
+    accuracy_level = 4
+    zero_points = "packed"
+
+    @annotate_inputs([("a", torch.float32, [-1, 40], (-2.0, 2.0))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class OnnxMatMulNBits_runtimeWeights(_MatMulNBits):
+    @annotate_inputs(
+        [
+            ("a", torch.float32, [3, 64], (-2.0, 2.0)),
+            ("b", torch.uint8, [5, 2, 16], (0, 256)),
+        ]
+    )
+    def graph(self):
+        return super().graph()
