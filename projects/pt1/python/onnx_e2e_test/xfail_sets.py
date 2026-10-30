@@ -26,6 +26,11 @@ ONNX_E2E_LINALG_XFAIL_SET = {
     # rounds differently from the dequantize/avg_pool/quantize lowering).
     "QLinearAveragePool_ui8_basic",
     "QLinearAveragePool_i8_basic",
+    # OnnxQLinearConv_perChannel*: Fails with "operands could not be
+    # broadcast together with shapes". Fixed in onnx 1.18.0, see
+    # https://github.com/onnx/onnx/pull/6460.
+    "OnnxQLinearConv_perChannel",
+    "OnnxQLinearConv_perChannelBias",
 }
 
 # Tests that crash the interpreter and cannot be XFAILed safely.
@@ -72,6 +77,14 @@ ONNX_E2E_TOSA_XFAIL_SET = {
     # QLinearAveragePool_i8_basic: off by one quantized step versus the
     # onnxruntime golden (same rounding difference as on linalg).
     "QLinearAveragePool_i8_basic",
+    # OnnxQLinearConv_perChannel*: Fails with "operands could not be
+    # broadcast together with shapes". Fixed in onnx 1.18.0, see
+    # https://github.com/onnx/onnx/pull/6460.
+    "OnnxQLinearConv_perChannel",
+    "OnnxQLinearConv_perChannelBias",
+    # OnnxQLinearConv_ui8_basic: TOSA mishandles uint8 inputs above 127.
+    # Keep the full unsigned range in these tests to expose it.
+    "OnnxQLinearConv_ui8_basic",
 }
 
 

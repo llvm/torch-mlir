@@ -174,10 +174,38 @@ def run_backend(
     if isinstance(raw_outputs, np.ndarray):
         raw_outputs = (raw_outputs,)
 
-    # Restore signedness lost in backend lowering.
-    raw_outputs = cast_outputs_to_declared_dtypes(model_proto, list(raw_outputs))
+    outputs = [recursively_convert_from_numpy(out) for out in raw_outputs]
 
-    return [recursively_convert_from_numpy(out) for out in raw_outputs]
+    # RefBackend's raw memref buffers don't carry 8-bit signedness, so an
+    # op with result type of ui8 comes back from the compiled
+    # artifact as a torch.int8. Reinterpret based on the ONNX graph's
+    # declared output dtype.
+    output_dtypes = [
+        onnx.helper.tensor_dtype_to_np_dtype(out.type.tensor_type.elem_type)
+        for out in model_proto.graph.output
+    ]
+    outputs = [
+        _reinterpret_to_dtype(out, np_dtype)
+        for out, np_dtype in zip(outputs, output_dtypes)
+    ]
+
+    return outputs
+
+
+def _reinterpret_to_dtype(output: torch.Tensor, np_dtype: np.dtype) -> torch.Tensor:
+    if not isinstance(output, torch.Tensor):
+        return output
+    target_dtype = {np.dtype(np.uint8): torch.uint8, np.dtype(np.int8): torch.int8}.get(
+        np.dtype(np_dtype)
+    )
+    if target_dtype is None or output.dtype == target_dtype:
+        return output
+    if output.dtype in (torch.uint8, torch.int8) and target_dtype in (
+        torch.uint8,
+        torch.int8,
+    ):
+        return output.view(target_dtype)
+    return output
 
 
 # ---------------------------------------------------------------------------
