@@ -437,6 +437,19 @@ func.func @quantized_decomposed_unknown_types(%arg0: !torch.vtensor, %arg1: !tor
   return %1 : !torch.vtensor
 }
 
+// Non-constant axis and group_size.
+// CHECK-LABEL: func.func @quantized_decomposed_non_constant_axis_and_group_size(
+func.func @quantized_decomposed_non_constant_axis_and_group_size(%arg0: !torch.vtensor<[4,16],f32>, %arg1: !torch.vtensor<[4],f32>, %arg2: !torch.vtensor<[4,4],f32>, %axis: !torch.int, %group_size: !torch.int) -> (!torch.vtensor<[4,16],si8>, !torch.vtensor<[4,16],si8>) {
+  %quant_min = torch.constant.int -128
+  %quant_max = torch.constant.int 127
+  %dtype = torch.constant.int 1
+  // CHECK: torch.quantized_decomposed.quantize_per_channel
+  %0 = torch.quantized_decomposed.quantize_per_channel %arg0, %arg1, %arg1, %axis, %quant_min, %quant_max, %dtype : !torch.vtensor<[4,16],f32>, !torch.vtensor<[4],f32>, !torch.vtensor<[4],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,16],si8>
+  // CHECK: torch.quantized_decomposed.quantize_per_channel_group
+  %1 = torch.quantized_decomposed.quantize_per_channel_group %arg0, %arg2, %arg2, %quant_min, %quant_max, %dtype, %group_size : !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,4],f32>, !torch.vtensor<[4,4],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,16],si8>
+  return %0, %1 : !torch.vtensor<[4,16],si8>, !torch.vtensor<[4,16],si8>
+}
+
 // CHECK-LABEL: func.func @quantized_decomposed_dynamic_channels(
 func.func @quantized_decomposed_dynamic_channels(%arg0: !torch.vtensor<[4,?],f32>, %arg1: !torch.vtensor<[?],f32>, %arg2: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[4,?],ui8> {
   %axis = torch.constant.int -1
@@ -500,6 +513,18 @@ func.func @quantized_decomposed_per_channel_group(%arg0: !torch.vtensor<[4,16],f
   // CHECK: torch.quantized_decomposed.dequantize_per_channel_group
   %2 = torch.quantized_decomposed.dequantize_per_channel_group %0, %arg3, %symmetric, %quant_min, %quant_max, %int8, %group_size_128, %float32 : !torch.vtensor<[4,16],si8>, !torch.vtensor<[4,?],f32>, !torch.none, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,16],f32>
   return %0, %1, %2 : !torch.vtensor<[4,16],si8>, !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,16],f32>
+}
+
+// A group_size beyond a row length of 1 with one scale column.
+// CHECK-LABEL: func.func @quantized_decomposed_per_channel_group_row_length_1(
+func.func @quantized_decomposed_per_channel_group_row_length_1(%arg0: !torch.vtensor<[4,1],f32>, %arg1: !torch.vtensor<[4,1],f32>) -> !torch.vtensor<[4,1],si8> {
+  %quant_min = torch.constant.int -8
+  %quant_max = torch.constant.int 7
+  %dtype = torch.constant.int 1
+  %group_size = torch.constant.int 128
+  // CHECK: torch.quantized_decomposed.quantize_per_channel_group
+  %0 = torch.quantized_decomposed.quantize_per_channel_group %arg0, %arg1, %arg1, %quant_min, %quant_max, %dtype, %group_size : !torch.vtensor<[4,1],f32>, !torch.vtensor<[4,1],f32>, !torch.vtensor<[4,1],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,1],si8>
+  return %0 : !torch.vtensor<[4,1],si8>
 }
 
 // Group scales and zero points with any shape of one element per group.
