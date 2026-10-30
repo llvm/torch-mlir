@@ -188,6 +188,30 @@ class TensorLiteralTest(unittest.TestCase):
         self.assertIn("!torch.vtensor<[3],i1>", str(module))
         self.assertTrue(module.operation.verify())
 
+    def test_exported_program_external_meta_parameter(self):
+        class UsesMetaParameter(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.weight = torch.nn.Parameter(
+                    torch.empty((4, 4), device="meta")
+                )
+
+            def forward(self, x):
+                return x @ self.weight
+
+        model = UsesMetaParameter().eval()
+        example = torch.empty((2, 4), device="meta")
+        module = fx.export_and_import(
+            model,
+            example,
+            output_type="raw",
+            strict=False,
+            external_parameters=True,
+        )
+        module_text = str(module)
+        self.assertIn("torch.vtensor.external.literal", module_text)
+        self.assertIn("@weight", module_text)
+
     def test_fake_and_meta_keep_existing_conversion(self):
         fake = FakeTensorMode().from_tensor(torch.ones(2, 3))
         meta = torch.empty(2, 3, device="meta")

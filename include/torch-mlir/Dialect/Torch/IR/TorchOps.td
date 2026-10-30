@@ -974,6 +974,36 @@ def Torch_ValueTensorLiteralOp : Torch_Op<"vtensor.literal", [
   let hasFolder = 1;
 }
 
+def Torch_ExternalValueTensorLiteralOp : Torch_Op<"vtensor.external.literal", [
+    AllowsTypeRefinement,
+  ]> {
+  let summary = "Create a value tensor from an external literal reference";
+  let description = [{
+    The symbol identifies tensor storage managed outside the imported trace.
+    This is the value-semantic counterpart of `torch.vtensor.literal` and is
+    intended for graph-only imports where the parameter data is not materialized.
+  }];
+  let arguments = (ins FlatSymbolRefAttr:$sym_name);
+  let results = (outs Torch_ValueTensorType:$result);
+  let assemblyFormat = [{
+    `(` $sym_name `)` attr-dict `:` qualified(type($result))
+  }];
+}
+
+def Torch_ExternalNonValueTensorLiteralOp : Torch_Op<"tensor.external.literal", [
+    AllowsTypeRefinement,
+  ]> {
+  let summary = "Create a non-value tensor from an external literal reference";
+  let description = [{
+    The symbol identifies tensor storage managed outside the imported trace.
+  }];
+  let arguments = (ins FlatSymbolRefAttr:$sym_name);
+  let results = (outs Torch_NonValueTensorType:$result);
+  let assemblyFormat = [{
+    `(` $sym_name `)` attr-dict `:` qualified(type($result))
+  }];
+}
+
 def Torch_TensorStaticInfoCastOp : Torch_Op<"tensor_static_info_cast", [
     DeclareOpInterfaceMethods<CastOpInterface>,
     AllowsTypeRefinement,

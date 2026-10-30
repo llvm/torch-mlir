@@ -571,6 +571,7 @@ class FxImporter:
         "symbol_table",
         "_graph_module_to_func_name",
         "_func_name_counter",
+        "_external_tensor_names",
     ]
 
     def __init__(
@@ -604,6 +605,9 @@ class FxImporter:
         self._graph_module_to_func_name: Dict[int, str] = {}
         # Handles collision of function names in the same module
         self._func_name_counter: int = 0
+        # Maps object identity to the external symbol used by graph-only
+        # ExportedProgram imports. Empty by default to preserve frozen imports.
+        self._external_tensor_names: Dict[int, str] = {}
 
     def _config_check(self):
         for dname in REQUIRED_DIALCTS:
@@ -920,6 +924,7 @@ class FxImporter:
         func_name: str = "main",
         func_visibility: Optional[str] = None,
         import_symbolic_shape_expressions: bool = False,
+        external_parameters: bool = False,
     ) -> Operation:
         """Imports a consolidated torch.export.ExportedProgram instance.
 
@@ -942,6 +947,11 @@ class FxImporter:
         torch.Tensor encountered in such a way as a `torch.vtensor.literal` (or
         delegating to the literal_resolver_callback to make a policy decision).
 
+        When ``external_parameters`` is true, lifted parameters and buffers are
+        represented as `torch.vtensor.external.literal` references instead. This
+        preserves graph-only import for meta tensors; ownership and materialization
+        of the referenced state remain a backend/runtime concern.
+
         As we anticipate more nuanced treatment options in the future, we name this
         method to indicate that it is producing "frozen" modules. Additional top-level
         approaches to handling state can be introduced later as an addition.
@@ -952,6 +962,7 @@ class FxImporter:
         """
         sig = prog.graph_signature
         state_dict = prog.state_dict
+        self._external_tensor_names.clear()
         arg_replacements: Dict[str, Any] = {}
 
         # Populate symbolic guards for dynamic shapes (if any)
@@ -979,6 +990,8 @@ class FxImporter:
             except KeyError as e:
                 raise AssertionError("Could not find state mapping for buffer") from e
             arg_replacements[input_name] = state_value
+            if external_parameters and isinstance(state_value, torch.Tensor):
+                self._external_tensor_names.setdefault(id(state_value), state_name)
 
         # Lift parameters.
         for input_name, state_name in sig.inputs_to_parameters.items():
@@ -989,6 +1002,8 @@ class FxImporter:
                     "Could not find state mapping for parameter"
                 ) from e
             arg_replacements[input_name] = state_value
+            if external_parameters and isinstance(state_value, torch.Tensor):
+                self._external_tensor_names.setdefault(id(state_value), state_name)
 
         # Remove any lifted placeholders, replacing their uses with the state
         # replacement value.
@@ -2323,6 +2338,12 @@ class GraphNodeImporter:
                 )
             return user_value
 
+        external_name = self.fx_importer._external_tensor_names.get(id(py_value))
+        if external_name is not None and isinstance(py_value, torch.Tensor):
+            return _make_vtensor_external_literal_op(
+                self._cc.tensor_to_vtensor_type(py_value), external_name
+            )
+
         # Default conversion path.
         converter = LITERAL_CONVERTER_MAP.lookup(type(py_value))
         if converter is None:
@@ -2548,6 +2569,16 @@ def _create_mlir_tensor_type(dtype: torch.dtype, size: torch.Size) -> IrType:
 
 def create_mlir_tensor_type(tensor: torch.Tensor) -> IrType:
     return _create_mlir_tensor_type(tensor.dtype, tensor.size())
+
+
+def _make_vtensor_external_literal_op(
+    vtensor_type: IrType, symbol_name: str
+) -> Operation:
+    return Operation.create(
+        name="torch.vtensor.external.literal",
+        results=[vtensor_type],
+        attributes={"sym_name": FlatSymbolRefAttr.get(symbol_name)},
+    ).results[0]
 
 
 def _make_vtensor_literal_op(
