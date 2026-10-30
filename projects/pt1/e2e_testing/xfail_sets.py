@@ -560,6 +560,8 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "LinalgVectorNormRank0Module_basic",
     "MaxPool1dCeilModeTrueModule_basic",
     "MaxPool1dStaticCeilModeTrueModule_basic",
+    # Partial ceil-mode windows infer an incorrect output shape.
+    "MaxPool2dWithIndicesUnpaddedModule_basic",
     "MaxUnpool3dModulePad0_basic",
     "MaxUnpool3dModule_basic",
     "MaxUnpool2dModule_basic",
@@ -1609,7 +1611,6 @@ STABLEHLO_PASS_SET = {
     "LayerNormNoBiasModule_basic",
     "LayerNormNormalizeOverAllDimsModule_basic",
     "MaxPool2dWithIndicesStaticModule_basic",
-    "MaxPool2dWithIndicesUnpaddedModule_basic",
     "MeanDimAllReduceKeepdimModule_basic",
     "NativeDropoutTrainStaticShapeModule_basic",
     "NativeLayerNormModule4D_basic",

@@ -1064,7 +1064,7 @@ class MaxPool2dWithIndicesUnpaddedModule(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([1, 2, 3, 5], torch.float32, True),
+            ([1, 2, 3, 6], torch.float32, True),
         ]
     )
     def forward(self, x):
@@ -1081,8 +1081,9 @@ class MaxPool2dWithIndicesUnpaddedModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: MaxPool2dWithIndicesUnpaddedModule())
 def MaxPool2dWithIndicesUnpaddedModule_basic(module, tu: TestUtils):
     # Opposing channels select different maxima and original spatial indices.
-    plane = torch.arange(15, dtype=torch.float32)
-    module.forward(torch.stack((plane, 100 - plane)).reshape(1, 2, 3, 5))
+    # The last horizontal ceil-mode window is partial.
+    plane = torch.arange(18, dtype=torch.float32)
+    module.forward(torch.stack((plane, 100 - plane)).reshape(1, 2, 3, 6))
 
 
 # ==============================================================================
