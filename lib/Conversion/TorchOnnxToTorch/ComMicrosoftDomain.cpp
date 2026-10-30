@@ -236,27 +236,150 @@ struct NBitsLayout {
   int64_t zeroPointBytesPerRow;
 };
 
-// Returns whether `value` has exactly the static `sizes`. The MatMulNBits
-// attributes fix the shapes of B, scales, zero points and bias; a dynamic
-// dimension would leave the lowering's static types unchecked.
-bool hasStaticSizes(Value value, ArrayRef<int64_t> sizes) {
+// Returns whether `value` has the shape `sizes`. The MatMulNBits attributes
+// fix the shapes of B, scales, zero points and bias, so a dynamic dimension
+// does not match.
+bool hasShape(Value value, ArrayRef<int64_t> sizes) {
   auto type = cast<Torch::ValueTensorType>(value.getType());
   return type.hasSizes() && type.getSizes() == sizes;
 }
 
-// Returns whether `value` holds a per-block [rows, columns] parameter. The
+// Returns whether `value` has the per-block shape [rows, columns]. The
 // flattened [rows * columns] form is accepted for compatibility with older
 // models, as onnxruntime's CheckInputs does.
-bool isBlockParameter(Value value, int64_t rows, int64_t columns) {
-  return hasStaticSizes(value, {rows, columns}) ||
-         hasStaticSizes(value, {rows * columns});
+bool hasBlockShape(Value value, int64_t rows, int64_t columns) {
+  return hasShape(value, {rows, columns}) || hasShape(value, {rows * columns});
 }
 
-// Returns a per-block parameter accepted by isBlockParameter as [rows,
-// columns].
-Value createBlockParameter(OpBinder binder, ConversionPatternRewriter &rewriter,
-                           Value value, int64_t rows, int64_t columns) {
-  if (hasStaticSizes(value, {rows, columns}))
+// The operands and attributes of a MatMulNBits op that the lowering supports.
+struct MatMulNBitsInfo {
+  Value a;
+  Value weight;
+  Value scales;
+  // Null when the default zero point 2^(bits - 1) applies.
+  Value zeroPoints;
+  // Null when there is no bias.
+  Value bias;
+  Torch::ValueTensorType resultType;
+  int64_t k;
+  int64_t accuracyLevel;
+  NBitsLayout layout;
+};
+
+// Binds and verifies the operands and attributes of a MatMulNBits op. Matching
+// does not create IR.
+FailureOr<MatMulNBitsInfo>
+matchMatMulNBits(OpBinder binder, ConversionPatternRewriter &rewriter) {
+  Value a, weight, scales, zeroPoints, groupIndex, bias;
+  Torch::ValueTensorType resultType;
+  int64_t k, n, bits, blockSize, accuracyLevel, weightPrepacked;
+  if (binder.getNumOperands() < 3 || binder.getNumOperands() > 6 ||
+      binder.tensorOperandAtIndex(a, 0) ||
+      binder.tensorOperandAtIndex(weight, 1) ||
+      binder.tensorOperandAtIndex(scales, 2) ||
+      binder.tensorResultType(resultType) ||
+      binder.optionalS64IntegerAttr(k, "K") ||
+      binder.optionalS64IntegerAttr(n, "N") ||
+      binder.s64IntegerAttr(bits, "bits", 4) ||
+      binder.optionalS64IntegerAttr(blockSize, "block_size") ||
+      binder.s64IntegerAttr(accuracyLevel, "accuracy_level", 0) ||
+      binder.s64IntegerAttr(weightPrepacked, "weight_prepacked", 0)) {
+    return rewriter.notifyMatchFailure(
+        binder.op, "expected A, B, scales, up to three optional inputs, "
+                   "and the K, N and block_size attributes");
+  }
+  Value *optionalInputs[] = {&zeroPoints, &groupIndex, &bias};
+  for (int64_t i = 3; i < binder.getNumOperands(); ++i) {
+    if (isa<Torch::NoneType>(binder.op->getOperand(i).getType()))
+      continue;
+    if (binder.tensorOperandAtIndex(*optionalInputs[i - 3], i))
+      return rewriter.notifyMatchFailure(
+          binder.op, "expected tensor or None optional inputs");
+  }
+
+  if (bits != 2 && bits != 4 && bits != 8)
+    return rewriter.notifyMatchFailure(binder.op, "bits must be 2, 4 or 8");
+  if (blockSize < 16 || !llvm::isPowerOf2_64(blockSize))
+    return rewriter.notifyMatchFailure(
+        binder.op, "block_size must be a power of two of at least 16");
+  if (k <= 0 || n <= 0)
+    return rewriter.notifyMatchFailure(binder.op, "K and N must be positive");
+  if (accuracyLevel < 0 || accuracyLevel > 4)
+    return rewriter.notifyMatchFailure(binder.op,
+                                       "accuracy_level must be in [0, 4]");
+  if (weightPrepacked != 0)
+    return rewriter.notifyMatchFailure(
+        binder.op, "unsupported: weight_prepacked selects an "
+                   "execution-provider specific layout of B");
+  // g_idx is deprecated in the schema and no onnxruntime quantizer emits it.
+  // Its arbitrary block assignment per row of K has no per-channel-group
+  // representation.
+  if (groupIndex)
+    return rewriter.notifyMatchFailure(binder.op, "unsupported: g_idx input");
+
+  int64_t kBlocks = llvm::divideCeilSigned(k, blockSize);
+  int64_t valuesPerByte = 8 / bits;
+  NBitsLayout layout{n,
+                     bits,
+                     blockSize,
+                     kBlocks,
+                     kBlocks * blockSize,
+                     valuesPerByte,
+                     llvm::divideCeilSigned(kBlocks, valuesPerByte)};
+  auto aType = cast<Torch::ValueTensorType>(a.getType());
+  if (!aType.hasDtype() || !aType.hasSizes() || aType.getSizes().empty() ||
+      !isa<Float32Type, Float16Type, BFloat16Type>(aType.getDtype()))
+    return rewriter.notifyMatchFailure(binder.op,
+                                       "expected ranked f32, f16 or bf16 A");
+  Type floatType = aType.getDtype();
+  if (aType.getSizes().back() != k)
+    return rewriter.notifyMatchFailure(
+        binder.op, "expected A's last dimension to be the static K");
+  if (!resultType.hasDtype() || resultType.getDtype() != floatType)
+    return rewriter.notifyMatchFailure(binder.op,
+                                       "expected the result dtype to match A");
+
+  auto weightType = cast<Torch::ValueTensorType>(weight.getType());
+  if (!weightType.hasDtype() || !weightType.getDtype().isUnsignedInteger(8) ||
+      !hasShape(weight, {n, layout.kBlocks, blockSize / layout.valuesPerByte}))
+    return rewriter.notifyMatchFailure(
+        binder.op, "expected uint8 B of shape [N, ceil(K / block_size), "
+                   "block_size * bits / 8]");
+  auto scalesType = cast<Torch::ValueTensorType>(scales.getType());
+  if (!scalesType.hasDtype() || scalesType.getDtype() != floatType ||
+      !hasBlockShape(scales, n, layout.kBlocks))
+    return rewriter.notifyMatchFailure(binder.op,
+                                       "expected scales of A's dtype and shape "
+                                       "[N, ceil(K / block_size)]");
+  if (zeroPoints) {
+    auto zeroPointsType = cast<Torch::ValueTensorType>(zeroPoints.getType());
+    bool packed = zeroPointsType.hasDtype() &&
+                  zeroPointsType.getDtype().isUnsignedInteger(8) &&
+                  hasBlockShape(zeroPoints, n, layout.zeroPointBytesPerRow);
+    bool unpacked = zeroPointsType.hasDtype() &&
+                    zeroPointsType.getDtype() == floatType &&
+                    hasBlockShape(zeroPoints, n, layout.kBlocks);
+    if (!packed && !unpacked)
+      return rewriter.notifyMatchFailure(
+          binder.op, "expected bit-packed uint8 zero points of shape [N, "
+                     "ceil(ceil(K / block_size) * bits / 8)] or zero points of "
+                     "A's dtype and shape [N, ceil(K / block_size)]");
+  }
+  if (bias) {
+    auto biasType = cast<Torch::ValueTensorType>(bias.getType());
+    if (!biasType.hasDtype() || biasType.getDtype() != floatType ||
+        !hasShape(bias, {n}))
+      return rewriter.notifyMatchFailure(
+          binder.op, "expected bias of A's dtype and shape [N]");
+  }
+  return MatMulNBitsInfo{a,          weight, scales,        zeroPoints, bias,
+                         resultType, k,      accuracyLevel, layout};
+}
+
+// Reshapes a per-block parameter accepted by hasBlockShape to [rows, columns].
+Value reshapeToBlockShape(OpBinder binder, ConversionPatternRewriter &rewriter,
+                          Value value, int64_t rows, int64_t columns) {
+  if (hasShape(value, {rows, columns}))
     return value;
   Location loc = binder.getLoc();
   Type dtype = cast<Torch::ValueTensorType>(value.getType()).getDtype();
@@ -314,8 +437,9 @@ Value unpackLastDimension(ConversionPatternRewriter &rewriter, Location loc,
 //   W[n, k] = (q[n, k] - zero_points[n, k / bs]) * scales[n, k / bs]
 // as one dequantize_per_channel_group. Columns from k on dequantize the
 // padding of the last block; they are finite and meet zero padding in A.
-// `weight`, `scales` and `zeroPoints` satisfy the shapes matched by the
-// pattern; a null `zeroPoints` selects the default zero point 2^(bits - 1).
+// `weight`, `scales` and `zeroPoints` satisfy the shapes checked by
+// matchMatMulNBits; a null `zeroPoints` selects the default zero point
+// 2^(bits - 1).
 Value createNBitsWeight(OpBinder binder, ConversionPatternRewriter &rewriter,
                         const NBitsLayout &layout, Value weight, Value scales,
                         Value zeroPoints, Type floatType) {
@@ -335,7 +459,7 @@ Value createNBitsWeight(OpBinder binder, ConversionPatternRewriter &rewriter,
           ArrayRef<int64_t>{n, layout.paddedK}, uint8),
       quantized, one, two);
 
-  scales = createBlockParameter(binder, rewriter, scales, n, layout.kBlocks);
+  scales = reshapeToBlockShape(binder, rewriter, scales, n, layout.kBlocks);
 
   if (!zeroPoints) {
     int64_t defaultZeroPoint = int64_t(1) << (layout.bits - 1);
@@ -346,13 +470,12 @@ Value createNBitsWeight(OpBinder binder, ConversionPatternRewriter &rewriter,
   } else if (cast<Torch::ValueTensorType>(zeroPoints.getType())
                  .getDtype()
                  .isUnsignedInteger(8)) {
-    zeroPoints = createBlockParameter(binder, rewriter, zeroPoints, n,
-                                      layout.zeroPointBytesPerRow);
+    zeroPoints = reshapeToBlockShape(binder, rewriter, zeroPoints, n,
+                                     layout.zeroPointBytesPerRow);
     if (layout.bits != 8)
       zeroPoints = unpackLastDimension(rewriter, loc, zeroPoints, layout.bits);
     // Rows of packed zero points are padded to whole bytes.
     if (layout.zeroPointBytesPerRow * layout.valuesPerByte != layout.kBlocks) {
-      Value one = Torch::ConstantIntOp::create(rewriter, loc, 1);
       Value zero = Torch::ConstantIntOp::create(rewriter, loc, 0);
       Value end = Torch::ConstantIntOp::create(rewriter, loc, layout.kBlocks);
       zeroPoints = Torch::AtenSliceTensorOp::create(
@@ -363,7 +486,7 @@ Value createNBitsWeight(OpBinder binder, ConversionPatternRewriter &rewriter,
     }
   } else {
     zeroPoints =
-        createBlockParameter(binder, rewriter, zeroPoints, n, layout.kBlocks);
+        reshapeToBlockShape(binder, rewriter, zeroPoints, n, layout.kBlocks);
   }
 
   Value quantMin = Torch::ConstantIntOp::create(rewriter, loc, 0);
@@ -566,117 +689,13 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
   patterns.onOp(
       "MatMulNBits", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Value a, weight, scales, zeroPoints, groupIndex, bias;
-        Torch::ValueTensorType resultType;
-        int64_t k, n, bits, blockSize, accuracyLevel, weightPrepacked;
-        if (binder.getNumOperands() < 3 || binder.getNumOperands() > 6 ||
-            binder.tensorOperandAtIndex(a, 0) ||
-            binder.tensorOperandAtIndex(weight, 1) ||
-            binder.tensorOperandAtIndex(scales, 2) ||
-            binder.tensorResultType(resultType) ||
-            binder.optionalS64IntegerAttr(k, "K") ||
-            binder.optionalS64IntegerAttr(n, "N") ||
-            binder.s64IntegerAttr(bits, "bits", 4) ||
-            binder.optionalS64IntegerAttr(blockSize, "block_size") ||
-            binder.s64IntegerAttr(accuracyLevel, "accuracy_level", 0) ||
-            binder.s64IntegerAttr(weightPrepacked, "weight_prepacked", 0)) {
-          return rewriter.notifyMatchFailure(
-              binder.op, "expected A, B, scales, up to three optional inputs, "
-                         "and the K, N and block_size attributes");
-        }
-        Value *optionalInputs[] = {&zeroPoints, &groupIndex, &bias};
-        for (int64_t i = 3; i < binder.getNumOperands(); ++i) {
-          if (isa<Torch::NoneType>(binder.op->getOperand(i).getType()))
-            continue;
-          if (binder.tensorOperandAtIndex(*optionalInputs[i - 3], i))
-            return rewriter.notifyMatchFailure(
-                binder.op, "expected tensor or None optional inputs");
-        }
-
-        if (bits != 2 && bits != 4 && bits != 8)
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "bits must be 2, 4 or 8");
-        if (blockSize < 16 || !llvm::isPowerOf2_64(blockSize))
-          return rewriter.notifyMatchFailure(
-              binder.op, "block_size must be a power of two of at least 16");
-        if (k <= 0 || n <= 0)
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "K and N must be positive");
-        if (accuracyLevel < 0 || accuracyLevel > 4)
-          return rewriter.notifyMatchFailure(
-              binder.op, "accuracy_level must be in [0, 4]");
-        if (weightPrepacked != 0)
-          return rewriter.notifyMatchFailure(
-              binder.op, "unsupported: weight_prepacked selects an "
-                         "execution-provider specific layout of B");
-        // g_idx is deprecated in the schema and no onnxruntime quantizer
-        // emits it. Its arbitrary block assignment per row of K has no
-        // per-channel-group representation.
-        if (groupIndex)
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "unsupported: g_idx input");
-
-        int64_t kBlocks = llvm::divideCeilSigned(k, blockSize);
-        int64_t valuesPerByte = 8 / bits;
-        NBitsLayout layout{n,
-                           bits,
-                           blockSize,
-                           kBlocks,
-                           kBlocks * blockSize,
-                           valuesPerByte,
-                           llvm::divideCeilSigned(kBlocks, valuesPerByte)};
+        FailureOr<MatMulNBitsInfo> info = matchMatMulNBits(binder, rewriter);
+        if (failed(info))
+          return failure();
+        const NBitsLayout &layout = info->layout;
+        Value a = info->a;
         auto aType = cast<Torch::ValueTensorType>(a.getType());
-        if (!aType.hasDtype() || !aType.hasSizes() ||
-            aType.getSizes().empty() ||
-            !isa<Float32Type, Float16Type, BFloat16Type>(aType.getDtype()))
-          return rewriter.notifyMatchFailure(
-              binder.op, "expected ranked f32, f16 or bf16 A");
         Type floatType = aType.getDtype();
-        if (aType.getSizes().back() != k)
-          return rewriter.notifyMatchFailure(
-              binder.op, "expected A's last dimension to be the static K");
-        if (!resultType.hasDtype() || resultType.getDtype() != floatType)
-          return rewriter.notifyMatchFailure(
-              binder.op, "expected the result dtype to match A");
-
-        auto weightType = cast<Torch::ValueTensorType>(weight.getType());
-        if (!weightType.hasDtype() ||
-            !weightType.getDtype().isUnsignedInteger(8) ||
-            !hasStaticSizes(
-                weight, {n, layout.kBlocks, blockSize / layout.valuesPerByte}))
-          return rewriter.notifyMatchFailure(
-              binder.op, "expected uint8 B of shape [N, ceil(K / block_size), "
-                         "block_size * bits / 8]");
-        auto scalesType = cast<Torch::ValueTensorType>(scales.getType());
-        if (!scalesType.hasDtype() || scalesType.getDtype() != floatType ||
-            !isBlockParameter(scales, n, layout.kBlocks))
-          return rewriter.notifyMatchFailure(
-              binder.op, "expected scales of A's dtype and shape "
-                         "[N, ceil(K / block_size)]");
-        if (zeroPoints) {
-          auto zeroPointsType =
-              cast<Torch::ValueTensorType>(zeroPoints.getType());
-          bool packed =
-              zeroPointsType.hasDtype() &&
-              zeroPointsType.getDtype().isUnsignedInteger(8) &&
-              isBlockParameter(zeroPoints, n, layout.zeroPointBytesPerRow);
-          bool unpacked = zeroPointsType.hasDtype() &&
-                          zeroPointsType.getDtype() == floatType &&
-                          isBlockParameter(zeroPoints, n, layout.kBlocks);
-          if (!packed && !unpacked)
-            return rewriter.notifyMatchFailure(
-                binder.op,
-                "expected bit-packed uint8 zero points of shape [N, "
-                "ceil(ceil(K / block_size) * bits / 8)] or zero points of "
-                "A's dtype and shape [N, ceil(K / block_size)]");
-        }
-        if (bias) {
-          auto biasType = cast<Torch::ValueTensorType>(bias.getType());
-          if (!biasType.hasDtype() || biasType.getDtype() != floatType ||
-              !hasStaticSizes(bias, {n}))
-            return rewriter.notifyMatchFailure(
-                binder.op, "expected bias of A's dtype and shape [N]");
-        }
 
         // Y = linear(A', W, bias) computes A' @ W^T + bias for the stored
         // weight. Both operands span the zero-padded K: A' is A padded with
@@ -686,17 +705,19 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         // levels 0-3, and for floating-point zero points, which have no
         // prepacked int8 path.
         bool floatZeroPoints =
-            zeroPoints &&
+            info->zeroPoints &&
             isa<mlir::FloatType>(
-                cast<Torch::ValueTensorType>(zeroPoints.getType()).getDtype());
-        Value weightFloat = createNBitsWeight(binder, rewriter, layout, weight,
-                                              scales, zeroPoints, floatType);
-        if (layout.paddedK != k) {
+                cast<Torch::ValueTensorType>(info->zeroPoints.getType())
+                    .getDtype());
+        Value weightFloat =
+            createNBitsWeight(binder, rewriter, layout, info->weight,
+                              info->scales, info->zeroPoints, floatType);
+        if (layout.paddedK != info->k) {
           Location loc = binder.getLoc();
           SmallVector<int64_t> paddedSizes(aType.getSizes());
           paddedSizes.back() = layout.paddedK;
-          Value padding =
-              createConstantIntList(binder, rewriter, {0, layout.paddedK - k});
+          Value padding = createConstantIntList(binder, rewriter,
+                                                {0, layout.paddedK - info->k});
           Value zero = Torch::ConstantFloatOp::create(
               rewriter, loc, rewriter.getF64FloatAttr(0.0));
           a = Torch::AtenConstantPadNdOp::create(
@@ -704,12 +725,13 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
               rewriter.getType<Torch::ValueTensorType>(paddedSizes, floatType),
               a, padding, zero);
         }
-        if (accuracyLevel == 4 && !floatZeroPoints)
+        if (info->accuracyLevel == 4 && !floatZeroPoints)
           a = createBlockQuantizedActivation(binder, rewriter, layout, a);
+        Value bias = info->bias;
         if (!bias)
           bias = Torch::ConstantNoneOp::create(rewriter, binder.getLoc());
-        rewriter.replaceOpWithNewOp<Torch::AtenLinearOp>(binder.op, resultType,
-                                                         a, weightFloat, bias);
+        rewriter.replaceOpWithNewOp<Torch::AtenLinearOp>(
+            binder.op, info->resultType, a, weightFloat, bias);
         return success();
       });
   patterns.onOp(

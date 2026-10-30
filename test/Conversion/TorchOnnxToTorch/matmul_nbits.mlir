@@ -82,7 +82,8 @@ func.func @matmul_nbits_8bit_zero_point_bias(
 // CHECK: %[[MASK:.*]] = torch.constant.int 3
 // CHECK: %[[VALUES:.*]] = torch.aten.bitwise_and.Scalar %[[SHIFTED]], %[[MASK]] : {{.*}} -> !torch.vtensor<[4,3,4,4],ui8>
 // CHECK: %[[BLOCKS:.*]] = torch.aten.flatten.using_ints %[[VALUES]], {{.*}} -> !torch.vtensor<[4,3,16],ui8>
-// CHECK: %[[Q:.*]] = torch.aten.flatten.using_ints %[[BLOCKS]], {{.*}} -> !torch.vtensor<[4,48],ui8>
+// CHECK: %[[ONE:.*]] = torch.constant.int 1
+// CHECK: %[[Q:.*]] = torch.aten.flatten.using_ints %[[BLOCKS]], %[[ONE]], {{.*}} -> !torch.vtensor<[4,48],ui8>
 // CHECK: %[[SCALES_2D:.*]] = torch.aten.reshape %[[SCALES]], {{.*}} -> !torch.vtensor<[4,3],f32>
 // CHECK: %[[ZP_EXPANDED:.*]] = torch.aten.unsqueeze %[[ZP]], {{.*}} -> !torch.vtensor<[4,1,1],ui8>
 // CHECK: %[[ZP_SHIFTS:.*]] = torch.vtensor.literal(dense<[0, 2, 4, 6]> : tensor<4xui8>) : !torch.vtensor<[4],ui8>
@@ -90,14 +91,17 @@ func.func @matmul_nbits_8bit_zero_point_bias(
 // CHECK: %[[ZP_MASK:.*]] = torch.constant.int 3
 // CHECK: %[[ZP_UNPACKED:.*]] = torch.aten.bitwise_and.Scalar %[[ZP_SHIFTED]], %[[ZP_MASK]] : {{.*}} -> !torch.vtensor<[4,1,4],ui8>
 // CHECK: %[[ZP_VALUES:.*]] = torch.aten.flatten.using_ints %[[ZP_UNPACKED]], {{.*}} -> !torch.vtensor<[4,4],ui8>
-// CHECK: %[[ZP_BLOCKS:.*]] = torch.aten.slice.Tensor %[[ZP_VALUES]], {{.*}} -> !torch.vtensor<[4,3],ui8>
+// CHECK: %[[ZP_START:.*]] = torch.constant.int 0
+// CHECK: %[[ZP_END:.*]] = torch.constant.int 3
+// CHECK: %[[ZP_BLOCKS:.*]] = torch.aten.slice.Tensor %[[ZP_VALUES]], %[[ONE]], %[[ZP_START]], %[[ZP_END]], %[[ONE]] : {{.*}} -> !torch.vtensor<[4,3],ui8>
 // CHECK: %[[QMAX:.*]] = torch.constant.int 3
 // CHECK: %[[W:.*]] = torch.quantized_decomposed.dequantize_per_channel_group %[[Q]], %[[SCALES_2D]], %[[ZP_BLOCKS]], %{{.*}}, %[[QMAX]]
 // CHECK-SAME: -> !torch.vtensor<[4,48],f32>
 // CHECK: %[[PAD_BEFORE:.*]] = torch.constant.int 0
 // CHECK: %[[PAD_AFTER:.*]] = torch.constant.int 8
 // CHECK: %[[PADDING:.*]] = torch.prim.ListConstruct %[[PAD_BEFORE]], %[[PAD_AFTER]]
-// CHECK: %[[A_PADDED:.*]] = torch.aten.constant_pad_nd %[[A]], %[[PADDING]], {{.*}} -> !torch.vtensor<[2,48],f32>
+// CHECK: %[[PAD_VALUE:.*]] = torch.constant.float 0.000000e+00
+// CHECK: %[[A_PADDED:.*]] = torch.aten.constant_pad_nd %[[A]], %[[PADDING]], %[[PAD_VALUE]] : {{.*}} -> !torch.vtensor<[2,48],f32>
 // CHECK-NOT: torch.aten.slice.Tensor
 // CHECK: %[[Y:.*]] = torch.aten.linear %[[A_PADDED]], %[[W]], %{{.*}} : !torch.vtensor<[2,48],f32>, !torch.vtensor<[4,48],f32>, !torch.none -> !torch.vtensor<[2,4],f32>
 func.func @matmul_nbits_2bit_ragged_k(
@@ -117,17 +121,12 @@ func.func @matmul_nbits_2bit_ragged_k(
 
 // -----
 
-// Floating-point zero points, as HQQ produces, are passed to the dequantize
-// unchanged so that their fractional part is kept.
+// Floating-point zero points, as HQQ produces, reach the dequantize without a
+// cast, so their fractional part is kept. The flattened [N * k_blocks] form is
+// reshaped to [N, k_blocks].
 // CHECK-LABEL: func.func @matmul_nbits_float_zero_point(
-// CHECK-SAME: %[[A:.*]]: !torch.vtensor<[2,32],f16>, %[[B:.*]]: !torch.vtensor<[4,2,8],ui8>, %[[SCALES:.*]]: !torch.vtensor<[4,2],f16>, %[[ZP:.*]]: !torch.vtensor<[8],f16>
-// CHECK: %[[EXPANDED:.*]] = torch.aten.unsqueeze %[[B]], {{.*}} -> !torch.vtensor<[4,2,8,1],ui8>
-// CHECK: %[[SHIFTS:.*]] = torch.vtensor.literal(dense<[0, 4]> : tensor<2xui8>) : !torch.vtensor<[2],ui8>
-// CHECK: %[[SHIFTED:.*]] = torch.aten.bitwise_right_shift.Tensor %[[EXPANDED]], %[[SHIFTS]] : {{.*}} -> !torch.vtensor<[4,2,8,2],ui8>
-// CHECK: %[[MASK:.*]] = torch.constant.int 15
-// CHECK: %[[VALUES:.*]] = torch.aten.bitwise_and.Scalar %[[SHIFTED]], %[[MASK]] : {{.*}} -> !torch.vtensor<[4,2,8,2],ui8>
-// CHECK: %[[BLOCKS:.*]] = torch.aten.flatten.using_ints %[[VALUES]], {{.*}} -> !torch.vtensor<[4,2,16],ui8>
-// CHECK: %[[Q:.*]] = torch.aten.flatten.using_ints %[[BLOCKS]], {{.*}} -> !torch.vtensor<[4,32],ui8>
+// CHECK-SAME: %[[A:.*]]: !torch.vtensor<[2,32],f16>, %{{.*}}: !torch.vtensor<[4,2,8],ui8>, %[[SCALES:.*]]: !torch.vtensor<[4,2],f16>, %[[ZP:.*]]: !torch.vtensor<[8],f16>
+// CHECK: %[[Q:.*]] = torch.aten.flatten.using_ints {{.*}} -> !torch.vtensor<[4,32],ui8>
 // CHECK: %[[ZP_2D:.*]] = torch.aten.reshape %[[ZP]], {{.*}} -> !torch.vtensor<[4,2],f16>
 // CHECK: %[[F16:.*]] = torch.constant.int 5
 // CHECK: %[[W:.*]] = torch.quantized_decomposed.dequantize_per_channel_group %[[Q]], %[[SCALES]], %[[ZP_2D]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %[[F16]]
@@ -161,7 +160,8 @@ func.func @matmul_nbits_float_zero_point(
 // CHECK: %[[PAD_BEFORE:.*]] = torch.constant.int 0
 // CHECK: %[[PAD_AFTER:.*]] = torch.constant.int 8
 // CHECK: %[[PADDING:.*]] = torch.prim.ListConstruct %[[PAD_BEFORE]], %[[PAD_AFTER]]
-// CHECK: %[[A_PADDED:.*]] = torch.aten.constant_pad_nd %[[A]], %[[PADDING]], {{.*}} -> !torch.vtensor<[?,48],f32>
+// CHECK: %[[PAD_VALUE:.*]] = torch.constant.float 0.000000e+00
+// CHECK: %[[A_PADDED:.*]] = torch.aten.constant_pad_nd %[[A]], %[[PADDING]], %[[PAD_VALUE]] : {{.*}} -> !torch.vtensor<[?,48],f32>
 // CHECK: %[[A_BLOCKS:.*]] = torch.aten.unflatten.int %[[A_PADDED]], {{.*}} -> !torch.vtensor<[?,3,16],f32>
 // CHECK: %[[INT8:.*]] = torch.constant.int 1
 // CHECK: %[[SCALE:.*]], %[[ZERO_POINT:.*]] = torch.quantized_decomposed.choose_qparams_per_token %[[A_BLOCKS]], %[[INT8]] : !torch.vtensor<[?,3,16],f32>, !torch.int -> !torch.vtensor<[?,3,1],f32>, !torch.vtensor<[?,3,1],si64>
@@ -194,9 +194,8 @@ func.func @matmul_nbits_accuracy_level_4(
 // in floating point at accuracy_level 4; so does the lowering.
 // CHECK-LABEL: func.func @matmul_nbits_accuracy_level_4_float_zero_point(
 // CHECK-SAME: %[[A:[^:]*]]: !torch.vtensor<[2,32],f32>
-// CHECK-NOT: torch.quantized_decomposed.choose_qparams_per_token
 // CHECK: %[[W:.*]] = torch.quantized_decomposed.dequantize_per_channel_group
-// CHECK-NOT: torch.quantized_decomposed.quantize_per_token
+// CHECK-NOT: torch.quantized_decomposed.{{.*}}_per_token
 // CHECK: torch.aten.linear %[[A]], %[[W]], %{{.*}} : {{.*}} -> !torch.vtensor<[2,4],f32>
 func.func @matmul_nbits_accuracy_level_4_float_zero_point(
     %a: !torch.vtensor<[2,32],f32>,

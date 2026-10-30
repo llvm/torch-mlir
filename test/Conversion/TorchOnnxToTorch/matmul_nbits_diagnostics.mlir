@@ -33,17 +33,18 @@ func.func @matmul_nbits_weight_prepacked(
 
 // -----
 
-// bits must be 2, 4 or 8.
+// bits must be 2, 4 or 8. B has the shape that 8 / 3 = 2 values per byte
+// gives, so only the bits check rejects the op.
 func.func @matmul_nbits_3bit(
     %a: !torch.vtensor<[2,32],f32>,
-    %b: !torch.vtensor<[4,2,6],ui8>,
+    %b: !torch.vtensor<[4,2,8],ui8>,
     %scales: !torch.vtensor<[4,2],f32>
     ) -> !torch.vtensor<[2,4],f32> attributes {torch.onnx_meta.opset_version = 21 : si64} {
   // expected-error @below {{failed to legalize operation 'torch.operator' that was explicitly marked illegal}}
   %0 = torch.operator "onnx.MatMulNBits"(%a, %b, %scales)
       {torch.onnx.K = 32 : si64, torch.onnx.N = 4 : si64, torch.onnx.bits = 3 : si64,
        torch.onnx.block_size = 16 : si64}
-      : (!torch.vtensor<[2,32],f32>, !torch.vtensor<[4,2,6],ui8>, !torch.vtensor<[4,2],f32>) -> !torch.vtensor<[2,4],f32>
+      : (!torch.vtensor<[2,32],f32>, !torch.vtensor<[4,2,8],ui8>, !torch.vtensor<[4,2],f32>) -> !torch.vtensor<[2,4],f32>
   return %0 : !torch.vtensor<[2,4],f32>
 }
 
