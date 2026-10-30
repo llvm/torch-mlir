@@ -259,7 +259,7 @@ if (NOT LLVM_INSTALL_TOOLCHAIN_ONLY)
 
   if (NOT LLVM_ENABLE_IDE)
     add_llvm_install_targets(install-torch-mlir-headers
-            DEPENDS torch-mlir-headers
+            DEPENDS mlir-headers
             COMPONENT torch-mlir-headers)
   endif()
 endif()
