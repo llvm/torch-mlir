@@ -192,9 +192,7 @@ class TensorLiteralTest(unittest.TestCase):
         class UsesMetaParameter(torch.nn.Module):
             def __init__(self):
                 super().__init__()
-                self.weight = torch.nn.Parameter(
-                    torch.empty((4, 4), device="meta")
-                )
+                self.weight = torch.nn.Parameter(torch.empty((4, 4), device="meta"))
 
             def forward(self, x):
                 return x @ self.weight
@@ -211,6 +209,84 @@ class TensorLiteralTest(unittest.TestCase):
         module_text = str(module)
         self.assertIn("torch.vtensor.external.literal", module_text)
         self.assertIn("@weight", module_text)
+
+    def test_exported_program_external_names_and_types(self):
+        class Model(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.weight = torch.nn.Parameter(torch.empty((4, 3), device="meta"))
+                self.register_buffer("scale", torch.empty((3,), device="meta"))
+
+            def forward(self, x):
+                return (x @ self.weight) * self.scale
+
+        module = fx.export_and_import(
+            Model().eval(),
+            torch.empty((2, 4), device="meta"),
+            output_type="raw",
+            strict=False,
+            external_parameters=True,
+        )
+        text = str(module)
+        self.assertIn(
+            "torch.vtensor.external.literal(@weight) : !torch.vtensor<[4,3],f32>",
+            text,
+        )
+        self.assertIn(
+            "torch.vtensor.external.literal(@scale) : !torch.vtensor<[3],f32>", text
+        )
+        self.assertNotIn("torch.vtensor.literal", text)
+        self.assertTrue(module.operation.verify())
+
+    def test_exported_program_tied_parameters_share_symbol(self):
+        class Tied(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.a = torch.nn.Parameter(torch.empty((3, 3), device="meta"))
+                self.b = self.a
+
+            def forward(self, x):
+                return (x @ self.a) @ self.b
+
+        module = fx.export_and_import(
+            Tied().eval(),
+            torch.empty((2, 3), device="meta"),
+            output_type="raw",
+            strict=False,
+            external_parameters=True,
+        )
+        text = str(module)
+        symbols = set(re.findall(r"torch\.vtensor\.external\.literal\(@(\w+)\)", text))
+        self.assertEqual(len(symbols), 1, text)
+
+    def test_exported_program_real_parameter_default_is_dense(self):
+        class Model(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.weight = torch.nn.Parameter(torch.ones((4, 4)))
+
+            def forward(self, x):
+                return x @ self.weight
+
+        model = Model().eval()
+        example = torch.ones((2, 4))
+        default = str(
+            fx.export_and_import(model, example, output_type="raw", strict=False)
+        )
+        self.assertIn("torch.vtensor.literal", default)
+        self.assertNotIn("external.literal", default)
+
+        external = str(
+            fx.export_and_import(
+                model,
+                example,
+                output_type="raw",
+                strict=False,
+                external_parameters=True,
+            )
+        )
+        self.assertIn("torch.vtensor.external.literal(@weight)", external)
+        self.assertNotIn("torch.vtensor.literal", external)
 
     def test_fake_and_meta_keep_existing_conversion(self):
         fake = FakeTensorMode().from_tensor(torch.ones(2, 3))
