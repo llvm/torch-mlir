@@ -1705,10 +1705,11 @@ def Torch_QuantizedDecomposedQuantizePerChannelGroupOp : Torch_Op<
     quantization.
 
     The rank-2 input tensor is quantized in groups along the last dimension.
-    `scales` and `zero_points` have shape `[num_channels, num_groups]`
-    where `num_groups = input.shape[-1] / group_size`. Zero points may be
-    integer or floating point. A `group_size` larger than `input.shape[-1]`
-    with a single group column quantizes each row as one group.
+    `scales` and `zero_points` have one element per group, i.e.
+    `num_channels * num_groups` elements where
+    `num_groups = input.shape[-1] / group_size`. Zero points may be integer
+    or floating point. If `group_size` exceeds `input.shape[-1]` and the last
+    dimension of `scales` is 1, each row is quantized as one group.
   }];
   let arguments = (ins
     AnyTorchTensorType:$input,
@@ -1723,8 +1724,8 @@ def Torch_QuantizedDecomposedQuantizePerChannelGroupOp : Torch_Op<
   let hasVerifier = 1;
   let extraClassDeclaration = [{
     /// Returns the group size the op applies for the constant `groupSize`:
-    /// the input row length if `groupSize` exceeds it and `scales` has one
-    /// column (GPTQ single-column quantization), and `groupSize` otherwise.
+    /// the input row length if `groupSize` exceeds it and the last dimension
+    /// of `scales` is 1, and `groupSize` otherwise.
     int64_t getEffectiveGroupSize(int64_t groupSize);
   }];
   let assemblyFormat = [{
@@ -1749,7 +1750,7 @@ def Torch_QuantizedDecomposedDequantizePerChannelGroupOp : Torch_Op<
     Dequantizes a quantized tensor with per-channel-group affine quantization.
 
     The rank-2 input tensor is dequantized in groups along the last
-    dimension. `scales` and `zero_points` follow the same shape and
+    dimension. `scales` and `zero_points` follow the same element-count and
     `group_size` contract as `quantize_per_channel_group`. `zero_points` may
     be None for symmetric quantization.
   }];
@@ -1767,8 +1768,8 @@ def Torch_QuantizedDecomposedDequantizePerChannelGroupOp : Torch_Op<
   let hasVerifier = 1;
   let extraClassDeclaration = [{
     /// Returns the group size the op applies for the constant `groupSize`:
-    /// the input row length if `groupSize` exceeds it and `scales` has one
-    /// column (GPTQ single-column quantization), and `groupSize` otherwise.
+    /// the input row length if `groupSize` exceeds it and the last dimension
+    /// of `scales` is 1, and `groupSize` otherwise.
     int64_t getEffectiveGroupSize(int64_t groupSize);
   }];
   let assemblyFormat = [{

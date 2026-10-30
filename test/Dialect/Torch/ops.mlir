@@ -501,3 +501,18 @@ func.func @quantized_decomposed_per_channel_group(%arg0: !torch.vtensor<[4,16],f
   %2 = torch.quantized_decomposed.dequantize_per_channel_group %0, %arg3, %symmetric, %quant_min, %quant_max, %int8, %group_size_128, %float32 : !torch.vtensor<[4,16],si8>, !torch.vtensor<[4,?],f32>, !torch.none, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,16],f32>
   return %0, %1, %2 : !torch.vtensor<[4,16],si8>, !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,16],f32>
 }
+
+// Group scales and zero points with any shape of one element per group.
+// CHECK-LABEL: func.func @quantized_decomposed_per_channel_group_qparams_shapes(
+func.func @quantized_decomposed_per_channel_group_qparams_shapes(%arg0: !torch.vtensor<[4,16],f32>, %arg1: !torch.vtensor<[16],f32>, %arg2: !torch.vtensor<[16],si64>, %arg3: !torch.vtensor<[4,1],f32>, %arg4: !torch.vtensor<[4],si64>) -> (!torch.vtensor<[4,16],si8>, !torch.vtensor<[4,16],si8>) {
+  %quant_min = torch.constant.int -8
+  %quant_max = torch.constant.int 7
+  %int8 = torch.constant.int 1
+  %group_size_4 = torch.constant.int 4
+  %group_size_16 = torch.constant.int 16
+  // CHECK: torch.quantized_decomposed.quantize_per_channel_group
+  %0 = torch.quantized_decomposed.quantize_per_channel_group %arg0, %arg1, %arg2, %quant_min, %quant_max, %int8, %group_size_4 : !torch.vtensor<[4,16],f32>, !torch.vtensor<[16],f32>, !torch.vtensor<[16],si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,16],si8>
+  // CHECK: torch.quantized_decomposed.quantize_per_channel_group
+  %1 = torch.quantized_decomposed.quantize_per_channel_group %arg0, %arg3, %arg4, %quant_min, %quant_max, %int8, %group_size_16 : !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,1],f32>, !torch.vtensor<[4],si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,16],si8>
+  return %0, %1 : !torch.vtensor<[4,16],si8>, !torch.vtensor<[4,16],si8>
+}

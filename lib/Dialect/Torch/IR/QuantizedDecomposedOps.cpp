@@ -293,6 +293,14 @@ int64_t QuantizedDecomposedDequantizePerChannelGroupOp::getEffectiveGroupSize(
   return computeEffectiveGroupSize(getInput(), getScales(), groupSize);
 }
 
+/// Returns the number of elements of `tensor` if all its sizes are known.
+static std::optional<int64_t> getStaticNumElements(Value tensor) {
+  auto type = cast<BaseTensorType>(tensor.getType());
+  if (!type.areAllSizesKnown())
+    return std::nullopt;
+  return ShapedType::tryGetNumElements(type.getSizes());
+}
+
 /// Verifies that the scales and zero points of `op` have one element per group
 /// of `group_size` elements in each input row.
 template <typename OpTy>
@@ -304,30 +312,15 @@ static LogicalResult verifyPerChannelGroupParameters(OpTy op) {
            << inputType.getSizes().size();
   if (failed(verifyFloatDtype(op, "scales", scalesType)))
     return failure();
-  if (scalesType.hasSizes() && scalesType.getSizes().size() != 2)
-    return op.emitOpError("expected scales to have rank 2, but got rank ")
-           << scalesType.getSizes().size();
 
-  if (auto zeroPointsType =
-          dyn_cast<BaseTensorType>(op.getZeroPoints().getType())) {
-    if (zeroPointsType.hasSizes() && scalesType.hasSizes()) {
-      ArrayRef<int64_t> zeroPointsSizes = zeroPointsType.getSizes();
-      ArrayRef<int64_t> scalesSizes = scalesType.getSizes();
-      bool compatible =
-          zeroPointsSizes.size() == scalesSizes.size() &&
-          llvm::all_of(llvm::zip_equal(zeroPointsSizes, scalesSizes),
-                       [](auto sizes) {
-                         auto [zeroPointsSize, scalesSize] = sizes;
-                         return zeroPointsSize == kUnknownSize ||
-                                scalesSize == kUnknownSize ||
-                                zeroPointsSize == scalesSize;
-                       });
-      if (!compatible)
-        return op.emitOpError("expected zero_points to have the shape of "
-                              "scales, but got [")
-               << zeroPointsSizes << "] and [" << scalesSizes << "]";
-    }
-  }
+  std::optional<int64_t> scalesCount = getStaticNumElements(op.getScales());
+  std::optional<int64_t> zeroPointsCount;
+  if (isa<BaseTensorType>(op.getZeroPoints().getType()))
+    zeroPointsCount = getStaticNumElements(op.getZeroPoints());
+  if (scalesCount && zeroPointsCount && *zeroPointsCount != *scalesCount)
+    return op.emitOpError("expected zero_points to have as many elements as "
+                          "scales, but got ")
+           << *zeroPointsCount << " and " << *scalesCount;
 
   int64_t groupSize;
   if (!matchPattern(op.getGroupSize(), m_TorchConstantInt(&groupSize)))
@@ -335,31 +328,39 @@ static LogicalResult verifyPerChannelGroupParameters(OpTy op) {
   if (groupSize <= 1)
     return op.emitOpError("expected group_size to be greater than 1, but got ")
            << groupSize;
-  if (!inputType.hasSizes() || !scalesType.hasSizes())
+  if (!inputType.hasSizes())
     return success();
 
   int64_t rows = inputType.getSizes()[0];
   int64_t rowLength = inputType.getSizes()[1];
-  int64_t scaleRows = scalesType.getSizes()[0];
-  int64_t groups = scalesType.getSizes()[1];
-  if (rows != kUnknownSize && scaleRows != kUnknownSize && rows != scaleRows)
-    return op.emitOpError("expected scales to have one row per input row ")
-           << "(" << rows << "), but got " << scaleRows;
   if (rowLength == kUnknownSize)
     return success();
   int64_t effectiveGroupSize = op.getEffectiveGroupSize(groupSize);
-  // Accept a group size beyond the row length when the scale columns are
-  // dynamic.
-  if (effectiveGroupSize > rowLength && groups == kUnknownSize)
-    return success();
-  if (rowLength % effectiveGroupSize != 0)
+  if (effectiveGroupSize == 0)
+    return op.emitOpError("expected input dimension 1 to be non-zero when "
+                          "group_size exceeds it and the last dimension of "
+                          "scales is 1");
+  // If the last dimension of scales is unknown, a group size beyond the row
+  // length is valid only as one group per row.
+  bool scalesLastDimUnknown =
+      !scalesType.hasSizes() || (!scalesType.getSizes().empty() &&
+                                 scalesType.getSizes().back() == kUnknownSize);
+  bool oneGroupPerRow = effectiveGroupSize > rowLength && scalesLastDimUnknown;
+  if (!oneGroupPerRow && rowLength % effectiveGroupSize != 0)
     return op.emitOpError("expected input dimension 1 (")
            << rowLength << ") to be divisible by group_size "
            << effectiveGroupSize;
-  if (groups != kUnknownSize && groups != rowLength / effectiveGroupSize)
+  if (rows == kUnknownSize)
+    return success();
+
+  int64_t groups = rows * llvm::divideCeilSigned(rowLength, effectiveGroupSize);
+  if (scalesCount && *scalesCount != groups)
     return op.emitOpError("expected scales to have ")
-           << rowLength / effectiveGroupSize
-           << " columns, one per group, but got " << groups;
+           << groups << " elements, one per group, but got " << *scalesCount;
+  if (zeroPointsCount && *zeroPointsCount != groups)
+    return op.emitOpError("expected zero_points to have ")
+           << groups << " elements, one per group, but got "
+           << *zeroPointsCount;
   return success();
 }
 

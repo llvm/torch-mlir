@@ -1,4 +1,4 @@
-// RUN: torch-mlir-opt -convert-torch-to-linalg -split-input-file %s | FileCheck %s
+// RUN: torch-mlir-opt -convert-torch-to-linalg -split-input-file -verify-diagnostics %s | FileCheck %s
 
 // Standalone dequantize — no matmul; lowered to linalg.generic by ConvertElementwiseOp.
 // Checks are strict: SSA values are captured and threaded through each op so
@@ -874,6 +874,56 @@ func.func @quantize_per_channel_group_gptq_single_col(
         !torch.vtensor<[4,1],si64>, !torch.int, !torch.int, !torch.int,
         !torch.int -> !torch.vtensor<[4,16],si8>
   return %out : !torch.vtensor<[4,16],si8>
+}
+
+// -----
+
+// Dequantize with a dynamic number of scale columns.
+// CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK: #[[GROUP:.*]] = affine_map<(d0, d1) -> (d0, d1 floordiv 128)>
+// CHECK-LABEL: func.func @dequantize_per_channel_group_dynamic_scale_columns(
+// CHECK: linalg.generic
+// CHECK-SAME: indexing_maps = [#[[IDENTITY]], #[[GROUP]], #[[GROUP]], #[[IDENTITY]]]
+// CHECK-SAME: ins({{.*}} : tensor<4x16xi8>, tensor<4x?xf32>, tensor<4x1xi64>)
+func.func @dequantize_per_channel_group_dynamic_scale_columns(
+    %input: !torch.vtensor<[4,16],si8>,
+    %scales: !torch.vtensor<[4,?],f32>,
+    %zero_points: !torch.vtensor<[4,1],si64>)
+    -> !torch.vtensor<[4,16],f32> {
+  %qmin = torch.constant.int -8
+  %qmax = torch.constant.int 7
+  %dtype = torch.constant.int 1
+  %group_size = torch.constant.int 128
+  %out_dtype = torch.constant.int 6
+  %out = torch.quantized_decomposed.dequantize_per_channel_group
+      %input, %scales, %zero_points, %qmin, %qmax, %dtype, %group_size,
+      %out_dtype
+      : !torch.vtensor<[4,16],si8>, !torch.vtensor<[4,?],f32>,
+        !torch.vtensor<[4,1],si64>, !torch.int, !torch.int, !torch.int,
+        !torch.int, !torch.int -> !torch.vtensor<[4,16],f32>
+  return %out : !torch.vtensor<[4,16],f32>
+}
+
+// -----
+
+// Rank-1 group scales are valid but not lowered.
+func.func @dequantize_per_channel_group_rank1_scales(
+    %input: !torch.vtensor<[4,16],si8>,
+    %scales: !torch.vtensor<[16],f32>)
+    -> !torch.vtensor<[4,16],f32> {
+  %qmin = torch.constant.int -8
+  %qmax = torch.constant.int 7
+  %dtype = torch.constant.int 1
+  %group_size = torch.constant.int 4
+  %none = torch.constant.none
+  %out_dtype = torch.constant.int 6
+  // expected-error @+1 {{failed to legalize}}
+  %out = torch.quantized_decomposed.dequantize_per_channel_group
+      %input, %scales, %none, %qmin, %qmax, %dtype, %group_size, %out_dtype
+      : !torch.vtensor<[4,16],si8>, !torch.vtensor<[16],f32>, !torch.none,
+        !torch.int, !torch.int, !torch.int, !torch.int, !torch.int
+        -> !torch.vtensor<[4,16],f32>
+  return %out : !torch.vtensor<[4,16],f32>
 }
 
 // -----

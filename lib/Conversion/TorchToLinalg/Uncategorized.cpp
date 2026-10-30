@@ -19,6 +19,7 @@
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Matchers.h"
+#include "mlir/IR/TypeUtilities.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -2006,6 +2007,20 @@ SmallVector<AffineMap> getPerChannelGroupIndexingMaps(OpBuilder &b,
   return indexingMaps;
 }
 
+/// Returns true if `qparamsType` has the shape [rows, groups] that the group
+/// indexing maps read for `inputType` and `groupSize`.
+static bool hasGroupQParamsShape(RankedTensorType qparamsType,
+                                 RankedTensorType inputType,
+                                 int64_t groupSize) {
+  assert(inputType.getRank() == 2 && "expected a rank-2 input");
+  int64_t rowLength = inputType.getDimSize(1);
+  int64_t groups = ShapedType::isDynamic(rowLength)
+                       ? ShapedType::kDynamic
+                       : llvm::divideCeilSigned(rowLength, groupSize);
+  return succeeded(verifyCompatibleShape(qparamsType.getShape(),
+                                         {inputType.getDimSize(0), groups}));
+}
+
 class ConvertQuantizedDecomposedQuantizePerChannelGroupOp
     : public OpConversionPattern<QuantizedDecomposedQuantizePerChannelGroupOp> {
 public:
@@ -2036,6 +2051,10 @@ public:
     if (!matchPattern(op.getGroupSize(), m_TorchConstantInt(&groupSize)))
       return rewriter.notifyMatchFailure(op, "group_size must be constant");
     groupSize = op.getEffectiveGroupSize(groupSize);
+    if (!hasGroupQParamsShape(scalesType, inputType, groupSize) ||
+        !hasGroupQParamsShape(zeroPointsType, inputType, groupSize))
+      return rewriter.notifyMatchFailure(
+          op, "expected scales and zero_points of shape [rows, groups]");
     int64_t inputRank = inputType.getRank();
 
     int64_t quantMin, quantMax;
@@ -2118,8 +2137,14 @@ public:
     if (!matchPattern(op.getGroupSize(), m_TorchConstantInt(&groupSize)))
       return rewriter.notifyMatchFailure(op, "group_size must be constant");
     groupSize = op.getEffectiveGroupSize(groupSize);
+    auto zeroPointsType = dyn_cast<RankedTensorType>(zeroPoints.getType());
+    if (!hasGroupQParamsShape(scalesType, inputType, groupSize) ||
+        (zeroPointsType &&
+         !hasGroupQParamsShape(zeroPointsType, inputType, groupSize)))
+      return rewriter.notifyMatchFailure(
+          op, "expected scales and zero_points of shape [rows, groups]");
 
-    bool hasZeroPoints = isa<RankedTensorType>(zeroPoints.getType());
+    bool hasZeroPoints = static_cast<bool>(zeroPointsType);
     int64_t inputRank = inputType.getRank();
 
     Value init = tensor::EmptyOp::create(
