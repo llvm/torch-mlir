@@ -99,6 +99,188 @@ static Value emitInclusiveScanByPowersOfTwo(Value running,
   return running;
 }
 
+// Group equal flattened destinations with a stable binary radix sort, then
+// compute their sums with a segmented inclusive scan. All scatters have unique
+// indices, and intermediate storage is linear in the update and output sizes.
+//
+// Before (small values used here to illustrate the sorted policy):
+//   flatIndex = [2,1,2,0], flatSrc = [3,5,7,11], destinations = 4
+// After (schematic TOSA, with reshapes omitted):
+//   keys, positions = [2,1,2,0], [0,1,2,3]
+//   // Each radix bit uses bitwise_and/equal, a prefix sum built from
+//   // pad/slice/add, and scatter to permute keys and positions together.
+//   keys, positions = [0,1,2,2], [3,1,0,2]
+//   values = tosa.gather(flatSrc, positions)             // [11,5,3,7]
+//   // At each scan distance, pad/slice shifts keys and values. Equal keys
+//   // select the added values; other entries retain their previous values.
+//   sums = segmented_scan(keys, values)                 // [11,5,3,10]
+//   // Route non-final entries to unique scratch rows: destinations + position.
+//   indices = tosa.select(same_as_next_key, [4,5,6,7], keys) // [0,1,6,2]
+//   scratch = tosa.scatter(zeros<1x8x1>, indices, sums)
+//   result = tosa.slice(scratch, first four rows)        // [11,5,10,0]
+static FailureOr<Value>
+buildScatterAddSortedSums(AtenScatterAddOp op, Value flatIndex, Value flatSrc,
+                          int64_t destinations,
+                          ConversionPatternRewriter &rewriter) {
+  Location loc = op.getLoc();
+  int64_t updates =
+      cast<RankedTensorType>(flatIndex.getType()).getNumElements();
+  Type elementType = cast<RankedTensorType>(flatSrc.getType()).getElementType();
+  auto keyType = RankedTensorType::get({1, updates, 1}, rewriter.getI32Type());
+  auto valueType = RankedTensorType::get({1, updates, 1}, elementType);
+  auto maskType = RankedTensorType::get({1, updates, 1}, rewriter.getI1Type());
+  auto scatterIndexType =
+      RankedTensorType::get({1, updates}, rewriter.getI32Type());
+  auto reshape = [&](Value value, RankedTensorType type) -> Value {
+    return tosa::ReshapeOp::create(
+        rewriter, loc, type, value,
+        tosa::getTosaConstShape(rewriter, loc, type.getShape()));
+  };
+  auto slice = [&](Value value, int64_t start, int64_t size) -> Value {
+    auto type = cast<RankedTensorType>(value.getType());
+    return tosa::SliceOp::create(
+        rewriter, loc,
+        RankedTensorType::get({1, size, 1}, type.getElementType()), value,
+        tosa::getTosaConstShape(rewriter, loc, {0, start, 0}),
+        tosa::getTosaConstShape(rewriter, loc, {1, size, 1}));
+  };
+  auto shiftRight = [&](Value value, int64_t distance, Value padding) -> Value {
+    auto type = cast<RankedTensorType>(value.getType());
+    auto paddedType = RankedTensorType::get({1, updates + distance, 1},
+                                            type.getElementType());
+    Value padded = tosa::PadOp::create(
+        rewriter, loc, paddedType, value,
+        tosa::getTosaConstShape(rewriter, loc, {0, 0, distance, 0, 0, 0}),
+        padding);
+    return slice(padded, 0, updates);
+  };
+
+  SmallVector<int32_t> positions;
+  positions.reserve(updates);
+  for (int64_t i = 0; i < updates; ++i)
+    positions.push_back(static_cast<int32_t>(i));
+  auto range =
+      tosa::getConstTensor<int32_t>(rewriter, op, positions, {1, updates, 1});
+  auto zero = tosa::getConstTensor<int32_t>(rewriter, op, 0, {1, 1, 1});
+  auto one = tosa::getConstTensor<int32_t>(rewriter, op, 1, {1, 1, 1});
+  auto sentinel = tosa::getConstTensor<int32_t>(rewriter, op, -1, {1});
+  if (!range || !zero || !one || !sentinel)
+    return failure();
+
+  Value keys = reshape(flatIndex, keyType);
+  Value sourcePositions = *range;
+  // Sort keys and source positions together. The source values are gathered
+  // only once, after the permutation is known.
+  // Process bits from least to most significant, stably placing zero-bit
+  // entries before one-bit entries at each pass. For keys=[2,1,2,0], bit=1:
+  //   isZero = [true,false,true,true], zeroCount = [1,1,2,3], totalZeros = 3
+  //   zeroPosition = [0,0,1,2], onePosition = [2,3,3,3]
+  //   permutation = [0,3,1,2]  // Select the position for each entry's bit.
+  // Scattering keys and sourcePositions=[0,1,2,3] with that permutation gives
+  // keys=[2,2,0,1] and sourcePositions=[0,2,3,1]. The bit=2 pass then gives
+  // keys=[0,1,2,2] and sourcePositions=[3,1,0,2], preserving equal-key order.
+  for (int64_t bit = 1; updates > 1 && bit < destinations; bit <<= 1) {
+    auto bitMask = tosa::getConstTensor<int32_t>(
+        rewriter, op, static_cast<int32_t>(bit), {1, 1, 1});
+    if (!bitMask)
+      return failure();
+    Value keyBit =
+        tosa::BitwiseAndOp::create(rewriter, loc, keyType, keys, *bitMask);
+    Value isZero =
+        tosa::EqualOp::create(rewriter, loc, maskType, keyBit, *zero);
+    Value zeroCount = tosa::CastOp::create(rewriter, loc, keyType, isZero);
+    zeroCount = emitInclusiveScanByPowersOfTwo(zeroCount, rewriter, loc);
+    if (!zeroCount)
+      return failure();
+    Value totalZeros = slice(zeroCount, updates - 1, 1);
+    // zeroCount is inclusive, so a zero-bit entry's destination is its count
+    // minus one. Zero-bit destinations occupy [0, totalZeros).
+    Value zeroPosition =
+        tosa::SubOp::create(rewriter, loc, keyType, zeroCount, *one);
+    // For a one-bit entry at position i, i - zeroCount[i] counts preceding
+    // one-bit entries. Add totalZeros to place it after all zero-bit entries.
+    // These destinations occupy [totalZeros, updates), without duplicates.
+    Value onePosition =
+        tosa::SubOp::create(rewriter, loc, keyType, *range, zeroCount);
+    onePosition =
+        tosa::AddOp::create(rewriter, loc, keyType, onePosition, totalZeros);
+    Value permutation = tosa::SelectOp::create(rewriter, loc, keyType, isZero,
+                                               zeroPosition, onePosition);
+    permutation = reshape(permutation, scatterIndexType);
+    keys = tosa::ScatterOp::create(rewriter, loc, keyType, keys, permutation,
+                                   keys);
+    sourcePositions = tosa::ScatterOp::create(
+        rewriter, loc, keyType, sourcePositions, permutation, sourcePositions);
+  }
+
+  // Gather updates into sorted-key order. Showing only the update dimension:
+  //   flatSrc = [3,5,7,11], sourcePositions = [3,1,0,2]
+  //   keys = [0,1,2,2], values = [11,5,3,7]
+  Value values = tosa::GatherOp::create(
+      rewriter, loc, valueType, reshape(flatSrc, valueType),
+      reshape(sourcePositions, scatterIndexType));
+  auto valueZero = tosa::createZeroPointTensor(rewriter, loc, elementType, 0);
+  if (!valueZero)
+    return failure();
+  // Sorted equal keys form contiguous segments. Comparing keys at each scan
+  // distance prevents sums (including NaNs and infinities) crossing segments.
+  // For the gathered values above, the distance=1 stage computes:
+  //   shiftedKeys   = [-1,0,1,2], sameKey = [false,false,false,true]
+  //   shiftedValues = [0,11,5,3], sum = [11,16,8,10]
+  //   values        = [11,5,3,10]  // Select sum only within a segment.
+  // At distance=2, shiftedKeys=[-1,-1,0,1] matches no keys, so values stay
+  // unchanged. Each segment's final entry now contains its complete sum.
+  for (int64_t distance = 1; distance < updates; distance <<= 1) {
+    Value shiftedKeys = shiftRight(keys, distance, *sentinel);
+    Value sameKey =
+        tosa::EqualOp::create(rewriter, loc, maskType, keys, shiftedKeys);
+    Value shiftedValues = shiftRight(values, distance, *valueZero);
+    Value sum =
+        tosa::AddOp::create(rewriter, loc, valueType, values, shiftedValues);
+    values =
+        tosa::SelectOp::create(rewriter, loc, valueType, sameKey, sum, values);
+  }
+
+  // Only segment ends write to real destinations. Other entries write to
+  // distinct scratch rows, so every index in the final scatter is unique.
+  // Continuing with destinations=4 and the scanned values above:
+  //   keys             = [0,1,2,2], values = [11,5,3,10]
+  //   nextKeys         = [1,2,2,-1], sameNext = [false,false,true,false]
+  //   scratchPositions = [4,5,6,7]  // destinations + update position.
+  //   scatterIndices   = [0,1,6,2]  // Route the partial sum 3 to scratch.
+  // Scattering into eight zero rows produces [11,5,10,0,0,0,3,0]. Slicing
+  // the first four rows discards scratch and gives the sums [11,5,10,0].
+  auto scratchOffset = tosa::getConstTensor<int32_t>(
+      rewriter, op, static_cast<int32_t>(destinations), {1, 1, 1});
+  if (!scratchOffset)
+    return failure();
+  Value scatterIndices = keys;
+  if (updates > 1) {
+    Value nextKeys = tosa::ConcatOp::create(
+        rewriter, loc, keyType,
+        ValueRange{slice(keys, 1, updates - 1),
+                   reshape(*sentinel, RankedTensorType::get(
+                                          {1, 1, 1}, rewriter.getI32Type()))},
+        rewriter.getI32IntegerAttr(1));
+    Value sameNext =
+        tosa::EqualOp::create(rewriter, loc, maskType, keys, nextKeys);
+    Value scratchPositions =
+        tosa::AddOp::create(rewriter, loc, keyType, *range, *scratchOffset);
+    scatterIndices = tosa::SelectOp::create(rewriter, loc, keyType, sameNext,
+                                            scratchPositions, keys);
+  }
+  auto scratchType =
+      RankedTensorType::get({1, destinations + updates, 1}, elementType);
+  auto scratch = tosa::getZerosLikeTensor(rewriter, op, scratchType);
+  if (!scratch)
+    return failure();
+  Value scattered = tosa::ScatterOp::create(
+      rewriter, loc, scratchType, *scratch,
+      reshape(scatterIndices, scatterIndexType), values);
+  return reshape(slice(scattered, 0, destinations),
+                 RankedTensorType::get({1, destinations}, elementType));
+}
+
 static SmallVector<int64_t> permuteShape(ArrayRef<int64_t> originalShape,
                                          ArrayRef<int32_t> permutation) {
   SmallVector<int64_t> result;
@@ -1729,6 +1911,17 @@ class ConvertAtenOp : public TorchToTosaOpConversionPattern<AtenOpT> {
 public:
   using TorchToTosaOpConversionPattern<AtenOpT>::TorchToTosaOpConversionPattern;
   using OpAdaptor = typename AtenOpT::Adaptor;
+
+  bool canHandleZeroDimInputs(AtenOpT, OpAdaptor adaptor,
+                              const TypeConverter *) const override {
+    if constexpr (std::is_same_v<AtenOpT, AtenScatterAddOp>) {
+      // An empty index is unused: the lowering returns self directly.
+      auto indexType = dyn_cast<RankedTensorType>(adaptor.getIndex().getType());
+      return indexType && indexType.hasStaticShape() &&
+             indexType.getNumElements() == 0;
+    }
+    return false;
+  }
 
   LogicalResult
   matchAndRewriteImpl(AtenOpT op, OpAdaptor adaptor,
@@ -7289,6 +7482,213 @@ LogicalResult ConvertAtenOp<AtenScatterSrcOp>::matchAndRewriteImpl(
     return rewriter.notifyMatchFailure(op, "Convert ScatterNdOp failed");
 
   rewriter.replaceOp(op, {result.value()});
+  return success();
+}
+
+// TOSA scatter overwrites duplicate destinations. Sum updates for each
+// flattened destination using dense selection for small intermediates, or
+// radix sort and a segmented scan for large ones, then add the sums to self.
+//
+// Dense policy: updates * destinations <= 1,048,576.
+// Before:
+//   torch.aten.scatter_add([10,20,30,40], 0, [2,1,2,0], [3,5,7,11])
+// After (schematic TOSA):
+//   dest = tosa.reshape(tosa.cast(index))                // [4,1]
+//   mask = tosa.equal(dest, [[0,1,2,3]])                 // [4,4]
+//   selected = tosa.select(mask, tosa.reshape(src), 0)   // [4,4]
+//   sums = tosa.reduce_sum(selected, axis=0)             // [[11,5,10,0]]
+//   result = tosa.reshape(tosa.add(tosa.reshape(self), sums))
+//                                                       // [21,25,40,40]
+//
+// Sorted policy: updates * destinations > 1,048,576.
+// Before:
+//   torch.aten.scatter_add(self<65537xf32>, 0, index<17xi64>, src<17xf32>)
+// After (schematic TOSA):
+//   dest = tosa.reshape(tosa.cast(index))                // [17,1]
+//   // buildScatterAddSortedSums expands into TOSA radix-sort permutations,
+//   // gather, a segmented scan, and scatter into unique output/scratch rows.
+//   scratch = tosa.scatter(zeros<1x65554x1>, unique_indices, scanned_values)
+//   sums = tosa.reshape(tosa.slice(scratch, first 65537 rows))
+//   result = tosa.reshape(tosa.add(tosa.reshape(self), sums))
+//
+// Higher-rank inputs also use strides and offsets to flatten destinations.
+// Both policies cast narrow floating-point inputs to the default accumulation
+// type before summing and adding self, then cast the result back afterwards.
+template <>
+LogicalResult ConvertAtenOp<AtenScatterAddOp>::matchAndRewriteImpl(
+    AtenScatterAddOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  auto input = adaptor.getSelf();
+  auto index = adaptor.getIndex();
+  auto src = adaptor.getSrc();
+  auto inputType = dyn_cast<RankedTensorType>(input.getType());
+  auto indexType = dyn_cast<RankedTensorType>(index.getType());
+  auto srcType = dyn_cast<RankedTensorType>(src.getType());
+  auto resultType =
+      dyn_cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  if (!inputType || !indexType || !srcType || !resultType)
+    return rewriter.notifyMatchFailure(op, "expected ranked tensors");
+  int64_t rank = inputType.getRank();
+  int64_t dim;
+  if (rank == 0 || !matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
+    return rewriter.notifyMatchFailure(
+        op, "expected nonzero rank and constant dim");
+  dim = toPositiveDim(dim, rank);
+  if (!isValidDim(dim, rank))
+    return rewriter.notifyMatchFailure(op, "invalid dim");
+  if (indexType.hasStaticShape() && indexType.getNumElements() == 0) {
+    if (inputType != resultType)
+      return rewriter.notifyMatchFailure(op,
+                                         "empty index result must match self");
+    rewriter.replaceOp(op, input);
+    return success();
+  }
+  if (!inputType.hasStaticShape() || !indexType.hasStaticShape() ||
+      !srcType.hasStaticShape() || !resultType.hasStaticShape())
+    return rewriter.notifyMatchFailure(op, "expected static tensor shapes");
+
+  if (indexType.getRank() != rank || srcType.getRank() != rank)
+    return rewriter.notifyMatchFailure(op, "expected equal ranks");
+
+  auto inputShape = inputType.getShape();
+  auto indexShape = indexType.getShape();
+  auto srcShape = srcType.getShape();
+  Type elementType = inputType.getElementType();
+  if (elementType != srcType.getElementType() ||
+      elementType != resultType.getElementType() ||
+      inputShape != resultType.getShape() ||
+      !(indexType.getElementType().isInteger(32) ||
+        indexType.getElementType().isInteger(64)) ||
+      !(isa<FloatType>(elementType) ||
+        (isa<IntegerType>(elementType) && !elementType.isInteger(1))))
+    return rewriter.notifyMatchFailure(
+        op, "unsupported scatter_add types or result shape");
+  for (int64_t d = 0; d < rank; ++d)
+    if (indexShape[d] > srcShape[d] ||
+        (d != dim && indexShape[d] > inputShape[d]))
+      return rewriter.notifyMatchFailure(op, "index shape exceeds src or self");
+
+  int64_t updates = indexType.getNumElements();
+  int64_t destinations = inputType.getNumElements();
+  if (destinations > std::numeric_limits<int32_t>::max())
+    return rewriter.notifyMatchFailure(op,
+                                       "flattened indices exceed i32 range");
+
+  // Bound dense [updates, destinations] intermediates to 1M elements (4 MiB
+  // for f32 or 8 MiB for i64 if materialized). This is a workspace policy,
+  // rather than a measured performance crossover. Divide to avoid overflow.
+  constexpr int64_t kMaxDenseIntermediateElements = 1 << 20;
+  bool useDense = destinations > 0 &&
+                  updates <= kMaxDenseIntermediateElements / destinations;
+  // The sorted path needs i32 source positions and scratch destinations.
+  if (!useDense && updates > std::numeric_limits<int32_t>::max() - destinations)
+    return rewriter.notifyMatchFailure(
+        op, "sort-based scatter_add indices exceed i32 range");
+
+  Location loc = op.getLoc();
+  // Accumulate low-precision updates and self in f32, narrowing only after
+  // their addition so the update sum does not overflow prematurely in f16.
+  Type accumulationType = isa<FloatType>(elementType)
+                              ? getDefaultAccType(rewriter, elementType)
+                              : elementType;
+  auto i32 = rewriter.getI32Type();
+  auto flatIndexType = RankedTensorType::get({updates, 1}, i32);
+  auto flatValueType = RankedTensorType::get({updates, 1}, accumulationType);
+  auto flatInputType =
+      RankedTensorType::get({1, destinations}, accumulationType);
+  auto reshape = [&](Value value, RankedTensorType type) -> Value {
+    return tosa::ReshapeOp::create(
+        rewriter, loc, type, value,
+        tosa::getTosaConstShape(rewriter, loc, type.getShape()));
+  };
+
+  // PyTorch reads only the portion of src covered by index.
+  if (srcShape != indexShape) {
+    src = tosa::SliceOp::create(
+        rewriter, loc, RankedTensorType::get(indexShape, elementType), src,
+        tosa::getTosaConstShape(rewriter, loc, SmallVector<int64_t>(rank, 0)),
+        tosa::getTosaConstShape(rewriter, loc, indexShape));
+  }
+  src = tosa::tosaCastTensorToType(
+            rewriter, src, RankedTensorType::get(indexShape, accumulationType))
+            .value();
+  src = reshape(src, flatValueType);
+
+  // Linear destination = index[p] * stride[dim] + the contribution of every
+  // other coordinate in p. Constants encode those other coordinates.
+  SmallVector<int64_t> strides(rank, 1);
+  for (int64_t d = rank - 1; d > 0; --d)
+    strides[d - 1] = strides[d] * inputShape[d];
+  SmallVector<int32_t> offsets;
+  offsets.reserve(updates);
+  for (int64_t p = 0; p < updates; ++p) {
+    int64_t remaining = p;
+    int64_t offset = 0;
+    for (int64_t d = rank - 1; d >= 0; --d) {
+      int64_t coordinate = remaining % indexShape[d];
+      remaining /= indexShape[d];
+      if (d != dim)
+        offset += coordinate * strides[d];
+    }
+    offsets.push_back(static_cast<int32_t>(offset));
+  }
+  auto offset =
+      tosa::getConstTensor<int32_t>(rewriter, op, offsets, {updates, 1});
+  auto stride = tosa::getConstTensor<int32_t>(
+      rewriter, op, static_cast<int32_t>(strides[dim]), {1, 1});
+  if (!offset || !stride)
+    return rewriter.notifyMatchFailure(op, "failed to create index constants");
+  auto castIndex = tosa::tosaCastTensorToType(
+      rewriter, index, RankedTensorType::get(indexShape, i32));
+  if (!castIndex)
+    return rewriter.notifyMatchFailure(op, "failed to cast index to i32");
+  Value flatIndex = reshape(*castIndex, flatIndexType);
+  auto shift = tosa::getTosaMulShiftConstTensor(rewriter, op, 0);
+  flatIndex = tosa::MulOp::create(rewriter, loc, flatIndexType, flatIndex,
+                                  *stride, shift);
+  flatIndex =
+      tosa::AddOp::create(rewriter, loc, flatIndexType, flatIndex, *offset);
+
+  Value summed;
+  if (useDense) {
+    SmallVector<int32_t> positions;
+    positions.reserve(destinations);
+    for (int64_t k = 0; k < destinations; ++k)
+      positions.push_back(static_cast<int32_t>(k));
+    auto range = tosa::getConstTensor<int32_t>(rewriter, op, positions,
+                                               {1, destinations});
+    if (!range)
+      return rewriter.notifyMatchFailure(op,
+                                         "failed to create destination range");
+    auto maskType =
+        RankedTensorType::get({updates, destinations}, rewriter.getI1Type());
+    Value mask =
+        tosa::EqualOp::create(rewriter, loc, maskType, flatIndex, *range);
+    auto zero = tosa::getZerosLikeTensor(rewriter, op, flatValueType);
+    if (!zero)
+      return rewriter.notifyMatchFailure(op, "failed to create zero updates");
+    auto matrixType =
+        RankedTensorType::get({updates, destinations}, accumulationType);
+    Value selected =
+        tosa::SelectOp::create(rewriter, loc, matrixType, mask, src, *zero);
+    summed = tosa::ReduceSumOp::create(rewriter, loc, flatInputType, selected,
+                                       rewriter.getI32IntegerAttr(0));
+  } else {
+    auto sortedSums =
+        buildScatterAddSortedSums(op, flatIndex, src, destinations, rewriter);
+    if (failed(sortedSums))
+      return rewriter.notifyMatchFailure(op, "failed to build sort-based sums");
+    summed = *sortedSums;
+  }
+  input = tosa::tosaCastTensorToType(rewriter, input,
+                                     inputType.clone(accumulationType))
+              .value();
+  Value flatInput = reshape(input, flatInputType);
+  Value result =
+      tosa::AddOp::create(rewriter, loc, flatInputType, flatInput, summed);
+  result = reshape(result, resultType.clone(accumulationType));
+  result = tosa::tosaCastTensorToType(rewriter, result, resultType).value();
+  rewriter.replaceOp(op, result);
   return success();
 }
 
@@ -13427,6 +13827,7 @@ std::set<StringRef> populateTorchToTosaConversionPatternsAndIllegalOps(
   INSERT_ATENOP_PATTERN(AtenFlipOp);
   INSERT_ATENOP_PATTERN(AtenRoundOp);
   INSERT_ATENOP_PATTERN(AtenScatterSrcOp);
+  INSERT_ATENOP_PATTERN(AtenScatterAddOp);
   INSERT_ATENOP_PATTERN(AtenSliceScatterOp);
   INSERT_ATENOP_PATTERN(AtenDiagEmbedOp);
   INSERT_ATENOP_PATTERN(AtenUniformOp);
