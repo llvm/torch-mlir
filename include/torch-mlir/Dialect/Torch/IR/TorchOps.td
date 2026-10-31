@@ -1525,6 +1525,12 @@ def Torch_HigherOrderFlexAttentionOp : Torch_Op<"hop_flex_attention", [
 // Hand-authored for quantized_decomposed ops that appear in PT2E export graphs.
 // These are *not* in the PyTorch JIT registry so they cannot be generated via
 // torch_ods_gen.py; they must be listed here as first-class dialect ops.
+//
+// The per-tensor, per-channel and per-channel-group ops verify that `dtype`
+// matches the storage tensor, that the real tensor and the scales are floating
+// point, that quant_min <= quant_max and both are representable in the storage
+// dtype, and that the scales and zero points have one element per channel or
+// group.
 //===----------------------------------------------------------------------===//
 
 def Torch_QuantizedDecomposedQuantizePerTensorOp : Torch_Op<
@@ -1539,16 +1545,16 @@ def Torch_QuantizedDecomposedQuantizePerTensorOp : Torch_Op<
     scalar-qparams overload, whose schema overload_name is empty) in
     PT2E-exported graphs.
 
-    Quantizes a floating-point tensor to an integer tensor using per-tensor
+    Quantizes a floating-point tensor to a quantized tensor using per-tensor
     affine quantization:
     ```
     output = clamp(round(input / scale) + zero_point, quant_min, quant_max)
     ```
 
     The `dtype` argument encodes the output element type as a `torch.dtype`
-    integer code (e.g. 2 = torch.int8, 0 = torch.uint8).  Output shape is
+    integer code (e.g. 1 = torch.int8, 0 = torch.uint8).  Output shape is
     identical to the input shape; the element type is determined at
-    compile-time by dtype refinement or left as an opaque integer tensor.
+    compile-time by dtype refinement or left as an opaque quantized tensor.
   }];
   let arguments = (ins
     AnyTorchTensorType:$input,
@@ -1559,6 +1565,7 @@ def Torch_QuantizedDecomposedQuantizePerTensorOp : Torch_Op<
     Torch_IntType:$dtype
   );
   let results = (outs AnyTorchTensorType:$result);
+  let hasVerifier = 1;
   let assemblyFormat = [{
     $input `,` $scale `,` $zero_point `,` $quant_min `,` $quant_max `,` $dtype
     attr-dict
@@ -1581,15 +1588,16 @@ def Torch_QuantizedDecomposedDequantizePerTensorOp : Torch_Op<
     scalar-qparams overload, whose schema overload_name is empty) in
     PT2E-exported graphs.
 
-    Dequantizes an integer tensor back to floating point:
+    Dequantizes a quantized tensor back to floating point:
     ```
     output = (input - zero_point) * scale
     ```
 
     The `dtype` argument encodes the *input* element type as a `torch.dtype`
-    integer code and is used only for range-clamping metadata.  `out_dtype`,
-    when not None, specifies the output element type; otherwise output is
-    `float32`.  Output shape is identical to the input shape.
+    integer code; `quant_min` and `quant_max` do not affect the result.
+    `out_dtype`, when not None, specifies the floating-point output element
+    type; otherwise output is `float32`.  Output shape is identical to the
+    input shape.
   }];
   let arguments = (ins
     AnyTorchTensorType:$input,
@@ -1601,6 +1609,7 @@ def Torch_QuantizedDecomposedDequantizePerTensorOp : Torch_Op<
     AnyTorchOptionalIntType:$out_dtype
   );
   let results = (outs AnyTorchTensorType:$result);
+  let hasVerifier = 1;
   let assemblyFormat = [{
     $input `,` $scale `,` $zero_point `,` $quant_min `,` $quant_max `,` $dtype `,` $out_dtype
     attr-dict
@@ -1622,7 +1631,9 @@ def Torch_QuantizedDecomposedQuantizePerChannelOp : Torch_Op<
   let description = [{
     Quantizes a floating-point tensor with one affine scale and zero point per
     channel. `axis` identifies the input dimension indexed by the one
-    dimensional `scales` and `zero_points` tensors.
+    dimensional `scales` and `zero_points` tensors, which have one element
+    per index of that dimension. Zero points may be integer or floating
+    point.
   }];
   let arguments = (ins
     AnyTorchTensorType:$input,
@@ -1634,6 +1645,7 @@ def Torch_QuantizedDecomposedQuantizePerChannelOp : Torch_Op<
     Torch_IntType:$dtype
   );
   let results = (outs AnyTorchTensorType:$result);
+  let hasVerifier = 1;
   let assemblyFormat = [{
     $input `,` $scales `,` $zero_points `,` $axis `,` $quant_min `,`
         $quant_max `,` $dtype attr-dict
@@ -1653,8 +1665,10 @@ def Torch_QuantizedDecomposedDequantizePerChannelOp : Torch_Op<
   ]> {
   let summary = "PT2E dequantize_per_channel";
   let description = [{
-    Dequantizes an integer tensor with one scale and optional zero point per
+    Dequantizes a quantized tensor with one scale and optional zero point per
     channel. A None `zero_points` operand denotes symmetric quantization.
+    `scales` and `zero_points` follow the same one-element-per-channel
+    contract as `quantize_per_channel`.
   }];
   let arguments = (ins
     AnyTorchTensorType:$input,
@@ -1667,6 +1681,7 @@ def Torch_QuantizedDecomposedDequantizePerChannelOp : Torch_Op<
     AnyTorchOptionalIntType:$out_dtype
   );
   let results = (outs AnyTorchTensorType:$result);
+  let hasVerifier = 1;
   let assemblyFormat = [{
     $input `,` $scales `,` $zero_points `,` $axis `,` $quant_min `,`
         $quant_max `,` $dtype `,` $out_dtype attr-dict
@@ -1689,9 +1704,12 @@ def Torch_QuantizedDecomposedQuantizePerChannelGroupOp : Torch_Op<
     Quantizes a floating-point tensor with per-channel-group affine
     quantization.
 
-    The input tensor is quantized in groups along the last dimension.
-    `scales` and `zero_points` have shape `[num_channels, num_groups]`
-    where `num_groups = input.shape[-1] / group_size`.
+    The rank-2 input tensor is quantized in groups along the last dimension.
+    `scales` and `zero_points` have one element per group, i.e.
+    `num_channels * num_groups` elements where
+    `num_groups = input.shape[-1] / group_size`. Zero points may be integer
+    or floating point. If `group_size` exceeds `input.shape[-1]` and the last
+    dimension of `scales` is 1, each row is quantized as one group.
   }];
   let arguments = (ins
     AnyTorchTensorType:$input,
@@ -1703,6 +1721,13 @@ def Torch_QuantizedDecomposedQuantizePerChannelGroupOp : Torch_Op<
     Torch_IntType:$group_size
   );
   let results = (outs AnyTorchTensorType:$result);
+  let hasVerifier = 1;
+  let extraClassDeclaration = [{
+    /// Returns the group size the op applies for the constant `groupSize`:
+    /// the input row length if `groupSize` exceeds it and the last dimension
+    /// of `scales` is 1, and `groupSize` otherwise.
+    int64_t getEffectiveGroupSize(int64_t groupSize);
+  }];
   let assemblyFormat = [{
     $input `,` $scales `,` $zero_points `,` $quant_min `,`
         $quant_max `,` $dtype `,` $group_size attr-dict
@@ -1722,12 +1747,12 @@ def Torch_QuantizedDecomposedDequantizePerChannelGroupOp : Torch_Op<
   ]> {
   let summary = "PT2E dequantize_per_channel_group";
   let description = [{
-    Dequantizes an integer tensor with per-channel-group affine quantization.
+    Dequantizes a quantized tensor with per-channel-group affine quantization.
 
-    The input tensor is dequantized in groups along the last dimension.
-    `scales` has shape `[num_channels, num_groups]` where
-    `num_groups = input.shape[-1] / group_size`. `zero_points` may be None
-    for symmetric quantization.
+    The rank-2 input tensor is dequantized in groups along the last
+    dimension. `scales` and `zero_points` follow the same element-count and
+    `group_size` contract as `quantize_per_channel_group`. `zero_points` may
+    be None for symmetric quantization.
   }];
   let arguments = (ins
     AnyTorchTensorType:$input,
@@ -1740,6 +1765,13 @@ def Torch_QuantizedDecomposedDequantizePerChannelGroupOp : Torch_Op<
     Torch_IntType:$out_dtype
   );
   let results = (outs AnyTorchTensorType:$result);
+  let hasVerifier = 1;
+  let extraClassDeclaration = [{
+    /// Returns the group size the op applies for the constant `groupSize`:
+    /// the input row length if `groupSize` exceeds it and the last dimension
+    /// of `scales` is 1, and `groupSize` otherwise.
+    int64_t getEffectiveGroupSize(int64_t groupSize);
+  }];
   let assemblyFormat = [{
     $input `,` $scales `,` $zero_points `,` $quant_min `,`
         $quant_max `,` $dtype `,` $group_size `,` $out_dtype attr-dict

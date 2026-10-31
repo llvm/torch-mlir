@@ -19,6 +19,7 @@
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Matchers.h"
+#include "mlir/IR/TypeUtilities.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -1865,17 +1866,6 @@ static SmallVector<AffineMap> getPerChannelIndexingMaps(OpBuilder &b,
   return maps;
 }
 
-static FailureOr<int64_t> getPerChannelAxis(Value axisValue, int64_t rank) {
-  int64_t axis;
-  if (!matchPattern(axisValue, m_TorchConstantInt(&axis)))
-    return failure();
-  if (axis < 0)
-    axis += rank;
-  if (axis < 0 || axis >= rank)
-    return failure();
-  return axis;
-}
-
 class ConvertQuantizedDecomposedQuantizePerChannelOp
     : public OpConversionPattern<QuantizedDecomposedQuantizePerChannelOp> {
 public:
@@ -1890,19 +1880,15 @@ public:
     Value scales = adaptor.getScales();
     Value zeroPoints = adaptor.getZeroPoints();
     auto inputType = dyn_cast<RankedTensorType>(input.getType());
-    auto scalesType = dyn_cast<RankedTensorType>(scales.getType());
-    auto zeroPointsType = dyn_cast<RankedTensorType>(zeroPoints.getType());
     auto resultType = dyn_cast<RankedTensorType>(
         getTypeConverter()->convertType(op.getResult().getType()));
-    if (!inputType || !scalesType || !zeroPointsType || !resultType ||
-        scalesType.getRank() != 1 || zeroPointsType.getRank() != 1)
-      return rewriter.notifyMatchFailure(
-          op, "expected ranked input/result and rank-1 qparams");
-    FailureOr<int64_t> axis =
-        getPerChannelAxis(op.getAxis(), inputType.getRank());
-    if (failed(axis))
-      return rewriter.notifyMatchFailure(
-          op, "axis must be a constant integer in range [-rank, rank)");
+    if (!inputType || !isa<RankedTensorType>(scales.getType()) ||
+        !isa<RankedTensorType>(zeroPoints.getType()) || !resultType)
+      return rewriter.notifyMatchFailure(op, "expected ranked tensors");
+    std::optional<int64_t> axis = matchLegalConstantIndexIntoListOfSize(
+        op.getAxis(), inputType.getRank());
+    if (!axis)
+      return rewriter.notifyMatchFailure(op, "expected a constant axis");
 
     int64_t quantMin, quantMax;
     if (!matchPattern(op.getQuantMin(), m_TorchConstantInt(&quantMin)) ||
@@ -1960,17 +1946,14 @@ public:
     Value scales = adaptor.getScales();
     Value zeroPoints = adaptor.getZeroPoints();
     auto inputType = dyn_cast<RankedTensorType>(input.getType());
-    auto scalesType = dyn_cast<RankedTensorType>(scales.getType());
     auto resultType = dyn_cast<RankedTensorType>(
         getTypeConverter()->convertType(op.getResult().getType()));
-    if (!inputType || !scalesType || !resultType || scalesType.getRank() != 1)
-      return rewriter.notifyMatchFailure(
-          op, "expected ranked input/result and rank-1 scales");
-    FailureOr<int64_t> axis =
-        getPerChannelAxis(op.getAxis(), inputType.getRank());
-    if (failed(axis))
-      return rewriter.notifyMatchFailure(
-          op, "axis must be a constant integer in range [-rank, rank)");
+    if (!inputType || !isa<RankedTensorType>(scales.getType()) || !resultType)
+      return rewriter.notifyMatchFailure(op, "expected ranked tensors");
+    std::optional<int64_t> axis = matchLegalConstantIndexIntoListOfSize(
+        op.getAxis(), inputType.getRank());
+    if (!axis)
+      return rewriter.notifyMatchFailure(op, "expected a constant axis");
 
     bool hasZeroPoints = isa<RankedTensorType>(zeroPoints.getType());
     SmallVector<Value> inputs = {input, scales};
@@ -2024,62 +2007,18 @@ SmallVector<AffineMap> getPerChannelGroupIndexingMaps(OpBuilder &b,
   return indexingMaps;
 }
 
-template <typename OpTy>
-LogicalResult checkPerChannelGroupShapes(
-    OpTy op, ConversionPatternRewriter &rewriter, int64_t inputRank,
-    ArrayRef<int64_t> inputShape, ArrayRef<int64_t> scalesShape,
-    int64_t groupSize, bool hasZeroPoints, ArrayRef<int64_t> zeroPointsShape) {
-  if (inputRank != 2)
-    return rewriter.notifyMatchFailure(op, "expected rank-2 input");
-  if (groupSize <= 1)
-    return rewriter.notifyMatchFailure(op, "group_size must be > 1");
-
-  if (static_cast<int64_t>(scalesShape.size()) != 2)
-    return rewriter.notifyMatchFailure(op, "expected rank-2 scales");
-
-  if (hasZeroPoints && static_cast<int64_t>(zeroPointsShape.size()) != 2)
-    return rewriter.notifyMatchFailure(op, "expected rank-2 zero_points");
-
-  if (hasZeroPoints && zeroPointsShape != scalesShape)
-    return rewriter.notifyMatchFailure(
-        op, "zero_points shape must match scales shape");
-
-  int64_t lastDim = inputShape[inputRank - 1];
-  if (lastDim != ShapedType::kDynamic && lastDim % groupSize != 0)
-    return rewriter.notifyMatchFailure(
-        op, "input last dimension must be divisible by group_size");
-
-  int64_t channelDim = inputShape[inputRank - 2];
-  int64_t scalesChannelDim = scalesShape[0];
-  if (channelDim != ShapedType::kDynamic &&
-      scalesChannelDim != ShapedType::kDynamic &&
-      scalesChannelDim != channelDim)
-    return rewriter.notifyMatchFailure(
-        op, "scales dim 0 must match input channel dimension (dim[-2])");
-
-  if (lastDim != ShapedType::kDynamic) {
-    int64_t expectedNumGroups = lastDim / groupSize;
-    int64_t scalesGroupDim = scalesShape[1];
-    if (scalesGroupDim != ShapedType::kDynamic &&
-        scalesGroupDim != expectedNumGroups)
-      return rewriter.notifyMatchFailure(
-          op, "scales dim 1 must equal input dim[-1] / group_size");
-  }
-
-  return success();
-}
-
-// Adjusts group_size for GPTQ single-column quantization.
-int64_t adjustGroupSizeForGPTQSingleColumn(int64_t groupSize,
-                                           ArrayRef<int64_t> inputShape,
-                                           ArrayRef<int64_t> scalesShape) {
-  int64_t inputLastDim = inputShape.back();
-  int64_t scalesLastDim = scalesShape.back();
-  if (inputLastDim != ShapedType::kDynamic &&
-      scalesLastDim != ShapedType::kDynamic && groupSize > inputLastDim &&
-      scalesLastDim == 1)
-    return inputLastDim;
-  return groupSize;
+/// Returns true if `qparamsType` has the shape [rows, groups] that the group
+/// indexing maps read for `inputType` and `groupSize`.
+static bool hasGroupQParamsShape(RankedTensorType qparamsType,
+                                 RankedTensorType inputType,
+                                 int64_t groupSize) {
+  assert(inputType.getRank() == 2 && "expected a rank-2 input");
+  int64_t rowLength = inputType.getDimSize(1);
+  int64_t groups = ShapedType::isDynamic(rowLength)
+                       ? ShapedType::kDynamic
+                       : llvm::divideCeilSigned(rowLength, groupSize);
+  return succeeded(verifyCompatibleShape(qparamsType.getShape(),
+                                         {inputType.getDimSize(0), groups}));
 }
 
 class ConvertQuantizedDecomposedQuantizePerChannelGroupOp
@@ -2106,21 +2045,17 @@ public:
         getTypeConverter()->convertType(op.getResult().getType()));
 
     if (!inputType || !scalesType || !zeroPointsType || !resultType)
-      return rewriter.notifyMatchFailure(op, "expected ranked input/result");
+      return rewriter.notifyMatchFailure(op, "expected ranked tensors");
 
     int64_t groupSize;
     if (!matchPattern(op.getGroupSize(), m_TorchConstantInt(&groupSize)))
       return rewriter.notifyMatchFailure(op, "group_size must be constant");
-
-    groupSize = adjustGroupSizeForGPTQSingleColumn(
-        groupSize, inputType.getShape(), scalesType.getShape());
-
+    groupSize = op.getEffectiveGroupSize(groupSize);
+    if (!hasGroupQParamsShape(scalesType, inputType, groupSize) ||
+        !hasGroupQParamsShape(zeroPointsType, inputType, groupSize))
+      return rewriter.notifyMatchFailure(
+          op, "expected scales and zero_points of shape [rows, groups]");
     int64_t inputRank = inputType.getRank();
-    if (failed(checkPerChannelGroupShapes(
-            op, rewriter, inputRank, inputType.getShape(),
-            scalesType.getShape(), groupSize, /*hasZeroPoints=*/true,
-            zeroPointsType.getShape())))
-      return failure();
 
     int64_t quantMin, quantMax;
     if (!matchPattern(op.getQuantMin(), m_TorchConstantInt(&quantMin)) ||
@@ -2196,24 +2131,21 @@ public:
         getTypeConverter()->convertType(op.getResult().getType()));
 
     if (!inputType || !scalesType || !resultType)
-      return rewriter.notifyMatchFailure(op, "expected ranked input/result");
+      return rewriter.notifyMatchFailure(op, "expected ranked tensors");
 
     int64_t groupSize;
     if (!matchPattern(op.getGroupSize(), m_TorchConstantInt(&groupSize)))
       return rewriter.notifyMatchFailure(op, "group_size must be constant");
+    groupSize = op.getEffectiveGroupSize(groupSize);
+    auto zeroPointsType = dyn_cast<RankedTensorType>(zeroPoints.getType());
+    if (!hasGroupQParamsShape(scalesType, inputType, groupSize) ||
+        (zeroPointsType &&
+         !hasGroupQParamsShape(zeroPointsType, inputType, groupSize)))
+      return rewriter.notifyMatchFailure(
+          op, "expected scales and zero_points of shape [rows, groups]");
 
-    groupSize = adjustGroupSizeForGPTQSingleColumn(
-        groupSize, inputType.getShape(), scalesType.getShape());
-
-    bool hasZeroPoints = isa<RankedTensorType>(zeroPoints.getType());
-    ArrayRef<int64_t> zpShape =
-        hasZeroPoints ? cast<RankedTensorType>(zeroPoints.getType()).getShape()
-                      : ArrayRef<int64_t>{};
+    bool hasZeroPoints = static_cast<bool>(zeroPointsType);
     int64_t inputRank = inputType.getRank();
-    if (failed(checkPerChannelGroupShapes(
-            op, rewriter, inputRank, inputType.getShape(),
-            scalesType.getShape(), groupSize, hasZeroPoints, zpShape)))
-      return failure();
 
     Value init = tensor::EmptyOp::create(
         rewriter, loc, getAsOpFoldResult(getTensorSizes(rewriter, loc, input)),
