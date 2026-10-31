@@ -103,6 +103,7 @@ def export_and_import(
     enable_ir_printing: bool = False,
     backend_legal_ops: Optional[list[str]] = None,
     allow_non_finites: bool = True,
+    external_parameters: bool = False,
     **kwargs,
 ):
     context = ir.Context()
@@ -139,6 +140,7 @@ def export_and_import(
             prog,
             func_name=func_name,
             import_symbolic_shape_expressions=import_symbolic_shape_expressions,
+            external_parameters=external_parameters,
         )
 
     fx_import_options = FxImportOptions(backend_legal_ops=backend_legal_ops)
