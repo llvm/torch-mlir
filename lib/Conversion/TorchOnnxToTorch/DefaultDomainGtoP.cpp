@@ -2841,10 +2841,10 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         // at runtime, so the view shapes below never need an inferred (-1)
         // dimension.
         SmallVector<Value> inputSizes;
-        for (auto [dim, size] : llvm::enumerate(inTyShape)) {
-          if (size != Torch::kUnknownSize) {
+        for (auto [dim, dimSize] : llvm::enumerate(inTyShape)) {
+          if (dimSize != Torch::kUnknownSize) {
             inputSizes.push_back(Torch::ConstantIntOp::create(
-                rewriter, loc, rewriter.getI64IntegerAttr(size)));
+                rewriter, loc, rewriter.getI64IntegerAttr(dimSize)));
             continue;
           }
           Value dimVal = Torch::ConstantIntOp::create(
@@ -2858,9 +2858,9 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
         int64_t spatialSizeInt = Torch::kUnknownSize;
         if (llvm::is_contained(spatialShape, Torch::kUnknownSize)) {
           spatialSize = inputSizes[2];
-          for (Value size : ArrayRef<Value>(inputSizes).drop_front(3))
-            spatialSize =
-                Torch::AtenMulIntOp::create(rewriter, loc, spatialSize, size);
+          for (Value dimSizeVal : ArrayRef<Value>(inputSizes).drop_front(3))
+            spatialSize = Torch::AtenMulIntOp::create(rewriter, loc,
+                                                      spatialSize, dimSizeVal);
         } else {
           spatialSizeInt = llvm::product_of(spatialShape);
           spatialSize = Torch::ConstantIntOp::create(
@@ -2914,20 +2914,13 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             rewriter, loc, reshapeType, padded, kernelSizeList, stridesList,
             paddingList, cstCeilMode, cstCountIncludeMode,
             /*divisor_override=*/cstNone);
-        // squeeze
-        SmallVector<int64_t, 3> squeezeShapeInt{
-            viewShapeInt[0], viewShapeInt[2], viewShapeInt[3]};
-        Torch::ValueTensorType squeezeType =
-            rewriter.getType<Torch::ValueTensorType>(squeezeShapeInt, dtype);
-        auto squeeze = Torch::AtenSqueezeDimOp::create(rewriter, loc,
-                                                       squeezeType, pool, one);
         // view as input Type
         Value intTyShapeList = Torch::PrimListConstructOp::create(
             rewriter, loc,
             Torch::ListType::get(rewriter.getType<Torch::IntType>()),
             inputSizes);
-        auto viewAsInput = Torch::AtenViewOp::create(rewriter, loc, inTy,
-                                                     squeeze, intTyShapeList);
+        auto viewAsInput = Torch::AtenViewOp::create(rewriter, loc, inTy, pool,
+                                                     intTyShapeList);
         // mul + add + pow + div
         auto mul = Torch::AtenMulScalarOp::create(rewriter, loc, resultType,
                                                   viewAsInput, constAlpha);
