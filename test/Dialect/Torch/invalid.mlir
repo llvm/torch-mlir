@@ -1628,3 +1628,65 @@ func.func @torch.quantized_decomposed.dequantize_per_channel_group$invalid_out_d
   %0 = torch.quantized_decomposed.dequantize_per_channel_group %arg0, %arg1, %none, %quant_min, %quant_max, %dtype, %group_size, %output_dtype : !torch.vtensor<[4,16],si8>, !torch.vtensor<[4,4],f32>, !torch.none, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,16],f32>
   return %0 : !torch.vtensor<[4,16],f32>
 }
+
+// -----
+
+func.func @torch.aten.diagonal_scatter$rank_1_self(%arg0: !torch.vtensor<[3],f32>, %arg1: !torch.vtensor<[1],f32>) -> !torch.vtensor<[3],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  // expected-error @+1 {{'torch.aten.diagonal_scatter' op expected self to have rank >= 2, but got 1}}
+  %0 = torch.aten.diagonal_scatter %arg0, %arg1, %int0, %int0, %int1 : !torch.vtensor<[3],f32>, !torch.vtensor<[1],f32>, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[3],f32>
+  return %0 : !torch.vtensor<[3],f32>
+}
+
+// -----
+
+func.func @torch.aten.diagonal_scatter$dim_out_of_range(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.vtensor<[3],f32>) -> !torch.vtensor<[3,4],f32> {
+  %int0 = torch.constant.int 0
+  %int2 = torch.constant.int 2
+  // expected-error @+1 {{'torch.aten.diagonal_scatter' op expected dim1 and dim2 to be in range [-2, 1], but got 0 and 2}}
+  %0 = torch.aten.diagonal_scatter %arg0, %arg1, %int0, %int0, %int2 : !torch.vtensor<[3,4],f32>, !torch.vtensor<[3],f32>, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
+func.func @torch.aten.diagonal_scatter$same_dims(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.vtensor<[3],f32>) -> !torch.vtensor<[3,4],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int-1 = torch.constant.int -1
+  // expected-error @+1 {{'torch.aten.diagonal_scatter' op expected dim1 and dim2 to be different, but got 1 and -1}}
+  %0 = torch.aten.diagonal_scatter %arg0, %arg1, %int0, %int1, %int-1 : !torch.vtensor<[3,4],f32>, !torch.vtensor<[3],f32>, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
+func.func @torch.aten.diagonal_scatter$src_wrong_rank(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.vtensor<[3,1],f32>) -> !torch.vtensor<[3,4],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  // expected-error @+1 {{'torch.aten.diagonal_scatter' op expected src to have rank 1, but got 2}}
+  %0 = torch.aten.diagonal_scatter %arg0, %arg1, %int0, %int0, %int1 : !torch.vtensor<[3,4],f32>, !torch.vtensor<[3,1],f32>, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
+func.func @torch.aten.diagonal_scatter$src_wrong_diag_len(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.vtensor<[5],f32>) -> !torch.vtensor<[3,4],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  // expected-error @+1 {{'torch.aten.diagonal_scatter' op expected src size at dim 0 to be 3, but got 5}}
+  %0 = torch.aten.diagonal_scatter %arg0, %arg1, %int0, %int0, %int1 : !torch.vtensor<[3,4],f32>, !torch.vtensor<[5],f32>, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}
+
+// -----
+
+func.func @torch.aten.diagonal_scatter$src_wrong_batch_dim(%arg0: !torch.vtensor<[2,3,3],f32>, %arg1: !torch.vtensor<[4,3],f32>) -> !torch.vtensor<[2,3,3],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  // expected-error @+1 {{'torch.aten.diagonal_scatter' op expected src size at dim 0 to be 2, but got 4}}
+  %0 = torch.aten.diagonal_scatter %arg0, %arg1, %int0, %int1, %int2 : !torch.vtensor<[2,3,3],f32>, !torch.vtensor<[4,3],f32>, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,3,3],f32>
+  return %0 : !torch.vtensor<[2,3,3],f32>
+}

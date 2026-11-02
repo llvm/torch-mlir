@@ -6506,6 +6506,67 @@ LogicalResult AtenLinalgCrossOp::verify() {
   return success();
 }
 
+//===----------------------------------------------------------------------===//
+// AtenDiagonalScatterOp
+//===----------------------------------------------------------------------===//
+
+LogicalResult AtenDiagonalScatterOp::verify() {
+  auto selfType = cast<BaseTensorType>(getSelf().getType());
+  auto srcType = cast<BaseTensorType>(getSrc().getType());
+  if (!selfType.hasSizes() || !srcType.hasSizes())
+    return success();
+
+  ArrayRef<int64_t> selfShape = selfType.getSizes();
+  int64_t selfRank = selfShape.size();
+  if (selfRank < 2)
+    return emitOpError("expected self to have rank >= 2, but got ") << selfRank;
+
+  int64_t offset, dim1, dim2;
+  if (!matchPattern(getOffset(), m_TorchConstantInt(&offset)) ||
+      !matchPattern(getDim1(), m_TorchConstantInt(&dim1)) ||
+      !matchPattern(getDim2(), m_TorchConstantInt(&dim2)))
+    return success();
+
+  int64_t posDim1 = toPositiveDim(dim1, selfRank);
+  int64_t posDim2 = toPositiveDim(dim2, selfRank);
+  if (!isValidDim(posDim1, selfRank) || !isValidDim(posDim2, selfRank))
+    return emitOpError("expected dim1 and dim2 to be in range [")
+           << -selfRank << ", " << selfRank - 1 << "], but got " << dim1
+           << " and " << dim2;
+  if (posDim1 == posDim2)
+    return emitOpError("expected dim1 and dim2 to be different, but got ")
+           << dim1 << " and " << dim2;
+
+  // The diagonal has the shape of self with dim1 and dim2 removed, plus the
+  // diagonal length as the last dimension.
+  SmallVector<int64_t> diagShape;
+  for (int64_t d = 0; d < selfRank; ++d)
+    if (d != posDim1 && d != posDim2)
+      diagShape.push_back(selfShape[d]);
+  int64_t numRows = selfShape[posDim1];
+  int64_t numCols = selfShape[posDim2];
+  int64_t diagLen = kUnknownSize;
+  if (numRows != kUnknownSize && numCols != kUnknownSize)
+    diagLen = offset >= 0
+                  ? std::max<int64_t>(0, std::min(numRows, numCols - offset))
+                  : std::max<int64_t>(0, std::min(numRows + offset, numCols));
+  diagShape.push_back(diagLen);
+
+  ArrayRef<int64_t> srcShape = srcType.getSizes();
+  if (srcShape.size() != diagShape.size())
+    return emitOpError("expected src to have rank ")
+           << diagShape.size() << ", but got " << srcShape.size();
+  for (auto [i, srcSize, diagSize] : llvm::enumerate(srcShape, diagShape)) {
+    if (srcSize == kUnknownSize || diagSize == kUnknownSize)
+      continue;
+    if (srcSize != diagSize)
+      return emitOpError("expected src size at dim ")
+             << i << " to be " << diagSize << ", but got " << srcSize;
+  }
+
+  return success();
+}
+
 LogicalResult AtenKthvalueOp::verify() {
 
   auto selfType = cast<BaseTensorType>(getSelf().getType());
