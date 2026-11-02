@@ -151,6 +151,39 @@ func.func @transposedGroupedConvolution2D(%arg0: !torch.vtensor<[1,2,5,7],f32>) 
   return %6 : !torch.vtensor<[1,4,10,14],f32>
 }
 
+// -----
+
+// Depthwise transposed conv2d: in_channels == groups (4), out_channels/groups == 1.
+// Weight [4,1,3,3] is expanded to rank-5 [4,1,1,3,3] by expandWeight before the
+// spatial flip, so the collapse_shape reassociation must cover all 3 leading dims.
+// CHECK-LABEL:   func.func @transposedDepthwiseConvolution2D(
+// CHECK-SAME:       %[[INPUT_TENSOR:.*]]: !torch.vtensor<[1,4,5,7],f32>) -> !torch.vtensor<[1,4,11,15],f32>
+// CHECK:         %[[WEIGHT_TRANSPOSED:.*]] = linalg.generic
+// CHECK:         %[[COLLAPSED_WEIGHT:.*]] = tensor.collapse_shape %[[WEIGHT_TRANSPOSED]]
+// CHECK-SAME:        [0, 1, 2], [3], [4]
+// CHECK-SAME:        tensor<4x1x1x3x3xf32> into tensor<4x3x3xf32>
+// CHECK:         %[[CONV_RESULT:.*]] = linalg.depthwise_conv_2d_nchw_chw
+// CHECK-SAME:        {dilations = dense<1> : vector<2xi64>, strides = dense<1> : vector<2xi64>}
+// CHECK-SAME:        ins(%[[PAD:.*]], %[[COLLAPSED_WEIGHT]] : tensor<1x4x13x17xf32>, tensor<4x3x3xf32>)
+// CHECK-SAME:        outs(%[[OUT:.*]] : tensor<1x4x11x15xf32>) -> tensor<1x4x11x15xf32>
+func.func @transposedDepthwiseConvolution2D(%arg0: !torch.vtensor<[1,4,5,7],f32>) -> !torch.vtensor<[1,4,11,15],f32> attributes {torch.assume_strict_symbolic_shapes} {
+  %int0 = torch.constant.int 0
+  %true = torch.constant.bool true
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int4 = torch.constant.int 4
+  %0 = torch.vtensor.literal(dense_resource<torch_tensor_4_1_3_3_torch.float32> : tensor<4x1x3x3xf32>) : !torch.vtensor<[4,1,3,3],f32>
+  %1 = torch.vtensor.literal(dense_resource<torch_tensor_4_torch.float32> : tensor<4xf32>) : !torch.vtensor<[4],f32>
+  %2 = torch.prim.ListConstruct %int2, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
+  %3 = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %4 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %5 = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %6 = torch.aten.convolution %arg0, %0, %1, %2, %3, %4, %true, %5, %int4 : !torch.vtensor<[1,4,5,7],f32>, !torch.vtensor<[4,1,3,3],f32>, !torch.vtensor<[4],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,4,11,15],f32>
+  return %6 : !torch.vtensor<[1,4,11,15],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @tranConv2dNegativePadding(
 // CHECK-SAME:                                         %[[INPUT_VTENSOR:.*]]: !torch.vtensor<[1,1,4,7],f32>) -> !torch.vtensor<[1,2,6,3],f32> attributes {torch.assume_strict_symbolic_shapes} {
 // CHECK-DAG:       %[[C2:.*]] = arith.constant 2 : index
