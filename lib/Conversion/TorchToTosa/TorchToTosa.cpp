@@ -9235,7 +9235,9 @@ public:
       };
       // Gather the winning value rather than returning ReduceMax, so equal
       // positive/negative zeros retain the selected input's sign.
-      return std::make_pair(selectWinner(windows), selectWinner(indexWindows));
+      Value selectedValues = selectWinner(windows);
+      Value selectedIndices = selectWinner(indexWindows);
+      return std::make_pair(selectedValues, selectedIndices);
     };
     auto horizontal = poolAxis(input, Value(), true);
     if (failed(horizontal))
