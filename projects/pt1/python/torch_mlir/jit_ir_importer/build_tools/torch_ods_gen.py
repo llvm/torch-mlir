@@ -1092,7 +1092,10 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("aten::scatter.reduce : (Tensor, int, Tensor, Tensor, str) -> (Tensor)")
     emit("aten::select_scatter : (Tensor, Tensor, int, int) -> (Tensor)")
     emit("aten::slice_scatter : (Tensor, Tensor, int, int?, int?, int) -> (Tensor)")
-    emit("aten::diagonal_scatter : (Tensor, Tensor, int, int, int) -> (Tensor)")
+    emit(
+        "aten::diagonal_scatter : (Tensor, Tensor, int, int, int) -> (Tensor)",
+        has_verifier=True,
+    )
     emit("aten::as_strided_scatter : (Tensor, Tensor, int[], int[], int?) -> (Tensor)")
     emit("aten::upsample_nearest1d : (Tensor, int[], float?) -> (Tensor)")
     emit("aten::upsample_nearest1d.vec : (Tensor, int[]?, float[]?) -> (Tensor)")
