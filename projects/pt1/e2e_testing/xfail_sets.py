@@ -3411,7 +3411,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenScaledMmPerTensorF16Module_basic",
     "AtenScaledMmPerTensorF32Module_basic",
     "AtenScaledMmPerTensorModule_basic",
-    "ScatterAddDynamicModule_basic",
     "UniformModule_basic",
     "UniformStaticShapeModule_basic",
     "AtenFftRfft2DLastDim_basic",
@@ -3458,7 +3457,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "MultinomialModule2D_basic",
     "MultinomialModule_basic",
     # REMOVE WHEN ENABLE_GQA IS ADDED
-    "ScatterAddStaticModule_basic",
     "TensorsConcatComplex128FloatModule_basic",
     "TensorsConcatComplex128IntModule_basic",
     "TensorsConcatComplex64FloatModule_basic",
