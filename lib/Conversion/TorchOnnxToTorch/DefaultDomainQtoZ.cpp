@@ -294,6 +294,16 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
               binder.op, "unimplemented: only per-tensor or per-axis "
                          "quantization supported");
 
+        Type operandDtype =
+            cast<Torch::ValueTensorType>(operand.getType()).getOptionalDtype();
+        if (operandDtype && !isa<mlir::FloatType>(operandDtype))
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented: non-floating-point input");
+        Type scaleDtype = scaleTy.getOptionalDtype();
+        if (scaleDtype && !isa<mlir::FloatType>(scaleDtype))
+          return rewriter.notifyMatchFailure(
+              binder.op, "unimplemented: non-floating-point scale");
+
         auto resultETy = resultType.getDtype();
         if (!isSupportedQuantizeDequantizeLinearDtype(resultETy))
           return rewriter.notifyMatchFailure(
@@ -351,7 +361,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                 maxInt, tyConst);
 
           } else {
-            // Case 2: Per-Channel Quantization for non-floating point input.
+            // Case 2: Per-Channel Quantization for non-floating point output.
             int64_t axis;
             if (binder.s64IntegerAttr(axis, "axis", 1))
               return failure();
@@ -366,7 +376,7 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return success();
         }
 
-        // Case 3: Per-Tensor Quantization for floating point input.
+        // Case 3: Per-Tensor Quantization for floating point output.
         Value none = Torch::ConstantNoneOp::create(rewriter, loc);
         Value cstFalse = Torch::ConstantBoolOp::create(rewriter, loc, false);
         Value one = Torch::ConstantFloatOp::create(
