@@ -457,6 +457,9 @@ public:
     if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)))
       return rewriter.notifyMatchFailure(op,
                                          "unimplemented: dim is not constant");
+    dim = toPositiveDim(dim, selfType.getRank());
+    if (!isValidDim(dim, selfType.getRank()))
+      return rewriter.notifyMatchFailure(op, "dim is statically invalid");
 
     // Get the inputs reformatted for the TMScatterOp
     auto [indices, updates] =

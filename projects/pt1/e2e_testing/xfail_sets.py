@@ -524,6 +524,12 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
+    # StableHLO scatter lowering fails bufferization for these tests.
+    "ScatterAddDenseFloat16Module_basic",
+    "ScatterAddDenseSignedZeroModule_basic",
+    "ScatterAddSortedFloat16Module_basic",
+    "ScatterAddSortedModule_basic",
+    "ScatterAddSortedSignedZeroModule_basic",
     "ArgsortTensor_basic",
     "ArgsortTensorInteger_basic",
     "AddFloatIntModule_basic",
@@ -3412,7 +3418,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenScaledMmPerTensorF16Module_basic",
     "AtenScaledMmPerTensorF32Module_basic",
     "AtenScaledMmPerTensorModule_basic",
-    "ScatterAddDynamicModule_basic",
     "UniformModule_basic",
     "UniformStaticShapeModule_basic",
     "AtenFftRfft2DLastDim_basic",
@@ -3459,7 +3464,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "MultinomialModule2D_basic",
     "MultinomialModule_basic",
     # REMOVE WHEN ENABLE_GQA IS ADDED
-    "ScatterAddStaticModule_basic",
     "TensorsConcatComplex128FloatModule_basic",
     "TensorsConcatComplex128IntModule_basic",
     "TensorsConcatComplex64FloatModule_basic",
