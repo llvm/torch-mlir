@@ -421,3 +421,10 @@ func.func @torch.aten._scaled_mm_v2$nv_blockwise_1x16_tensorwise_scales(
   %0 = torch.aten._scaled_mm_v2 %arg0, %arg1, %nv2_scale_a, %nv2_recipe_a, %nv2_swizzle_a, %nv2_scale_b, %nv2_recipe_b, %nv2_swizzle_b, %nv2_none, %nv2_int15, %nv2_contraction_dim, %nv2_false : !torch.vtensor<[128,128],f8E4M3FN>, !torch.vtensor<[128,128],f8E4M3FN>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.list<vtensor>, !torch.list<int>, !torch.list<int>, !torch.none, !torch.int, !torch.list<int>, !torch.bool -> !torch.vtensor<[128,128],bf16>
   return %0 : !torch.vtensor<[128,128],bf16>
 }
+
+// CHECK-LABEL: func.func @torch.vtensor.external.literal
+func.func @torch.vtensor.external.literal() -> !torch.vtensor<[4,3],f32> {
+  // CHECK: torch.vtensor.external.literal(@model.weight) : !torch.vtensor<[4,3],f32>
+  %0 = torch.vtensor.external.literal(@model.weight) : !torch.vtensor<[4,3],f32>
+  return %0 : !torch.vtensor<[4,3],f32>
+}
