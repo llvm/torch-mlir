@@ -1192,7 +1192,7 @@ func.func @torch.torchao.dequantize_affine$unsupported_input_dtype(
 
 // -----
 
-func.func @torch.quantized_decomposed.quantize_per_tensor$invalid_real_dtype(%arg0: !torch.vtensor<[4,8],si32>) -> !torch.vtensor<[4,8],si8> {
+func.func @torch.quantized_decomposed.quantize_per_tensor$invalid_input_dtype(%arg0: !torch.vtensor<[4,8],si32>) -> !torch.vtensor<[4,8],si8> {
   %scale = torch.constant.float 5.000000e-01
   %zero_point = torch.constant.int 0
   %quant_min = torch.constant.int -128
@@ -1401,7 +1401,7 @@ func.func @torch.quantized_decomposed.dequantize_per_channel$invalid_zero_points
 
 // -----
 
-func.func @torch.quantized_decomposed.quantize_per_channel$invalid_dtype_code(%arg0: !torch.vtensor<[4,8],f32>, %arg1: !torch.vtensor<[4],f32>, %arg2: !torch.vtensor<[4],si64>) -> !torch.vtensor<[4,8],si8> {
+func.func @torch.quantized_decomposed.quantize_per_channel$invalid_dtype_mismatch(%arg0: !torch.vtensor<[4,8],f32>, %arg1: !torch.vtensor<[4],f32>, %arg2: !torch.vtensor<[4],si64>) -> !torch.vtensor<[4,8],si8> {
   %axis = torch.constant.int 0
   %quant_min = torch.constant.int -128
   %quant_max = torch.constant.int 127
@@ -1413,7 +1413,7 @@ func.func @torch.quantized_decomposed.quantize_per_channel$invalid_dtype_code(%a
 
 // -----
 
-func.func @torch.quantized_decomposed.dequantize_per_channel$invalid_out_dtype(%arg0: !torch.vtensor<[4,8],si8>, %arg1: !torch.vtensor<[4],f32>) -> !torch.vtensor<[4,8],f32> {
+func.func @torch.quantized_decomposed.dequantize_per_channel$invalid_out_dtype_mismatch(%arg0: !torch.vtensor<[4,8],si8>, %arg1: !torch.vtensor<[4],f32>) -> !torch.vtensor<[4,8],f32> {
   %axis = torch.constant.int 0
   %quant_min = torch.constant.int -128
   %quant_max = torch.constant.int 127
@@ -1617,7 +1617,7 @@ func.func @torch.quantized_decomposed.dequantize_per_channel_group$invalid_gptq_
 
 // -----
 
-func.func @torch.quantized_decomposed.dequantize_per_channel_group$invalid_out_dtype(%arg0: !torch.vtensor<[4,16],si8>, %arg1: !torch.vtensor<[4,4],f32>) -> !torch.vtensor<[4,16],f32> {
+func.func @torch.quantized_decomposed.dequantize_per_channel_group$invalid_out_dtype_mismatch(%arg0: !torch.vtensor<[4,16],si8>, %arg1: !torch.vtensor<[4,4],f32>) -> !torch.vtensor<[4,16],f32> {
   %quant_min = torch.constant.int -8
   %quant_max = torch.constant.int 7
   %dtype = torch.constant.int 1

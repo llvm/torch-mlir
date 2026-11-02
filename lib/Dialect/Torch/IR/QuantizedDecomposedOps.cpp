@@ -107,18 +107,19 @@ static LogicalResult verifyFloatDtype(Operation *op, StringRef name,
   return success();
 }
 
-/// Verifies the dtypes and the quant_min/quant_max bounds of `op`. `realType`
-/// and `storageType` are the types of its floating-point and quantized tensors,
-/// which diagnostics call `realName` and `storageName`.
-static LogicalResult verifyQuantization(Operation *op, BaseTensorType realType,
+/// Verifies the dtypes and the quant_min/quant_max bounds of `op`.
+/// `realTensorType` and `storageTensorType` are the types of its floating-point
+/// and quantized tensors, which diagnostics call `realName` and `storageName`.
+static LogicalResult verifyQuantization(Operation *op,
+                                        BaseTensorType realTensorType,
                                         StringRef realName,
-                                        BaseTensorType storageType,
+                                        BaseTensorType storageTensorType,
                                         StringRef storageName, Value dtype,
                                         Value quantMin, Value quantMax) {
-  if (failed(verifyFloatDtype(op, realName, realType)))
+  if (failed(verifyFloatDtype(op, realName, realTensorType)))
     return failure();
 
-  Type storageElementType = storageType.getOptionalDtype();
+  Type storageElementType = storageTensorType.getOptionalDtype();
   if (storageElementType && !isStorageType(storageElementType))
     return op->emitOpError("expected ")
            << storageName << " to have a PT2E storage dtype, but got "

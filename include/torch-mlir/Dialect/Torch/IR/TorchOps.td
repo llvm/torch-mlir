@@ -1545,8 +1545,7 @@ def Torch_QuantizedDecomposedQuantizePerTensorOp : Torch_Op<
     scalar-qparams overload, whose schema overload_name is empty) in
     PT2E-exported graphs.
 
-    Quantizes a floating-point tensor to a quantized tensor using per-tensor
-    affine quantization:
+    Quantizes a floating-point tensor using per-tensor affine quantization:
     ```
     output = clamp(round(input / scale) + zero_point, quant_min, quant_max)
     ```
@@ -1554,7 +1553,7 @@ def Torch_QuantizedDecomposedQuantizePerTensorOp : Torch_Op<
     The `dtype` argument encodes the output element type as a `torch.dtype`
     integer code (e.g. 1 = torch.int8, 0 = torch.uint8).  Output shape is
     identical to the input shape; the element type is determined at
-    compile-time by dtype refinement or left as an opaque quantized tensor.
+    compile-time by dtype refinement.
   }];
   let arguments = (ins
     AnyTorchTensorType:$input,
@@ -1667,8 +1666,7 @@ def Torch_QuantizedDecomposedDequantizePerChannelOp : Torch_Op<
   let description = [{
     Dequantizes a quantized tensor with one scale and optional zero point per
     channel. A None `zero_points` operand denotes symmetric quantization.
-    `scales` and `zero_points` follow the same one-element-per-channel
-    contract as `quantize_per_channel`.
+    `scales` and `zero_points` are as in `quantize_per_channel`.
   }];
   let arguments = (ins
     AnyTorchTensorType:$input,
@@ -1706,7 +1704,7 @@ def Torch_QuantizedDecomposedQuantizePerChannelGroupOp : Torch_Op<
 
     The rank-2 input tensor is quantized in groups along the last dimension.
     `scales` and `zero_points` have one element per group, i.e.
-    `num_channels * num_groups` elements where
+    `input.shape[0] * num_groups` elements where
     `num_groups = input.shape[-1] / group_size`. Zero points may be integer
     or floating point. If `group_size` exceeds `input.shape[-1]` and the last
     dimension of `scales` is 1, each row is quantized as one group.
@@ -1750,9 +1748,9 @@ def Torch_QuantizedDecomposedDequantizePerChannelGroupOp : Torch_Op<
     Dequantizes a quantized tensor with per-channel-group affine quantization.
 
     The rank-2 input tensor is dequantized in groups along the last
-    dimension. `scales` and `zero_points` follow the same element-count and
-    `group_size` contract as `quantize_per_channel_group`. `zero_points` may
-    be None for symmetric quantization.
+    dimension. `scales`, `zero_points` and `group_size` are as in
+    `quantize_per_channel_group`. `zero_points` may be None for symmetric
+    quantization.
   }];
   let arguments = (ins
     AnyTorchTensorType:$input,

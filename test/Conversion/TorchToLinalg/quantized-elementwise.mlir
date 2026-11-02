@@ -878,7 +878,8 @@ func.func @quantize_per_channel_group_gptq_single_col(
 
 // -----
 
-// Dequantize with a dynamic number of scale columns.
+// A group_size beyond the row length with a dynamic number of scale columns
+// reads one group per row.
 // CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
 // CHECK: #[[GROUP:.*]] = affine_map<(d0, d1) -> (d0, d1 floordiv 128)>
 // CHECK-LABEL: func.func @dequantize_per_channel_group_dynamic_scale_columns(
@@ -1076,8 +1077,7 @@ func.func @quantize_per_token(
 
 // -----
 
-// Per-channel quantization with floating-point zero points. Quantize adds the
-// zero point after rounding; dequantize subtracts it in f32.
+// Per-channel quantization with floating-point zero points.
 // CHECK-LABEL: func.func @per_channel_float_zero_points(
 // CHECK: ^bb0(%[[IN:.*]]: f32, %[[SCALE:.*]]: f32, %[[ZP:.*]]: f32, %{{.*}}: i8):
 // CHECK:   %[[DIV:.*]] = arith.divf %[[IN]], %[[SCALE]] : f32

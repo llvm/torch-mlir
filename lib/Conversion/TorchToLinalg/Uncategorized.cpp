@@ -2009,7 +2009,7 @@ SmallVector<AffineMap> getPerChannelGroupIndexingMaps(OpBuilder &b,
 
 /// Returns true if `qparamsType` has the shape [rows, groups] that the group
 /// indexing maps read for `inputType` and `groupSize`.
-static bool hasGroupQParamsShape(RankedTensorType qparamsType,
+static bool hasGroupQparamsShape(RankedTensorType qparamsType,
                                  RankedTensorType inputType,
                                  int64_t groupSize) {
   assert(inputType.getRank() == 2 && "expected a rank-2 input");
@@ -2051,8 +2051,8 @@ public:
     if (!matchPattern(op.getGroupSize(), m_TorchConstantInt(&groupSize)))
       return rewriter.notifyMatchFailure(op, "group_size must be constant");
     groupSize = op.getEffectiveGroupSize(groupSize);
-    if (!hasGroupQParamsShape(scalesType, inputType, groupSize) ||
-        !hasGroupQParamsShape(zeroPointsType, inputType, groupSize))
+    if (!hasGroupQparamsShape(scalesType, inputType, groupSize) ||
+        !hasGroupQparamsShape(zeroPointsType, inputType, groupSize))
       return rewriter.notifyMatchFailure(
           op, "expected scales and zero_points of shape [rows, groups]");
     int64_t inputRank = inputType.getRank();
@@ -2138,9 +2138,9 @@ public:
       return rewriter.notifyMatchFailure(op, "group_size must be constant");
     groupSize = op.getEffectiveGroupSize(groupSize);
     auto zeroPointsType = dyn_cast<RankedTensorType>(zeroPoints.getType());
-    if (!hasGroupQParamsShape(scalesType, inputType, groupSize) ||
+    if (!hasGroupQparamsShape(scalesType, inputType, groupSize) ||
         (zeroPointsType &&
-         !hasGroupQParamsShape(zeroPointsType, inputType, groupSize)))
+         !hasGroupQparamsShape(zeroPointsType, inputType, groupSize)))
       return rewriter.notifyMatchFailure(
           op, "expected scales and zero_points of shape [rows, groups]");
 
