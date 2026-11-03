@@ -1926,9 +1926,9 @@ def AvgPool3dFp32Cancellation_basic(module, tu: TestUtils):
     # and returns 0. A single FP32 accumulator retains the final three ones,
     # giving 3 / 8 = 0.375.
     module.forward(
-        torch.tensor(
-            [1e8, 1, 1, 1, -1e8, 1, 1, 1], dtype=torch.float32
-        ).reshape(1, 1, 2, 2, 2)
+        torch.tensor([1e8, 1, 1, 1, -1e8, 1, 1, 1], dtype=torch.float32).reshape(
+            1, 1, 2, 2, 2
+        )
     )
 
 

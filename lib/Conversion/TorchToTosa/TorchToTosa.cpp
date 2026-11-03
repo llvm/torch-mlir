@@ -10003,9 +10003,10 @@ public:
       int64_t out = (ceilMode ? llvm::divideCeilSigned(span, stride[axis])
                               : llvm::divideFloorSigned(span, stride[axis])) +
                     1;
-      // Ceil mode may produce a final window that starts in the trailing padding.
-      // Its start in input coordinates is (out - 1) * stride - padding.
-      // Exclude that window when its start is at or beyond the input length.
+      // Ceil mode may produce a final window that starts in the trailing
+      // padding. Its start in input coordinates is (out - 1) * stride -
+      // padding. Exclude that window when its start is at or beyond the input
+      // length.
       if (ceilMode && (out - 1) * stride[axis] >= length + padding[axis])
         --out;
       if (out <= 0)
@@ -10014,15 +10015,16 @@ public:
       outputShape.push_back(out);
     }
 
-    // Count only requested padding in the divisor, excluding ceil-mode extension.
+    // Count only requested padding in the divisor, excluding ceil-mode
+    // extension.
     SmallVector<std::array<int64_t, 3>> windowStarts;
     SmallVector<float> reciprocalDivisors;
     for (int64_t od = 0; od < outputShape[0]; ++od) {
       for (int64_t oh = 0; oh < outputShape[1]; ++oh) {
         for (int64_t ow = 0; ow < outputShape[2]; ++ow) {
-          std::array<int64_t, 3> start = {
-              od * stride[0] - padding[0], oh * stride[1] - padding[1],
-              ow * stride[2] - padding[2]};
+          std::array<int64_t, 3> start = {od * stride[0] - padding[0],
+                                          oh * stride[1] - padding[1],
+                                          ow * stride[2] - padding[2]};
           int64_t validCount = 1;
           int64_t paddedCount = 1;
           for (unsigned axis = 0; axis < 3; ++axis) {
@@ -10040,7 +10042,8 @@ public:
               hasOverride ? divisor
                           : (countIncludePad ? paddedCount : validCount);
           windowStarts.push_back(start);
-          reciprocalDivisors.push_back(1.0f / static_cast<float>(windowDivisor));
+          reciprocalDivisors.push_back(1.0f /
+                                       static_cast<float>(windowDivisor));
         }
       }
     }
@@ -10089,11 +10092,13 @@ public:
     // Gather each spatial position for all batch/channel pairs at once.
     input = transposeTensor(input, inputShape, elementTy, {2, 3, 4, 0, 1},
                             this->getTypeConverter(), rewriter, loc);
-    input = reshapeTensor(input, {1, spatialSize, n * c}, elementTy, rewriter,
-                          loc);
+    input =
+        reshapeTensor(input, {1, spatialSize, n * c}, elementTy, rewriter, loc);
     auto sumTy = RankedTensorType::get({1, windowCount, n * c}, elementTy);
-    auto indexTy = RankedTensorType::get({1, windowCount}, rewriter.getI32Type());
-    auto maskTy = RankedTensorType::get({1, windowCount, 1}, rewriter.getI1Type());
+    auto indexTy =
+        RankedTensorType::get({1, windowCount}, rewriter.getI32Type());
+    auto maskTy =
+        RankedTensorType::get({1, windowCount, 1}, rewriter.getI1Type());
     Value sum = tosa::ConstOp::create(
         rewriter, loc, sumTy,
         DenseElementsAttr::get(sumTy, rewriter.getF32FloatAttr(0.0f)));
@@ -10111,8 +10116,8 @@ public:
             int64_t id = start[0] + kd;
             int64_t ih = start[1] + kh;
             int64_t iw = start[2] + kw;
-            bool inBounds = id >= 0 && id < d && ih >= 0 && ih < h &&
-                            iw >= 0 && iw < w;
+            bool inBounds =
+                id >= 0 && id < d && ih >= 0 && ih < h && iw >= 0 && iw < w;
             valid.push_back(inBounds);
             indices.push_back(inBounds ? (id * h + ih) * w + iw : 0);
           }
@@ -10129,7 +10134,8 @@ public:
             Value mask = tosa::ConstOp::create(
                 rewriter, loc, maskTy,
                 DenseElementsAttr::get(maskTy, ArrayRef<bool>(valid)));
-            next = tosa::SelectOp::create(rewriter, loc, sumTy, mask, next, sum);
+            next =
+                tosa::SelectOp::create(rewriter, loc, sumTy, mask, next, sum);
           }
           sum = next;
         }
@@ -10145,12 +10151,12 @@ public:
     Value result = tosa::createMulOpAndCast(rewriter, op, sumTy, sum, scale, 0);
 
     // 4. Restore NCDHW and remove the synthetic batch for a CDHW input.
-    SmallVector<int64_t> spatialFirstShape = {
-        outputShape[0], outputShape[1], outputShape[2], n, c};
+    SmallVector<int64_t> spatialFirstShape = {outputShape[0], outputShape[1],
+                                              outputShape[2], n, c};
     result = reshapeTensor(result, spatialFirstShape, elementTy, rewriter, loc);
-    result = transposeTensor(result, spatialFirstShape, elementTy,
-                             {3, 4, 0, 1, 2}, this->getTypeConverter(), rewriter,
-                             loc);
+    result =
+        transposeTensor(result, spatialFirstShape, elementTy, {3, 4, 0, 1, 2},
+                        this->getTypeConverter(), rewriter, loc);
     if (!hasBatch)
       result = reshapeTensor(result, resultShape, elementTy, rewriter, loc);
     if (originalElementTy != elementTy) {
