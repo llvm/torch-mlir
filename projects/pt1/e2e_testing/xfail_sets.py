@@ -578,6 +578,12 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "SliceCopyNegative_Module_basic",
     "SliceCopyNonZeroDim_Module_basic",
     "SliceCopy_Module_basic",
+    # aten.diagonal_scatter decomposes into aten.slice_scatter, which is also
+    # not supported here ("op was not bufferized").
+    "DiagonalScatterDim20Module_basic",
+    "DiagonalScatterModule_basic",
+    "DiagonalScatterNegativeOffsetModule_basic",
+    "DiagonalScatterPositiveOffsetModule_basic",
     "SliceScatterModule_basic",
     "SliceScatterNegativeDimModule_basic",
     "SliceScatterNegativeEndModule_basic",
@@ -2791,6 +2797,13 @@ ONNX_XFAIL_SET = {
     # before ONNX export.
     "RepeatInterleaveTensorInt64Module_basic",
     "RepeatInterleaveTensorModule_basic",
+    # The ONNX exporter fails on aten.diagonal_scatter: its PyTorch reference
+    # decomposition mutates a view (prims.copy_to), so the graph is not
+    # functional.
+    "DiagonalScatterDim20Module_basic",
+    "DiagonalScatterModule_basic",
+    "DiagonalScatterNegativeOffsetModule_basic",
+    "DiagonalScatterPositiveOffsetModule_basic",
     # ONNX export applies explicit offset to materialized slice storage.
     "AtenAsStridedAfterAliasDetachModule_basic",
     # ONNX transpose materializes movedim before gather, so indexing uses new storage.
