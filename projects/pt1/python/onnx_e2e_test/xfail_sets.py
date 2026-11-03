@@ -21,6 +21,11 @@ ONNX_E2E_LINALG_XFAIL_SET = {
     # "Yield operand #1 is not equivalent to the corresponding iter bbArg"
     # during linalg-on-tensors -> LLVM lowering.
     "OnnxLSTM_forward_basic",
+    # Masked SDPA lowers to tm_tensor.attention, whose scalar implementation
+    # ignores the `scale` attribute and always divides by sqrt(head_dim).
+    "OnnxMultiHeadAttention_maskedExplicitScale",
+    # tm_tensor.attention accumulates f16 in f16; ORT accumulates in f32.
+    "OnnxMultiHeadAttention_f16Unidirectional",
 }
 
 # Tests that crash the interpreter and cannot be XFAILed safely.
@@ -53,6 +58,20 @@ ONNX_E2E_TOSA_XFAIL_SET = {
     # OnnxAveragePool2d_countIncludePad_asymmetricPadsDilated: tosa.avg_pool2d
     # has no dilation, so the torch -> tosa pooling lowering rejects it.
     "OnnxAveragePool2d_countIncludePad_asymmetricPadsDilated",
+    # DecomposeAtenScaledDotProductAttentionOp rejects a non-None attn_mask
+    # and SDPA has no torch -> tosa lowering.
+    "OnnxMultiHeadAttention_unidirectional",
+    "OnnxMultiHeadAttention_keyPaddingMask2d",
+    "OnnxMultiHeadAttention_keyPaddingMask3d",
+    "OnnxMultiHeadAttention_keyLengths1d",
+    "OnnxMultiHeadAttention_attentionBias",
+    "OnnxMultiHeadAttention_combinedMasks",
+    "OnnxMultiHeadAttention_pastPresentUnidirectional",
+    "OnnxMultiHeadAttention_maskedExplicitScale",
+    "OnnxMultiHeadAttention_f16Unidirectional",
+    # torch -> tosa cannot lower aten.unflatten.int with dynamic dims.
+    "OnnxMultiHeadAttention_dynamicPastUnidirectional",
+    "OnnxMultiHeadAttention_dynamicKeyLengths1d",
 }
 
 ONNX_E2E_TOSA_CRASHING_SET = set()

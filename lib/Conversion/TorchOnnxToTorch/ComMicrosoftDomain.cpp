@@ -1858,4 +1858,551 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
                                                           c);
         return success();
       });
+  patterns.onOp(
+      "MultiHeadAttention", 1,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        // com.microsoft::MultiHeadAttention, lowered to
+        // aten.scaled_dot_product_attention on [B, N, seq, head] operands with
+        // an optional additive mask. Notation: B batch, S query seq, L kv seq,
+        // P past seq, T = P + L, N num_heads, H / Hv head sizes.
+        //
+        //   query  : [B, S, N*H] or packed QKV [B, S, N, 3, H]
+        //   key    : [B, L, N*H], [B, N, L, H] or packed KV [B, L, N, 2, H]
+        //   value  : [B, L, N*Hv] or [B, N, L, Hv] (absent when packed)
+        //   bias   : [N*H + N*H + N*Hv], added to the 3D / packed projections;
+        //            [B, N, L, *] key/value are used as-is.
+        //   key_padding_mask : [B] key lengths, [B, T] or [B, S, T]; padded
+        //            keys get mask_filter_value.
+        //   attention_bias   : [B|1, N|1, S, T], added to the scores.
+        //   past_key / past_value : [B, N, P, H] / [B, N, P, Hv], prepended
+        //            along the sequence dim to form present_key /
+        //            present_value.
+        //
+        // Semantics follow the ORT CPU kernel: scale == 0 selects 1/sqrt(H);
+        // unidirectional masks key j for query i when j > P + i, using the
+        // lowest finite value of the element type.
+        //
+        // Past K / V are always attended (T = P + L), regardless of which
+        // present outputs are requested. ORT CPU concatenates past only into
+        // the present buffers that are requested; with past and fewer than 3
+        // results it attends over a partial or no past (while still checking
+        // the mask against P + L). That behaviour is not reproduced.
+        //
+        // Match failure: past_sequence_length, cache_indirection, the qk
+        // output, a static 1D mask length != B (e.g. the [3 * B + 2]
+        // encoding), and unidirectional with a static L != S (ORT does not
+        // mask the last query row there). A 1D mask with a dynamic B or
+        // length is taken as [B] key lengths and checked at runtime.
+        Location loc = binder.getLoc();
+        MLIRContext *context = binder.op->getContext();
+        const int64_t kUnknown = Torch::kUnknownSize;
+
+        int64_t numOperands = binder.op->getNumOperands();
+        if (numOperands > 10)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "expected at most 10 inputs");
+        auto operand = [&](int64_t idx) -> Value {
+          if (idx >= numOperands)
+            return Value();
+          Value v = binder.op->getOperand(idx);
+          return isa<Torch::NoneType>(v.getType()) ? Value() : v;
+        };
+        Value query = operand(0), key = operand(1), value = operand(2),
+              bias = operand(3), keyPaddingMask = operand(4),
+              attentionBias = operand(5), pastKey = operand(6),
+              pastValue = operand(7);
+        if (!query)
+          return rewriter.notifyMatchFailure(binder.op, "expected `query`");
+        if (operand(8) || operand(9))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Unimplemented: past_sequence_length and "
+                         "cache_indirection are not supported");
+        if (!pastKey != !pastValue)
+          return rewriter.notifyMatchFailure(
+              binder.op, "past_key and past_value must be both present or "
+                         "both absent");
+
+        int64_t numResults = binder.op->getNumResults();
+        if (numResults < 1)
+          return rewriter.notifyMatchFailure(
+              binder.op, "expected at least the attention `output` result");
+        if (numResults > 3)
+          return rewriter.notifyMatchFailure(
+              binder.op, "Unimplemented: the `qk` output is not supported");
+        SmallVector<Torch::ValueTensorType> resultTypes(numResults);
+        for (int64_t i = 0; i < numResults; ++i)
+          if (binder.tensorResultTypeAtIndex(resultTypes[i], i))
+            return rewriter.notifyMatchFailure(binder.op,
+                                               "result type bind failure");
+
+        int64_t numHeads, unidirectional;
+        float scale, maskFilterValue;
+        if (binder.s64IntegerAttr(numHeads, "num_heads", 0) ||
+            binder.s64IntegerAttr(unidirectional, "unidirectional", 0) ||
+            binder.f32FloatAttr(scale, "scale", 0.0f) ||
+            binder.f32FloatAttr(maskFilterValue, "mask_filter_value",
+                                -10000.0f))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "attribute bind failure");
+        if (numHeads <= 0)
+          return rewriter.notifyMatchFailure(
+              binder.op, "num_heads must be a positive attribute");
+
+        // Validation. Nothing is emitted before all checks pass.
+        auto rankOf = [](Value v) -> int64_t {
+          auto t = dyn_cast<Torch::ValueTensorType>(v.getType());
+          return t && t.hasSizes() ? t.getSizes().size() : -1;
+        };
+        // Unknown for an unranked type or an out-of-range `d`. Every caller
+        // checks the rank first; this keeps the helper safe on its own.
+        auto dimOf = [&](Value v, int64_t d) -> int64_t {
+          auto t = dyn_cast<Torch::ValueTensorType>(v.getType());
+          if (!t || !t.hasSizes() || d < 0 ||
+              d >= static_cast<int64_t>(t.getSizes().size()))
+            return kUnknown;
+          return t.getSizes()[d];
+        };
+        auto compatible = [&](int64_t a, int64_t b) {
+          return a == kUnknown || b == kUnknown || a == b;
+        };
+
+        auto queryType = dyn_cast<Torch::ValueTensorType>(query.getType());
+        Type elemType = queryType ? queryType.getOptionalDtype() : Type();
+        if (!elemType || !isa<mlir::FloatType>(elemType))
+          return rewriter.notifyMatchFailure(
+              binder.op, "expected a floating-point `query`");
+        for (Value v : {key, value, bias, attentionBias, pastKey, pastValue}) {
+          if (!v)
+            continue;
+          auto t = dyn_cast<Torch::ValueTensorType>(v.getType());
+          if (!t || t.getOptionalDtype() != elemType)
+            return rewriter.notifyMatchFailure(
+                binder.op, "all T-typed inputs must share the query dtype");
+        }
+        if (keyPaddingMask) {
+          auto t = dyn_cast<Torch::ValueTensorType>(keyPaddingMask.getType());
+          if (!t || !isa_and_nonnull<mlir::IntegerType>(t.getOptionalDtype()))
+            return rewriter.notifyMatchFailure(
+                binder.op, "expected an integer key_padding_mask");
+        }
+
+        int64_t qRank = rankOf(query);
+        int64_t kRank = key ? rankOf(key) : 0;
+        int64_t vRank = value ? rankOf(value) : 0;
+        if (qRank != 3 && qRank != 5)
+          return rewriter.notifyMatchFailure(
+              binder.op, "expected 3D or packed 5D `query`");
+        int64_t batch = dimOf(query, 0), seqLen = dimOf(query, 1);
+        int64_t kvSeqLen, headSize, vHeadSize;
+        if (qRank == 5) {
+          if (key || value)
+            return rewriter.notifyMatchFailure(
+                binder.op, "packed QKV `query` excludes `key` and `value`");
+          headSize = vHeadSize = dimOf(query, 4);
+          kvSeqLen = seqLen;
+          if (!compatible(dimOf(query, 2), numHeads) || dimOf(query, 3) != 3 ||
+              headSize == kUnknown)
+            return rewriter.notifyMatchFailure(
+                binder.op, "expected packed QKV [B, S, num_heads, 3, H] with "
+                           "static H");
+        } else {
+          int64_t hidden = dimOf(query, 2);
+          if (hidden == kUnknown || hidden % numHeads != 0)
+            return rewriter.notifyMatchFailure(
+                binder.op, "expected a static `query` hidden size divisible "
+                           "by num_heads");
+          headSize = hidden / numHeads;
+          if (kRank == 5 && !value) {
+            kvSeqLen = dimOf(key, 1);
+            vHeadSize = headSize;
+            if (!compatible(dimOf(key, 2), numHeads) || dimOf(key, 3) != 2 ||
+                !compatible(dimOf(key, 4), headSize))
+              return rewriter.notifyMatchFailure(
+                  binder.op, "expected packed KV [B, L, num_heads, 2, H] "
+                             "matching the query head size");
+          } else if (kRank == 3 && vRank == 3) {
+            kvSeqLen = dimOf(key, 1);
+            int64_t vHidden = dimOf(value, 2);
+            if (!compatible(dimOf(key, 2), hidden))
+              return rewriter.notifyMatchFailure(
+                  binder.op, "`key` hidden size must equal `query` hidden "
+                             "size");
+            if (vHidden == kUnknown || vHidden % numHeads != 0)
+              return rewriter.notifyMatchFailure(
+                  binder.op, "expected a static `value` hidden size "
+                             "divisible by num_heads");
+            if (!compatible(dimOf(value, 1), kvSeqLen))
+              return rewriter.notifyMatchFailure(
+                  binder.op, "`key` and `value` sequence lengths differ");
+            vHeadSize = vHidden / numHeads;
+          } else if (kRank == 4 && vRank == 4) {
+            kvSeqLen = dimOf(key, 2);
+            vHeadSize = dimOf(value, 3);
+            if (!compatible(dimOf(key, 1), numHeads) ||
+                !compatible(dimOf(value, 1), numHeads) ||
+                !compatible(dimOf(key, 3), headSize) || vHeadSize == kUnknown ||
+                !compatible(dimOf(value, 2), kvSeqLen))
+              return rewriter.notifyMatchFailure(
+                  binder.op, "expected [B, num_heads, L, H] `key` and "
+                             "[B, num_heads, L, Hv] `value`");
+          } else {
+            return rewriter.notifyMatchFailure(
+                binder.op, "unsupported `key` / `value` layout");
+          }
+        }
+        int64_t hidden = numHeads * headSize, vHidden = numHeads * vHeadSize;
+
+        for (Value v : {key, value, pastKey, pastValue})
+          if (v && rankOf(v) > 0 && !compatible(dimOf(v, 0), batch))
+            return rewriter.notifyMatchFailure(
+                binder.op, "batch size differs across inputs");
+
+        if (bias && (rankOf(bias) != 1 ||
+                     !compatible(dimOf(bias, 0), 2 * hidden + vHidden)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "expected `bias` of shape [2 * N * H + N * Hv]");
+
+        int64_t pastSeqLen = 0;
+        if (pastKey) {
+          if (rankOf(pastKey) != 4 || rankOf(pastValue) != 4 ||
+              !compatible(dimOf(pastKey, 1), numHeads) ||
+              !compatible(dimOf(pastValue, 1), numHeads) ||
+              !compatible(dimOf(pastKey, 3), headSize) ||
+              !compatible(dimOf(pastValue, 3), vHeadSize) ||
+              !compatible(dimOf(pastKey, 2), dimOf(pastValue, 2)))
+            return rewriter.notifyMatchFailure(
+                binder.op, "expected [B, num_heads, P, H] `past_key` and "
+                           "[B, num_heads, P, Hv] `past_value`");
+          pastSeqLen = dimOf(pastKey, 2);
+        }
+        int64_t totalSeqLen = (pastSeqLen == kUnknown || kvSeqLen == kUnknown)
+                                  ? kUnknown
+                                  : pastSeqLen + kvSeqLen;
+
+        if (unidirectional != 0 && seqLen != kUnknown && kvSeqLen != kUnknown &&
+            seqLen != kvSeqLen)
+          return rewriter.notifyMatchFailure(
+              binder.op, "Unimplemented: unidirectional requires the "
+                         "key/value sequence length to equal the query's");
+
+        int64_t maskRank = keyPaddingMask ? rankOf(keyPaddingMask) : 0;
+        if (maskRank == 1) {
+          // Only [B] key lengths are supported. A static length != B (e.g.
+          // [3 * B + 2]) is rejected here; otherwise it is checked at runtime.
+          if (!compatible(dimOf(keyPaddingMask, 0), batch))
+            return rewriter.notifyMatchFailure(
+                binder.op, "Unimplemented: a 1D key_padding_mask must be "
+                           "[B] key lengths");
+        } else if (maskRank == 2 || maskRank == 3) {
+          if (!compatible(dimOf(keyPaddingMask, 0), batch) ||
+              !compatible(dimOf(keyPaddingMask, maskRank - 1), totalSeqLen) ||
+              (maskRank == 3 && !compatible(dimOf(keyPaddingMask, 1), seqLen)))
+            return rewriter.notifyMatchFailure(
+                binder.op, "expected key_padding_mask [B, T] or [B, S, T]");
+        } else if (keyPaddingMask) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "expected a 1D, 2D or 3D key_padding_mask");
+        }
+        auto compatibleOrOne = [&](int64_t a, int64_t b) {
+          return a == 1 || compatible(a, b);
+        };
+        if (attentionBias &&
+            (rankOf(attentionBias) != 4 ||
+             !compatibleOrOne(dimOf(attentionBias, 0), batch) ||
+             !compatibleOrOne(dimOf(attentionBias, 1), numHeads) ||
+             !compatible(dimOf(attentionBias, 2), seqLen) ||
+             !compatible(dimOf(attentionBias, 3), totalSeqLen)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "expected `attention_bias` [B|1, N|1, S, T]");
+
+        // Inputs that are each compatible with a dynamic query dimension can
+        // still disagree with one another. Merge every static B, S and T so
+        // such conflicts fail here rather than at runtime.
+        auto merge = [&](int64_t &acc, int64_t s) {
+          if (s == kUnknown || acc == s)
+            return true;
+          if (acc == kUnknown) {
+            acc = s;
+            return true;
+          }
+          return false;
+        };
+        int64_t knownBatch = batch, knownSeq = seqLen, knownTotal = totalSeqLen;
+        bool consistent = true;
+        for (Value v : {key, value, pastKey, pastValue})
+          if (v)
+            consistent &= merge(knownBatch, dimOf(v, 0));
+        if (keyPaddingMask) {
+          consistent &= merge(knownBatch, dimOf(keyPaddingMask, 0));
+          if (maskRank >= 2)
+            consistent &=
+                merge(knownTotal, dimOf(keyPaddingMask, maskRank - 1));
+          if (maskRank == 3)
+            consistent &= merge(knownSeq, dimOf(keyPaddingMask, 1));
+        }
+        if (attentionBias) {
+          if (dimOf(attentionBias, 0) != 1)
+            consistent &= merge(knownBatch, dimOf(attentionBias, 0));
+          consistent &= merge(knownSeq, dimOf(attentionBias, 2));
+          consistent &= merge(knownTotal, dimOf(attentionBias, 3));
+        }
+        if (!consistent)
+          return rewriter.notifyMatchFailure(
+              binder.op, "conflicting static batch / sequence sizes across "
+                         "inputs");
+
+        // Emission.
+        auto vtensor = [&](ArrayRef<int64_t> sizes, Type dtype) {
+          return Torch::ValueTensorType::get(context, sizes, dtype);
+        };
+        auto cstInt = [&](int64_t v) -> Value {
+          return Torch::ConstantIntOp::create(rewriter, loc,
+                                              rewriter.getI64IntegerAttr(v));
+        };
+        auto cstFloat = [&](double v) -> Value {
+          return Torch::ConstantFloatOp::create(rewriter, loc,
+                                                rewriter.getF64FloatAttr(v));
+        };
+        Value cst0 = cstInt(0), cst1 = cstInt(1), cst2 = cstInt(2),
+              cst3 = cstInt(3);
+        Value cstNone = Torch::ConstantNoneOp::create(rewriter, loc);
+        Value cstFalse = Torch::ConstantBoolOp::create(rewriter, loc, false);
+        Type intListType = Torch::ListType::get(Torch::IntType::get(context));
+        Type i64Type = rewriter.getIntegerType(64, /*isSigned=*/true);
+        Type i1Type = rewriter.getI1Type();
+
+        // [B, seq, N * perHead] (+ bias slice) -> [B, N, seq, perHead].
+        auto toHeads = [&](Value proj, int64_t seq, int64_t perHead,
+                           int64_t biasOffset) -> Value {
+          int64_t width = numHeads * perHead;
+          if (bias) {
+            Value start = cstInt(biasOffset);
+            Value end = cstInt(biasOffset + width);
+            Value slice = Torch::AtenSliceTensorOp::create(
+                rewriter, loc, vtensor({width}, elemType), bias, cst0, start,
+                end, cst1);
+            proj = Torch::AtenAddTensorOp::create(rewriter, loc, proj.getType(),
+                                                  proj, slice, cst1);
+          }
+          Value sizes = Torch::PrimListConstructOp::create(
+              rewriter, loc, intListType,
+              ValueRange{cstInt(numHeads), cstInt(perHead)});
+          Value bsnh = Torch::AtenUnflattenIntOp::create(
+              rewriter, loc, vtensor({batch, seq, numHeads, perHead}, elemType),
+              proj, cst2, sizes);
+          return Torch::AtenTransposeIntOp::create(
+              rewriter, loc, vtensor({batch, numHeads, seq, perHead}, elemType),
+              bsnh, cst1, cst2);
+        };
+        // Packed [B, seq, N, k, perHead] -> slot `idx` as [B, seq, N*perHead].
+        auto unpack = [&](Value packed, int64_t idx, int64_t seq,
+                          int64_t perHead) -> Value {
+          Value slot = Torch::AtenSelectIntOp::create(
+              rewriter, loc, vtensor({batch, seq, numHeads, perHead}, elemType),
+              packed, cst3, cstInt(idx));
+          return Torch::AtenFlattenUsingIntsOp::create(
+              rewriter, loc,
+              vtensor({batch, seq, numHeads * perHead}, elemType), slot, cst2,
+              cst3);
+        };
+
+        // Packed layouts share one head size: vHeadSize == headSize there.
+        Value qHeads, kHeads, vHeads;
+        if (qRank == 5) {
+          qHeads =
+              toHeads(unpack(query, 0, seqLen, headSize), seqLen, headSize, 0);
+          kHeads = toHeads(unpack(query, 1, seqLen, headSize), seqLen, headSize,
+                           hidden);
+          vHeads = toHeads(unpack(query, 2, seqLen, vHeadSize), seqLen,
+                           vHeadSize, 2 * hidden);
+        } else {
+          qHeads = toHeads(query, seqLen, headSize, 0);
+          if (kRank == 5) {
+            kHeads = toHeads(unpack(key, 0, kvSeqLen, headSize), kvSeqLen,
+                             headSize, hidden);
+            vHeads = toHeads(unpack(key, 1, kvSeqLen, vHeadSize), kvSeqLen,
+                             vHeadSize, 2 * hidden);
+          } else if (kRank == 3) {
+            kHeads = toHeads(key, kvSeqLen, headSize, hidden);
+            vHeads = toHeads(value, kvSeqLen, vHeadSize, 2 * hidden);
+          } else {
+            kHeads = key;
+            vHeads = value;
+          }
+        }
+
+        auto prependPast = [&](Value past, Value cur, int64_t perHead) {
+          if (!past)
+            return cur;
+          Type listElem =
+              Torch::ValueTensorType::getWithLeastStaticInformation(context);
+          Value list = Torch::PrimListConstructOp::create(
+              rewriter, loc, Torch::ListType::get(listElem),
+              ValueRange{past, cur});
+          return Value(Torch::AtenCatOp::create(
+              rewriter, loc,
+              vtensor({batch, numHeads, totalSeqLen, perHead}, elemType), list,
+              cst2));
+        };
+        Value presentKey = prependPast(pastKey, kHeads, headSize);
+        Value presentValue = prependPast(pastValue, vHeads, vHeadSize);
+
+        // Additive mask, accumulated in a broadcast-compatible 4D layout.
+        Value attnMask;
+        SmallVector<int64_t> maskSizes;
+        auto accumulate = [&](Value contribution) {
+          auto type = dyn_cast<Torch::ValueTensorType>(contribution.getType());
+          assert(type && type.hasSizes() &&
+                 "mask contributions must be ranked value tensors");
+          ArrayRef<int64_t> sizes = type.getSizes();
+          if (!attnMask) {
+            attnMask = contribution;
+            maskSizes.assign(sizes.begin(), sizes.end());
+            return;
+          }
+          for (auto [acc, s] : llvm::zip_equal(maskSizes, sizes)) {
+            // Broadcast merge: a 1 takes the other size; an unknown takes a
+            // known size other than 1; a known size > 1 is kept when the other
+            // is unknown, which must then be 1 or equal at runtime. Static
+            // conflicts are rejected during validation.
+            assert((acc == kUnknown || s == kUnknown || acc == 1 || s == 1 ||
+                    acc == s) &&
+                   "mask contributions must be broadcast-compatible");
+            if (acc == 1 || (acc == kUnknown && s != 1))
+              acc = s;
+          }
+          attnMask = Torch::AtenAddTensorOp::create(
+              rewriter, loc, vtensor(maskSizes, elemType), attnMask,
+              contribution, cst1);
+        };
+        // bool -> {0, fill} in the element type.
+        auto toAdditive = [&](Value cond, double fill) -> Value {
+          Value f = Torch::convertTensorToDtype(rewriter, loc, cond, elemType);
+          return Torch::AtenMulScalarOp::create(rewriter, loc, f.getType(), f,
+                                                cstFloat(fill));
+        };
+        auto unsqueeze = [&](Value t, int64_t dim) -> Value {
+          auto type = dyn_cast<Torch::ValueTensorType>(t.getType());
+          assert(type && type.hasSizes() &&
+                 "unsqueeze expects a ranked value tensor");
+          SmallVector<int64_t> sizes(type.getSizes());
+          sizes.insert(sizes.begin() + dim, 1);
+          return Torch::AtenUnsqueezeOp::create(
+              rewriter, loc, vtensor(sizes, type.getOptionalDtype()), t,
+              cstInt(dim));
+        };
+        auto dimValue = [&](Value t, int64_t dim, int64_t size) -> Value {
+          if (size != kUnknown)
+            return cstInt(size);
+          return Torch::AtenSizeIntOp::create(rewriter, loc, t, cstInt(dim));
+        };
+        auto arange = [&](Value end, int64_t size) -> Value {
+          return Torch::AtenArangeOp::create(
+              rewriter, loc, vtensor({size}, i64Type), end, cstNone, cstNone,
+              cstNone, cstNone);
+        };
+        auto totalSeqVal = [&] { return dimValue(presentKey, 2, totalSeqLen); };
+
+        if (unidirectional != 0) {
+          // A static L != S is rejected during validation. When either is
+          // dynamic, check at runtime rather than silently diverge from ORT.
+          if (seqLen == kUnknown || kvSeqLen == kUnknown) {
+            Value qLen = dimValue(qHeads, 2, seqLen);
+            Value kvLen = dimValue(kHeads, 2, kvSeqLen);
+            Value sameLength =
+                Torch::AtenEqIntOp::create(rewriter, loc, qLen, kvLen);
+            Torch::RuntimeAssertOp::create(
+                rewriter, loc, sameLength,
+                rewriter.getStringAttr(
+                    "MultiHeadAttention: unidirectional requires the key/value "
+                    "sequence length to equal the query's"));
+          }
+          double lowest =
+              APFloat::getLargest(
+                  cast<mlir::FloatType>(elemType).getFloatSemantics(),
+                  /*Negative=*/true)
+                  .convertToDouble();
+          Value rows = arange(dimValue(qHeads, 2, seqLen), seqLen);
+          if (pastKey)
+            rows = Torch::AtenAddScalarOp::create(
+                rewriter, loc, rows.getType(), rows,
+                dimValue(pastKey, 2, pastSeqLen), cst1);
+          Value cols = unsqueeze(arange(totalSeqVal(), totalSeqLen), 0);
+          rows = unsqueeze(rows, 1);
+          Value future = Torch::AtenGtTensorOp::create(
+              rewriter, loc, vtensor({seqLen, totalSeqLen}, i1Type), cols,
+              rows);
+          accumulate(unsqueeze(unsqueeze(toAdditive(future, lowest), 0), 0));
+        }
+
+        if (keyPaddingMask) {
+          Value padded;
+          if (maskRank == 1) {
+            int64_t maskLen = dimOf(keyPaddingMask, 0);
+            if (batch == kUnknown || maskLen == kUnknown) {
+              Value maskLenVal = dimValue(keyPaddingMask, 0, maskLen);
+              Value batchVal = dimValue(query, 0, batch);
+              Value sameLength = Torch::AtenEqIntOp::create(
+                  rewriter, loc, maskLenVal, batchVal);
+              Torch::RuntimeAssertOp::create(
+                  rewriter, loc, sameLength,
+                  rewriter.getStringAttr(
+                      "MultiHeadAttention: a 1D key_padding_mask must hold "
+                      "one key length per batch entry"));
+            }
+            Value lengths = Torch::convertTensorToDtype(
+                rewriter, loc, keyPaddingMask, i64Type);
+            Value positions = unsqueeze(arange(totalSeqVal(), totalSeqLen), 0);
+            lengths = unsqueeze(lengths, 1);
+            int64_t lengthsBatch = batch != kUnknown ? batch : maskLen;
+            padded = Torch::AtenGeTensorOp::create(
+                rewriter, loc, vtensor({lengthsBatch, totalSeqLen}, i1Type),
+                positions, lengths);
+          } else {
+            auto maskType =
+                dyn_cast<Torch::ValueTensorType>(keyPaddingMask.getType());
+            assert(maskType && maskType.hasSizes() &&
+                   "key_padding_mask is validated as a ranked value tensor");
+            padded = Torch::AtenEqScalarOp::create(
+                rewriter, loc, vtensor(maskType.getSizes(), i1Type),
+                keyPaddingMask, cst0);
+          }
+          Value additive = toAdditive(padded, maskFilterValue);
+          additive = unsqueeze(additive, 1);
+          if (maskRank != 3)
+            additive = unsqueeze(additive, 1);
+          accumulate(additive);
+        }
+
+        if (attentionBias)
+          accumulate(attentionBias);
+
+        // ORT contract: scale == 0 (the default) selects 1/sqrt(H); any other
+        // value, including a negative or denormal one, is used as-is.
+        Value cstScale = scale == 0.0f ? cstNone : cstFloat(scale);
+        // K / V are present_key / present_value: past ++ current when past is
+        // given, otherwise the current projections. They feed SDPA even when
+        // not returned. The op has no dropout attribute, so dropout_p is 0.
+        Value attention = Torch::AtenScaledDotProductAttentionOp::create(
+            rewriter, loc,
+            vtensor({batch, numHeads, seqLen, vHeadSize}, elemType), qHeads,
+            presentKey, presentValue, attnMask ? attnMask : cstNone,
+            /*dropout_p=*/cstFloat(0.0), /*is_causal=*/cstFalse, cstScale,
+            /*enable_gqa=*/cstFalse);
+        Value output = Torch::AtenTransposeIntOp::create(
+            rewriter, loc,
+            vtensor({batch, seqLen, numHeads, vHeadSize}, elemType), attention,
+            cst1, cst2);
+        output = Torch::AtenFlattenUsingIntsOp::create(
+            rewriter, loc, resultTypes[0], output, cst2, cst3);
+
+        SmallVector<Value> results{output, presentKey, presentValue};
+        results.resize(numResults);
+        for (int64_t i = 1; i < numResults; ++i)
+          if (results[i].getType() != resultTypes[i])
+            results[i] = Torch::TensorStaticInfoCastOp::create(
+                rewriter, loc, resultTypes[i], results[i]);
+        rewriter.replaceOp(binder.op, results);
+        return success();
+      });
 }
