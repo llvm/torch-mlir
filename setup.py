@@ -19,6 +19,9 @@
 #   TORCH_MLIR_ENABLE_STABLEHLO:
 #       enables the StableHLO Backend
 #
+#   TORCH_MLIR_INCLUDE_TESTS:
+#       generates Torch-MLIR test targets (default: ON)
+#
 #   CMAKE_DISABLE_PRECOMPILE_HEADERS:
 #       disables precompiled headers during CMake build
 #
@@ -90,6 +93,7 @@ PACKAGE_VERSION = os.getenv("TORCH_MLIR_PYTHON_PACKAGE_VERSION", "0.0.1")
 # If true, enable LTC build by default
 TORCH_MLIR_ENABLE_LTC = _check_env_flag("TORCH_MLIR_ENABLE_LTC", True)
 TORCH_MLIR_ENABLE_STABLEHLO = _check_env_flag("TORCH_MLIR_ENABLE_STABLEHLO", True)
+TORCH_MLIR_INCLUDE_TESTS = _check_env_flag("TORCH_MLIR_INCLUDE_TESTS", True)
 TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS = _check_env_flag(
     "TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS", True
 )
@@ -146,6 +150,7 @@ class CMakeBuild(build_py):
             f"-DCMAKE_CXX_VISIBILITY_PRESET=hidden",
             f"-DTORCH_MLIR_ENABLE_LTC={'ON' if TORCH_MLIR_ENABLE_LTC else 'OFF'}",
             f"-DTORCH_MLIR_ENABLE_STABLEHLO={'ON' if TORCH_MLIR_ENABLE_STABLEHLO else 'OFF'}",
+            f"-DTORCH_MLIR_INCLUDE_TESTS={'ON' if TORCH_MLIR_INCLUDE_TESTS else 'OFF'}",
             f"-DTORCH_MLIR_ENABLE_PYTORCH_EXTENSIONS={'OFF' if TORCH_MLIR_ENABLE_ONLY_MLIR_PYTHON_BINDINGS else 'ON'}",
             f"-DMLIR_ENABLE_PYTHON_STABLE_ABI={'ON' if use_stable_abi else 'OFF'}",
             f"-DCMAKE_DISABLE_PRECOMPILE_HEADERS={'ON' if CMAKE_DISABLE_PRECOMPILE_HEADERS else 'OFF'}",
