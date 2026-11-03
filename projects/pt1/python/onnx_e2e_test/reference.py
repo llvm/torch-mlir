@@ -10,6 +10,8 @@ from onnx.reference import ReferenceEvaluator
 from onnx.reference.ops.op_conv_integer import ConvInteger as _OnnxConvInteger
 from onnx.reference.ops.op_qlinear_conv import QLinearConv as _OnnxQLinearConv
 
+from .utils import has_default_domain_contrib_op
+
 
 # ReferenceEvaluator keys `new_ops` by class name, so this must be named after
 # the ONNX op it overrides.
@@ -75,8 +77,10 @@ def create_reference_evaluator(model):
         prop.key == ONNXRUNTIME_REFERENCE_KEY and prop.value == "onnxruntime"
         for prop in model.metadata_props
     )
-    if wants_onnxruntime or any(
-        opset.domain == "com.microsoft" for opset in model.opset_import
+    if (
+        wants_onnxruntime
+        or any(opset.domain == "com.microsoft" for opset in model.opset_import)
+        or has_default_domain_contrib_op(model)
     ):
         import onnxruntime as ort
 

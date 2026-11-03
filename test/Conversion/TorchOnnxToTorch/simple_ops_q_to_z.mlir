@@ -880,9 +880,9 @@ func.func @test_simplified_layer_normalization(%arg0: !torch.vtensor<[2,8,256],f
 // CHECK-LABEL: func.func @test_simplified_layer_normalization
 // CHECK-SAME:    %[[INPUT:[a-zA-Z0-9]+]]: !torch.vtensor<[2,8,256],f32>
 // CHECK-SAME:    %[[SCALE:[a-zA-Z0-9]+]]: !torch.vtensor<[256],f32>
+// CHECK:         %[[EPS:.+]] = torch.constant.float 9.9999997473787516E-6
 // CHECK:         %[[DIM:.+]] = torch.constant.int 256
 // CHECK:         %[[SHAPE:.+]] = torch.prim.ListConstruct %[[DIM]]
-// CHECK:         %[[EPS:.+]] = torch.constant.float 9.9999997473787516E-6
 // CHECK:         torch.aten.rms_norm %[[INPUT]], %[[SHAPE]], %[[SCALE]], %[[EPS]]
 
 // -----
@@ -896,11 +896,65 @@ func.func @test_simplified_layer_normalization_dynamic(%arg0: !torch.vtensor<[?,
 // CHECK-SAME:    %[[INPUT:[a-zA-Z0-9]+]]: !torch.vtensor<[?,?,4096],f16>
 // CHECK-SAME:    %[[SCALE:[a-zA-Z0-9]+]]: !torch.vtensor<[4096],f16>
 // CHECK:         %[[UPCAST:.*]] = torch.aten.to.dtype %[[INPUT]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[?,?,4096],f16>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[?,?,4096],f32>
+// CHECK:         %[[EPS:.+]] = torch.constant.float 9.9999997473787516E-6
 // CHECK:         %[[DIM:.+]] = torch.constant.int 4096
 // CHECK:         %[[SHAPE:.+]] = torch.prim.ListConstruct %[[DIM]]
-// CHECK:         %[[EPS:.+]] = torch.constant.float 9.9999997473787516E-6
 // CHECK:         %[[RMS:.*]] = torch.aten.rms_norm %[[UPCAST]], %[[SHAPE]], %[[SCALE]], %[[EPS]] : !torch.vtensor<[?,?,4096],f32>, !torch.list<int>, !torch.vtensor<[4096],f16>, !torch.float -> !torch.vtensor<[?,?,4096],f32>
 // CHECK:         torch.aten.to.dtype %[[RMS]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[?,?,4096],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[?,?,4096],f16>
+
+// -----
+
+// inv_std_var reduces the dimensions from axis on in stash_type, and the
+// output is derived from it.
+// CHECK-LABEL: func.func @test_simplified_layer_normalization_inv_std_var(
+// CHECK-SAME: %[[X:.*]]: !torch.vtensor<[?,4,8],f16>, %[[SCALE:.*]]: !torch.vtensor<[4,8],f16>
+// CHECK: %[[X32:.*]] = torch.aten.to.dtype %[[X]], {{.*}} -> !torch.vtensor<[?,4,8],f32>
+// CHECK: %[[EPS:.*]] = torch.constant.float 9.9999997473787516E-6
+// CHECK: %[[SQUARED:.*]] = torch.aten.pow.Tensor_Scalar %[[X32]], {{.*}} -> !torch.vtensor<[?,4,8],f32>
+// CHECK: %[[DIM0:.*]] = torch.constant.int -2
+// CHECK: %[[DIM1:.*]] = torch.constant.int -1
+// CHECK: %[[DIMS:.*]] = torch.prim.ListConstruct %[[DIM0]], %[[DIM1]]
+// CHECK: %[[MEAN:.*]] = torch.aten.mean.dim %[[SQUARED]], %[[DIMS]], {{.*}} -> !torch.vtensor<[?,1,1],f32>
+// CHECK: %[[MEAN_EPS:.*]] = torch.aten.add.Scalar %[[MEAN]], %[[EPS]], {{.*}} -> !torch.vtensor<[?,1,1],f32>
+// CHECK: %[[INV_STD_VAR:.*]] = torch.aten.rsqrt %[[MEAN_EPS]] : {{.*}} -> !torch.vtensor<[?,1,1],f32>
+// CHECK: %[[NORMALIZED:.*]] = torch.aten.mul.Tensor %[[X32]], %[[INV_STD_VAR]] : {{.*}} -> !torch.vtensor<[?,4,8],f32>
+// CHECK: %[[SCALE32:.*]] = torch.aten.to.dtype %[[SCALE]], {{.*}} -> !torch.vtensor<[4,8],f32>
+// CHECK: %[[Y32:.*]] = torch.aten.mul.Tensor %[[NORMALIZED]], %[[SCALE32]] : {{.*}} -> !torch.vtensor<[?,4,8],f32>
+// CHECK: %[[Y:.*]] = torch.aten.to.dtype %[[Y32]], {{.*}} -> !torch.vtensor<[?,4,8],f16>
+// CHECK: return %[[Y]], %[[INV_STD_VAR]]
+func.func @test_simplified_layer_normalization_inv_std_var(%x: !torch.vtensor<[?,4,8],f16>, %scale: !torch.vtensor<[4,8],f16>) -> (!torch.vtensor<[?,4,8],f16>, !torch.vtensor<[?,1,1],f32>) attributes {torch.onnx_meta.opset_version = 17 : si64} {
+  %0:2 = torch.operator "onnx.SimplifiedLayerNormalization"(%x, %scale) {torch.onnx.axis = 1 : si64} : (!torch.vtensor<[?,4,8],f16>, !torch.vtensor<[4,8],f16>) -> (!torch.vtensor<[?,4,8],f16>, !torch.vtensor<[?,1,1],f32>)
+  return %0#0, %0#1 : !torch.vtensor<[?,4,8],f16>, !torch.vtensor<[?,1,1],f32>
+}
+
+// -----
+
+// An unused inv_std_var output is none, the output uses aten.rms_norm, and it
+// has the dtype of the scale.
+// CHECK-LABEL: func.func @test_simplified_layer_normalization_unused_inv_std_var(
+// CHECK-SAME: %[[X:.*]]: !torch.vtensor<[2,4,8],f32>, %[[SCALE:.*]]: !torch.vtensor<[8],f16>
+// CHECK: %[[Y32:.*]] = torch.aten.rms_norm %[[X]], {{.*}}, %[[SCALE]], {{.*}} -> !torch.vtensor<[2,4,8],f32>
+// CHECK: %[[Y:.*]] = torch.aten.to.dtype %[[Y32]], {{.*}} -> !torch.vtensor<[2,4,8],f16>
+// CHECK: return %[[Y]]
+func.func @test_simplified_layer_normalization_unused_inv_std_var(%x: !torch.vtensor<[2,4,8],f32>, %scale: !torch.vtensor<[8],f16>) -> !torch.vtensor<[2,4,8],f16> attributes {torch.onnx_meta.opset_version = 17 : si64} {
+  %0:2 = torch.operator "onnx.SimplifiedLayerNormalization"(%x, %scale) : (!torch.vtensor<[2,4,8],f32>, !torch.vtensor<[8],f16>) -> (!torch.vtensor<[2,4,8],f16>, !torch.none)
+  return %0#0 : !torch.vtensor<[2,4,8],f16>
+}
+
+// -----
+
+// A dynamic normalized dimension takes the explicit path, because the
+// aten.rms_norm decomposition needs a scale of exactly the normalized shape.
+// CHECK-LABEL: func.func @test_simplified_layer_normalization_dynamic_hidden_dim(
+// CHECK-SAME: %[[X:.*]]: !torch.vtensor<[?,?,?],f32>, %[[SCALE:.*]]: !torch.vtensor<[8],f32>
+// CHECK: %[[INV_STD_VAR:.*]] = torch.aten.rsqrt {{.*}} -> !torch.vtensor<[?,?,1],f32>
+// CHECK: %[[NORMALIZED:.*]] = torch.aten.mul.Tensor %[[X]], %[[INV_STD_VAR]]
+// CHECK: %[[Y:.*]] = torch.aten.mul.Tensor %[[NORMALIZED]], %[[SCALE]] : {{.*}} -> !torch.vtensor<[?,?,?],f32>
+// CHECK: return %[[Y]]
+func.func @test_simplified_layer_normalization_dynamic_hidden_dim(%x: !torch.vtensor<[?,?,?],f32>, %scale: !torch.vtensor<[8],f32>) -> !torch.vtensor<[?,?,?],f32> attributes {torch.onnx_meta.opset_version = 17 : si64} {
+  %0 = torch.operator "onnx.SimplifiedLayerNormalization"(%x, %scale) : (!torch.vtensor<[?,?,?],f32>, !torch.vtensor<[8],f32>) -> !torch.vtensor<[?,?,?],f32>
+  return %0 : !torch.vtensor<[?,?,?],f32>
+}
 
 // -----
 
