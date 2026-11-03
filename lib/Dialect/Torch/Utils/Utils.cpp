@@ -247,6 +247,62 @@ Value Torch::getTensorDimSize(PatternRewriter &rewriter, Value tensor,
   return rewriter.createOrFold<AtenSizeIntOp>(loc, tensor, dimVal);
 }
 
+std::optional<std::pair<double, double>>
+Torch::getTorchaoDtypeBounds(int64_t dtypeInt) {
+  using torch_upstream::ScalarType;
+  switch (static_cast<ScalarType>(dtypeInt)) {
+  case ScalarType::Byte:
+    return std::make_pair(0, UINT8_MAX);
+  case ScalarType::Char:
+    return std::make_pair(INT8_MIN, INT8_MAX);
+  case ScalarType::Short:
+    return std::make_pair(INT16_MIN, INT16_MAX);
+  case ScalarType::Int:
+    return std::make_pair(INT32_MIN, INT32_MAX);
+  default:
+    return std::nullopt;
+  }
+}
+
+FailureOr<std::pair<double, double>>
+Torch::getTorchaoQuantBounds(Value quantMin, Value quantMax, Value dtype) {
+  int64_t dtypeInt;
+  if (!matchPattern(dtype, m_TorchConstantInt(&dtypeInt)))
+    return failure();
+  std::optional<std::pair<double, double>> bounds =
+      getTorchaoDtypeBounds(dtypeInt);
+  auto matchBound = [](Value bound, double &value) {
+    int64_t intValue;
+    if (matchPattern(bound, m_TorchConstantInt(&intValue))) {
+      value = intValue;
+      return true;
+    }
+    return isa<Torch::NoneType>(bound.getType()) ||
+           matchPattern(bound, m_TorchConstantFloat(&value));
+  };
+  if (!bounds || !matchBound(quantMin, bounds->first) ||
+      !matchBound(quantMax, bounds->second))
+    return failure();
+  return *bounds;
+}
+
+FailureOr<SmallVector<int64_t>>
+Torch::getTorchaoBlockSize(Value blockSize, ArrayRef<int64_t> inputSizes) {
+  SmallVector<Value> entries;
+  if (!getListConstructElements(blockSize, entries) ||
+      entries.size() != inputSizes.size())
+    return failure();
+  SmallVector<int64_t> blocks;
+  for (auto [entry, size] : llvm::zip_equal(entries, inputSizes)) {
+    int64_t block;
+    if (matchPattern(entry, m_TorchConstantInt(&block)))
+      blocks.push_back(block);
+    else
+      blocks.push_back(size);
+  }
+  return blocks;
+}
+
 // Checks whether the inputs are broadcast compatible or not. If
 // yes, then computes the final broadcast shape.
 void Torch::computeBroadcastShape(PatternRewriter &rewriter, Location loc,

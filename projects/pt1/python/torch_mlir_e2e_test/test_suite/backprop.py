@@ -464,6 +464,43 @@ def GeluTanhBackwardModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(5, 3), tu.rand(5, 3))
 
 
+class GeluTanhBackwardPrecisionModule(torch.nn.Module):
+    def __init__(self, dtype):
+        super().__init__()
+        self.dtype = dtype
+
+    @export
+    @annotate_args([None, ([7], torch.float32, True), ([7], torch.float32, True)])
+    def forward(self, grad, x):
+        return torch.ops.aten.gelu_backward(
+            grad.to(self.dtype), x.to(self.dtype), approximate="tanh"
+        ).to(torch.float32)
+
+
+@register_test_case(
+    module_factory=lambda: GeluTanhBackwardPrecisionModule(torch.float16)
+)
+def GeluTanhBackwardPrecisionModule_f16(module, tu: TestUtils):
+    x = torch.tensor([-3.09765625, -3.0, -2.5, -0.75, 0.0, 0.75, 3.0])
+    module.forward(torch.ones_like(x), x)
+
+
+@register_test_case(
+    module_factory=lambda: GeluTanhBackwardPrecisionModule(torch.bfloat16)
+)
+def GeluTanhBackwardPrecisionModule_bf16(module, tu: TestUtils):
+    x = torch.tensor([-3.09765625, -3.0, -2.5, -0.75, 0.0, 0.75, 3.0])
+    module.forward(torch.ones_like(x), x)
+
+
+@register_test_case(
+    module_factory=lambda: GeluTanhBackwardPrecisionModule(torch.float32)
+)
+def GeluTanhBackwardPrecisionModule_f32(module, tu: TestUtils):
+    x = torch.tensor([-3.09765625, -3.0, -2.5, -0.75, 0.0, 0.75, 3.0])
+    module.forward(torch.ones_like(x), x)
+
+
 # ==============================================================================
 
 

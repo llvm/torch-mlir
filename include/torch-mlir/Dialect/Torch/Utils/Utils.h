@@ -243,6 +243,21 @@ ValueTensorType getTensorTypeFromShapeValues(ArrayRef<Value> shapes,
                                              Type dtype);
 Value getTensorDimSize(PatternRewriter &rewriter, Value tensor, int64_t dim);
 
+// Returns the bounds of a uint8, int8, int16 or int32 `dtypeInt`, as in
+// torchao's `_DTYPE_TO_QVALUE_BOUNDS`.
+std::optional<std::pair<double, double>>
+getTorchaoDtypeBounds(int64_t dtypeInt);
+
+// Returns the constant `quantMin` and `quantMax` of a torchao quantization op,
+// with None as the bound of `dtype`.
+FailureOr<std::pair<double, double>>
+getTorchaoQuantBounds(Value quantMin, Value quantMax, Value dtype);
+
+// Returns the `block_size` entries of a torchao quantization op, with a
+// non-constant entry, which spans its dimension, as its size in `inputSizes`.
+FailureOr<SmallVector<int64_t>>
+getTorchaoBlockSize(Value blockSize, ArrayRef<int64_t> inputSizes);
+
 // In Dynamo import paths, we can assume that dynamic dimensions are strictly
 // quantities and are not ambiguous with '1' symbols that can be interpreted
 // to signal an expansion in various broadcasting scenarios. In the

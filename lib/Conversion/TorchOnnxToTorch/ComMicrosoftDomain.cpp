@@ -17,8 +17,731 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::onnx_c;
 
+namespace {
+
+// A successful match supplies everything needed to build DQ without inspecting
+// or classifying the input/qparam types again. Matching does not create IR.
+struct QuantizedTensorInfo {
+  Value input;
+  Value scale;
+  Value zeroPoint;
+  IntegerType storageDtype;
+  Torch::ValueTensorType floatType;
+  int64_t axis;
+  int64_t columns;
+  int64_t scaleLength;
+  int64_t zeroPointLength;
+  bool scaleIsScalar;
+  bool zeroPointIsScalar;
+
+  bool isPerTensor() const { return scaleIsScalar && zeroPointIsScalar; }
+};
+
+// Return the qparam length as well as verifying it. A scalar and a singleton
+// vector both have length one for the per-tensor/per-column classification.
+FailureOr<int64_t> matchQParam(OpBinder binder,
+                               ConversionPatternRewriter &rewriter, Value param,
+                               Type dtype, int64_t columns) {
+  auto type = cast<Torch::ValueTensorType>(param.getType());
+  if (!type.hasDtype() || type.getDtype() != dtype || !type.hasSizes() ||
+      type.getSizes().size() > 1) {
+    return rewriter.notifyMatchFailure(
+        binder.op, "expected scalar or rank-1 qparams with matching dtype");
+  }
+  int64_t length = type.getSizes().empty() ? 1 : type.getSizes()[0];
+  // Treat [?] qparams as per-column when the column count is also dynamic.
+  // DQ construction will assert length == columns; this does not support
+  // runtime singleton broadcasting when columns > 1.
+  if (length == Torch::kUnknownSize && columns != Torch::kUnknownSize) {
+    return rewriter.notifyMatchFailure(
+        binder.op, "requires statically known qparam length");
+  }
+  // Dynamic matrix dimensions are still supported: if columns is unknown,
+  // DQ construction will assert columns == length for per-column qparams.
+  if (length != 1 && columns != Torch::kUnknownSize && length != columns) {
+    return rewriter.notifyMatchFailure(
+        binder.op, "per-column qparam length must match input's last dim");
+  }
+  return length;
+}
+
+FailureOr<QuantizedTensorInfo>
+matchQuantizedTensor(OpBinder binder, ConversionPatternRewriter &rewriter,
+                     Value input, Value scale, Value zeroPoint) {
+  auto inputType = cast<Torch::ValueTensorType>(input.getType());
+  if (!inputType.hasSizes() || inputType.getSizes().empty() ||
+      !inputType.hasDtype() ||
+      !(inputType.getDtype().isSignedInteger(8) ||
+        inputType.getDtype().isUnsignedInteger(8))) {
+    return rewriter.notifyMatchFailure(
+        binder.op, "expected ranked int8 or uint8 matrix inputs");
+  }
+
+  int64_t columns = inputType.getSizes().back();
+  FailureOr<int64_t> scaleLength =
+      matchQParam(binder, rewriter, scale, rewriter.getF32Type(), columns);
+  if (failed(scaleLength)) {
+    return failure();
+  }
+  int64_t zeroPointLength = 1;
+  if (zeroPoint) {
+    FailureOr<int64_t> length =
+        matchQParam(binder, rewriter, zeroPoint, inputType.getDtype(), columns);
+    if (failed(length)) {
+      return failure();
+    }
+    zeroPointLength = *length;
+  }
+  if (*scaleLength != 1 && zeroPointLength != 1 &&
+      *scaleLength != Torch::kUnknownSize &&
+      zeroPointLength != Torch::kUnknownSize &&
+      *scaleLength != zeroPointLength) {
+    return rewriter.notifyMatchFailure(
+        binder.op, "per-column scale and zero point lengths must match");
+  }
+
+  // The spec's per-column parameters index the last input dimension,
+  // independently for A and B, including when the inputs are batched.
+  int64_t axis = inputType.getSizes().size() - 1;
+  auto floatType = cast<Torch::ValueTensorType>(inputType.getWithSizesAndDtype(
+      inputType.getSizes(), rewriter.getF32Type()));
+  return QuantizedTensorInfo{input,
+                             scale,
+                             zeroPoint,
+                             cast<IntegerType>(inputType.getDtype()),
+                             floatType,
+                             axis,
+                             columns,
+                             *scaleLength,
+                             zeroPointLength,
+                             *scaleLength == 1,
+                             zeroPointLength == 1};
+}
+
+// qparam_vector[i] = qparam_scalar, for i in [0, input.size(-1)).
+// Per-channel DQ requires rank-1 scales/zero points. Expand a scalar qparam
+// when the other qparam is per-column, preserving its runtime value.
+Value expandScalarQParam(ConversionPatternRewriter &rewriter, Location loc,
+                         const QuantizedTensorInfo &info, Value param,
+                         Type dtype, Value axis) {
+  Value size = Torch::AtenSizeIntOp::create(rewriter, loc, info.input, axis);
+  Value sizes = Torch::PrimListConstructOp::create(
+      rewriter, loc,
+      rewriter.getType<Torch::ListType>(rewriter.getType<Torch::IntType>()),
+      SmallVector<Value>{size});
+  auto expandedType = rewriter.getType<Torch::ValueTensorType>(
+      ArrayRef<int64_t>{info.columns}, dtype);
+  Value implicit = Torch::ConstantBoolOp::create(rewriter, loc, false);
+  return Torch::AtenExpandOp::create(rewriter, loc, expandedType, param, sizes,
+                                     implicit);
+}
+
+// input.size(-1) == qparam.size(0), using a constant for known qparam lengths.
+void assertQParamLength(ConversionPatternRewriter &rewriter, Location loc,
+                        Value columns, Value param, int64_t length) {
+  Value qparamLength;
+  if (length == Torch::kUnknownSize) {
+    Value zero = Torch::ConstantIntOp::create(rewriter, loc, 0);
+    qparamLength = Torch::AtenSizeIntOp::create(rewriter, loc, param, zero);
+  } else {
+    qparamLength = Torch::ConstantIntOp::create(rewriter, loc, length);
+  }
+  Value matches =
+      Torch::AtenEqIntOp::create(rewriter, loc, columns, qparamLength);
+  Torch::RuntimeAssertOp::create(
+      rewriter, loc, matches,
+      rewriter.getStringAttr("MatMulIntegerToFloat: per-column qparam length "
+                             "must match input's last dimension"));
+}
+
+Value createMatMulIntegerToFloatDequantize(ConversionPatternRewriter &rewriter,
+                                           Location loc,
+                                           const QuantizedTensorInfo &info) {
+  // DQ(input) = (cast<f32>(input) - zero_point) * scale.
+  auto [quantMin, quantMax] =
+      createQuantizationBounds(rewriter, loc, info.storageDtype);
+  Value dtype =
+      Torch::getDtypeIntValueForType(rewriter, loc, info.storageDtype);
+  Value outDtype =
+      Torch::getDtypeIntValueForType(rewriter, loc, info.floatType.getDtype());
+  Value scale = info.scale;
+  Value zeroPoint = info.zeroPoint;
+
+  if (info.isPerTensor()) {
+    // ONNX carries scalar qparams as tensors, but the PT2E per-tensor op
+    // accepts Torch scalars. Item keeps runtime qparams as SSA operands.
+    scale = Torch::AtenItemOp::create(
+        rewriter, loc, rewriter.getType<Torch::FloatType>(), scale);
+    if (zeroPoint) {
+      zeroPoint = Torch::AtenItemOp::create(
+          rewriter, loc, rewriter.getType<Torch::IntType>(), zeroPoint);
+    } else {
+      zeroPoint = Torch::ConstantIntOp::create(rewriter, loc, 0);
+    }
+    return Torch::QuantizedDecomposedDequantizePerTensorOp::create(
+        rewriter, loc, info.floatType, info.input, scale, zeroPoint, quantMin,
+        quantMax, dtype, outDtype);
+  }
+
+  Value axis = Torch::ConstantIntOp::create(rewriter, loc, info.axis);
+  if (info.columns == Torch::kUnknownSize) {
+    Value columns =
+        Torch::AtenSizeIntOp::create(rewriter, loc, info.input, axis);
+    if (!info.scaleIsScalar) {
+      assertQParamLength(rewriter, loc, columns, scale, info.scaleLength);
+    }
+    // Known equal vector lengths share one check. Unknown lengths must each
+    // match columns, even when both qparam types are [?].
+    if (!info.zeroPointIsScalar &&
+        (info.zeroPointLength == Torch::kUnknownSize ||
+         info.zeroPointLength != info.scaleLength)) {
+      assertQParamLength(rewriter, loc, columns, zeroPoint,
+                         info.zeroPointLength);
+    }
+  }
+  if (info.scaleIsScalar) {
+    scale = expandScalarQParam(rewriter, loc, info, scale,
+                               info.floatType.getDtype(), axis);
+  }
+  if (zeroPoint) {
+    if (info.zeroPointIsScalar) {
+      zeroPoint = expandScalarQParam(rewriter, loc, info, zeroPoint,
+                                     info.storageDtype, axis);
+    }
+  } else {
+    // None is PT2E per-channel DQ's representation of a zero zero point.
+    zeroPoint = Torch::ConstantNoneOp::create(rewriter, loc);
+  }
+  return Torch::QuantizedDecomposedDequantizePerChannelOp::create(
+      rewriter, loc, info.floatType, info.input, scale, zeroPoint, axis,
+      quantMin, quantMax, dtype, outDtype);
+}
+
+} // namespace
+
+namespace {
+
+/// The weight layout that the MatMulNBits attributes determine, as the
+/// com.microsoft.MatMulNBits spec defines it.
+struct NBitsLayout {
+  /// Input features: A's last dimension.
+  int64_t k;
+  /// Output features: the rows of the stored weight.
+  int64_t n;
+  /// Width of one quantized weight value, 2, 4 or 8.
+  int64_t bits;
+  /// Number of consecutive values along K that share a scale and zero point.
+  int64_t blockSize;
+
+  /// ceil(K / block_size): the blocks per row of B.
+  int64_t getKBlocks() const { return llvm::divideCeilSigned(k, blockSize); }
+  /// K including the padding of the last block.
+  int64_t getPaddedK() const { return getKBlocks() * blockSize; }
+  /// 8 / bits values share a byte of B and of bit-packed zero points.
+  int64_t getValuesPerByte() const { return 8 / bits; }
+  /// block_size * bits / 8: the bytes per block of B.
+  int64_t getBlobSize() const { return blockSize / getValuesPerByte(); }
+  /// ceil(k_blocks * bits / 8): the bytes per row of bit-packed zero points.
+  int64_t getZeroPointBytesPerRow() const {
+    return llvm::divideCeilSigned(getKBlocks(), getValuesPerByte());
+  }
+};
+
+/// What matchMatMulNBits extracts from a supported MatMulNBits op.
+struct MatMulNBitsInfo {
+  Value a;
+  Value weight;
+  Value scales;
+  /// Null when the default zero point 2^(bits - 1) applies.
+  Value zeroPoints;
+  /// Null when there is no bias.
+  Value bias;
+  Torch::ValueTensorType resultType;
+  /// Whether A is quantized dynamically to int8 before the matmul.
+  bool quantizeA;
+  NBitsLayout layout;
+};
+
+} // namespace
+
+/// Returns whether `value` has the shape `sizes`. The MatMulNBits attributes
+/// fix the shapes of B, scales, zero points and bias, so a dynamic dimension
+/// does not match.
+static bool hasShape(Value value, ArrayRef<int64_t> sizes) {
+  auto type = cast<Torch::ValueTensorType>(value.getType());
+  return type.hasSizes() && type.getSizes() == sizes;
+}
+
+/// Returns whether `value` has the per-block shape [rows, columns] or its
+/// flattened form [rows * columns]. The spec gives only [rows, columns]; the
+/// flattened form is accepted because onnxruntime's HQQ quantizer emits it.
+static bool hasBlockShape(Value value, int64_t rows, int64_t columns) {
+  return hasShape(value, {rows, columns}) || hasShape(value, {rows * columns});
+}
+
+/// Binds and verifies the operands and attributes of a MatMulNBits op. Matching
+/// does not create IR.
+static FailureOr<MatMulNBitsInfo>
+matchMatMulNBits(OpBinder binder, ConversionPatternRewriter &rewriter) {
+  Value a, weight, scales, zeroPoints, groupIndex, bias;
+  Torch::ValueTensorType resultType;
+  int64_t k, n, bits, blockSize, accuracyLevel, weightPrepacked;
+  if (binder.getNumOperands() < 3 || binder.getNumOperands() > 6 ||
+      binder.tensorOperandAtIndex(a, 0) ||
+      binder.tensorOperandAtIndex(weight, 1) ||
+      binder.tensorOperandAtIndex(scales, 2) ||
+      binder.tensorResultType(resultType) ||
+      binder.optionalS64IntegerAttr(k, "K") ||
+      binder.optionalS64IntegerAttr(n, "N") ||
+      binder.s64IntegerAttr(bits, "bits", 4) ||
+      binder.optionalS64IntegerAttr(blockSize, "block_size") ||
+      binder.s64IntegerAttr(accuracyLevel, "accuracy_level", 0) ||
+      binder.s64IntegerAttr(weightPrepacked, "weight_prepacked", 0)) {
+    return rewriter.notifyMatchFailure(
+        binder.op, "expected A, B, scales, up to three optional inputs, "
+                   "and the K, N and block_size attributes");
+  }
+  Value *optionalInputs[] = {&zeroPoints, &groupIndex, &bias};
+  // Empty ONNX input names become None without shifting later inputs, so bias
+  // may be present even when zero_points or g_idx is omitted.
+  for (int64_t i = 3; i < binder.getNumOperands(); ++i) {
+    if (isa<Torch::NoneType>(binder.op->getOperand(i).getType()))
+      continue;
+    if (binder.tensorOperandAtIndex(*optionalInputs[i - 3], i))
+      return rewriter.notifyMatchFailure(
+          binder.op, "expected tensor or None optional inputs");
+  }
+
+  if (!llvm::is_contained({2, 4, 8}, bits))
+    return rewriter.notifyMatchFailure(binder.op, "bits must be 2, 4 or 8");
+  if (blockSize < 16 || !llvm::isPowerOf2_64(blockSize))
+    return rewriter.notifyMatchFailure(
+        binder.op, "block_size must be a power of two of at least 16");
+  if (k <= 0 || n <= 0)
+    return rewriter.notifyMatchFailure(binder.op, "K and N must be positive");
+  if (accuracyLevel < 0 || accuracyLevel > 4)
+    return rewriter.notifyMatchFailure(binder.op,
+                                       "accuracy_level must be in [0, 4]");
+  if (weightPrepacked != 0)
+    return rewriter.notifyMatchFailure(
+        binder.op, "unsupported: weight_prepacked selects an "
+                   "execution-provider specific layout of B");
+  // g_idx is deprecated, and the spec defines no semantics for it.
+  if (groupIndex)
+    return rewriter.notifyMatchFailure(binder.op, "unsupported: g_idx input");
+
+  NBitsLayout layout{k, n, bits, blockSize};
+  auto aType = cast<Torch::ValueTensorType>(a.getType());
+  if (!aType.hasDtype() || aType.getSizes().empty() ||
+      !isa<Float32Type, Float16Type, BFloat16Type>(aType.getDtype()))
+    return rewriter.notifyMatchFailure(
+        binder.op, "expected float32, float16 or bfloat16 A");
+  Type floatType = aType.getDtype();
+  if (aType.getSizes().back() != k)
+    return rewriter.notifyMatchFailure(
+        binder.op, "expected A's last dimension to be the static K");
+  if (!resultType.hasDtype() || resultType.getDtype() != floatType)
+    return rewriter.notifyMatchFailure(binder.op,
+                                       "expected the result dtype to match A");
+
+  auto weightType = cast<Torch::ValueTensorType>(weight.getType());
+  if (!weightType.hasDtype() || !weightType.getDtype().isUnsignedInteger(8) ||
+      !hasShape(weight, {n, layout.getKBlocks(), layout.getBlobSize()}))
+    return rewriter.notifyMatchFailure(
+        binder.op, "expected uint8 B of shape [N, ceil(K / block_size), "
+                   "block_size * bits / 8]");
+  auto scalesType = cast<Torch::ValueTensorType>(scales.getType());
+  if (!scalesType.hasDtype() || scalesType.getDtype() != floatType ||
+      !hasBlockShape(scales, n, layout.getKBlocks()))
+    return rewriter.notifyMatchFailure(binder.op,
+                                       "expected scales of A's dtype and shape "
+                                       "[N, ceil(K / block_size)]");
+  bool unpackedZeroPoints = false;
+  if (zeroPoints) {
+    auto zeroPointsType = cast<Torch::ValueTensorType>(zeroPoints.getType());
+    bool packed =
+        zeroPointsType.hasDtype() &&
+        zeroPointsType.getDtype().isUnsignedInteger(8) &&
+        hasBlockShape(zeroPoints, n, layout.getZeroPointBytesPerRow());
+    unpackedZeroPoints = zeroPointsType.hasDtype() &&
+                         zeroPointsType.getDtype() == floatType &&
+                         hasBlockShape(zeroPoints, n, layout.getKBlocks());
+    if (!packed && !unpackedZeroPoints)
+      return rewriter.notifyMatchFailure(
+          binder.op, "expected bit-packed uint8 zero points of shape [N, "
+                     "ceil(ceil(K / block_size) * bits / 8)] or zero points of "
+                     "A's dtype and shape [N, ceil(K / block_size)]");
+  }
+  if (bias) {
+    auto biasType = cast<Torch::ValueTensorType>(bias.getType());
+    if (!biasType.hasDtype() || biasType.getDtype() != floatType ||
+        !hasShape(bias, {n}))
+      return rewriter.notifyMatchFailure(
+          binder.op, "expected bias of A's dtype and shape [N]");
+  }
+  // onnxruntime's CPU kernel quantizes A for accuracy_level 4 only
+  // (GetComputeType in matmul_nbits.cc), and its PrePack keeps A in floating
+  // point for floating-point zero points, which have no int8 path.
+  bool quantizeA = accuracyLevel == 4 && !unpackedZeroPoints;
+  return MatMulNBitsInfo{a,    weight,     scales,    zeroPoints,
+                         bias, resultType, quantizeA, layout};
+}
+
+/// Reshapes a per-block parameter accepted by hasBlockShape to [rows, columns].
+static Value reshapeToBlockShape(ConversionPatternRewriter &rewriter,
+                                 Location loc, Value value, int64_t rows,
+                                 int64_t columns) {
+  assert(hasBlockShape(value, rows, columns) &&
+         "expected a [rows, columns] or [rows * columns] parameter");
+  if (hasShape(value, {rows, columns}))
+    return value;
+  Type dtype = cast<Torch::ValueTensorType>(value.getType()).getDtype();
+  return Torch::AtenReshapeOp::create(
+      rewriter, loc,
+      rewriter.getType<Torch::ValueTensorType>(ArrayRef<int64_t>{rows, columns},
+                                               dtype),
+      value, Torch::toIntListConstruct(rewriter, loc, {rows, columns}));
+}
+
+/// Unpacks `packed`, whose ui8 elements each hold 8 / bits values of `bits`
+/// bits along the last dimension, lowest bits first, into one ui8 element per
+/// value. The last dimension grows by 8 / bits:
+///   (packed[..., None] >> [0, bits, 2 * bits, ...]) & (2^bits - 1)
+static Value unpackLastDimension(ConversionPatternRewriter &rewriter,
+                                 Location loc, Value packed, int64_t bits) {
+  assert(llvm::is_contained({2, 4, 8}, bits) && "expected 2, 4 or 8 bits");
+  // 8-bit values already take one byte each.
+  if (bits == 8)
+    return packed;
+  auto uint8 = rewriter.getIntegerType(8, /*isSigned=*/false);
+  int64_t valuesPerByte = 8 / bits;
+  SmallVector<int64_t> sizes(
+      cast<Torch::ValueTensorType>(packed.getType()).getSizes());
+
+  SmallVector<int64_t> expandedSizes(sizes);
+  expandedSizes.push_back(1);
+  Value minusOne = Torch::ConstantIntOp::create(rewriter, loc, -1);
+  Value expanded = Torch::AtenUnsqueezeOp::create(
+      rewriter, loc,
+      rewriter.getType<Torch::ValueTensorType>(expandedSizes, uint8), packed,
+      minusOne);
+
+  SmallVector<APInt> shiftValues;
+  for (int64_t i = 0; i < valuesPerByte; ++i)
+    shiftValues.push_back(APInt(8, i * bits));
+  Value shifts = Torch::ValueTensorLiteralOp::create(
+      rewriter, loc,
+      DenseElementsAttr::get(RankedTensorType::get({valuesPerByte}, uint8),
+                             shiftValues));
+  expandedSizes.back() = valuesPerByte;
+  auto valuesType =
+      rewriter.getType<Torch::ValueTensorType>(expandedSizes, uint8);
+  Value shifted = Torch::AtenBitwiseRightShiftTensorOp::create(
+      rewriter, loc, valuesType, expanded, shifts);
+  Value mask =
+      Torch::ConstantIntOp::create(rewriter, loc, llvm::maxUIntN(bits));
+  Value values = Torch::AtenBitwiseAndScalarOp::create(
+      rewriter, loc, valuesType, shifted, mask);
+
+  sizes.back() *= valuesPerByte;
+  Value minusTwo = Torch::ConstantIntOp::create(rewriter, loc, -2);
+  return Torch::AtenFlattenUsingIntsOp::create(
+      rewriter, loc, rewriter.getType<Torch::ValueTensorType>(sizes, uint8),
+      values, minusTwo, minusOne);
+}
+
+/// Returns the dequantized [N, paddedK] weight of MatMulNBits:
+///   W[i, j] = (q[i, j] - zero_points[i, j / block_size]) *
+///             scales[i, j / block_size]
+/// as one dequantize_per_channel_group. Columns from K on dequantize the
+/// padding of the last block; they are finite and meet zero padding in A.
+/// `weight`, `scales` and `zeroPoints` satisfy the shapes checked by
+/// matchMatMulNBits; a null `zeroPoints` selects the default zero point
+/// 2^(bits - 1).
+static Value createNBitsWeight(ConversionPatternRewriter &rewriter,
+                               Location loc, const NBitsLayout &layout,
+                               Value weight, Value scales, Value zeroPoints,
+                               Type floatType) {
+  auto uint8 = rewriter.getIntegerType(8, /*isSigned=*/false);
+  int64_t n = layout.n;
+
+  Value quantized = unpackLastDimension(rewriter, loc, weight, layout.bits);
+  Value one = Torch::ConstantIntOp::create(rewriter, loc, 1);
+  Value two = Torch::ConstantIntOp::create(rewriter, loc, 2);
+  quantized = Torch::AtenFlattenUsingIntsOp::create(
+      rewriter, loc,
+      rewriter.getType<Torch::ValueTensorType>(
+          ArrayRef<int64_t>{n, layout.getPaddedK()}, uint8),
+      quantized, one, two);
+
+  scales = reshapeToBlockShape(rewriter, loc, scales, n, layout.getKBlocks());
+
+  if (!zeroPoints) {
+    int64_t defaultZeroPoint = int64_t(1) << (layout.bits - 1);
+    auto zeroPointsType =
+        RankedTensorType::get({n, layout.getKBlocks()}, uint8);
+    zeroPoints = Torch::ValueTensorLiteralOp::create(
+        rewriter, loc,
+        DenseElementsAttr::get(zeroPointsType, APInt(8, defaultZeroPoint)));
+  } else if (cast<Torch::ValueTensorType>(zeroPoints.getType())
+                 .getDtype()
+                 .isUnsignedInteger(8)) {
+    zeroPoints = reshapeToBlockShape(rewriter, loc, zeroPoints, n,
+                                     layout.getZeroPointBytesPerRow());
+    zeroPoints = unpackLastDimension(rewriter, loc, zeroPoints, layout.bits);
+    // Rows of packed zero points are padded to whole bytes.
+    if (layout.getZeroPointBytesPerRow() * layout.getValuesPerByte() !=
+        layout.getKBlocks()) {
+      Value zero = Torch::ConstantIntOp::create(rewriter, loc, 0);
+      Value end =
+          Torch::ConstantIntOp::create(rewriter, loc, layout.getKBlocks());
+      zeroPoints = Torch::AtenSliceTensorOp::create(
+          rewriter, loc,
+          rewriter.getType<Torch::ValueTensorType>(
+              ArrayRef<int64_t>{n, layout.getKBlocks()}, uint8),
+          zeroPoints, one, zero, end, one);
+    }
+  } else {
+    assert(isa<mlir::FloatType>(
+               cast<Torch::ValueTensorType>(zeroPoints.getType()).getDtype()) &&
+           "expected unpacked floating-point zero points");
+    zeroPoints =
+        reshapeToBlockShape(rewriter, loc, zeroPoints, n, layout.getKBlocks());
+  }
+
+  auto [quantMin, quantMax] = createQuantizationBounds(
+      rewriter, loc, rewriter.getIntegerType(layout.bits, /*isSigned=*/false));
+  Value storageDtype = Torch::getDtypeIntValueForType(rewriter, loc, uint8);
+  Value groupSize =
+      Torch::ConstantIntOp::create(rewriter, loc, layout.blockSize);
+  Value outDtype = Torch::getDtypeIntValueForType(rewriter, loc, floatType);
+  return Torch::QuantizedDecomposedDequantizePerChannelGroupOp::create(
+      rewriter, loc,
+      rewriter.getType<Torch::ValueTensorType>(
+          ArrayRef<int64_t>{n, layout.getPaddedK()}, floatType),
+      quantized, scales, zeroPoints, quantMin, quantMax, storageDtype,
+      groupSize, outDtype);
+}
+
+/// Returns A', the activation that linear multiplies with the dequantized
+/// weight: `a` zero padded from K to paddedK, so the padding of B's last block
+/// meets zeros. With `quantizeA`, A' is also quantized to int8 and dequantized
+/// again, as accuracy_level 4 permits: per block of block_size along K, with
+/// the symmetric scale max(|a|) / 127 that choose_qparams_per_token picks. The
+/// zero padding leaves the max of the last block unchanged.
+static Value createNBitsActivation(ConversionPatternRewriter &rewriter,
+                                   Location loc, const NBitsLayout &layout,
+                                   Value a, bool quantizeA) {
+  auto aType = cast<Torch::ValueTensorType>(a.getType());
+  assert(aType.getSizes().back() == layout.k &&
+         "expected A's last dimension to be K");
+  Type floatType = aType.getDtype();
+  SmallVector<int64_t> paddedSizes(aType.getSizes());
+  paddedSizes.back() = layout.getPaddedK();
+  auto paddedType =
+      rewriter.getType<Torch::ValueTensorType>(paddedSizes, floatType);
+  if (layout.getPaddedK() != layout.k) {
+    Value padding = Torch::toIntListConstruct(
+        rewriter, loc, {0, layout.getPaddedK() - layout.k});
+    Value zero = Torch::ConstantFloatOp::create(rewriter, loc,
+                                                rewriter.getF64FloatAttr(0.0));
+    a = Torch::AtenConstantPadNdOp::create(rewriter, loc, paddedType, a,
+                                           padding, zero);
+  }
+  if (!quantizeA)
+    return a;
+
+  SmallVector<int64_t> blockedSizes(paddedSizes);
+  blockedSizes.back() = layout.getKBlocks();
+  blockedSizes.push_back(layout.blockSize);
+  Value minusOne = Torch::ConstantIntOp::create(rewriter, loc, -1);
+  Value blocked = Torch::AtenUnflattenIntOp::create(
+      rewriter, loc,
+      rewriter.getType<Torch::ValueTensorType>(blockedSizes, floatType), a,
+      minusOne,
+      Torch::toIntListConstruct(rewriter, loc,
+                                {layout.getKBlocks(), layout.blockSize}));
+
+  auto int8 = rewriter.getIntegerType(8, /*isSigned=*/true);
+  SmallVector<int64_t> qparamSizes(blockedSizes);
+  qparamSizes.back() = 1;
+  // onnxruntime's CPU kernel computes the activation scales in f32, also for
+  // f16 A.
+  auto scalesType = rewriter.getType<Torch::ValueTensorType>(
+      qparamSizes, rewriter.getF32Type());
+  auto zeroPointsType = rewriter.getType<Torch::ValueTensorType>(
+      qparamSizes, rewriter.getIntegerType(64, /*isSigned=*/true));
+  Value storageDtype = Torch::getDtypeIntValueForType(rewriter, loc, int8);
+  auto qparams = Torch::QuantizedDecomposedChooseQparamsPerTokenOp::create(
+      rewriter, loc, scalesType, zeroPointsType, blocked, storageDtype);
+  auto [quantMin, quantMax] = createQuantizationBounds(rewriter, loc, int8);
+  Value quantized = Torch::QuantizedDecomposedQuantizePerTokenOp::create(
+      rewriter, loc,
+      rewriter.getType<Torch::ValueTensorType>(blockedSizes, int8), blocked,
+      qparams.getScale(), qparams.getZeroPoint(), quantMin, quantMax,
+      storageDtype);
+  Value outDtype = Torch::getDtypeIntValueForType(rewriter, loc, floatType);
+  Value dequantized = Torch::QuantizedDecomposedDequantizePerTokenOp::create(
+      rewriter, loc,
+      rewriter.getType<Torch::ValueTensorType>(blockedSizes, floatType),
+      quantized, qparams.getScale(), qparams.getZeroPoint(), quantMin, quantMax,
+      storageDtype, outDtype);
+
+  Value minusTwo = Torch::ConstantIntOp::create(rewriter, loc, -2);
+  return Torch::AtenFlattenUsingIntsOp::create(rewriter, loc, paddedType,
+                                               dequantized, minusTwo, minusOne);
+}
+
 void mlir::torch::onnx_c::populateComMicrosoftDomain(
     OnnxCustomOpConversionPattern &patterns) {
+  patterns.onOp(
+      "FastGelu", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Value input, bias;
+        Torch::ValueTensorType resultType;
+        if (binder.getNumOperands() < 1 || binder.getNumOperands() > 2 ||
+            binder.tensorOperandAtIndex(input, 0) ||
+            binder.tensorResultType(resultType)) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "expected one input and an optional bias");
+        }
+
+        // Empty ONNX input names are imported as None.
+        if (binder.getNumOperands() == 2 &&
+            !isa<Torch::NoneType>(binder.op->getOperand(1).getType()) &&
+            binder.tensorOperandAtIndex(bias, 1)) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "expected tensor or None bias");
+        }
+        if (!resultType.hasDtype() ||
+            !(resultType.getDtype().isF16() || resultType.getDtype().isBF16() ||
+              resultType.getDtype().isF32() || resultType.getDtype().isF64())) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "expected floating-point result");
+        }
+
+        Location loc = binder.getLoc();
+        Type computeType = resultType;
+        if (bias) {
+          // Keep the bias addition in f32 as part of FastGelu's opmath; an
+          // intermediate f16/bf16 rounding changes the activation's result.
+          if (resultType.getDtype().isF16() || resultType.getDtype().isBF16()) {
+            auto f32 = rewriter.getF32Type();
+            input = Torch::convertTensorToDtype(rewriter, loc, input, f32);
+            bias = Torch::convertTensorToDtype(rewriter, loc, bias, f32);
+            computeType = resultType.getWithSizesAndDtype(
+                resultType.getOptionalSizes(), f32);
+          }
+          Value one = Torch::ConstantIntOp::create(rewriter, loc, 1);
+          input = Torch::AtenAddTensorOp::create(rewriter, loc, computeType,
+                                                 input, bias, one);
+        }
+        // FastGelu is the tanh GELU approximation, with bias added first.
+        Value approximate = Torch::ConstantStrOp::create(rewriter, loc, "tanh");
+        Value result = Torch::AtenGeluOp::create(rewriter, loc, computeType,
+                                                 input, approximate);
+        if (computeType != resultType)
+          result = Torch::convertTensorToDtype(rewriter, loc, result,
+                                               resultType.getDtype());
+        rewriter.replaceOp(binder.op, result);
+        return success();
+      });
+  patterns.onOp(
+      "MatMulIntegerToFloat", 1,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Value a, b, aScale, bScale, aZeroPoint, bZeroPoint, bias;
+        Torch::ValueTensorType resultType;
+        if (binder.getNumOperands() < 4 || binder.getNumOperands() > 7 ||
+            binder.tensorOperandAtIndex(a, 0) ||
+            binder.tensorOperandAtIndex(b, 1) ||
+            binder.tensorOperandAtIndex(aScale, 2) ||
+            binder.tensorOperandAtIndex(bScale, 3) ||
+            binder.tensorResultType(resultType)) {
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "expected four required inputs and up to three optional inputs");
+        }
+
+        Value *optionalInputs[] = {&aZeroPoint, &bZeroPoint, &bias};
+        // Empty ONNX input names become None without shifting later inputs,
+        // so bias may be present even when either zero point is omitted.
+        for (int64_t i = 4; i < binder.getNumOperands(); ++i) {
+          if (isa<Torch::NoneType>(binder.op->getOperand(i).getType())) {
+            continue;
+          }
+          if (binder.tensorOperandAtIndex(*optionalInputs[i - 4], i)) {
+            return rewriter.notifyMatchFailure(
+                binder.op, "expected tensor or None optional inputs");
+          }
+        }
+        if (!resultType.hasDtype() || !resultType.getDtype().isF32()) {
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "expected float32 result");
+        }
+        FailureOr<QuantizedTensorInfo> aInfo =
+            matchQuantizedTensor(binder, rewriter, a, aScale, aZeroPoint);
+        FailureOr<QuantizedTensorInfo> bInfo =
+            matchQuantizedTensor(binder, rewriter, b, bScale, bZeroPoint);
+        if (failed(aInfo) || failed(bInfo)) {
+          return failure();
+        }
+        if (bias) {
+          auto biasType = cast<Torch::ValueTensorType>(bias.getType());
+          if (!biasType.hasDtype() || !biasType.getDtype().isF32() ||
+              !biasType.hasSizes() || biasType.getSizes().size() != 1) {
+            return rewriter.notifyMatchFailure(binder.op,
+                                               "expected rank-1 float32 bias");
+          }
+          int64_t biasLength = biasType.getSizes()[0];
+          if (biasLength != Torch::kUnknownSize &&
+              bInfo->columns != Torch::kUnknownSize &&
+              biasLength != bInfo->columns) {
+            return rewriter.notifyMatchFailure(
+                binder.op, "bias length must match B's last dimension");
+          }
+        }
+
+        Location loc = binder.getLoc();
+        Value aFloat =
+            createMatMulIntegerToFloatDequantize(rewriter, loc, *aInfo);
+        Value bFloat =
+            createMatMulIntegerToFloatDequantize(rewriter, loc, *bInfo);
+        // A_f = DQ(A); B_f = DQ(B); Y = matmul(A_f, B_f) [+ bias].
+        // The inputs are already quantized and the result is float, so there
+        // is no output quantization boundary to create.
+        Value result = Torch::AtenMatmulOp::create(rewriter, loc, resultType,
+                                                   aFloat, bFloat);
+        if (bias) {
+          Value one = Torch::ConstantIntOp::create(rewriter, loc, 1);
+          result = Torch::AtenAddTensorOp::create(rewriter, loc, resultType,
+                                                  result, bias, one);
+        }
+        rewriter.replaceOp(binder.op, result);
+        return success();
+      });
+  patterns.onOp("MatMulNBits", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  FailureOr<MatMulNBitsInfo> info =
+                      matchMatMulNBits(binder, rewriter);
+                  if (failed(info))
+                    return failure();
+                  Location loc = binder.getLoc();
+                  const NBitsLayout &layout = info->layout;
+                  Type floatType = info->resultType.getDtype();
+
+                  // Y = linear(A', W, bias) computes A' @ W^T + bias for the
+                  // stored weight. Both operands span the padded K.
+                  Value weight = createNBitsWeight(rewriter, loc, layout,
+                                                   info->weight, info->scales,
+                                                   info->zeroPoints, floatType);
+                  Value activation = createNBitsActivation(
+                      rewriter, loc, layout, info->a, info->quantizeA);
+                  Value bias = info->bias;
+                  if (!bias)
+                    bias = Torch::ConstantNoneOp::create(rewriter, loc);
+                  rewriter.replaceOpWithNewOp<Torch::AtenLinearOp>(
+                      binder.op, info->resultType, activation, weight, bias);
+                  return success();
+                });
   patterns.onOp(
       "RotaryEmbedding", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
@@ -155,17 +878,26 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         Value input, skip, gamma;
         float epsilon;
         int64_t stashType;
-        SmallVector<Type> resultTypes;
         if (binder.tensorOperandAtIndex(input, 0) ||
             binder.tensorOperandAtIndex(skip, 1) ||
             binder.tensorOperandAtIndex(gamma, 2) ||
             binder.f32FloatAttr(epsilon, "epsilon", 1e-5f) ||
-            binder.s64IntegerAttr(stashType, "stash_type", 1) ||
-            binder.tensorResultTypes(resultTypes))
+            binder.s64IntegerAttr(stashType, "stash_type", 1))
           return rewriter.notifyMatchFailure(binder.op,
                                              "Failed to bind inputs/attrs");
 
-        if (resultTypes.size() > 2)
+        // Gather result types directly from the op rather than via
+        // binder.tensorResultTypes: unused optional outputs are imported as
+        // !torch.none typed results, which tensorResultTypes rejects. We must
+        // accept and preserve those none-typed slots so they can be emitted as
+        // torch.constant.none below.
+        SmallVector<Type> resultTypes(binder.op->getResultTypes());
+
+        // ORT's SkipSimplifiedLayerNormalization defines up to 4 outputs, in
+        // order: output, mean, inv_std_var, input_skip_bias_sum. Unused
+        // (optional) outputs are imported as !torch.none typed results and are
+        // handled below by emitting a torch.constant.none in that slot.
+        if (resultTypes.size() > 4)
           return rewriter.notifyMatchFailure(binder.op,
                                              "unsupported number of results");
 
@@ -224,21 +956,80 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
                                              bias, cstOne);
         }
 
-        // Build normalized_shape for last dimension: [inputShape[-1]]
-        auto castInput = cast<Torch::ValueTensorType>(input.getType());
-        ArrayRef<int64_t> inputShape = castInput.getSizes();
-        Value cstLastDimSize = Torch::ConstantIntOp::create(
-            rewriter, loc,
-            rewriter.getI64IntegerAttr(inputShape[inputRank - 1]));
-        Value normalizedShape = Torch::PrimListConstructOp::create(
-            rewriter, loc,
-            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
-            SmallVector<Value>{cstLastDimSize});
+        // Keep a stash-dtype copy of the residual sum. `s` itself is cast back
+        // to origDtype below so that it can be returned as
+        // input_skip_bias_sum; sStash is used for all normalization math.
+        Value sStash = s;
 
-        // Emit aten.rms_norm (in stash dtype if upcasted)
-        Value output =
-            Torch::AtenRmsNormOp::create(rewriter, loc, input.getType(), s,
-                                         normalizedShape, gamma, cstEpsilon);
+        // inv_std_var (result 2) is only computed when the model requests it
+        // with a concrete tensor type; unused outputs are !torch.none.
+        bool wantInvStd =
+            resultTypes.size() > 2 && !isa<Torch::NoneType>(resultTypes[2]);
+
+        Value output;
+        Value invStdStash;
+        if (wantInvStd) {
+          // inv_std_var = 1 / sqrt(mean(s^2, dim=-1, keepdim) + eps). This is
+          // the same quantity aten.rms_norm computes internally, so compute it
+          // once here and build the normalized output from it explicitly
+          // (output = s * inv_std_var * gamma) instead of also emitting
+          // aten.rms_norm, which would recompute it.
+          auto sStashType = cast<Torch::ValueTensorType>(sStash.getType());
+          Value cstTwo = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(2));
+          Value sSquared = Torch::AtenPowTensorScalarOp::create(
+              rewriter, loc, sStashType, sStash, cstTwo);
+          Value cstLastDim = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(-1));
+          Value dimList = Torch::PrimListConstructOp::create(
+              rewriter, loc,
+              Torch::ListType::get(
+                  Torch::IntType::get(binder.op->getContext())),
+              SmallVector<Value>{cstLastDim});
+          Value cstTrue = Torch::ConstantBoolOp::create(rewriter, loc, true);
+          Value cstNoneForMean = Torch::ConstantNoneOp::create(rewriter, loc);
+          // Reduced type: keepdim=true keeps last dim as size 1.
+          SmallVector<int64_t> reducedSizes(sStashType.getSizes());
+          reducedSizes.back() = 1;
+          auto reducedType =
+              Torch::ValueTensorType::get(binder.op->getContext(), reducedSizes,
+                                          sStashType.getOptionalDtype());
+          Value meanSq = Torch::AtenMeanDimOp::create(
+              rewriter, loc, reducedType, sSquared, dimList,
+              /*keepdim=*/cstTrue, /*dtype=*/cstNoneForMean);
+          Value meanSqEps = Torch::AtenAddScalarOp::create(
+              rewriter, loc, reducedType, meanSq, cstEpsilon, cstOne);
+          invStdStash =
+              Torch::AtenRsqrtOp::create(rewriter, loc, reducedType, meanSqEps);
+
+          // output = (s * inv_std_var) * gamma, in the stash dtype.
+          Value normed = Torch::AtenMulTensorOp::create(
+              rewriter, loc, sStashType, sStash, invStdStash);
+          Value gammaStash = gamma;
+          auto gammaType = cast<Torch::ValueTensorType>(gamma.getType());
+          if (gammaType.getOptionalDtype() != *stashDtype)
+            gammaStash =
+                Torch::convertTensorToDtype(rewriter, loc, gamma, *stashDtype);
+          output = Torch::AtenMulTensorOp::create(rewriter, loc, sStashType,
+                                                  normed, gammaStash);
+        } else {
+          // Build normalized_shape for last dimension: [inputShape[-1]]
+          auto castInput = cast<Torch::ValueTensorType>(input.getType());
+          ArrayRef<int64_t> inputShape = castInput.getSizes();
+          Value cstLastDimSize = Torch::ConstantIntOp::create(
+              rewriter, loc,
+              rewriter.getI64IntegerAttr(inputShape[inputRank - 1]));
+          Value normalizedShape = Torch::PrimListConstructOp::create(
+              rewriter, loc,
+              Torch::ListType::get(
+                  Torch::IntType::get(binder.op->getContext())),
+              SmallVector<Value>{cstLastDimSize});
+
+          // Emit aten.rms_norm (in stash dtype if upcasted)
+          output =
+              Torch::AtenRmsNormOp::create(rewriter, loc, input.getType(), s,
+                                           normalizedShape, gamma, cstEpsilon);
+        }
 
         // Cast results back to original dtype if upcasted
         if (*stashDtype != origDtype) {
@@ -247,14 +1038,102 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
           s = Torch::convertTensorToDtype(rewriter, loc, s, origDtype);
         }
 
-        if (resultTypes.size() == 1) {
-          rewriter.replaceOp(binder.op, {output});
-        } else {
-          // 2-output: (output, input_skip_bias_sum)
-          rewriter.replaceOp(binder.op, {output, s});
+        // Emit the results positionally following the ORT output ordering:
+        //   0: output
+        //   1: mean
+        //   2: inv_std_var
+        //   3: input_skip_bias_sum
+        // Any output that the model does not consume is imported as a
+        // !torch.none typed result; for those we emit a torch.constant.none in
+        // that slot and skip computing the corresponding value.
+        auto isNoneResult = [](Type t) { return isa<Torch::NoneType>(t); };
+        Value cstNone;
+        auto getNone = [&]() -> Value {
+          if (!cstNone)
+            cstNone = Torch::ConstantNoneOp::create(rewriter, loc);
+          return cstNone;
+        };
+
+        SmallVector<Value> results;
+        results.reserve(resultTypes.size());
+
+        // Result 0: output (always present).
+        results.push_back(output);
+
+        // Result 1: mean. The simplified (RMS) variant does not subtract a
+        // mean, so this output is vestigial. When requested with a concrete
+        // tensor type, materialize a zeros tensor of the expected shape/dtype.
+        if (resultTypes.size() > 1) {
+          if (isNoneResult(resultTypes[1])) {
+            results.push_back(getNone());
+          } else {
+            auto meanType = cast<Torch::ValueTensorType>(resultTypes[1]);
+            Value dtypeInt = Torch::ConstantIntOp::create(
+                rewriter, loc,
+                rewriter.getI64IntegerAttr(static_cast<int64_t>(
+                    Torch::getScalarTypeForType(meanType.getDtype()))));
+            // Build a zeros tensor with the reduced shape. Use aten.zeros with
+            // the sizes taken from the requested result type. Dynamic dims
+            // (kUnknownSize) cannot be baked into a constant, so resolve them
+            // at runtime from the already-materialized residual sum (sStash),
+            // whose leading dims match the mean output's dims by index.
+            SmallVector<Value> meanShapeValues;
+            ArrayRef<int64_t> meanShape = meanType.getSizes();
+            for (auto [idx, dim] : llvm::enumerate(meanShape)) {
+              Value dimSize;
+              if (dim == Torch::kUnknownSize) {
+                Value dimIndex = Torch::ConstantIntOp::create(
+                    rewriter, loc, rewriter.getI64IntegerAttr(idx));
+                dimSize = Torch::AtenSizeIntOp::create(rewriter, loc, sStash,
+                                                       dimIndex);
+              } else {
+                dimSize = Torch::ConstantIntOp::create(
+                    rewriter, loc, rewriter.getI64IntegerAttr(dim));
+              }
+              meanShapeValues.push_back(dimSize);
+            }
+
+            Value zerosSizeList = Torch::PrimListConstructOp::create(
+                rewriter, loc,
+                Torch::ListType::get(
+                    Torch::IntType::get(binder.op->getContext())),
+                meanShapeValues);
+            Value cstNoneForZeros = getNone();
+            Value mean = Torch::AtenZerosOp::create(
+                rewriter, loc, meanType, zerosSizeList, dtypeInt,
+                /*layout=*/cstNoneForZeros, /*device=*/cstNoneForZeros,
+                /*pin_memory=*/cstNoneForZeros);
+            results.push_back(mean);
+          }
         }
+
+        // Result 2: inv_std_var, computed above together with the output.
+        if (resultTypes.size() > 2) {
+          if (!wantInvStd) {
+            results.push_back(getNone());
+          } else {
+            auto invStdType = cast<Torch::ValueTensorType>(resultTypes[2]);
+            Value invStd = invStdStash;
+            if (invStdType.getOptionalDtype() != *stashDtype)
+              invStd = Torch::convertTensorToDtype(
+                  rewriter, loc, invStd, invStdType.getOptionalDtype());
+            results.push_back(invStd);
+          }
+        }
+
+        // Result 3: input_skip_bias_sum = input + skip + bias.
+        if (resultTypes.size() > 3) {
+          if (isNoneResult(resultTypes[3])) {
+            results.push_back(getNone());
+          } else {
+            results.push_back(s);
+          }
+        }
+
+        rewriter.replaceOp(binder.op, results);
         return success();
       });
+
   patterns.onOp(
       "GroupQueryAttention", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
@@ -988,18 +1867,12 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
                                                  a, b, alpha);
 
         // Quantizing the result of "Add" operation.
-        cTy = dyn_cast<Torch::ValueTensorType>(
-            getQTorchTypeFromTorchIntType(resultType));
-        Value dtyVal = Torch::ConstantIntOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(
-                rewriter.getIntegerType(64),
-                static_cast<int64_t>(
-                    Torch::getScalarTypeForType(cTy.getDtype()))));
-        c = Torch::AtenQuantizePerTensorOp::create(rewriter, binder.getLoc(),
-                                                   cTy, c, cScale, cZp, dtyVal);
-        rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType,
-                                                          c);
+        Value quantizedC;
+        if (failed(createQuantizeTensor(rewriter, loc, c, cScale, cZp,
+                                        resultType, quantizedC)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to quantize the result tensor `c`");
+        rewriter.replaceOp(binder.op, quantizedC);
         return success();
       });
   patterns.onOp(
@@ -1049,18 +1922,12 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
             Torch::AtenLeakyReluOp::create(rewriter, loc, yTy, x, constAlpha);
 
         // Quantizing the result of LeakyRelu op.
-        yTy = dyn_cast<Torch::ValueTensorType>(
-            getQTorchTypeFromTorchIntType(resultType));
-        Value dtyVal = Torch::ConstantIntOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(
-                rewriter.getIntegerType(64),
-                static_cast<int64_t>(
-                    Torch::getScalarTypeForType(yTy.getDtype()))));
-        y = Torch::AtenQuantizePerTensorOp::create(rewriter, loc, yTy, y,
-                                                   yScale, yZp, dtyVal);
-        rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType,
-                                                          y);
+        Value quantizedY;
+        if (failed(createQuantizeTensor(rewriter, loc, y, yScale, yZp,
+                                        resultType, quantizedY)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to quantize the result tensor `y`");
+        rewriter.replaceOp(binder.op, quantizedY);
         return success();
       });
   patterns.onOp(
@@ -1135,18 +2002,12 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
           return rewriter.notifyMatchFailure(
               binder.op, "Incompatible scale and zero-points argument for "
                          "per-tensor quantization");
-        Torch::ValueTensorType yTy = dyn_cast<Torch::ValueTensorType>(
-            getQTorchTypeFromTorchIntType(resultType));
-        Value dtyVal = Torch::ConstantIntOp::create(
-            rewriter, loc, rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(
-                rewriter.getIntegerType(64),
-                static_cast<int64_t>(
-                    Torch::getScalarTypeForType(yTy.getDtype()))));
-        Value result = Torch::AtenQuantizePerTensorOp::create(
-            rewriter, loc, yTy, concat, yScale, yZp, dtyVal);
-        rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType,
-                                                          result);
+        Value quantizedResult;
+        if (failed(createQuantizeTensor(rewriter, loc, concat, yScale, yZp,
+                                        resultType, quantizedResult)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to quantize the concatenated result tensor");
+        rewriter.replaceOp(binder.op, quantizedResult);
         return success();
       });
   patterns.onOp(
@@ -1261,18 +2122,12 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         }
 
         // Quantizing the result of AvgPool op.
-        yTy = dyn_cast<Torch::ValueTensorType>(
-            getQTorchTypeFromTorchIntType(resultType));
-        Value dtyVal = Torch::ConstantIntOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(
-                rewriter.getIntegerType(64),
-                static_cast<int64_t>(
-                    Torch::getScalarTypeForType(yTy.getDtype()))));
-        avgpool = Torch::AtenQuantizePerTensorOp::create(
-            rewriter, loc, yTy, avgpool, yScale, yZp, dtyVal);
-        rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType,
-                                                          avgpool);
+        Value quantizedAvgpool;
+        if (failed(createQuantizeTensor(rewriter, loc, avgpool, yScale, yZp,
+                                        resultType, quantizedAvgpool)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to quantize the AvgPool result tensor");
+        rewriter.replaceOp(binder.op, quantizedAvgpool);
         return success();
       });
   patterns.onOp(
@@ -1316,18 +2171,12 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         Value y = Torch::AtenSigmoidOp::create(rewriter, loc, yTy, x);
 
         // Quantizing the result of Sigmoid op.
-        yTy = dyn_cast<Torch::ValueTensorType>(
-            getQTorchTypeFromTorchIntType(resultType));
-        Value dtyVal = Torch::ConstantIntOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(
-                rewriter.getIntegerType(64),
-                static_cast<int64_t>(
-                    Torch::getScalarTypeForType(yTy.getDtype()))));
-        y = Torch::AtenQuantizePerTensorOp::create(rewriter, loc, yTy, y,
-                                                   yScale, yZp, dtyVal);
-        rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType,
-                                                          y);
+        Value quantizedY;
+        if (failed(createQuantizeTensor(rewriter, loc, y, yScale, yZp,
+                                        resultType, quantizedY)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to quantize the Sigmoid result tensor");
+        rewriter.replaceOp(binder.op, quantizedY);
         return success();
       });
   patterns.onOp(
@@ -1376,8 +2225,6 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         // Creating Onnx.AveragePool op.
         llvm::SmallVector<Value> newOperands = {x};
         llvm::SmallVector<NamedAttribute> newAttributes;
-        newAttributes.push_back(rewriter.getNamedAttr(
-            "name", rewriter.getStringAttr("onnx.AveragePool")));
         for (auto namedAttr : binder.op->getAttrDictionary()) {
           if (namedAttr.getName().getValue().compare("name") == 0)
             continue;
@@ -1386,24 +2233,21 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
 
         auto yTy = rewriter.getType<Torch::ValueTensorType>(
             resultType.getOptionalSizes(), rewriter.getF32Type());
-        Value averagePool = Torch::OperatorOp::create(
-                                rewriter, binder.getLoc(), yTy, newOperands,
-                                newAttributes, binder.op->getRegions().size())
-                                .getResult(0);
+        Torch::OperatorOp::Properties properties;
+        properties.name = rewriter.getStringAttr("onnx.AveragePool");
+        Value averagePool =
+            Torch::OperatorOp::create(rewriter, binder.getLoc(), yTy,
+                                      newOperands, properties, newAttributes,
+                                      binder.op->getRegions().size())
+                .getResult(0);
 
         // Quantizing the result of AveragePool op.
-        yTy = dyn_cast<Torch::ValueTensorType>(
-            getQTorchTypeFromTorchIntType(resultType));
-        Value dtyVal = Torch::ConstantIntOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(
-                rewriter.getIntegerType(64),
-                static_cast<int64_t>(
-                    Torch::getScalarTypeForType(yTy.getDtype()))));
-        averagePool = Torch::AtenQuantizePerTensorOp::create(
-            rewriter, loc, yTy, averagePool, yScale, yZp, dtyVal);
-        rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType,
-                                                          averagePool);
+        Value quantizedAveragePool;
+        if (failed(createQuantizeTensor(rewriter, loc, averagePool, yScale, yZp,
+                                        resultType, quantizedAveragePool)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to quantize the AveragePool result tensor");
+        rewriter.replaceOp(binder.op, quantizedAveragePool);
         return success();
       });
   patterns.onOp(
@@ -1517,18 +2361,12 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
                                                  a, b);
 
         // Quantizing the result of Mul operation.
-        cTy = dyn_cast<Torch::ValueTensorType>(
-            getQTorchTypeFromTorchIntType(resultType));
-        Value dtyVal = Torch::ConstantIntOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(
-                rewriter.getIntegerType(64),
-                static_cast<int64_t>(
-                    Torch::getScalarTypeForType(cTy.getDtype()))));
-        c = Torch::AtenQuantizePerTensorOp::create(rewriter, binder.getLoc(),
-                                                   cTy, c, cScale, cZp, dtyVal);
-        rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType,
-                                                          c);
+        Value quantizedC;
+        if (failed(createQuantizeTensor(rewriter, loc, c, cScale, cZp,
+                                        resultType, quantizedC)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to quantize the result tensor `c`");
+        rewriter.replaceOp(binder.op, quantizedC);
         return success();
       });
 }

@@ -145,6 +145,7 @@ def TMTensor_ScatterOp : TMTensor_Op<"scatter",
   let results = (outs Variadic<AnyRankedTensor>:$results);
   let regions = (region AnyRegion:$region);
   let assemblyFormat = [{
+    prop-dict
     attr-dict `unique_indices` `(` $unique_indices `)`
     (`ins` `(` $inputs^ `:` type($inputs) `)`)?
     `outs` `(` $outputs `:` type($outputs) `)`
@@ -280,6 +281,7 @@ def TMTensor_AttentionOp : TMTensor_Op<"attention",
 
   let results = (outs Variadic<AnyRankedTensor>:$result);
   let assemblyFormat = [{
+    prop-dict
     attr-dict
     `ins` `(` $inputs `:` type($inputs) `)`
     `outs` `(` $outputs `:` type($outputs) `)`

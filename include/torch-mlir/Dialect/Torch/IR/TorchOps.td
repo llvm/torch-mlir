@@ -105,6 +105,8 @@ def Torch_SlotOp : Torch_Op<"slot", [
 //===----------------------------------------------------------------------===//
 
 def Torch_ClassTypeOp : Torch_Op<"class_type", [
+    SymbolName,
+    SymbolVisibility,
     Symbol,
     SingleBlockImplicitTerminator<"::mlir::torch::Torch::ClassTypeTerminatorOp">]> {
   let summary = "Constructs a torch.ClassType";
@@ -142,12 +144,13 @@ def Torch_ClassTypeOp : Torch_Op<"class_type", [
     ```
   }];
 
-  let arguments = (ins SymbolNameAttr:$sym_name);
+  let arguments = (ins SymbolNameAttr:$sym_name,
+                       OptionalAttr<StrAttr>:$sym_visibility);
   let results = (outs);
   let regions = (region SizedRegion<1>:$region);
   let hasVerifier = 1;
 
-  let assemblyFormat = "$sym_name $region attr-dict";
+  let assemblyFormat = "($sym_visibility^)? $sym_name $region attr-dict";
 }
 
 def Torch_ClassTypeTerminatorOp : Torch_Op<"class_type_terminator", [Terminator,
@@ -228,6 +231,8 @@ def Torch_AttrOp : Torch_Op<"attr", [
 //===----------------------------------------------------------------------===//
 
 def Torch_GlobalSlotOp : Torch_Op<"global_slot", [
+    SymbolName,
+    SymbolVisibility,
     Symbol,
   ]> {
   let summary = "A slot with global storage";
@@ -1520,6 +1525,12 @@ def Torch_HigherOrderFlexAttentionOp : Torch_Op<"hop_flex_attention", [
 // Hand-authored for quantized_decomposed ops that appear in PT2E export graphs.
 // These are *not* in the PyTorch JIT registry so they cannot be generated via
 // torch_ods_gen.py; they must be listed here as first-class dialect ops.
+//
+// The per-tensor, per-channel and per-channel-group ops verify that `dtype`
+// matches the storage tensor, that the real tensor and the scales are floating
+// point, that quant_min <= quant_max and both are representable in the storage
+// dtype, and that the scales and zero points have one element per channel or
+// group.
 //===----------------------------------------------------------------------===//
 
 def Torch_QuantizedDecomposedQuantizePerTensorOp : Torch_Op<
@@ -1534,16 +1545,15 @@ def Torch_QuantizedDecomposedQuantizePerTensorOp : Torch_Op<
     scalar-qparams overload, whose schema overload_name is empty) in
     PT2E-exported graphs.
 
-    Quantizes a floating-point tensor to an integer tensor using per-tensor
-    affine quantization:
+    Quantizes a floating-point tensor using per-tensor affine quantization:
     ```
     output = clamp(round(input / scale) + zero_point, quant_min, quant_max)
     ```
 
     The `dtype` argument encodes the output element type as a `torch.dtype`
-    integer code (e.g. 2 = torch.int8, 0 = torch.uint8).  Output shape is
+    integer code (e.g. 1 = torch.int8, 0 = torch.uint8).  Output shape is
     identical to the input shape; the element type is determined at
-    compile-time by dtype refinement or left as an opaque integer tensor.
+    compile-time by dtype refinement.
   }];
   let arguments = (ins
     AnyTorchTensorType:$input,
@@ -1554,6 +1564,7 @@ def Torch_QuantizedDecomposedQuantizePerTensorOp : Torch_Op<
     Torch_IntType:$dtype
   );
   let results = (outs AnyTorchTensorType:$result);
+  let hasVerifier = 1;
   let assemblyFormat = [{
     $input `,` $scale `,` $zero_point `,` $quant_min `,` $quant_max `,` $dtype
     attr-dict
@@ -1576,15 +1587,16 @@ def Torch_QuantizedDecomposedDequantizePerTensorOp : Torch_Op<
     scalar-qparams overload, whose schema overload_name is empty) in
     PT2E-exported graphs.
 
-    Dequantizes an integer tensor back to floating point:
+    Dequantizes a quantized tensor back to floating point:
     ```
     output = (input - zero_point) * scale
     ```
 
     The `dtype` argument encodes the *input* element type as a `torch.dtype`
-    integer code and is used only for range-clamping metadata.  `out_dtype`,
-    when not None, specifies the output element type; otherwise output is
-    `float32`.  Output shape is identical to the input shape.
+    integer code; `quant_min` and `quant_max` do not affect the result.
+    `out_dtype`, when not None, specifies the floating-point output element
+    type; otherwise output is `float32`.  Output shape is identical to the
+    input shape.
   }];
   let arguments = (ins
     AnyTorchTensorType:$input,
@@ -1596,6 +1608,7 @@ def Torch_QuantizedDecomposedDequantizePerTensorOp : Torch_Op<
     AnyTorchOptionalIntType:$out_dtype
   );
   let results = (outs AnyTorchTensorType:$result);
+  let hasVerifier = 1;
   let assemblyFormat = [{
     $input `,` $scale `,` $zero_point `,` $quant_min `,` $quant_max `,` $dtype `,` $out_dtype
     attr-dict
@@ -1617,7 +1630,9 @@ def Torch_QuantizedDecomposedQuantizePerChannelOp : Torch_Op<
   let description = [{
     Quantizes a floating-point tensor with one affine scale and zero point per
     channel. `axis` identifies the input dimension indexed by the one
-    dimensional `scales` and `zero_points` tensors.
+    dimensional `scales` and `zero_points` tensors, which have one element
+    per index of that dimension. Zero points may be integer or floating
+    point.
   }];
   let arguments = (ins
     AnyTorchTensorType:$input,
@@ -1629,6 +1644,7 @@ def Torch_QuantizedDecomposedQuantizePerChannelOp : Torch_Op<
     Torch_IntType:$dtype
   );
   let results = (outs AnyTorchTensorType:$result);
+  let hasVerifier = 1;
   let assemblyFormat = [{
     $input `,` $scales `,` $zero_points `,` $axis `,` $quant_min `,`
         $quant_max `,` $dtype attr-dict
@@ -1648,8 +1664,9 @@ def Torch_QuantizedDecomposedDequantizePerChannelOp : Torch_Op<
   ]> {
   let summary = "PT2E dequantize_per_channel";
   let description = [{
-    Dequantizes an integer tensor with one scale and optional zero point per
+    Dequantizes a quantized tensor with one scale and optional zero point per
     channel. A None `zero_points` operand denotes symmetric quantization.
+    `scales` and `zero_points` are as in `quantize_per_channel`.
   }];
   let arguments = (ins
     AnyTorchTensorType:$input,
@@ -1662,6 +1679,7 @@ def Torch_QuantizedDecomposedDequantizePerChannelOp : Torch_Op<
     AnyTorchOptionalIntType:$out_dtype
   );
   let results = (outs AnyTorchTensorType:$result);
+  let hasVerifier = 1;
   let assemblyFormat = [{
     $input `,` $scales `,` $zero_points `,` $axis `,` $quant_min `,`
         $quant_max `,` $dtype `,` $out_dtype attr-dict
@@ -1684,9 +1702,12 @@ def Torch_QuantizedDecomposedQuantizePerChannelGroupOp : Torch_Op<
     Quantizes a floating-point tensor with per-channel-group affine
     quantization.
 
-    The input tensor is quantized in groups along the last dimension.
-    `scales` and `zero_points` have shape `[num_channels, num_groups]`
-    where `num_groups = input.shape[-1] / group_size`.
+    The rank-2 input tensor is quantized in groups along the last dimension.
+    `scales` and `zero_points` have one element per group, i.e.
+    `input.shape[0] * num_groups` elements where
+    `num_groups = input.shape[-1] / group_size`. Zero points may be integer
+    or floating point. If `group_size` exceeds `input.shape[-1]` and the last
+    dimension of `scales` is 1, each row is quantized as one group.
   }];
   let arguments = (ins
     AnyTorchTensorType:$input,
@@ -1698,6 +1719,13 @@ def Torch_QuantizedDecomposedQuantizePerChannelGroupOp : Torch_Op<
     Torch_IntType:$group_size
   );
   let results = (outs AnyTorchTensorType:$result);
+  let hasVerifier = 1;
+  let extraClassDeclaration = [{
+    /// Returns the group size the op applies for the constant `groupSize`:
+    /// the input row length if `groupSize` exceeds it and the last dimension
+    /// of `scales` is 1, and `groupSize` otherwise.
+    int64_t getEffectiveGroupSize(int64_t groupSize);
+  }];
   let assemblyFormat = [{
     $input `,` $scales `,` $zero_points `,` $quant_min `,`
         $quant_max `,` $dtype `,` $group_size attr-dict
@@ -1717,12 +1745,12 @@ def Torch_QuantizedDecomposedDequantizePerChannelGroupOp : Torch_Op<
   ]> {
   let summary = "PT2E dequantize_per_channel_group";
   let description = [{
-    Dequantizes an integer tensor with per-channel-group affine quantization.
+    Dequantizes a quantized tensor with per-channel-group affine quantization.
 
-    The input tensor is dequantized in groups along the last dimension.
-    `scales` has shape `[num_channels, num_groups]` where
-    `num_groups = input.shape[-1] / group_size`. `zero_points` may be None
-    for symmetric quantization.
+    The rank-2 input tensor is dequantized in groups along the last
+    dimension. `scales`, `zero_points` and `group_size` are as in
+    `quantize_per_channel_group`. `zero_points` may be None for symmetric
+    quantization.
   }];
   let arguments = (ins
     AnyTorchTensorType:$input,
@@ -1735,6 +1763,13 @@ def Torch_QuantizedDecomposedDequantizePerChannelGroupOp : Torch_Op<
     Torch_IntType:$out_dtype
   );
   let results = (outs AnyTorchTensorType:$result);
+  let hasVerifier = 1;
+  let extraClassDeclaration = [{
+    /// Returns the group size the op applies for the constant `groupSize`:
+    /// the input row length if `groupSize` exceeds it and the last dimension
+    /// of `scales` is 1, and `groupSize` otherwise.
+    int64_t getEffectiveGroupSize(int64_t groupSize);
+  }];
   let assemblyFormat = [{
     $input `,` $scales `,` $zero_points `,` $quant_min `,`
         $quant_max `,` $dtype `,` $group_size `,` $out_dtype attr-dict
@@ -1881,6 +1916,82 @@ def Torch_QuantizedDecomposedChooseQparamsPerTokenOp : Torch_Op<
     $input `,` $dtype attr-dict
     `:` qualified(type($input)) `,` qualified(type($dtype))
     `->` qualified(type($scale)) `,` qualified(type($zero_point))
+  }];
+}
+
+//===----------------------------------------------------------------------===//
+// torchao quantization ops
+// Hand-authored for torchao ops that appear in torch.export graphs.
+//===----------------------------------------------------------------------===//
+
+def Torch_TorchaoQuantizeAffineOp : Torch_Op<
+    "torchao.quantize_affine", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly,
+  ]> {
+  let hasVerifier = 1;
+  let summary = "torchao quantize_affine";
+  let description = [{
+    Quantizes a floating-point tensor with affine quantization in blocks. All
+    elements of a block of shape `block_size` share one `scale` and
+    `zero_point` value. A None `quant_min` or `quant_max` is the bound of
+    `output_dtype`.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchListOfTorchIntType:$block_size,
+    AnyTorchTensorType:$scale,
+    AnyTorchOptionalTensorType:$zero_point,
+    Torch_IntType:$output_dtype,
+    AnyTorchOptionalScalarType:$quant_min,
+    AnyTorchOptionalScalarType:$quant_max
+  );
+  let results = (outs AnyTorchTensorType:$result);
+  let assemblyFormat = [{
+    $input `,` $block_size `,` $scale `,` $zero_point `,` $output_dtype `,`
+        $quant_min `,` $quant_max attr-dict
+    `:` qualified(type($input)) `,` qualified(type($block_size)) `,`
+        qualified(type($scale)) `,` qualified(type($zero_point)) `,`
+        qualified(type($output_dtype)) `,` qualified(type($quant_min)) `,`
+        qualified(type($quant_max))
+    `->` qualified(type($result))
+  }];
+}
+
+def Torch_TorchaoDequantizeAffineOp : Torch_Op<
+    "torchao.dequantize_affine", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly,
+  ]> {
+  let hasVerifier = 1;
+  let summary = "torchao dequantize_affine";
+  let description = [{
+    Dequantizes a tensor quantized in blocks of shape `block_size`, each with
+    one `scale` and `zero_point` value. A None `zero_point` denotes symmetric
+    quantization. `quant_min` and `quant_max` describe the range of `input`
+    and do not clamp.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchListOfTorchIntType:$block_size,
+    AnyTorchTensorType:$scale,
+    AnyTorchOptionalTensorType:$zero_point,
+    Torch_IntType:$input_dtype,
+    AnyTorchOptionalScalarType:$quant_min,
+    AnyTorchOptionalScalarType:$quant_max,
+    Torch_IntType:$output_dtype
+  );
+  let results = (outs AnyTorchTensorType:$result);
+  let assemblyFormat = [{
+    $input `,` $block_size `,` $scale `,` $zero_point `,` $input_dtype `,`
+        $quant_min `,` $quant_max `,` $output_dtype attr-dict
+    `:` qualified(type($input)) `,` qualified(type($block_size)) `,`
+        qualified(type($scale)) `,` qualified(type($zero_point)) `,`
+        qualified(type($input_dtype)) `,` qualified(type($quant_min)) `,`
+        qualified(type($quant_max)) `,` qualified(type($output_dtype))
+    `->` qualified(type($result))
   }];
 }
 

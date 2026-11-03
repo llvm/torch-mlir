@@ -4,6 +4,7 @@
 # Also available under a BSD-style license. See LICENSE.
 
 import ctypes
+import os
 import numpy as np
 
 from torch_mlir.ir import *
@@ -37,6 +38,14 @@ def assert_arg_type_is_supported(ty):
     assert (
         ty in SUPPORTED
     ), f"Only numpy arrays with dtypes in {SUPPORTED} are supported, but got {ty}"
+
+
+def with_identity_layout_strides(arg):
+    # NumPy strides are arbitrary on size-1 dims and in zero-size arrays.
+    strides = [arg.itemsize] * arg.ndim
+    for i in reversed(range(arg.ndim - 1)):
+        strides[i] = strides[i + 1] * arg.shape[i + 1]
+    return np.lib.stride_tricks.as_strided(arg, strides=strides)
 
 
 memref_type_to_np_dtype = {
@@ -92,7 +101,15 @@ def get_ctype_func(func_name):
 
 class RefBackendInvoker:
     def __init__(self, module):
-        self.ee = ExecutionEngine(module)
+        # Some bufferization.clone operations become memref.copy after the
+        # passes that turn copies into loops have already run. Since LLVM
+        # commit 2a96d5737524, metadata expansion can give these copies dynamic
+        # strides, so LLVM lowering uses memrefCopy instead of llvm.intr.memcpy.
+        # Load its runtime library to avoid "Symbols not found: [ memrefCopy ]".
+        runner_utils = os.environ.get("MLIR_C_RUNNER_UTILS")
+        self.ee = ExecutionEngine(
+            module, shared_libs=[runner_utils] if runner_utils else []
+        )
         self.result = None
 
         return_funcs = get_return_funcs(module)
@@ -123,6 +140,8 @@ class RefBackendInvoker:
             ffi_args = []
             for arg in args:
                 assert_arg_type_is_supported(arg.dtype)
+                if arg.flags.c_contiguous:
+                    arg = with_identity_layout_strides(arg)
                 ffi_args.append(
                     ctypes.pointer(ctypes.pointer(get_unranked_memref_descriptor(arg)))
                 )

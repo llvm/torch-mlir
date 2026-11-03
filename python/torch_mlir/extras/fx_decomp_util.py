@@ -3,6 +3,8 @@ import functools
 import torch
 from torch._decomp import get_decompositions
 
+from .fx_importer import _get_mlir_op_name_for_schema
+
 # Decompositions not in core_aten_decompositions() that torch-mlir needs.
 # Note: only the specific overload matters — core may have other overloads of
 # the same op but not the one torch.export produces.
@@ -34,8 +36,16 @@ if hasattr(torch.ops.aten, "scaled_dot_product_attention"):
     DEFAULT_DECOMPOSITIONS.append(torch.ops.aten.scaled_dot_product_attention)
 
 
-def get_decomposition_table():
-    return get_expanded_decomposition_table()
+def get_decomposition_table(backend_legal_ops=None):
+    if not backend_legal_ops:
+        return get_expanded_decomposition_table()
+    # Ops that the backend lists as legal are imported as they are.
+    legal_ops = {f"torch.{op}" for op in backend_legal_ops}
+    return {
+        k: v
+        for k, v in get_expanded_decomposition_table().items()
+        if _get_mlir_op_name_for_schema(k._schema) not in legal_ops
+    }
 
 
 _EXPANDED_DECOMP_EXCLUDE = [

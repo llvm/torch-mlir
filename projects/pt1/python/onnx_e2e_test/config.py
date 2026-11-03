@@ -6,7 +6,7 @@
 Golden-vs-backend evaluation for ONNX-native end-to-end tests.
 
 Provides two functions:
-  - run_golden: run an onnx.ModelProto through onnx.reference.ReferenceEvaluator
+  - run_golden: evaluate an onnx.ModelProto (ONNX Runtime for Microsoft contrib ops)
   - run_backend: compile the same ModelProto through a torch-mlir backend
 
 Both return a list of torch.Tensor so the existing torch_mlir_e2e_test
@@ -19,8 +19,6 @@ import numpy as np
 import onnx
 import torch
 
-import onnx.reference
-
 from torch_mlir.compiler_utils import (
     OutputType,
     TensorPlaceholder,
@@ -29,6 +27,9 @@ from torch_mlir_e2e_test.configs.onnx_backend import import_onnx, module_lowerin
 from torch_mlir_e2e_test.configs.utils import recursively_convert_from_numpy
 
 from .framework import _INPUT_RANGE_ATTR
+from .reference import run_reference
+from .utils import cast_outputs_to_declared_dtypes, numpy_dtype_for_torch
+
 
 # Torch-MLIR execution backends
 from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import (
@@ -43,16 +44,6 @@ from torch_mlir_e2e_test.tosa_backends.linalg_on_tensors import (
 # ---------------------------------------------------------------------------
 
 _DYNAMIC_DIM_PLACEHOLDER = 2
-
-
-def _numpy_dtype_for_torch(dtype: torch.dtype) -> np.dtype:
-    """Map a torch.dtype to a numpy dtype for seeding input arrays."""
-    try:
-        return torch.empty((), dtype=dtype).numpy().dtype
-    except TypeError as e:
-        raise ValueError(
-            f"Unsupported torch dtype for input generation: {dtype}"
-        ) from e
 
 
 def _is_integer_dtype(np_dtype: np.dtype) -> bool:
@@ -86,7 +77,7 @@ def materialize_inputs(
         shape = tuple(
             d if d >= 0 else _DYNAMIC_DIM_PLACEHOLDER for d in placeholder.shape
         )
-        np_dtype = _numpy_dtype_for_torch(placeholder.dtype)
+        np_dtype = numpy_dtype_for_torch(placeholder.dtype)
         value_range = getattr(placeholder, _INPUT_RANGE_ATTR, None)
         # Default to torch_mlir_e2e_test.TestUtils defaults: floats uniform
         # [0, 1), ints uniform [0, 10), bools [0, 2).
@@ -103,7 +94,7 @@ def materialize_inputs(
 
 
 # ---------------------------------------------------------------------------
-# Golden evaluation via onnx.reference
+# Golden evaluation via the shared reference evaluator
 # ---------------------------------------------------------------------------
 
 
@@ -111,7 +102,7 @@ def run_golden(
     model_proto: onnx.ModelProto,
     numpy_inputs: List[np.ndarray],
 ) -> List[torch.Tensor]:
-    """Run *model_proto* through ``onnx.reference.ReferenceEvaluator``.
+    """Evaluate *model_proto*, using ONNX Runtime for Microsoft contrib ops.
 
     Args:
         model_proto: The ONNX model.
@@ -122,8 +113,7 @@ def run_golden(
     """
     input_names = [inp.name for inp in model_proto.graph.input]
     feed = {name: arr for name, arr in zip(input_names, numpy_inputs)}
-    sess = onnx.reference.ReferenceEvaluator(model_proto)
-    raw_outputs = sess.run(None, feed)
+    raw_outputs = run_reference(model_proto, feed)
     return [recursively_convert_from_numpy(out) for out in raw_outputs]
 
 
@@ -184,16 +174,19 @@ def run_backend(
     if isinstance(raw_outputs, np.ndarray):
         raw_outputs = (raw_outputs,)
 
+    # Restore signedness lost in backend lowering.
+    raw_outputs = cast_outputs_to_declared_dtypes(model_proto, list(raw_outputs))
+
     return [recursively_convert_from_numpy(out) for out in raw_outputs]
 
 
 # ---------------------------------------------------------------------------
-# Test configs — pair golden (onnx.reference) with a SUT backend
+# Test configs — pair the reference evaluator with a SUT backend
 # ---------------------------------------------------------------------------
 
 
 class OnnxLinalgTestConfig:
-    """Golden (onnx.reference) + SUT lowered to linalg-on-tensors on the Linalg backend.
+    """Golden reference + SUT lowered to linalg-on-tensors on the Linalg backend.
 
     Usage::
 
@@ -219,7 +212,7 @@ class OnnxLinalgTestConfig:
 
 
 class OnnxTosaBackendTestConfig:
-    """Golden (onnx.reference) + SUT lowered to TOSA, executed via linalg.
+    """Golden reference + SUT lowered to TOSA, executed via linalg.
 
     Lowers the imported model to the ``tosa`` dialect, then compiles it with
     ``LinalgOnTensorsTosaBackend`` (TOSA -> linalg -> RefBackend) so numeric

@@ -1424,6 +1424,50 @@ public:
 } // namespace
 
 namespace {
+class DecomposeAtenGatherOp : public OpRewritePattern<AtenGatherOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenGatherOp op,
+                                PatternRewriter &rewriter) const override {
+    auto inputType = dyn_cast<ValueTensorType>(op.getSelf().getType());
+    auto indexType = dyn_cast<ValueTensorType>(op.getIndex().getType());
+    if (!inputType || !indexType || !inputType.hasSizes() ||
+        !indexType.hasSizes() || !inputType.getSizes().empty() ||
+        !indexType.getSizes().empty())
+      return rewriter.notifyMatchFailure(op, "expected scalar input and index");
+    if (op.getType() != inputType)
+      return rewriter.notifyMatchFailure(
+          op, "expected matching scalar input and result types");
+
+    int64_t dim;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)) ||
+        (dim != 0 && dim != -1))
+      return rewriter.notifyMatchFailure(
+          op, "expected scalar gather dimension 0 or -1");
+
+    // Keep the runtime index in a rank-one gather, then restore scalar shape.
+    Location loc = op.getLoc();
+    Value zero =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
+    SmallVector<int64_t> shape{1};
+    Type input1DType =
+        inputType.getWithSizesAndDtype(shape, inputType.getOptionalDtype());
+    Type index1DType =
+        indexType.getWithSizesAndDtype(shape, indexType.getOptionalDtype());
+    Value input =
+        AtenUnsqueezeOp::create(rewriter, loc, input1DType, op.getSelf(), zero);
+    Value index = AtenUnsqueezeOp::create(rewriter, loc, index1DType,
+                                          op.getIndex(), zero);
+    Value gathered = AtenGatherOp::create(rewriter, loc, input1DType, input,
+                                          zero, index, op.getSparseGrad());
+    rewriter.replaceOpWithNewOp<AtenSqueezeDimOp>(op, op.getType(), gathered,
+                                                  zero);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAtenSelectIntOp : public OpRewritePattern<AtenSelectIntOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -2859,6 +2903,44 @@ public:
       }
     }
     rewriter.replaceOp(op, input);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
+class DecomposeAtenMaxDimOp : public OpRewritePattern<AtenMaxDimOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenMaxDimOp op,
+                                PatternRewriter &rewriter) const override {
+    auto inputType = dyn_cast<ValueTensorType>(op.getSelf().getType());
+    auto indicesType = dyn_cast<ValueTensorType>(op.getIndices().getType());
+    if (!inputType || !inputType.hasSizes() || !inputType.getSizes().empty() ||
+        inputType.getOptionalSparsity() ||
+        !isa_and_nonnull<mlir::FloatType, IntegerType>(
+            inputType.getOptionalDtype()) ||
+        op.getValues().getType() != inputType || !indicesType ||
+        !indicesType.hasSizes() || !indicesType.getSizes().empty() ||
+        indicesType.getOptionalSparsity() || !indicesType.hasDtype() ||
+        !indicesType.getDtype().isSignedInteger(64))
+      return rewriter.notifyMatchFailure(op, "expected a scalar maximum");
+
+    int64_t dim;
+    bool keepDim;
+    if (!matchPattern(op.getDim(), m_TorchConstantInt(&dim)) ||
+        (dim != 0 && dim != -1) ||
+        !matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepDim)))
+      return rewriter.notifyMatchFailure(op,
+                                         "expected a valid constant dimension");
+
+    // Scalar max accepts dim 0 and -1. Both results stay scalar even with
+    // keepdim; forwarding the input also preserves NaNs and signed zero.
+    Value index = ValueTensorLiteralOp::create(
+        rewriter, op.getLoc(), indicesType,
+        DenseIntElementsAttr::get(indicesType.toBuiltinTensor(),
+                                  ArrayRef<int64_t>{0}));
+    rewriter.replaceOp(op, {op.getSelf(), index});
     return success();
   }
 };
@@ -13875,6 +13957,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMeanDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenStftCenterOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenGatherOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSelectIntOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMatmulOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenMvOp>(patterns);
@@ -13915,6 +13998,7 @@ public:
         DecomposeAtenAminAmaxOp<AtenAmaxOp, AtenMaxDimOp>>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeAtenAminAmaxOp<AtenAminOp, AtenMinDimOp>>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenMaxDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<
         DecomposeAtenArgMinMaxOp<AtenArgmaxOp, AtenMaxDimOp>>(patterns);
     addPatternIfTargetOpIsIllegal<

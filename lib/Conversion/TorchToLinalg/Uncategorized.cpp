@@ -19,6 +19,7 @@
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/Matchers.h"
+#include "mlir/IR/TypeUtilities.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -26,6 +27,7 @@
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/APSInt.h"
+#include "llvm/Support/MathExtras.h"
 #include <numeric>
 #include <optional>
 #include <string>
@@ -383,13 +385,20 @@ Value createRemainderPayload(OpBuilder &b, Location loc,
 //   round(input/scale) + zeroPoint
 // roundBeforeAdd=false matches quantize_per_token:
 //   round(input/scale + zeroPoint)
+// The arithmetic runs in f32 whatever the input and scale types, as Inductor's
+// quantize lowerings do: they upcast bf16 inputs and cast the scales to f32.
+// https://github.com/pytorch/pytorch/blob/f3c0cf56a7577d677c37718c4edc41b8fc7fb51a/torch/_inductor/lowering.py#L1953-L1954
+// https://github.com/pytorch/pytorch/blob/f3c0cf56a7577d677c37718c4edc41b8fc7fb51a/torch/_inductor/lowering.py#L1974-L1975
 static Value createQuantizePayload(OpBuilder &b, Location loc,
                                    const TypeConverter *converter, Value input,
                                    Value scale, Value zeroPoint, Value quantMin,
                                    Value quantMax, Type outputType,
                                    bool outputIsUnsigned, bool roundBeforeAdd,
                                    Type zeroPointDtype = {}) {
-  Type computeType = input.getType();
+  Type computeType = b.getF32Type();
+  input = convertScalarToDtype(b, loc, input, computeType);
+  quantMin = convertScalarToDtype(b, loc, quantMin, computeType);
+  quantMax = convertScalarToDtype(b, loc, quantMax, computeType);
   scale = materializeScalarToDtype(b, loc, converter, scale, computeType);
   zeroPoint = materializeScalarToDtype(b, loc, converter, zeroPoint,
                                        computeType, zeroPointDtype);
@@ -424,40 +433,55 @@ getSafeSubtractionWidth(unsigned inputWidth, unsigned zeroPointWidth) {
   }
 }
 
+// Returns (input - zeroPoint) * scale computed in f32 and converted to
+// `outputType`, as Inductor's dequantize lowerings do, casting the scales to
+// f32:
+// https://github.com/pytorch/pytorch/blob/f3c0cf56a7577d677c37718c4edc41b8fc7fb51a/torch/_inductor/lowering.py#L2058-L2062
+// An integer zero point is subtracted exactly in a widened integer type. A
+// floating-point zero point is subtracted in f32, so the fraction of a
+// non-integral zero point survives, as in the PT2E reference:
+// https://github.com/pytorch/pytorch/blob/f3c0cf56a7577d677c37718c4edc41b8fc7fb51a/torch/ao/quantization/fx/_decomposed.py#L1183
 static Value createDequantizePayload(OpBuilder &b, Location loc,
                                      const TypeConverter *converter,
                                      Value input, Value scale, Value zeroPoint,
                                      Type outputType, bool inputIsUnsigned,
                                      Type zeroPointDtype = {}) {
-  auto inputIntType = cast<mlir::IntegerType>(input.getType());
-  if (zeroPoint) {
-    Type zeroPointType = converter->convertType(zeroPoint.getType());
-    auto zeroPointIntType = cast<IntegerType>(zeroPointType);
-    std::optional<unsigned> subtractionWidth = getSafeSubtractionWidth(
-        inputIntType.getWidth(), zeroPointIntType.getWidth());
-    assert(subtractionWidth && "unsupported quantized input width");
-    IntegerType subtractionType = b.getIntegerType(*subtractionWidth);
-    zeroPoint = materializeScalarToDtype(b, loc, converter, zeroPoint,
-                                         subtractionType, zeroPointDtype);
-    if (inputIsUnsigned)
-      input = arith::ExtUIOp::create(b, loc, subtractionType, input);
-    else
-      input = arith::ExtSIOp::create(b, loc, subtractionType, input);
-    input = arith::SubIOp::create(b, loc, input, zeroPoint);
-  }
-  Type scaleType = isa<Torch::FloatType>(scale.getType())
-                       ? getDefaultDtypeForTorchScalar(scale.getType())
-                       : converter->convertType(scale.getType());
-  scale = materializeScalarToDtype(b, loc, converter, scale, scaleType);
+  Type computeType = b.getF32Type();
+  Type zeroPointType =
+      zeroPoint ? converter->convertType(zeroPoint.getType()) : Type();
   Value value;
-  if (inputIsUnsigned && !zeroPoint)
-    value = arith::UIToFPOp::create(b, loc, scale.getType(), input);
-  else
-    value = arith::SIToFPOp::create(b, loc, scale.getType(), input);
+  if (isa_and_present<mlir::FloatType>(zeroPointType)) {
+    if (inputIsUnsigned)
+      value = arith::UIToFPOp::create(b, loc, computeType, input);
+    else
+      value = arith::SIToFPOp::create(b, loc, computeType, input);
+    zeroPoint =
+        materializeScalarToDtype(b, loc, converter, zeroPoint, computeType);
+    value = arith::SubFOp::create(b, loc, value, zeroPoint);
+  } else {
+    if (zeroPoint) {
+      auto inputIntType = cast<mlir::IntegerType>(input.getType());
+      auto zeroPointIntType = cast<IntegerType>(zeroPointType);
+      std::optional<unsigned> subtractionWidth = getSafeSubtractionWidth(
+          inputIntType.getWidth(), zeroPointIntType.getWidth());
+      assert(subtractionWidth && "unsupported quantized input width");
+      IntegerType subtractionType = b.getIntegerType(*subtractionWidth);
+      zeroPoint = materializeScalarToDtype(b, loc, converter, zeroPoint,
+                                           subtractionType, zeroPointDtype);
+      if (inputIsUnsigned)
+        input = arith::ExtUIOp::create(b, loc, subtractionType, input);
+      else
+        input = arith::ExtSIOp::create(b, loc, subtractionType, input);
+      input = arith::SubIOp::create(b, loc, input, zeroPoint);
+    }
+    if (inputIsUnsigned && !zeroPoint)
+      value = arith::UIToFPOp::create(b, loc, computeType, input);
+    else
+      value = arith::SIToFPOp::create(b, loc, computeType, input);
+  }
+  scale = materializeScalarToDtype(b, loc, converter, scale, computeType);
   value = arith::MulFOp::create(b, loc, value, scale);
-  if (value.getType() != outputType)
-    value = convertScalarToDtype(b, loc, value, outputType);
-  return value;
+  return convertScalarToDtype(b, loc, value, outputType);
 }
 
 // Returns the Torch element dtype of `zeroPoints`, or a null type when the
@@ -812,31 +836,39 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       gelu.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
-    // TODO: Take approximation into account.
     std::string approximate;
     if (!matchPattern(gelu.getApproximate(), m_TorchConstantStr(approximate))) {
       gelu.emitError(
           "unimplemented: expected approximate to be a constant str");
       return nullptr;
     }
+    // Use f32 opmath for both GELU modes with low-precision inputs. Rounding
+    // intermediates (especially 1 + erf/tanh(...)) loses the negative tail.
+    Type resultElementType = payloadArgs[0].getType();
+    Type elementType = resultElementType;
+    if (elementType.isF16() || elementType.isBF16())
+      elementType = b.getF32Type();
+    Value self = convertScalarToDtype(b, loc, payloadArgs[0], elementType);
     if (approximate == "none") {
-      Value multiplier = buildUnitNormalCdf(b, loc, payloadArgs[0]);
-      return arith::MulFOp::create(b, loc, payloadArgs[0], multiplier);
+      Value multiplier = buildUnitNormalCdf(b, loc, self);
+      Value result = arith::MulFOp::create(b, loc, self, multiplier);
+      return convertScalarToDtype(b, loc, result, resultElementType);
     }
     if (approximate == "tanh") {
       // GELU(x)=0.5∗x∗(1+Tanh((2/π)^1/2 * (x+0.044715∗x^3)))
       // Ref: https://pytorch.org/docs/stable/generated/torch.nn.GELU.html
       Value cstThree = arith::ConstantOp::create(
           b, loc, IntegerAttr::get(IntegerType::get(op->getContext(), 64), 3));
-      Value xCube = math::FPowIOp::create(b, loc, payloadArgs[0], cstThree);
-      Type elementType = payloadArgs[0].getType();
+      Value xCube = math::FPowIOp::create(b, loc, self, cstThree);
       Value cstAlpha = arith::ConstantOp::create(
           b, loc, FloatAttr::get(elementType, 0.044715));
       Value xCubeMulAlpha = arith::MulFOp::create(b, loc, xCube, cstAlpha);
       Value xPlusXCubeMulAlpha =
-          arith::AddFOp::create(b, loc, payloadArgs[0], xCubeMulAlpha);
+          arith::AddFOp::create(b, loc, self, xCubeMulAlpha);
       Value cstBeta = arith::ConstantOp::create(
-          b, loc, FloatAttr::get(elementType, 0.7977240352174656));
+          b, loc,
+          FloatAttr::get(elementType,
+                         llvm::numbers::sqrt2 * llvm::numbers::inv_sqrtpi));
       Value betaMulX =
           arith::MulFOp::create(b, loc, cstBeta, xPlusXCubeMulAlpha);
       Value tanh = math::TanhOp::create(b, loc, betaMulX);
@@ -846,7 +878,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       Value cstHalf =
           arith::ConstantOp::create(b, loc, FloatAttr::get(elementType, 0.5));
       Value multiplier = arith::MulFOp::create(b, loc, cstHalf, onePlusTanh);
-      return arith::MulFOp::create(b, loc, payloadArgs[0], multiplier);
+      Value result = arith::MulFOp::create(b, loc, self, multiplier);
+      return convertScalarToDtype(b, loc, result, resultElementType);
     }
     gelu.emitError("unimplemented: approximate value should be none or tanh");
     return nullptr;
@@ -894,8 +927,17 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       // dGELU/dx = 0.5 * (1 + tanh(u))
       //          + 0.5 * x * (1 - tanh(u)^2) * kBeta * (1 + 3 * kKappa * x^2)
       Value self = payloadArgs[1];
+      Value grad = payloadArgs[0];
+      Type resultElementType = grad.getType();
+      if (elementType.isF16() || elementType.isBF16()) {
+        elementType = b.getF32Type();
+        self = convertScalarToDtype(b, loc, self, elementType);
+        grad = convertScalarToDtype(b, loc, grad, elementType);
+      }
       Value cstBeta = arith::ConstantOp::create(
-          b, loc, FloatAttr::get(elementType, 0.7977240352174656));
+          b, loc,
+          FloatAttr::get(elementType,
+                         llvm::numbers::sqrt2 * llvm::numbers::inv_sqrtpi));
       Value cstKappa = arith::ConstantOp::create(
           b, loc, FloatAttr::get(elementType, 0.044715));
       Value cstOne =
@@ -930,7 +972,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
           b, loc, halfXOneMinusTanhSquared, innerDerivative);
       Value derivative =
           arith::AddFOp::create(b, loc, leftDerivative, rightDerivative);
-      return arith::MulFOp::create(b, loc, payloadArgs[0], derivative);
+      Value result = arith::MulFOp::create(b, loc, grad, derivative);
+      return convertScalarToDtype(b, loc, result, resultElementType);
     }
     geluBackward.emitError(
         "unimplemented: approximate value should be none or tanh");
@@ -1823,17 +1866,6 @@ static SmallVector<AffineMap> getPerChannelIndexingMaps(OpBuilder &b,
   return maps;
 }
 
-static FailureOr<int64_t> getPerChannelAxis(Value axisValue, int64_t rank) {
-  int64_t axis;
-  if (!matchPattern(axisValue, m_TorchConstantInt(&axis)))
-    return failure();
-  if (axis < 0)
-    axis += rank;
-  if (axis < 0 || axis >= rank)
-    return failure();
-  return axis;
-}
-
 class ConvertQuantizedDecomposedQuantizePerChannelOp
     : public OpConversionPattern<QuantizedDecomposedQuantizePerChannelOp> {
 public:
@@ -1848,19 +1880,15 @@ public:
     Value scales = adaptor.getScales();
     Value zeroPoints = adaptor.getZeroPoints();
     auto inputType = dyn_cast<RankedTensorType>(input.getType());
-    auto scalesType = dyn_cast<RankedTensorType>(scales.getType());
-    auto zeroPointsType = dyn_cast<RankedTensorType>(zeroPoints.getType());
     auto resultType = dyn_cast<RankedTensorType>(
         getTypeConverter()->convertType(op.getResult().getType()));
-    if (!inputType || !scalesType || !zeroPointsType || !resultType ||
-        scalesType.getRank() != 1 || zeroPointsType.getRank() != 1)
-      return rewriter.notifyMatchFailure(
-          op, "expected ranked input/result and rank-1 qparams");
-    FailureOr<int64_t> axis =
-        getPerChannelAxis(op.getAxis(), inputType.getRank());
-    if (failed(axis))
-      return rewriter.notifyMatchFailure(
-          op, "axis must be a constant integer in range [-rank, rank)");
+    if (!inputType || !isa<RankedTensorType>(scales.getType()) ||
+        !isa<RankedTensorType>(zeroPoints.getType()) || !resultType)
+      return rewriter.notifyMatchFailure(op, "expected ranked tensors");
+    std::optional<int64_t> axis = matchLegalConstantIndexIntoListOfSize(
+        op.getAxis(), inputType.getRank());
+    if (!axis)
+      return rewriter.notifyMatchFailure(op, "expected a constant axis");
 
     int64_t quantMin, quantMax;
     if (!matchPattern(op.getQuantMin(), m_TorchConstantInt(&quantMin)) ||
@@ -1918,17 +1946,14 @@ public:
     Value scales = adaptor.getScales();
     Value zeroPoints = adaptor.getZeroPoints();
     auto inputType = dyn_cast<RankedTensorType>(input.getType());
-    auto scalesType = dyn_cast<RankedTensorType>(scales.getType());
     auto resultType = dyn_cast<RankedTensorType>(
         getTypeConverter()->convertType(op.getResult().getType()));
-    if (!inputType || !scalesType || !resultType || scalesType.getRank() != 1)
-      return rewriter.notifyMatchFailure(
-          op, "expected ranked input/result and rank-1 scales");
-    FailureOr<int64_t> axis =
-        getPerChannelAxis(op.getAxis(), inputType.getRank());
-    if (failed(axis))
-      return rewriter.notifyMatchFailure(
-          op, "axis must be a constant integer in range [-rank, rank)");
+    if (!inputType || !isa<RankedTensorType>(scales.getType()) || !resultType)
+      return rewriter.notifyMatchFailure(op, "expected ranked tensors");
+    std::optional<int64_t> axis = matchLegalConstantIndexIntoListOfSize(
+        op.getAxis(), inputType.getRank());
+    if (!axis)
+      return rewriter.notifyMatchFailure(op, "expected a constant axis");
 
     bool hasZeroPoints = isa<RankedTensorType>(zeroPoints.getType());
     SmallVector<Value> inputs = {input, scales};
@@ -1982,62 +2007,18 @@ SmallVector<AffineMap> getPerChannelGroupIndexingMaps(OpBuilder &b,
   return indexingMaps;
 }
 
-template <typename OpTy>
-LogicalResult checkPerChannelGroupShapes(
-    OpTy op, ConversionPatternRewriter &rewriter, int64_t inputRank,
-    ArrayRef<int64_t> inputShape, ArrayRef<int64_t> scalesShape,
-    int64_t groupSize, bool hasZeroPoints, ArrayRef<int64_t> zeroPointsShape) {
-  if (inputRank != 2)
-    return rewriter.notifyMatchFailure(op, "expected rank-2 input");
-  if (groupSize <= 1)
-    return rewriter.notifyMatchFailure(op, "group_size must be > 1");
-
-  if (static_cast<int64_t>(scalesShape.size()) != 2)
-    return rewriter.notifyMatchFailure(op, "expected rank-2 scales");
-
-  if (hasZeroPoints && static_cast<int64_t>(zeroPointsShape.size()) != 2)
-    return rewriter.notifyMatchFailure(op, "expected rank-2 zero_points");
-
-  if (hasZeroPoints && zeroPointsShape != scalesShape)
-    return rewriter.notifyMatchFailure(
-        op, "zero_points shape must match scales shape");
-
-  int64_t lastDim = inputShape[inputRank - 1];
-  if (lastDim != ShapedType::kDynamic && lastDim % groupSize != 0)
-    return rewriter.notifyMatchFailure(
-        op, "input last dimension must be divisible by group_size");
-
-  int64_t channelDim = inputShape[inputRank - 2];
-  int64_t scalesChannelDim = scalesShape[0];
-  if (channelDim != ShapedType::kDynamic &&
-      scalesChannelDim != ShapedType::kDynamic &&
-      scalesChannelDim != channelDim)
-    return rewriter.notifyMatchFailure(
-        op, "scales dim 0 must match input channel dimension (dim[-2])");
-
-  if (lastDim != ShapedType::kDynamic) {
-    int64_t expectedNumGroups = lastDim / groupSize;
-    int64_t scalesGroupDim = scalesShape[1];
-    if (scalesGroupDim != ShapedType::kDynamic &&
-        scalesGroupDim != expectedNumGroups)
-      return rewriter.notifyMatchFailure(
-          op, "scales dim 1 must equal input dim[-1] / group_size");
-  }
-
-  return success();
-}
-
-// Adjusts group_size for GPTQ single-column quantization.
-int64_t adjustGroupSizeForGPTQSingleColumn(int64_t groupSize,
-                                           ArrayRef<int64_t> inputShape,
-                                           ArrayRef<int64_t> scalesShape) {
-  int64_t inputLastDim = inputShape.back();
-  int64_t scalesLastDim = scalesShape.back();
-  if (inputLastDim != ShapedType::kDynamic &&
-      scalesLastDim != ShapedType::kDynamic && groupSize > inputLastDim &&
-      scalesLastDim == 1)
-    return inputLastDim;
-  return groupSize;
+/// Returns true if `qparamsType` has the shape [rows, groups] that the group
+/// indexing maps read for `inputType` and `groupSize`.
+static bool hasGroupQparamsShape(RankedTensorType qparamsType,
+                                 RankedTensorType inputType,
+                                 int64_t groupSize) {
+  assert(inputType.getRank() == 2 && "expected a rank-2 input");
+  int64_t rowLength = inputType.getDimSize(1);
+  int64_t groups = ShapedType::isDynamic(rowLength)
+                       ? ShapedType::kDynamic
+                       : llvm::divideCeilSigned(rowLength, groupSize);
+  return succeeded(verifyCompatibleShape(qparamsType.getShape(),
+                                         {inputType.getDimSize(0), groups}));
 }
 
 class ConvertQuantizedDecomposedQuantizePerChannelGroupOp
@@ -2064,21 +2045,17 @@ public:
         getTypeConverter()->convertType(op.getResult().getType()));
 
     if (!inputType || !scalesType || !zeroPointsType || !resultType)
-      return rewriter.notifyMatchFailure(op, "expected ranked input/result");
+      return rewriter.notifyMatchFailure(op, "expected ranked tensors");
 
     int64_t groupSize;
     if (!matchPattern(op.getGroupSize(), m_TorchConstantInt(&groupSize)))
       return rewriter.notifyMatchFailure(op, "group_size must be constant");
-
-    groupSize = adjustGroupSizeForGPTQSingleColumn(
-        groupSize, inputType.getShape(), scalesType.getShape());
-
+    groupSize = op.getEffectiveGroupSize(groupSize);
+    if (!hasGroupQparamsShape(scalesType, inputType, groupSize) ||
+        !hasGroupQparamsShape(zeroPointsType, inputType, groupSize))
+      return rewriter.notifyMatchFailure(
+          op, "expected scales and zero_points of shape [rows, groups]");
     int64_t inputRank = inputType.getRank();
-    if (failed(checkPerChannelGroupShapes(
-            op, rewriter, inputRank, inputType.getShape(),
-            scalesType.getShape(), groupSize, /*hasZeroPoints=*/true,
-            zeroPointsType.getShape())))
-      return failure();
 
     int64_t quantMin, quantMax;
     if (!matchPattern(op.getQuantMin(), m_TorchConstantInt(&quantMin)) ||
@@ -2154,24 +2131,21 @@ public:
         getTypeConverter()->convertType(op.getResult().getType()));
 
     if (!inputType || !scalesType || !resultType)
-      return rewriter.notifyMatchFailure(op, "expected ranked input/result");
+      return rewriter.notifyMatchFailure(op, "expected ranked tensors");
 
     int64_t groupSize;
     if (!matchPattern(op.getGroupSize(), m_TorchConstantInt(&groupSize)))
       return rewriter.notifyMatchFailure(op, "group_size must be constant");
+    groupSize = op.getEffectiveGroupSize(groupSize);
+    auto zeroPointsType = dyn_cast<RankedTensorType>(zeroPoints.getType());
+    if (!hasGroupQparamsShape(scalesType, inputType, groupSize) ||
+        (zeroPointsType &&
+         !hasGroupQparamsShape(zeroPointsType, inputType, groupSize)))
+      return rewriter.notifyMatchFailure(
+          op, "expected scales and zero_points of shape [rows, groups]");
 
-    groupSize = adjustGroupSizeForGPTQSingleColumn(
-        groupSize, inputType.getShape(), scalesType.getShape());
-
-    bool hasZeroPoints = isa<RankedTensorType>(zeroPoints.getType());
-    ArrayRef<int64_t> zpShape =
-        hasZeroPoints ? cast<RankedTensorType>(zeroPoints.getType()).getShape()
-                      : ArrayRef<int64_t>{};
+    bool hasZeroPoints = static_cast<bool>(zeroPointsType);
     int64_t inputRank = inputType.getRank();
-    if (failed(checkPerChannelGroupShapes(
-            op, rewriter, inputRank, inputType.getShape(),
-            scalesType.getShape(), groupSize, hasZeroPoints, zpShape)))
-      return failure();
 
     Value init = tensor::EmptyOp::create(
         rewriter, loc, getAsOpFoldResult(getTensorSizes(rewriter, loc, input)),
@@ -2531,7 +2505,7 @@ public:
         [&](OpBuilder &b, Location bodyLoc, ValueRange args) {
           Value val = args[0];
           if (val.getType() != scaleElemType)
-            val = arith::ExtFOp::create(b, bodyLoc, scaleElemType, val);
+            val = arith::ExtFOp::create(b, bodyLoc, scaleElemType, val, {});
           Value resMin = arith::MinimumFOp::create(b, bodyLoc, val, args[1]);
           Value resMax = arith::MaximumFOp::create(b, bodyLoc, val, args[2]);
           linalg::YieldOp::create(b, bodyLoc, ValueRange{resMin, resMax});
@@ -2680,7 +2654,7 @@ public:
             [&](OpBuilder &b, Location bodyLoc, ValueRange args) {
               Value val = args[0];
               if (val.getType() != scaleElemType)
-                val = arith::ExtFOp::create(b, bodyLoc, scaleElemType, val);
+                val = arith::ExtFOp::create(b, bodyLoc, scaleElemType, val, {});
               Value absVal = math::AbsFOp::create(b, bodyLoc, val);
               Value res =
                   arith::MaximumFOp::create(b, bodyLoc, absVal, args[1]);
@@ -2728,6 +2702,189 @@ public:
         });
 
     rewriter.replaceOp(op, scaleZpGeneric.getResults());
+    return success();
+  }
+};
+
+// Returns the indexing maps of input, scale, zero point and result. Unit scale
+// dimensions are broadcast; the others index the blocked input dimensions in
+// order.
+FailureOr<SmallVector<AffineMap>>
+getPerBlockIndexingMaps(OpBuilder &b, ArrayRef<int64_t> inputShape,
+                        Value blockSizeList, ArrayRef<int64_t> scaleShape,
+                        bool hasZeroPoint) {
+  FailureOr<SmallVector<int64_t>> blockSize =
+      getTorchaoBlockSize(blockSizeList, inputShape);
+  if (failed(blockSize))
+    return failure();
+  SmallVector<AffineExpr> blockIndices;
+  SmallVector<int64_t> numBlocks;
+  for (auto [dim, size, block] : llvm::enumerate(inputShape, *blockSize)) {
+    if (size == block)
+      continue;
+    blockIndices.push_back(b.getAffineDimExpr(dim).floorDiv(block));
+    numBlocks.push_back(ShapedType::isDynamic(size) ? size : size / block);
+  }
+  auto scaleBlocks = llvm::make_filter_range(
+      scaleShape, [](int64_t size) { return size != 1; });
+  if (!llvm::equal(scaleBlocks, numBlocks))
+    return failure();
+
+  SmallVector<AffineExpr> qparamsExprs;
+  auto *blockIndex = blockIndices.begin();
+  for (int64_t size : scaleShape)
+    qparamsExprs.push_back(size == 1 ? b.getAffineConstantExpr(0)
+                                     : *blockIndex++);
+  AffineMap qparamsMap =
+      AffineMap::get(inputShape.size(), 0, qparamsExprs, b.getContext());
+
+  AffineMap inputMap = b.getMultiDimIdentityMap(inputShape.size());
+  SmallVector<AffineMap> indexingMaps = {inputMap, qparamsMap};
+  if (hasZeroPoint)
+    indexingMaps.push_back(qparamsMap);
+  indexingMaps.push_back(inputMap);
+  return indexingMaps;
+}
+
+class ConvertTorchaoQuantizeAffineOp
+    : public OpConversionPattern<TorchaoQuantizeAffineOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(TorchaoQuantizeAffineOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (LogicalResult result = verifyLinalgCompatibleTypes(op, rewriter);
+        failed(result))
+      return result;
+    Value input = adaptor.getInput();
+    Value scale = adaptor.getScale();
+    Value zeroPoint = adaptor.getZeroPoint();
+    auto inputType = dyn_cast<RankedTensorType>(input.getType());
+    auto scaleType = dyn_cast<RankedTensorType>(scale.getType());
+    auto zeroPointType = dyn_cast<RankedTensorType>(zeroPoint.getType());
+    auto resultType = dyn_cast<RankedTensorType>(
+        getTypeConverter()->convertType(op.getResult().getType()));
+    if (!inputType || !scaleType || !zeroPointType || !resultType ||
+        zeroPointType.getShape() != scaleType.getShape())
+      return rewriter.notifyMatchFailure(
+          op, "expected ranked tensors and zero_point with the shape of scale");
+
+    FailureOr<SmallVector<AffineMap>> indexingMaps = getPerBlockIndexingMaps(
+        rewriter, inputType.getShape(), op.getBlockSize(), scaleType.getShape(),
+        /*hasZeroPoint=*/true);
+    if (failed(indexingMaps))
+      return rewriter.notifyMatchFailure(
+          op, "expected a block_size list and a scale layout that matches it");
+
+    FailureOr<std::pair<double, double>> bounds = getTorchaoQuantBounds(
+        op.getQuantMin(), op.getQuantMax(), op.getOutputDtype());
+    if (failed(bounds))
+      return rewriter.notifyMatchFailure(
+          op, "expected an integer output_dtype and constant or None "
+              "quant_min/max");
+
+    // Computes in f32, like Inductor.
+    Type computeType = rewriter.getF32Type();
+    Location loc = op.getLoc();
+    Value init = tensor::EmptyOp::create(
+        rewriter, loc, getAsOpFoldResult(getTensorSizes(rewriter, loc, input)),
+        resultType.getElementType());
+    SmallVector<utils::IteratorType> iteratorTypes(
+        inputType.getRank(), utils::IteratorType::parallel);
+    bool resultIsUnsigned = torch_to_linalg::isUnsignedTorchType(
+        cast<BaseTensorType>(op.getResult().getType()).getDtype());
+
+    Value result =
+        linalg::GenericOp::create(
+            rewriter, loc, resultType, ValueRange{input, scale, zeroPoint},
+            init, *indexingMaps, iteratorTypes,
+            [&](OpBuilder &b, Location bodyLoc, ValueRange args) {
+              Value value =
+                  convertScalarToDtype(b, bodyLoc, args[0], computeType);
+              Value qmin = arith::ConstantOp::create(
+                  b, bodyLoc, b.getFloatAttr(computeType, bounds->first));
+              Value qmax = arith::ConstantOp::create(
+                  b, bodyLoc, b.getFloatAttr(computeType, bounds->second));
+              value = createQuantizePayload(
+                  b, bodyLoc, getTypeConverter(), value, args[1], args[2], qmin,
+                  qmax, resultType.getElementType(), resultIsUnsigned,
+                  /*roundBeforeAdd=*/true,
+                  getZeroPointDtype(op.getZeroPoint()));
+              linalg::YieldOp::create(b, bodyLoc, value);
+            })
+            .getResult(0);
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+
+class ConvertTorchaoDequantizeAffineOp
+    : public OpConversionPattern<TorchaoDequantizeAffineOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(TorchaoDequantizeAffineOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (LogicalResult result = verifyLinalgCompatibleTypes(op, rewriter);
+        failed(result))
+      return result;
+    Value input = adaptor.getInput();
+    Value scale = adaptor.getScale();
+    Value zeroPoint = adaptor.getZeroPoint();
+    auto inputType = dyn_cast<RankedTensorType>(input.getType());
+    auto scaleType = dyn_cast<RankedTensorType>(scale.getType());
+    auto zeroPointType = dyn_cast<RankedTensorType>(zeroPoint.getType());
+    auto resultType = dyn_cast<RankedTensorType>(
+        getTypeConverter()->convertType(op.getResult().getType()));
+    bool hasZeroPoint = !isa<Torch::NoneType>(op.getZeroPoint().getType());
+    if (!inputType || !scaleType || !resultType ||
+        (hasZeroPoint &&
+         (!zeroPointType || zeroPointType.getShape() != scaleType.getShape())))
+      return rewriter.notifyMatchFailure(
+          op, "expected ranked tensors and a None zero_point or one with the "
+              "shape of scale");
+
+    FailureOr<SmallVector<AffineMap>> indexingMaps = getPerBlockIndexingMaps(
+        rewriter, inputType.getShape(), op.getBlockSize(), scaleType.getShape(),
+        hasZeroPoint);
+    if (failed(indexingMaps))
+      return rewriter.notifyMatchFailure(
+          op, "expected a block_size list and a scale layout that matches it");
+
+    // Computes in f32, like Inductor.
+    Type computeType = rewriter.getF32Type();
+    SmallVector<Value> inputs = {input, scale};
+    if (hasZeroPoint)
+      inputs.push_back(zeroPoint);
+    Location loc = op.getLoc();
+    Value init = tensor::EmptyOp::create(
+        rewriter, loc, getAsOpFoldResult(getTensorSizes(rewriter, loc, input)),
+        resultType.getElementType());
+    SmallVector<utils::IteratorType> iteratorTypes(
+        inputType.getRank(), utils::IteratorType::parallel);
+
+    Value result =
+        linalg::GenericOp::create(
+            rewriter, loc, resultType, inputs, init, *indexingMaps,
+            iteratorTypes,
+            [&](OpBuilder &b, Location bodyLoc, ValueRange args) {
+              Value value = convertScalarToDtype(
+                  b, bodyLoc, args[0], computeType,
+                  cast<BaseTensorType>(op.getInput().getType()).getDtype());
+              if (hasZeroPoint)
+                value = arith::SubFOp::create(
+                    b, bodyLoc, value,
+                    convertScalarToDtype(b, bodyLoc, args[2], computeType,
+                                         getZeroPointDtype(op.getZeroPoint())));
+              value = arith::MulFOp::create(
+                  b, bodyLoc, value,
+                  convertScalarToDtype(b, bodyLoc, args[1], computeType));
+              value = convertScalarToDtype(b, bodyLoc, value,
+                                           resultType.getElementType());
+              linalg::YieldOp::create(b, bodyLoc, value);
+            })
+            .getResult(0);
+    rewriter.replaceOp(op, result);
     return success();
   }
 };
@@ -5119,6 +5276,10 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   patterns.add<ConvertQuantizedDecomposedQuantizePerChannelOp,
                ConvertQuantizedDecomposedDequantizePerChannelOp>(typeConverter,
                                                                  context);
+  target.addIllegalOp<TorchaoQuantizeAffineOp, TorchaoDequantizeAffineOp>();
+  patterns
+      .add<ConvertTorchaoQuantizeAffineOp, ConvertTorchaoDequantizeAffineOp>(
+          typeConverter, context);
   patterns.add<ConvertElementwiseOp>(typeConverter, context);
   target.addIllegalOp<AtenNllLossForwardOp>();
   patterns.add<ConvertAtenDetachOp>(typeConverter, context);

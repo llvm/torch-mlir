@@ -6,7 +6,7 @@
 Entry point for the ONNX-native end-to-end test suite.
 
 Runs every ``OnnxTest`` in ``GLOBAL_ONNX_TEST_REGISTRY`` through the
-selected config, compares outputs against the ONNX reference evaluator, and
+selected config, compares outputs against the shared reference evaluator, and
 reports results using the existing ``torch_mlir_e2e_test.reporting`` layer.
 
 Usage::

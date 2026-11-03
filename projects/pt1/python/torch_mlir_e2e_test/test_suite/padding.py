@@ -59,6 +59,30 @@ def ReplicationPad1dModule_2DInput_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ReplicationPad1dStaticModule(torch.nn.Module):
+    @export
+    @annotate_args(
+        [None, ([2, 3], torch.float32, True), ([1, 2, 3], torch.float32, True)]
+    )
+    def forward(self, x, y):
+        return (
+            torch.ops.aten.replication_pad1d(x, [1, 2]),
+            torch.ops.aten.replication_pad1d(x, [4, 0]),
+            torch.ops.aten.replication_pad1d(y, [0, 4]),
+        )
+
+
+@register_test_case(module_factory=lambda: ReplicationPad1dStaticModule())
+def ReplicationPad1dStaticModule_basic(module, tu: TestUtils):
+    module.forward(
+        torch.tensor([[1.0, -2.0, 4.0], [-3.0, 5.0, 2.0]]),
+        torch.tensor([[[7.0, -1.0, 3.0], [-4.0, 2.0, 6.0]]]),
+    )
+
+
+# ==============================================================================
+
+
 class ReplicationPad3dModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

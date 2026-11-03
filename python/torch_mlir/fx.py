@@ -121,7 +121,7 @@ def export_and_import(
         else:
             prog = torch.export.export(f, args, kwargs)
     if decomposition_table is None:
-        decomposition_table = get_decomposition_table()
+        decomposition_table = get_decomposition_table(backend_legal_ops)
     if decomposition_table:
         prog = prog.run_decompositions(decomposition_table)
     if enable_graph_printing:

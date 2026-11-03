@@ -23,6 +23,8 @@ from torch_mlir_e2e_test.annotations import TORCH_MLIR_ARG_ANNOTATIONS_ATTR_NAME
 BACKEND_LEGAL_OPS = {
     OutputType.LINALG_ON_TENSORS: [
         "aten.adaptive_max_pool2d",
+        "torchao.quantize_affine",
+        "torchao.dequantize_affine",
     ],
 }
 
