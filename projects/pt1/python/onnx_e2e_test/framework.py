@@ -107,7 +107,11 @@ def build_model(
         ],
         ir_version=ir_version,
     )
-    if validate:
+    # The checker rejects ONNX Runtime contrib ops in the default domain, such as
+    # SimplifiedLayerNormalization. ONNX Runtime validates those graphs instead.
+    if validate and all(
+        onnx.defs.has(node.op_type) for node in nodes if node.domain in ("", "ai.onnx")
+    ):
         onnx.checker.check_model(model)
     return model
 
