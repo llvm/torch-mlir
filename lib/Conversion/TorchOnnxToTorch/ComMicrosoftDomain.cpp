@@ -2369,4 +2369,775 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         rewriter.replaceOp(binder.op, quantizedC);
         return success();
       });
+
+  patterns.onOp(
+      "Attention", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        // com.microsoft::Attention (contrib op).
+        //
+        // Multi-head self attention with a fused Q/K/V projection. The op is
+        // decomposed into explicit Torch ops:
+        //   qkv    = input @ weights [+ bias]
+        //   Q,K,V  = split(qkv, qkv_hidden_sizes, dim=2)
+        //   Q,K,V  = reshape to [batch, num_heads, seq, head_size]
+        //   scores = (Q @ K^T) * scale
+        //   scores = scores [+ causal_mask] [+ mask_index] [+ attention_bias]
+        //   probs  = softmax(scores, dim=-1)
+        //   ctx    = probs @ V
+        //   y      = reshape ctx back to [batch, seq, v_hidden]
+        //
+        // Supported inputs / attributes:
+        //   inputs : input (0), weights (1), bias (2, optional),
+        //            mask_index (3, optional), past (4, optional),
+        //            attention_bias (5, optional)
+        //   attrs  : num_heads (required), qkv_hidden_sizes, scale,
+        //            unidirectional, mask_filter_value, do_rotary,
+        //            rotary_embedding_dim
+        //
+        // Unsupported features cause a clean match failure:
+        //   past_sequence_length (6, tensor form), past_present_share_buffer.
+        Location loc = binder.getLoc();
+        MLIRContext *context = binder.op->getContext();
+
+        int64_t numOperands = binder.op->getNumOperands();
+        if (numOperands < 2)
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected at least `input` and `weights` operands");
+
+        // Returns the operand at `idx` if it is present and not a none value,
+        // otherwise returns a null Value.
+        auto optionalOperand = [&](int64_t idx) -> Value {
+          if (idx >= numOperands)
+            return Value();
+          Value v = binder.op->getOperand(idx);
+          if (isa<Torch::NoneType>(v.getType()))
+            return Value();
+          return v;
+        };
+
+        Value input = binder.op->getOperand(0);
+        Value weights = binder.op->getOperand(1);
+        Value bias = optionalOperand(2);
+        Value maskIndex = optionalOperand(3);
+        Value past = optionalOperand(4);
+        Value attentionBias = optionalOperand(5);
+        Value pastSeqLength = optionalOperand(6);
+
+        // pastSeqLength is only needed with past_present_share_buffer (kept
+        // unsupported below). When past is provided without that flag we derive
+        // past_seq_len from the static shape of the `past` tensor.
+        if (pastSeqLength)
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "Unimplemented: `past_sequence_length` tensor input is only "
+              "required with past_present_share_buffer, which is unsupported");
+        int64_t numResults = binder.op->getNumResults();
+        if (numResults != 1 && numResults != 2)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Expected 1 or 2 results");
+
+        int64_t numHeads, unidirectional, doRotary, rotaryEmbeddingDim,
+            pastPresentShareBuffer;
+        float scale = 0.0f, maskFilterValue;
+        SmallVector<int64_t> qkvHiddenSizes;
+        if (binder.s64IntegerAttr(numHeads, "num_heads"))
+          return rewriter.notifyMatchFailure(
+              binder.op, "num_heads is a required attribute");
+        if (numHeads == 0)
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "num_heads should be non-zero");
+        // `scale` presence must be tracked explicitly: the spec allows an
+        // explicit `scale = 0.0`, so a 0.0 value cannot be used as the "unset"
+        // sentinel. binder.f32FloatAttr cannot distinguish an absent attribute
+        // from a present one (it returns success in both cases and simply
+        // writes the default), so query the raw op attribute directly to
+        // determine presence. hasScale is true iff the model provided `scale`.
+        bool hasScale =
+            static_cast<bool>(binder.op->getAttr("torch.onnx.scale"));
+        if (hasScale && binder.f32FloatAttr(scale, "scale"))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "scale attribute bind failure");
+
+        if (binder.s64IntegerAttr(unidirectional, "unidirectional", 0) ||
+            binder.s64IntegerAttr(doRotary, "do_rotary", 0) ||
+            binder.s64IntegerAttr(rotaryEmbeddingDim, "rotary_embedding_dim",
+                                  0) ||
+            binder.s64IntegerAttr(pastPresentShareBuffer,
+                                  "past_present_share_buffer", 0) ||
+            binder.f32FloatAttr(maskFilterValue, "mask_filter_value",
+                                -10000.0f) ||
+            binder.s64IntegerArrayAttr(qkvHiddenSizes, "qkv_hidden_sizes", {}))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "op attributes bind failure");
+
+        if (pastPresentShareBuffer != 0)
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "Unimplemented: past_present_share_buffer is not supported");
+
+        // Resolve the rotary embedding dimension: 0 means use head_size (after
+        // head size is computed below). The spec says limited to 32, 64, 128
+        // but we do not enforce that here.
+
+        // Bind the primary (attention output) result type at index 0.
+        // tensorResultType cannot be used here because it requires the op to
+        // have exactly one result, whereas this op may also produce a second
+        // `present` result; tensorResultTypeAtIndex handles both the 1- and
+        // 2-result cases.
+        Torch::ValueTensorType resultType;
+        if (binder.tensorResultTypeAtIndex(resultType, 0))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "result type bind failure");
+
+        Torch::ValueTensorType inputType =
+            cast<Torch::ValueTensorType>(input.getType());
+
+        if (!inputType.hasSizes() || inputType.getSizes().size() != 3)
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected `input` to have 3 dimensions "
+                         "[batch, seq, input_hidden]");
+        SmallVector<int64_t> inputSizes{inputType.getSizes()};
+        int64_t batchSize = inputSizes[0];
+        int64_t sequenceLength = inputSizes[1];
+
+        Torch::ValueTensorType weightsType =
+            cast<Torch::ValueTensorType>(weights.getType());
+        if (!weightsType.hasSizes() || weightsType.getSizes().size() != 2)
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected `weights` to have 2 dimensions "
+                         "[input_hidden, qkv_hidden_sum]");
+        int64_t qkvHiddenSum = weightsType.getSizes()[1];
+        if (qkvHiddenSum == Torch::kUnknownSize)
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected `weights` last dimension to be static");
+
+        // Resolve per-projection hidden sizes.
+        int64_t qHidden, kHidden, vHidden;
+        if (qkvHiddenSizes.empty()) {
+          if (qkvHiddenSum % 3 != 0)
+            return rewriter.notifyMatchFailure(
+                binder.op,
+                "Expected qkv hidden sum divisible by 3 when qkv_hidden_sizes "
+                "is not provided");
+          qHidden = kHidden = vHidden = qkvHiddenSum / 3;
+        } else {
+          if (qkvHiddenSizes.size() != 3)
+            return rewriter.notifyMatchFailure(
+                binder.op, "Expected qkv_hidden_sizes to have 3 entries");
+          qHidden = qkvHiddenSizes[0];
+          kHidden = qkvHiddenSizes[1];
+          vHidden = qkvHiddenSizes[2];
+          if (qHidden + kHidden + vHidden != qkvHiddenSum)
+            return rewriter.notifyMatchFailure(
+                binder.op, "qkv_hidden_sizes do not sum to weights hidden dim");
+        }
+
+        if (qHidden != kHidden)
+          return rewriter.notifyMatchFailure(
+              binder.op,
+              "Expected equal Q and K hidden sizes for score computation");
+        if (qHidden % numHeads != 0 || vHidden % numHeads != 0)
+          return rewriter.notifyMatchFailure(
+              binder.op, "Q/V hidden sizes must be divisible by num_heads");
+
+        int64_t headSize = qHidden / numHeads;
+        int64_t vHeadSize = vHidden / numHeads;
+
+        // Common constants.
+        Value cstOne = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(1));
+        Value cstZero = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(0));
+        Value cstDim2 = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(2));
+        Value cstDim3 = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(3));
+        Value cstNumHeads = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(numHeads));
+        Value cstHeadSize = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(headSize));
+        Value cstVHeadSize = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(vHeadSize));
+        Value cstNone = Torch::ConstantNoneOp::create(rewriter, loc);
+        Value cstFalse = Torch::ConstantBoolOp::create(rewriter, loc, false);
+        Type intListType = Torch::ListType::get(Torch::IntType::get(context));
+
+        auto elemDtype = inputType.getOptionalDtype();
+
+        // Step 1: fused QKV projection: qkv = input @ weights + bias.
+        SmallVector<int64_t> qkvSizes{batchSize, sequenceLength, qkvHiddenSum};
+        Torch::ValueTensorType qkvType =
+            Torch::ValueTensorType::get(context, qkvSizes, elemDtype);
+        Value qkv =
+            Torch::AtenMatmulOp::create(rewriter, loc, qkvType, input, weights);
+        if (bias)
+          qkv = Torch::AtenAddTensorOp::create(rewriter, loc, qkvType, qkv,
+                                               bias, cstOne);
+
+        // Step 2: split qkv into Q, K, V along the hidden dimension.
+        Value cstQEnd = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(qHidden));
+        Value cstKEnd = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(qHidden + kHidden));
+        Value cstVEnd = Torch::ConstantIntOp::create(
+            rewriter, loc, rewriter.getI64IntegerAttr(qkvHiddenSum));
+
+        Torch::ValueTensorType qSliceType = Torch::ValueTensorType::get(
+            context, ArrayRef<int64_t>{batchSize, sequenceLength, qHidden},
+            elemDtype);
+        Value query = Torch::AtenSliceTensorOp::create(
+            rewriter, loc, qSliceType, qkv, /*dim=*/cstDim2, /*start=*/cstZero,
+            /*end=*/cstQEnd, /*step=*/cstOne);
+        Torch::ValueTensorType kSliceType = Torch::ValueTensorType::get(
+            context, ArrayRef<int64_t>{batchSize, sequenceLength, kHidden},
+            elemDtype);
+        Value key = Torch::AtenSliceTensorOp::create(
+            rewriter, loc, kSliceType, qkv, /*dim=*/cstDim2, /*start=*/cstQEnd,
+            /*end=*/cstKEnd, /*step=*/cstOne);
+        Torch::ValueTensorType vSliceType = Torch::ValueTensorType::get(
+            context, ArrayRef<int64_t>{batchSize, sequenceLength, vHidden},
+            elemDtype);
+        Value value = Torch::AtenSliceTensorOp::create(
+            rewriter, loc, vSliceType, qkv, /*dim=*/cstDim2, /*start=*/cstKEnd,
+            /*end=*/cstVEnd, /*step=*/cstOne);
+
+        // Step 3: reshape Q/K/V to [batch, num_heads, seq, head_size].
+        auto reshapeToHeads = [&](Value proj, int64_t perHead) -> Value {
+          Value perHeadConst =
+              (perHead == headSize) ? cstHeadSize : cstVHeadSize;
+          Value unflattenSizes = Torch::PrimListConstructOp::create(
+              rewriter, loc, intListType,
+              llvm::SmallVector<Value>{cstNumHeads, perHeadConst});
+          Torch::ValueTensorType intermediateType = Torch::ValueTensorType::get(
+              context,
+              ArrayRef<int64_t>{batchSize, sequenceLength, numHeads, perHead},
+              elemDtype);
+          Value intermediate = Torch::AtenUnflattenIntOp::create(
+              rewriter, loc, intermediateType, proj, /*dim=*/cstDim2,
+              unflattenSizes);
+          Torch::ValueTensorType finalType = Torch::ValueTensorType::get(
+              context,
+              ArrayRef<int64_t>{batchSize, numHeads, sequenceLength, perHead},
+              elemDtype);
+          return Torch::AtenTransposeIntOp::create(
+              rewriter, loc, finalType, intermediate, cstOne, cstDim2);
+        };
+        Value qHeads = reshapeToHeads(query, headSize);
+        Value kHeads = reshapeToHeads(key, headSize);
+        Value vHeads = reshapeToHeads(value, vHeadSize);
+
+        // Derive pastSeq / totalSeqLen early so both the RoPE position-offset
+        // (step 3b) and the causal mask shape (step 4b) can use them. The
+        // actual K/V prepend is done in step 3c below.
+        int64_t pastSeq = 0;
+        int64_t totalSeqLen = sequenceLength;
+        if (past) {
+          Torch::ValueTensorType pastPreType =
+              cast<Torch::ValueTensorType>(past.getType());
+          if (!pastPreType.hasSizes() || pastPreType.getSizes().size() != 5)
+            return rewriter.notifyMatchFailure(
+                binder.op, "Expected `past` to have 5 dimensions "
+                           "[2, batch, num_heads, past_seq, head_size]");
+          int64_t ps = pastPreType.getSizes()[3];
+          if (ps == Torch::kUnknownSize)
+            return rewriter.notifyMatchFailure(
+                binder.op, "dynamic past_seq dimension is not supported; "
+                           "past must have a static sequence-length dimension");
+          pastSeq = ps;
+          totalSeqLen = pastSeq + sequenceLength;
+        }
+
+        // Step 3b: apply rotary embeddings to Q and K if do_rotary is set.
+        // RoPE (rotary position embeddings) rotate pairs of elements in the
+        // head dimension using sinusoidal position-dependent angles:
+        //   theta_i = pos / 10000^(2i / rotary_dim)
+        //   [x1, x2] -> [x1*cos - x2*sin, x2*cos + x1*sin]
+        //
+        // The rotary_dim (number of elements to rotate) defaults to head_size
+        // when the attribute is 0.
+        //
+        // Position indices start at pastSeq so that the freshly-rotated new
+        // keys are encoded at their correct absolute positions. The cached
+        // keys coming from `past` are already rotated (see step 8: `present`
+        // stores the post-RoPE K), so they are consumed as-is.
+        // Frequency tables are always computed in f32 for precision, then cast
+        // back to the model element type before the multiply.
+        if (doRotary != 0) {
+
+          // Effective rotary dimension: default to head_size.
+          int64_t rotDim =
+              (rotaryEmbeddingDim == 0) ? headSize : rotaryEmbeddingDim;
+          int64_t halfRot = rotDim / 2;
+
+          Value cstHalfRot = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(halfRot));
+          Value cstRotDim = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(rotDim));
+
+          // Build theta frequencies: [1/10000^(2i/rotDim)] for i=0..halfRot-1
+          // Step = 2/rotDim in log space; equiv to arange(0,rotDim,2)/rotDim
+          // freqType: [halfRot] f32 (RoPE tables are always computed in
+
+          // float to preserve precision even for f16 models).
+          Type f32Dtype = Float32Type::get(context);
+          Torch::ValueTensorType freqType = Torch::ValueTensorType::get(
+              context, ArrayRef<int64_t>{halfRot}, f32Dtype);
+          // base: arange(0, rotDim, 2) / rotDim
+          Value cstRotDimFloat = Torch::ConstantFloatOp::create(
+              rewriter, loc,
+              rewriter.getF64FloatAttr(static_cast<double>(rotDim)));
+          // Use float scalars so arange produces f32 output matching freqType.
+          Value cstFreqStart = Torch::ConstantFloatOp::create(
+              rewriter, loc, rewriter.getF64FloatAttr(0.0));
+          Value cstFreqEnd = Torch::ConstantFloatOp::create(
+              rewriter, loc,
+              rewriter.getF64FloatAttr(static_cast<double>(rotDim)));
+          Value cstFreqStep = Torch::ConstantFloatOp::create(
+              rewriter, loc, rewriter.getF64FloatAttr(2.0));
+          Value freqRange = Torch::AtenArangeStartStepOp::create(
+              rewriter, loc, freqType, cstFreqStart, cstFreqEnd, cstFreqStep,
+              cstNone, cstNone, cstNone, cstNone);
+          Value freqNorm = Torch::AtenDivScalarOp::create(
+              rewriter, loc, freqType, freqRange, cstRotDimFloat);
+          // exponent: -freqNorm * log(10000)
+          Value cstLog10k = Torch::ConstantFloatOp::create(
+              rewriter, loc, rewriter.getF64FloatAttr(std::log(10000.0)));
+          Value freqExp = Torch::AtenMulScalarOp::create(
+              rewriter, loc, freqType, freqNorm, cstLog10k);
+          Value freqExpNeg =
+              Torch::AtenNegOp::create(rewriter, loc, freqType, freqExp);
+          Value invFreq =
+              Torch::AtenExpOp::create(rewriter, loc, freqType, freqExpNeg);
+          // invFreq shape: [halfRot] -> unsqueeze to [1, halfRot]
+
+          // Build position indices [pastSeq..pastSeq+seq-1] shape [seq]
+          // Positions start at pastSeq so that cached (already-rotated)
+          // tokens are not re-rotated at wrong offsets.
+          Torch::ValueTensorType posType = Torch::ValueTensorType::get(
+              context, ArrayRef<int64_t>{sequenceLength}, f32Dtype);
+          // Use float scalars so arange produces f32 output matching posType.
+          Value cstPosStart = Torch::ConstantFloatOp::create(
+              rewriter, loc,
+              rewriter.getF64FloatAttr(static_cast<double>(pastSeq)));
+          Value cstPosEnd = Torch::ConstantFloatOp::create(
+              rewriter, loc,
+              rewriter.getF64FloatAttr(static_cast<double>(totalSeqLen)));
+          Value cstPosStep = Torch::ConstantFloatOp::create(
+              rewriter, loc, rewriter.getF64FloatAttr(1.0));
+          Value posRange = Torch::AtenArangeStartStepOp::create(
+              rewriter, loc, posType, cstPosStart, cstPosEnd, cstPosStep,
+              cstNone, cstNone, cstNone, cstNone);
+          // posRange shape [seq] -> [seq, 1]
+          Torch::ValueTensorType posU1Type = Torch::ValueTensorType::get(
+              context, ArrayRef<int64_t>{sequenceLength, 1}, f32Dtype);
+          Value posU1 = Torch::AtenUnsqueezeOp::create(rewriter, loc, posU1Type,
+                                                       posRange, cstOne);
+
+          // invFreq [halfRot] -> [1, halfRot]
+          Torch::ValueTensorType invFreqU0Type = Torch::ValueTensorType::get(
+              context, ArrayRef<int64_t>{1, halfRot}, f32Dtype);
+          Value invFreqU0 = Torch::AtenUnsqueezeOp::create(
+              rewriter, loc, invFreqU0Type, invFreq, cstZero);
+
+          // outer product: [seq, 1] * [1, halfRot] -> [seq, halfRot]
+          Torch::ValueTensorType anglesType = Torch::ValueTensorType::get(
+              context, ArrayRef<int64_t>{sequenceLength, halfRot}, f32Dtype);
+          Value angles = Torch::AtenMulTensorOp::create(
+              rewriter, loc, anglesType, posU1, invFreqU0);
+
+          // cos/sin of angles: [seq, halfRot] in f32; cast to model dtype
+          // before applying to Q/K so element-wise mul is type-compatible.
+          Torch::ValueTensorType anglesElemType = Torch::ValueTensorType::get(
+              context, ArrayRef<int64_t>{sequenceLength, halfRot}, elemDtype);
+          Value cosA0 =
+              Torch::AtenCosOp::create(rewriter, loc, anglesType, angles);
+          Value sinA0 =
+              Torch::AtenSinOp::create(rewriter, loc, anglesType, angles);
+          Value dtypeInt = Torch::ConstantIntOp::create(
+              rewriter, loc,
+              rewriter.getI64IntegerAttr(static_cast<int64_t>(
+                  Torch::getScalarTypeForType(elemDtype))));
+          Value cosA = Torch::AtenToDtypeOp::create(
+              rewriter, loc, anglesElemType, cosA0, dtypeInt,
+              /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+              /*memory_format=*/cstNone);
+          Value sinA = Torch::AtenToDtypeOp::create(
+              rewriter, loc, anglesElemType, sinA0, dtypeInt,
+              /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
+              /*memory_format=*/cstNone);
+
+          // Broadcast to [1, 1, seq, halfRot] for head broadcast
+          auto addHeadDims = [&](Value t, ArrayRef<int64_t> sz) -> Value {
+            Torch::ValueTensorType t1 = Torch::ValueTensorType::get(
+                context, ArrayRef<int64_t>{1, sz[0], sz[1]}, elemDtype);
+            Value u0 =
+                Torch::AtenUnsqueezeOp::create(rewriter, loc, t1, t, cstZero);
+            Torch::ValueTensorType t2 = Torch::ValueTensorType::get(
+                context, ArrayRef<int64_t>{1, 1, sz[0], sz[1]}, elemDtype);
+            return Torch::AtenUnsqueezeOp::create(rewriter, loc, t2, u0,
+                                                  cstZero);
+          };
+          Value cosB = addHeadDims(cosA, {sequenceLength, halfRot});
+          Value sinB = addHeadDims(sinA, {sequenceLength, halfRot});
+
+          // Helper: apply RoPE to a [batch, heads, seq, head_size] tensor.
+          auto applyRope = [&](Value x, ArrayRef<int64_t> xShape) -> Value {
+            // Split x along last dim into [batch,heads,seq,halfRot] x2
+            Torch::ValueTensorType halfType = Torch::ValueTensorType::get(
+                context,
+                ArrayRef<int64_t>{xShape[0], xShape[1], xShape[2], halfRot},
+                elemDtype);
+            // cstHalfRot and cstRotDim are captured from outer scope.
+            Value x1 = Torch::AtenSliceTensorOp::create(rewriter, loc, halfType,
+                                                        x, cstDim3, cstZero,
+                                                        cstHalfRot, cstOne);
+            Value x2 = Torch::AtenSliceTensorOp::create(rewriter, loc, halfType,
+                                                        x, cstDim3, cstHalfRot,
+                                                        cstRotDim, cstOne);
+            // rotated = [x1*cos - x2*sin, x2*cos + x1*sin]
+            Value r1 = Torch::AtenSubTensorOp::create(
+                rewriter, loc, halfType,
+                Torch::AtenMulTensorOp::create(rewriter, loc, halfType, x1,
+                                               cosB),
+                Torch::AtenMulTensorOp::create(rewriter, loc, halfType, x2,
+                                               sinB),
+                cstOne);
+            Value r2 = Torch::AtenAddTensorOp::create(
+                rewriter, loc, halfType,
+                Torch::AtenMulTensorOp::create(rewriter, loc, halfType, x2,
+                                               cosB),
+                Torch::AtenMulTensorOp::create(rewriter, loc, halfType, x1,
+                                               sinB),
+                cstOne);
+            // cat([r1, r2], dim=-1) -> [batch,heads,seq,rotDim]
+            Torch::ValueTensorType rotType = Torch::ValueTensorType::get(
+                context,
+                ArrayRef<int64_t>{xShape[0], xShape[1], xShape[2], rotDim},
+                elemDtype);
+            Type halfListElem =
+                cast<Torch::BaseTensorType>(r1.getType())
+                    .getWithSizesAndDtype(std::nullopt, nullptr);
+            Value rotList = Torch::PrimListConstructOp::create(
+                rewriter, loc, Torch::ListType::get(halfListElem),
+                llvm::SmallVector<Value>{r1, r2});
+            Value rotated = Torch::AtenCatOp::create(rewriter, loc, rotType,
+                                                     rotList, cstDim3);
+            if (rotDim < xShape[3]) {
+              // Concatenate unrotated tail back.
+              Torch::ValueTensorType tailType = Torch::ValueTensorType::get(
+                  context,
+                  ArrayRef<int64_t>{xShape[0], xShape[1], xShape[2],
+                                    xShape[3] - rotDim},
+                  elemDtype);
+              Value cstHsz = Torch::ConstantIntOp::create(
+                  rewriter, loc, rewriter.getI64IntegerAttr(xShape[3]));
+              Value tail = Torch::AtenSliceTensorOp::create(
+                  rewriter, loc, tailType, x, cstDim3, cstRotDim, cstHsz,
+                  cstOne);
+              Type rotListElem =
+                  cast<Torch::BaseTensorType>(rotated.getType())
+                      .getWithSizesAndDtype(std::nullopt, nullptr);
+              Value fullList = Torch::PrimListConstructOp::create(
+                  rewriter, loc, Torch::ListType::get(rotListElem),
+                  llvm::SmallVector<Value>{rotated, tail});
+              Torch::ValueTensorType fullType =
+                  Torch::ValueTensorType::get(context, xShape, elemDtype);
+              return Torch::AtenCatOp::create(rewriter, loc, fullType, fullList,
+                                              cstDim3);
+            }
+            return rotated;
+          };
+
+          SmallVector<int64_t> qShape{batchSize, numHeads, sequenceLength,
+                                      headSize};
+          qHeads = applyRope(qHeads, qShape);
+          kHeads = applyRope(kHeads, qShape);
+        }
+
+        // Step 3c: prepend past K/V cache if provided.
+        // past shape: (2, batch, num_heads, past_seq, head_size)
+        // After prepending: kHeads/vHeads shape becomes
+        //   [batch, num_heads, past_seq + seq, head_size]
+        // (totalSeqLen and pastSeq were already resolved before step 3b.)
+        // pastK/pastV are hoisted so they can be reused in step 8 (present
+        // output) without re-emitting duplicate AtenSelectIntOp nodes.
+        Value pastK, pastV;
+        Torch::ValueTensorType pastKType, pastVType;
+        if (past) {
+          // Extract past K: select index 0 along dim 0
+          pastKType = Torch::ValueTensorType::get(
+              context,
+              ArrayRef<int64_t>{batchSize, numHeads, pastSeq, headSize},
+              elemDtype);
+          Value cstPastDim0 = cstZero; // dim 0 of the 5D past tensor
+          pastK = Torch::AtenSelectIntOp::create(rewriter, loc, pastKType, past,
+                                                 cstPastDim0, cstZero);
+
+          // Extract past V: select index 1 along dim 0
+          pastVType = Torch::ValueTensorType::get(
+              context,
+              ArrayRef<int64_t>{batchSize, numHeads, pastSeq, vHeadSize},
+              elemDtype);
+          pastV = Torch::AtenSelectIntOp::create(rewriter, loc, pastVType, past,
+                                                 cstPastDim0, cstOne);
+
+          // cat([pastK, kHeads], dim=2) -> [batch, heads, total_seq, head_sz]
+          Type kListElem = cast<Torch::BaseTensorType>(pastK.getType())
+                               .getWithSizesAndDtype(std::nullopt, nullptr);
+          Value kCatList = Torch::PrimListConstructOp::create(
+              rewriter, loc, Torch::ListType::get(kListElem),
+              llvm::SmallVector<Value>{pastK, kHeads});
+          Torch::ValueTensorType kCatType = Torch::ValueTensorType::get(
+              context,
+              ArrayRef<int64_t>{batchSize, numHeads, totalSeqLen, headSize},
+              elemDtype);
+          kHeads = Torch::AtenCatOp::create(rewriter, loc, kCatType, kCatList,
+                                            cstDim2);
+
+          Type vListElem = cast<Torch::BaseTensorType>(pastV.getType())
+                               .getWithSizesAndDtype(std::nullopt, nullptr);
+          Value vCatList = Torch::PrimListConstructOp::create(
+              rewriter, loc, Torch::ListType::get(vListElem),
+              llvm::SmallVector<Value>{pastV, vHeads});
+          Torch::ValueTensorType vCatType = Torch::ValueTensorType::get(
+              context,
+              ArrayRef<int64_t>{batchSize, numHeads, totalSeqLen, vHeadSize},
+              elemDtype);
+          vHeads = Torch::AtenCatOp::create(rewriter, loc, vCatType, vCatList,
+                                            cstDim2);
+        }
+
+        // Step 4: scores = (Q @ K^T) * scale.
+        // K^T: transpose last two dims -> [batch, num_heads, head_size,
+        // total_seq].
+        Torch::ValueTensorType kTransposedType = Torch::ValueTensorType::get(
+            context,
+            ArrayRef<int64_t>{batchSize, numHeads, headSize, totalSeqLen},
+            elemDtype);
+        Value kTransposed = Torch::AtenTransposeIntOp::create(
+            rewriter, loc, kTransposedType, kHeads, cstDim2, cstDim3);
+
+        Torch::ValueTensorType scoresType = Torch::ValueTensorType::get(
+            context,
+            ArrayRef<int64_t>{batchSize, numHeads, sequenceLength, totalSeqLen},
+            elemDtype);
+        Value scores = Torch::AtenMatmulOp::create(rewriter, loc, scoresType,
+                                                   qHeads, kTransposed);
+
+        double scaleValue =
+            hasScale ? static_cast<double>(scale)
+                     : 1.0 / std::sqrt(static_cast<double>(headSize));
+        Value cstScale = Torch::ConstantFloatOp::create(
+            rewriter, loc, rewriter.getType<Torch::FloatType>(),
+            rewriter.getF64FloatAttr(scaleValue));
+        scores = Torch::AtenMulScalarOp::create(rewriter, loc, scoresType,
+                                                scores, cstScale);
+
+        // Step 4b: apply additive masks/biases to the scores.
+        //
+        // Three optional contributions are supported, each broadcast over the
+        // [batch, num_heads, seq, seq] score tensor. For self attention the
+        // total_sequence_length equals the query sequence length.
+        Type elemType = inputType.getDtype();
+
+        // (a) unidirectional (causal) mask: position q may only attend to
+        //     key positions k <= q. Future positions are filled with
+        //     mask_filter_value. Built as strictly-upper-triangular ones
+        //     scaled by mask_filter_value, added to the scores.
+        //
+        //     When a KV cache (`past`) is present totalSeqLen > sequenceLength.
+        //     The mask shape must be [sequenceLength, totalSeqLen] and the
+        //     strictly-upper-triangular diagonal must be offset by pastSeq so
+        //     that query position q (0-based within the new tokens) is allowed
+        //     to attend to key positions 0..pastSeq+q.
+        if (unidirectional != 0) {
+          Value cstSeq = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(sequenceLength));
+          Value cstTotalSeq = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(totalSeqLen));
+          Value maskShape = Torch::PrimListConstructOp::create(
+              rewriter, loc, intListType,
+              llvm::SmallVector<Value>{cstSeq, cstTotalSeq});
+          Value cstFillOne = Torch::ConstantFloatOp::create(
+              rewriter, loc, rewriter.getF64FloatAttr(1.0));
+          Torch::ValueTensorType causalType = Torch::ValueTensorType::get(
+              context, ArrayRef<int64_t>{sequenceLength, totalSeqLen},
+              elemType);
+          Value causalOnes = Torch::AtenFullOp::create(
+              rewriter, loc, causalType, maskShape, cstFillOne,
+              /*dtype=*/cstNone, /*layout=*/cstNone, /*device=*/cstNone,
+              /*pin_memory=*/cstNone);
+          // Diagonal = pastSeq+1: position q in new tokens attends to
+          // keys 0..pastSeq+q (lower triangle of the full KV sequence).
+          Value cstDiag = Torch::ConstantIntOp::create(
+              rewriter, loc,
+              rewriter.getI64IntegerAttr(static_cast<int64_t>(pastSeq) + 1));
+          Value causalTriu = Torch::AtenTriuOp::create(
+              rewriter, loc, causalType, causalOnes, cstDiag);
+          Value cstFilter = Torch::ConstantFloatOp::create(
+              rewriter, loc,
+              rewriter.getF64FloatAttr(static_cast<double>(maskFilterValue)));
+          Value causalMask = Torch::AtenMulScalarOp::create(
+              rewriter, loc, causalType, causalTriu, cstFilter);
+          scores = Torch::AtenAddTensorOp::create(rewriter, loc, scoresType,
+                                                  scores, causalMask, cstOne);
+        }
+
+        // (b) raw attention mask (mask_index): shape (batch, total_seq) or
+        //     (batch, seq, total_seq) with value 1 to keep and 0 to mask.
+        //     Converted to an additive mask: keep -> 0, mask ->
+        //     mask_filter_value, then broadcast into the score tensor.
+        //
+        //     LIMITATION: only the *raw* keep/mask forms (2D/3D, 1=keep,
+        //     0=mask) are handled here. The com.microsoft spec also defines
+        //     1D right-side-padding encodings ([batch], [2*batch] and
+        //     [3*batch+2]) that onnxruntime commonly emits; those ranks are
+        //     rejected by the rank check below (clean match failure) and are
+        //     left as future work. The 1=keep / 0=mask polarity matches ORT's
+        //     raw-mask semantics.
+        if (maskIndex) {
+          Torch::ValueTensorType maskType =
+              cast<Torch::ValueTensorType>(maskIndex.getType());
+          if (!maskType.hasSizes() || (maskType.getSizes().size() != 2 &&
+                                       maskType.getSizes().size() != 3))
+            return rewriter.notifyMatchFailure(
+                binder.op,
+                "Unimplemented: only 2D (batch, total_seq) or 3D "
+                "(batch, seq, total_seq) raw mask_index is supported");
+          int64_t maskRank = maskType.getSizes().size();
+          int64_t totalSeq = maskType.getSizes()[maskRank - 1];
+
+          // The mask's last dimension indexes key positions, so it must match
+          // the attention total sequence length (past_seq + seq). A mismatch
+          // means the mask cannot be broadcast against the scores.
+          if (totalSeq != Torch::kUnknownSize && totalSeq != totalSeqLen)
+            return rewriter.notifyMatchFailure(
+                binder.op,
+                "mask_index last dimension must equal the total sequence "
+                "length (past_seq + seq)");
+
+          // Cast the mask to the score element type (no-op if it already
+          // matches, so guard to avoid emitting a redundant aten.to.dtype).
+          Value maskFloat = maskIndex;
+          if (maskType.getOptionalDtype() != elemType)
+            maskFloat =
+                Torch::convertTensorToDtype(rewriter, loc, maskIndex, elemType);
+
+          // additive = maskFloat * (-mask_filter_value) + mask_filter_value.
+          // keep (1) -> 0, mask (0) -> mask_filter_value.
+          Value cstNegFilter = Torch::ConstantFloatOp::create(
+              rewriter, loc,
+              rewriter.getF64FloatAttr(-static_cast<double>(maskFilterValue)));
+          Value cstFilter = Torch::ConstantFloatOp::create(
+              rewriter, loc,
+              rewriter.getF64FloatAttr(static_cast<double>(maskFilterValue)));
+          Value additive = Torch::AtenMulScalarOp::create(
+              rewriter, loc, maskFloat.getType(), maskFloat, cstNegFilter);
+          additive = Torch::AtenAddScalarOp::create(
+              rewriter, loc, additive.getType(), additive, cstFilter, cstOne);
+
+          // Reshape to [batch, 1, (1|seq), total_seq] for broadcasting.
+          if (maskRank == 2) {
+            Torch::ValueTensorType u1Type = Torch::ValueTensorType::get(
+                context, ArrayRef<int64_t>{batchSize, 1, totalSeq}, elemType);
+            additive = Torch::AtenUnsqueezeOp::create(rewriter, loc, u1Type,
+                                                      additive, cstOne);
+            Torch::ValueTensorType u2Type = Torch::ValueTensorType::get(
+                context, ArrayRef<int64_t>{batchSize, 1, 1, totalSeq},
+                elemType);
+            additive = Torch::AtenUnsqueezeOp::create(rewriter, loc, u2Type,
+                                                      additive, cstOne);
+          } else {
+            Torch::ValueTensorType u1Type = Torch::ValueTensorType::get(
+                context,
+                ArrayRef<int64_t>{batchSize, 1, sequenceLength, totalSeq},
+                elemType);
+            additive = Torch::AtenUnsqueezeOp::create(rewriter, loc, u1Type,
+                                                      additive, cstOne);
+          }
+          scores = Torch::AtenAddTensorOp::create(rewriter, loc, scoresType,
+                                                  scores, additive, cstOne);
+        }
+
+        // (c) attention_bias: an additive bias with shape
+        //     (batch or 1, num_heads or 1, seq, total_seq) added directly to
+        //     the scores. Broadcasting handles the singleton dimensions.
+        if (attentionBias) {
+          // Cast to the score element type (guarded to skip a redundant
+          // aten.to.dtype when the bias is already in the right dtype).
+          auto attnBiasType =
+              cast<Torch::ValueTensorType>(attentionBias.getType());
+          Value attnBias = attentionBias;
+          if (attnBiasType.getOptionalDtype() != elemType)
+            attnBias = Torch::convertTensorToDtype(rewriter, loc, attentionBias,
+                                                   elemType);
+          scores = Torch::AtenAddTensorOp::create(rewriter, loc, scoresType,
+                                                  scores, attnBias, cstOne);
+        }
+
+        // Step 5: probs = softmax(scores, dim=-1).
+        Value probs = Torch::AtenSoftmaxIntOp::create(
+            rewriter, loc, scoresType, scores, cstDim3, /*dtype=*/cstNone);
+
+        // Step 6: ctx = probs @ V -> [batch, num_heads, seq, v_head_size].
+        Torch::ValueTensorType ctxType = Torch::ValueTensorType::get(
+            context,
+            ArrayRef<int64_t>{batchSize, numHeads, sequenceLength, vHeadSize},
+            elemDtype);
+        Value ctx =
+            Torch::AtenMatmulOp::create(rewriter, loc, ctxType, probs, vHeads);
+
+        // Step 7: reshape ctx back to [batch, seq, v_hidden].
+        Torch::ValueTensorType ctxTransposedType = Torch::ValueTensorType::get(
+            context,
+            ArrayRef<int64_t>{batchSize, sequenceLength, numHeads, vHeadSize},
+            elemDtype);
+        Value ctxTransposed = Torch::AtenTransposeIntOp::create(
+            rewriter, loc, ctxTransposedType, ctx, cstOne, cstDim2);
+        Value output = Torch::AtenFlattenUsingIntsOp::create(
+            rewriter, loc, resultType, ctxTransposed, cstDim2, cstDim3);
+
+        // Step 8: build present state (optional result 1).
+        // present shape: (2, batch, num_heads, total_seq, head_size)
+        // This is the updated KV cache = cat([past_K, new_K]) stacked on dim 0.
+        if (numResults == 2) {
+          // Build present K/V from the post-RoPE K/V (ORT CUDA writes `present`
+          // from the rotated QKV workspace, so cached keys are stored already
+          // rotated). After step 3c, kHeads/vHeads already carry the past cache
+          // concatenated with the new tokens at totalSeqLen, so they can be
+          // used directly - no separate past concat is needed here.
+          Value presentK = kHeads;
+          Value presentV = vHeads;
+          // Unsqueeze K and V along dim 0 to get [1, batch, heads, seq, head]
+
+          Torch::ValueTensorType kU0Type = Torch::ValueTensorType::get(
+              context,
+              ArrayRef<int64_t>{1, batchSize, numHeads, totalSeqLen, headSize},
+              elemDtype);
+          Value kU0 = Torch::AtenUnsqueezeOp::create(rewriter, loc, kU0Type,
+                                                     presentK, cstZero);
+          Torch::ValueTensorType vU0Type = Torch::ValueTensorType::get(
+              context,
+              ArrayRef<int64_t>{1, batchSize, numHeads, totalSeqLen, vHeadSize},
+              elemDtype);
+          Value vU0 = Torch::AtenUnsqueezeOp::create(rewriter, loc, vU0Type,
+                                                     presentV, cstZero);
+          // cat([k_unsqueezed, v_unsqueezed], dim=0) ->
+          //   [2, batch, heads, total_seq, head_size]
+          Type kvListElem = cast<Torch::BaseTensorType>(kU0.getType())
+                                .getWithSizesAndDtype(std::nullopt, nullptr);
+          Value kvList = Torch::PrimListConstructOp::create(
+              rewriter, loc, Torch::ListType::get(kvListElem),
+              llvm::SmallVector<Value>{kU0, vU0});
+          Torch::ValueTensorType presentResultType;
+          if (binder.tensorResultTypeAtIndex(presentResultType, 1))
+            return rewriter.notifyMatchFailure(
+                binder.op, "present result type bind failure");
+          Value present = Torch::AtenCatOp::create(
+              rewriter, loc, presentResultType, kvList, cstZero);
+          rewriter.replaceOp(binder.op, {output, present});
+        } else {
+          rewriter.replaceOp(binder.op, {output});
+        }
+        return success();
+      });
 }

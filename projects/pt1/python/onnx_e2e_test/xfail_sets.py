@@ -26,11 +26,23 @@ ONNX_E2E_LINALG_XFAIL_SET = {
     # rounds differently from the dequantize/avg_pool/quantize lowering).
     "QLinearAveragePool_ui8_basic",
     "QLinearAveragePool_i8_basic",
+    # OnnxAttention_doRotary: The ONNX Runtime CPU Attention contrib kernel rejects do_rotary with
+    # "Rotary embedding is not supported in Attention CPU kernel. Please fuse
+    # the model with MHA + RotaryEmbedding.". The torch-mlir do_rotary lowering is
+    # covered by the FileCheck named-SSA cases in
+    # test/Conversion/TorchOnnxToTorch/com_microsoft_attention.mlir.
+    "OnnxAttention_doRotary",
 }
 
 # Tests that crash the interpreter and cannot be XFAILed safely.
 # These are skipped (not attempted) by the runner.
-ONNX_E2E_LINALG_CRASHING_SET = set()
+ONNX_E2E_LINALG_CRASHING_SET = {
+    # OnnxAttention_noBias: The ONNX
+    # Runtime CPU Attention contrib kernel segfaults inside ort InferenceSession
+    # .run() while computing the golden value when the optional bias input is
+    # omitted. Skipped so it does not kill the runner.
+    "OnnxAttention_noBias",
+}
 
 # --- TOSA backend (onnx_tosa config) ---
 # TOSA has different op coverage than linalg; tests unsupported on the
@@ -79,7 +91,18 @@ ONNX_E2E_TOSA_XFAIL_SET = {
     # QLinearAveragePool_i8_basic: off by one quantized step versus the
     # onnxruntime golden (same rounding difference as on linalg).
     "QLinearAveragePool_i8_basic",
+    # OnnxAttention_doRotary:
+    # The ONNX Runtime CPU Attention contrib kernel rejects do_rotary (no
+    # golden value), so this fails independent of the backend. See the LINALG
+    # set note; the do_rotary lowering is covered by FileCheck.
+    "OnnxAttention_doRotary",
 }
 
 
-ONNX_E2E_TOSA_CRASHING_SET = set()
+ONNX_E2E_TOSA_CRASHING_SET = {
+    # OnnxAttention_noBias: reference-side crash, not a lowering bug. The ONNX
+    # Runtime CPU Attention contrib kernel segfaults while computing the golden
+    # value when the optional bias input is omitted, independent of the
+    # backend. Skipped so it does not kill the runner.
+    "OnnxAttention_noBias",
+}
