@@ -4,13 +4,16 @@
 # Also available under a BSD-style license. See LICENSE.
 """Shared reference evaluation for output-shape probing and golden values."""
 
+import onnx
 from onnx.reference import ReferenceEvaluator
 
 
 def create_reference_evaluator(model):
-    # ONNX Runtime supplies the actual Microsoft contrib kernels. Use it for
-    # the entire graph so mixed standard/contrib graphs share one evaluator.
-    if any(opset.domain == "com.microsoft" for opset in model.opset_import):
+    # ONNX Runtime supplies the kernels of contrib ops, which ONNX does not
+    # define (com.microsoft ops, and e.g. SimplifiedLayerNormalization in the
+    # default domain). Use it for the entire graph so mixed standard/contrib
+    # graphs share one evaluator.
+    if any(not onnx.defs.has(node.op_type, node.domain) for node in model.graph.node):
         import onnxruntime as ort
 
         options = ort.SessionOptions()

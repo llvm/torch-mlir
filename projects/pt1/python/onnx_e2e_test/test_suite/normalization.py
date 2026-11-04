@@ -2,7 +2,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
-"""ONNX-native tests for Microsoft-domain normalization ops."""
+"""ONNX-native tests for ONNX Runtime's normalization contrib ops."""
 
 import torch
 import onnx.helper
@@ -108,3 +108,51 @@ class OnnxSkipSimplifiedLayerNormalization_f16(OnnxTestCase):
     )
     def graph(self):
         return [_ssln_node(["input", "skip", "gamma"])], _SSLN_OUTPUTS
+
+
+# ==============================================================================
+
+
+class _SimplifiedLayerNormalization(OnnxTestCase):
+    axis = -1
+    outputs = ["y", "inv_std_var"]
+
+    def graph(self):
+        node = onnx.helper.make_node(
+            "SimplifiedLayerNormalization",
+            ["x", "scale"],
+            self.outputs,
+            axis=self.axis,
+        )
+        return [node], self.outputs
+
+
+@register_onnx_test
+class OnnxSimplifiedLayerNormalization_f16_invStdVar(_SimplifiedLayerNormalization):
+    @annotate_inputs([("x", torch.float16, [2, 4, 8]), ("scale", torch.float16, [8])])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class OnnxSimplifiedLayerNormalization_f32_axis1_invStdVar(
+    _SimplifiedLayerNormalization
+):
+    # Normalizes over the last two dimensions.
+    axis = 1
+
+    @annotate_inputs(
+        [("x", torch.float32, [2, 4, 8]), ("scale", torch.float32, [4, 8])]
+    )
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class OnnxSimplifiedLayerNormalization_f32_f16Scale(_SimplifiedLayerNormalization):
+    # The output has the dtype of the scale.
+    outputs = ["y"]
+
+    @annotate_inputs([("x", torch.float32, [2, 4, 8]), ("scale", torch.float16, [8])])
+    def graph(self):
+        return super().graph()
