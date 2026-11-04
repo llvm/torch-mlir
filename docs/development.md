@@ -178,6 +178,9 @@ sudo apt install clang ccache lld
 
     - NOTE: The JIT IR importer depends on the native PyTorch extension features and defaults to `ON` if not changed.
 
+Torch-MLIR test targets are enabled by default. To omit them, append
+`-DTORCH_MLIR_INCLUDE_TESTS=OFF` to either CMake configuration command above.
+
 #### Initiate Build
 
 1. [Configure the build](#configure-for-building) if you haven't already done so.
@@ -478,6 +481,13 @@ with the following commands:
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 CMAKE_GENERATOR=Ninja python setup.py bdist_wheel
+```
+
+To omit Torch-MLIR test targets when building a wheel, set
+`TORCH_MLIR_INCLUDE_TESTS=OFF` (default: `ON`):
+
+```shell
+TORCH_MLIR_INCLUDE_TESTS=OFF CMAKE_GENERATOR=Ninja python setup.py bdist_wheel
 ```
 
 To package a completed CMake build directory,
