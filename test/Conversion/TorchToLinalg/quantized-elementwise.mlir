@@ -133,7 +133,7 @@ func.func @choose_qparams_tensor(
   %qmin = torch.constant.int -128
   %qmax = torch.constant.int 127
   %eps = torch.constant.float 1.000000e-08
-  %dtype = torch.constant.int 2
+  %dtype = torch.constant.int 1
   %scale, %zp = torch.quantized_decomposed.choose_qparams.tensor
       %input, %qmin, %qmax, %eps, %dtype
       : !torch.vtensor<[4,8],f32>, !torch.int, !torch.int, !torch.float, !torch.int
@@ -161,7 +161,7 @@ func.func @choose_qparams_tensor_rank0(
   %qmin = torch.constant.int -128
   %qmax = torch.constant.int 127
   %eps = torch.constant.float 1.000000e-08
-  %dtype = torch.constant.int 2
+  %dtype = torch.constant.int 1
   %scale, %zp = torch.quantized_decomposed.choose_qparams.tensor
       %input, %qmin, %qmax, %eps, %dtype
       : !torch.vtensor<[],f32>, !torch.int, !torch.int, !torch.float, !torch.int
@@ -265,7 +265,7 @@ func.func @choose_qparams_symmetric_tensor_bf16_input(
 // CHECK-LABEL: func.func @choose_qparams_symmetric_quantize_dequantize_roundtrip(
 // CHECK-SAME:    %[[INPUT:[^:,]+]]: !torch.vtensor<[?,?],f32>
 // CHECK-DAG:   %[[IN_T:.*]] = torch_c.to_builtin_tensor %[[INPUT]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
-// --- choose_qparams_symmetric block
+// choose_qparams_symmetric block:
 // CHECK:       %[[REDUCE:.*]]:2 = linalg.generic
 // CHECK-SAME:    ins(%[[IN_T]] : tensor<?x?xf32>)
 // CHECK:       tensor.extract %[[REDUCE]]#0[] : tensor<f32>
@@ -276,7 +276,7 @@ func.func @choose_qparams_symmetric_tensor_bf16_input(
 // CHECK:       %[[ZP_V:.*]] = torch_c.from_builtin_tensor %[[ZP_1D]] : tensor<1xi64> -> !torch.vtensor<[1],si64>
 // CHECK:       %[[SCALE:.*]] = torch.aten.item %[[SCALE_V]] : !torch.vtensor<[1],f32> -> !torch.float
 // CHECK:       %[[ZP:.*]] = torch.aten.item %[[ZP_V]] : !torch.vtensor<[1],si64> -> !torch.int
-// --- quantize block
+// quantize block:
 // %[[Q:.*]]. The payload must consume both the aten.item scale and zp.
 // CHECK:       %[[Q:.*]] = linalg.generic
 // CHECK-SAME:    ins(%[[IN_T]] : tensor<?x?xf32>)
@@ -284,7 +284,7 @@ func.func @choose_qparams_symmetric_tensor_bf16_input(
 // CHECK:       torch_c.to_f64 %[[SCALE]]
 // CHECK:       torch_c.to_i64 %[[ZP]]
 // CHECK:       linalg.yield %{{.*}} : i8
-// --- dequantize block
+// dequantize block:
 // CHECK:       %[[CAST:.*]] = tensor.cast %[[Q]] : tensor<?x?xi8> to tensor<?x?xi8>
 // CHECK:       linalg.generic
 // CHECK-SAME:    ins(%[[CAST]] : tensor<?x?xi8>)
@@ -298,7 +298,7 @@ func.func @choose_qparams_symmetric_quantize_dequantize_roundtrip(
   %qmin  = torch.constant.int -128
   %qmax  = torch.constant.int 127
   %eps   = torch.constant.float 1.000000e-08
-  %dtype = torch.constant.int 2
+  %dtype = torch.constant.int 1
   %scale_t, %zp_t = torch.quantized_decomposed.choose_qparams_symmetric.tensor
       %input, %qmin, %qmax, %eps, %dtype
       : !torch.vtensor<[?,?],f32>, !torch.int, !torch.int, !torch.float, !torch.int
@@ -326,7 +326,7 @@ func.func @choose_qparams_symmetric_quantize_dequantize_roundtrip(
 // CHECK-LABEL: func.func @choose_qparams_quantize_dequantize_roundtrip(
 // CHECK-SAME:    %[[INPUT:[^:,]+]]: !torch.vtensor<[?,?],f32>
 // CHECK:       %[[IN_T:.*]] = torch_c.to_builtin_tensor %[[INPUT]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
-// --- choose_qparams block
+// choose_qparams block:
 // input, then scalar scale/zp are built as tensor<1x...> and extracted with
 // aten.item.
 // CHECK:       %[[REDUCE:.*]]:2 = linalg.generic
@@ -339,14 +339,14 @@ func.func @choose_qparams_symmetric_quantize_dequantize_roundtrip(
 // CHECK:       %[[ZP_V:.*]] = torch_c.from_builtin_tensor %[[ZP_1D]] : tensor<1xi64> -> !torch.vtensor<[1],si64>
 // CHECK:       %[[SCALE:.*]] = torch.aten.item %[[SCALE_V]] : !torch.vtensor<[1],f32> -> !torch.float
 // CHECK:       %[[ZP:.*]] = torch.aten.item %[[ZP_V]] : !torch.vtensor<[1],si64> -> !torch.int
-// --- quantize block
+// quantize block:
 // CHECK:       %[[Q:.*]] = linalg.generic
 // CHECK-SAME:    ins(%[[IN_T]] : tensor<?x?xf32>)
 // CHECK-SAME:    outs(%{{.*}} : tensor<?x?xi8>)
 // CHECK:       torch_c.to_f64 %[[SCALE]]
 // CHECK:       torch_c.to_i64 %[[ZP]]
 // CHECK:       linalg.yield %{{.*}} : i8
-// --- dequantize block
+// dequantize block:
 // CHECK:       %[[CAST:.*]] = tensor.cast %[[Q]] : tensor<?x?xi8> to tensor<?x?xi8>
 // CHECK:       linalg.generic
 // CHECK-SAME:    ins(%[[CAST]] : tensor<?x?xi8>)
@@ -360,7 +360,7 @@ func.func @choose_qparams_quantize_dequantize_roundtrip(
   %qmin  = torch.constant.int -128
   %qmax  = torch.constant.int 127
   %eps   = torch.constant.float 1.000000e-08
-  %dtype = torch.constant.int 2
+  %dtype = torch.constant.int 1
   %scale_t, %zp_t = torch.quantized_decomposed.choose_qparams.tensor
       %input, %qmin, %qmax, %eps, %dtype
       : !torch.vtensor<[?,?],f32>, !torch.int, !torch.int, !torch.float, !torch.int
@@ -417,7 +417,7 @@ func.func @choose_qparams_symmetric_tensor(
   %qmin = torch.constant.int -128
   %qmax = torch.constant.int 127
   %eps = torch.constant.float 1.000000e-08
-  %dtype = torch.constant.int 2
+  %dtype = torch.constant.int 1
   %scale, %zp = torch.quantized_decomposed.choose_qparams_symmetric.tensor
       %input, %qmin, %qmax, %eps, %dtype
       : !torch.vtensor<[4,8],f32>, !torch.int, !torch.int, !torch.float, !torch.int
