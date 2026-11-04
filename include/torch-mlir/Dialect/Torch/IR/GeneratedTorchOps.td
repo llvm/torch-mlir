@@ -19137,6 +19137,31 @@ def Torch_PrimsSqrtOp : Torch_Op<"prims.sqrt", [
   }];
 }
 
+def Torch_PrimsFmaOp : Torch_Op<"prims.fma", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `prims::fma : (Tensor, Tensor, Tensor) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$a,
+    AnyTorchTensorType:$b,
+    AnyTorchTensorType:$c
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult PrimsFmaOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 3, 1);
+    }
+    void PrimsFmaOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 3, 1);
+    }
+  }];
+}
+
 def Torch_PrimsCollapseOp : Torch_Op<"prims.collapse", [
     AllowsTypeRefinement,
     HasValueSemantics,

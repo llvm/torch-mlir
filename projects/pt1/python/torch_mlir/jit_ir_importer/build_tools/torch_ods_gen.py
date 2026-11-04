@@ -1330,6 +1330,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
     emit("prims::convert_element_type : (Tensor, int) -> (Tensor)", has_folder=True)
     emit("prims::var : (Tensor, int[]?, float?, int?) -> (Tensor)")
     emit("prims::sqrt : (Tensor) -> (Tensor)")
+    emit("prims::fma : (Tensor, Tensor, Tensor) -> (Tensor)")
     emit("prims::collapse : (Tensor, int, int) -> (Tensor)")
     emit("prims::split_dim : (Tensor, int, int) -> (Tensor)")
     emit("prims::squeeze : (Tensor, int[]) -> (Tensor)")
@@ -1382,6 +1383,9 @@ def main(args: argparse.Namespace):
     _maybe_import_op_extensions(args)
     # importing torchvision will register torchvision ops with the JITOperatorRegistry
     import torchvision
+
+    # Register the prims defined by Inductor, including prims.fma.
+    import torch._inductor.inductor_prims
 
     registry = Registry.load()
     if args.debug_registry_dump:
