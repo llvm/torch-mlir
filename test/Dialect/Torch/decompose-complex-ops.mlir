@@ -2164,7 +2164,7 @@ func.func @decompose_quantize_per_tensor_tensor(
     -> !torch.vtensor<[4,8],si8> {
   %qmin = torch.constant.int -128
   %qmax = torch.constant.int 127
-  %dtype = torch.constant.int 2
+  %dtype = torch.constant.int 1
   %out = torch.quantized_decomposed.quantize_per_tensor.tensor
       %input, %scale, %zp, %qmin, %qmax, %dtype
       : !torch.vtensor<[4,8],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[],si32>,
@@ -2197,7 +2197,7 @@ func.func @decompose_quantize_per_tensor_tensor2(
     %qmin_t: !torch.vtensor<[],si32>,
     %qmax_t: !torch.vtensor<[],si32>)
     -> !torch.vtensor<[4,8],si8> {
-  %dtype = torch.constant.int 2
+  %dtype = torch.constant.int 1
   %out = torch.quantized_decomposed.quantize_per_tensor.tensor2
       %input, %scale, %zp, %qmin_t, %qmax_t, %dtype
       : !torch.vtensor<[4,8],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[],si32>,
@@ -2226,7 +2226,7 @@ func.func @decompose_dequantize_per_tensor_tensor(
     -> !torch.vtensor<[4,8],f32> {
   %qmin = torch.constant.int -128
   %qmax = torch.constant.int 127
-  %dtype = torch.constant.int 2
+  %dtype = torch.constant.int 1
   %none = torch.constant.none
   %od = torch.derefine %none : !torch.none to !torch.optional<int>
   %out = torch.quantized_decomposed.dequantize_per_tensor.tensor
@@ -2261,7 +2261,7 @@ func.func @decompose_dequantize_per_tensor_tensor2(
     %qmin_t: !torch.vtensor<[],si32>,
     %qmax_t: !torch.vtensor<[],si32>)
     -> !torch.vtensor<[4,8],f32> {
-  %dtype = torch.constant.int 2
+  %dtype = torch.constant.int 1
   %none = torch.constant.none
   %od = torch.derefine %none : !torch.none to !torch.optional<int>
   %out = torch.quantized_decomposed.dequantize_per_tensor.tensor2
