@@ -93,6 +93,13 @@ ONNX_E2E_TOSA_XFAIL_SET = {
     # these will hit the f64 issue above.
     "OnnxConvInteger_ui8_perChannelWeightZp",
     "OnnxConvInteger_i8_perChannelWeightZp",
+    # OnnxQLinearConv_perChannel*: TOSA has no lowering for
+    # torch.quantized_decomposed.dequantize_per_channel.
+    "OnnxQLinearConv_perChannel",
+    "OnnxQLinearConv_perChannelBias",
+    # OnnxQLinearConv_ui8_basic: TOSA mishandles uint8 inputs above 127.
+    # Keep the full unsigned range in these tests to expose it.
+    "OnnxQLinearConv_ui8_basic",
 }
 
 
