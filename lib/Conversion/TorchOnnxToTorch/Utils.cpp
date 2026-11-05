@@ -205,27 +205,31 @@ getIntQuantParams(ConversionPatternRewriter &rewriter, Location loc,
   return IntQuantParams{dtypeConst, minInt, maxInt};
 }
 
-/// Dequantizes the integer tensor `input` to an f32 tensor. If `axis` is set,
+/// Dequantizes the integer tensor `input` to a float tensor of element type
+/// `outFloatTy` (f32 if null). If `axis` is set,
 /// `quantized_decomposed.dequantize_per_channel` is emitted,
 /// otherwise `quantized_decomposed.dequantize_per_tensor` is emitted.
 static LogicalResult createDequantizeImpl(ConversionPatternRewriter &rewriter,
                                           Location loc, Value input,
                                           Value scale, Value zeroPoint,
                                           std::optional<int64_t> axis,
-                                          Value &output) {
+                                          Value &output, FloatType outFloatTy) {
   auto inputTy = dyn_cast<Torch::ValueTensorType>(input.getType());
   FailureOr<IntQuantParams> params = getIntQuantParams(rewriter, loc, inputTy);
   if (failed(params))
     return failure();
 
-  Value noneOutDtype = Torch::ConstantNoneOp::create(rewriter, loc);
+  Value outDtype =
+      outFloatTy ? Torch::getDtypeIntValueForType(rewriter, loc, outFloatTy)
+                 : Torch::ConstantNoneOp::create(rewriter, loc).getResult();
   Torch::ValueTensorType resultTy = rewriter.getType<Torch::ValueTensorType>(
-      inputTy.getSizes(), rewriter.getF32Type());
+      inputTy.getSizes(),
+      outFloatTy ? Type(outFloatTy) : rewriter.getF32Type());
 
   if (!axis) {
     output = Torch::QuantizedDecomposedDequantizePerTensorOp::create(
         rewriter, loc, resultTy, input, scale, zeroPoint, params->quantMin,
-        params->quantMax, params->dtypeConst, noneOutDtype);
+        params->quantMax, params->dtypeConst, outDtype);
     return success();
   }
 
@@ -233,22 +237,23 @@ static LogicalResult createDequantizeImpl(ConversionPatternRewriter &rewriter,
       rewriter, loc, rewriter.getI64IntegerAttr(*axis));
   output = Torch::QuantizedDecomposedDequantizePerChannelOp::create(
       rewriter, loc, resultTy, input, scale, zeroPoint, cstAxis,
-      params->quantMin, params->quantMax, params->dtypeConst, noneOutDtype);
+      params->quantMin, params->quantMax, params->dtypeConst, outDtype);
   return success();
 }
 
 LogicalResult mlir::torch::onnx_c::createDequantizeTensor(
     ConversionPatternRewriter &rewriter, Location loc, Value input, Value scale,
-    Value zeroPoint, Value &output) {
+    Value zeroPoint, Value &output, FloatType outFloatTy) {
   return createDequantizeImpl(rewriter, loc, input, scale, zeroPoint,
-                              /*axis=*/std::nullopt, output);
+                              /*axis=*/std::nullopt, output, outFloatTy);
 }
 
 LogicalResult mlir::torch::onnx_c::createDequantizePerChannelTensor(
     ConversionPatternRewriter &rewriter, Location loc, Value input,
-    Value scales, Value zeroPoints, int64_t axis, Value &output) {
+    Value scales, Value zeroPoints, int64_t axis, Value &output,
+    FloatType outFloatTy) {
   return createDequantizeImpl(rewriter, loc, input, scales, zeroPoints, axis,
-                              output);
+                              output, outFloatTy);
 }
 
 LogicalResult mlir::torch::onnx_c::createQuantizeTensor(

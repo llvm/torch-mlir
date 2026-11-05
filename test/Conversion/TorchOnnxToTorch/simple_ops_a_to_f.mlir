@@ -1336,14 +1336,26 @@ func.func @test_convinteger_without_padding(%arg0: !torch.vtensor<[1,1,3,3],ui8>
   // CHECK: %[[SCALE:.*]] = torch.constant.float 1.000000e+00
   // CHECK: %[[INPUT_ZP:.*]] = torch.aten.item %arg2 : !torch.vtensor<[],ui8> -> !torch.int
   // CHECK: %[[WEIGHT_ZP:.*]] = torch.aten.item %arg3 : !torch.vtensor<[1],ui8> -> !torch.int
+  // CHECK: %[[PAD_0:.*]] = torch.constant.int 0
+  // CHECK: %[[PAD_1:.*]] = torch.constant.int 0
+  // CHECK: %[[PADDING:.*]] = torch.prim.ListConstruct %[[PAD_0]], %[[PAD_1]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[DIL_0:.*]] = torch.constant.int 1
+  // CHECK: %[[DIL_1:.*]] = torch.constant.int 1
+  // CHECK: %[[DILATIONS:.*]] = torch.prim.ListConstruct %[[DIL_0]], %[[DIL_1]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[STRIDE_0:.*]] = torch.constant.int 1
+  // CHECK: %[[STRIDE_1:.*]] = torch.constant.int 1
+  // CHECK: %[[STRIDE:.*]] = torch.prim.ListConstruct %[[STRIDE_0]], %[[STRIDE_1]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[OUT_PAD_0:.*]] = torch.constant.int 0
+  // CHECK: %[[OUT_PAD_1:.*]] = torch.constant.int 0
+  // CHECK: %[[OUTPUT_PADDING:.*]] = torch.prim.ListConstruct %[[OUT_PAD_0]], %[[OUT_PAD_1]] : (!torch.int, !torch.int) -> !torch.list<int>
   // CHECK: %[[TRANSPOSED:.*]] = torch.constant.bool false
   // CHECK: %[[BIAS:.*]] = torch.constant.none
   // CHECK: %[[GROUPS:.*]] = torch.constant.int 1
-  // CHECK: %[[DEQUANT_INPUT:.*]] = torch.quantized_decomposed.dequantize_per_tensor %arg0, %[[SCALE]], %[[INPUT_ZP]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[1,1,3,3],ui8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.none -> !torch.vtensor<[1,1,3,3],f32>
-  // CHECK: %[[DEQUANT_WEIGHT:.*]] = torch.quantized_decomposed.dequantize_per_tensor %arg1, %[[SCALE]], %[[WEIGHT_ZP]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[1,1,2,2],ui8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.none -> !torch.vtensor<[1,1,2,2],f32>
-  // CHECK: %[[CONV:.*]] = torch.aten.convolution %[[DEQUANT_INPUT]], %[[DEQUANT_WEIGHT]], %[[BIAS]], %{{.*}}, %{{.*}}, %{{.*}}, %[[TRANSPOSED]], %{{.*}}, %[[GROUPS]] : !torch.vtensor<[1,1,3,3],f32>, !torch.vtensor<[1,1,2,2],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,1,2,2],f32>
+  // CHECK: %[[DEQUANT_INPUT:.*]] = torch.quantized_decomposed.dequantize_per_tensor %arg0, %[[SCALE]], %[[INPUT_ZP]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[1,1,3,3],ui8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[1,1,3,3],f64>
+  // CHECK: %[[DEQUANT_WEIGHT:.*]] = torch.quantized_decomposed.dequantize_per_tensor %arg1, %[[SCALE]], %[[WEIGHT_ZP]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[1,1,2,2],ui8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[1,1,2,2],f64>
+  // CHECK: %[[CONV:.*]] = torch.aten.convolution %[[DEQUANT_INPUT]], %[[DEQUANT_WEIGHT]], %[[BIAS]], %[[STRIDE]], %[[PADDING]], %[[DILATIONS]], %[[TRANSPOSED]], %[[OUTPUT_PADDING]], %[[GROUPS]] : !torch.vtensor<[1,1,3,3],f64>, !torch.vtensor<[1,1,2,2],f64>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,1,2,2],f64>
   // CHECK: %[[SI32_DTYPE:.*]] = torch.constant.int 3
-  // CHECK: torch.aten.to.dtype %[[CONV]], %[[SI32_DTYPE]], %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[1,1,2,2],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1,2,2],si32>
+  // CHECK: torch.aten.to.dtype %[[CONV]], %[[SI32_DTYPE]], %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[1,1,2,2],f64>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1,2,2],si32>
   %none = torch.constant.none
   %0 = torch.operator "onnx.ConvInteger"(%arg0, %arg1, %arg2, %arg3) : (!torch.vtensor<[1,1,3,3],ui8>, !torch.vtensor<[1,1,2,2],ui8>, !torch.vtensor<[],ui8>, !torch.vtensor<[1],ui8>) -> !torch.vtensor<[1,1,2,2],si32>
   return %0 : !torch.vtensor<[1,1,2,2],si32>
@@ -1356,14 +1368,26 @@ func.func @test_convinteger_with_valid_autopad(%arg0: !torch.vtensor<[1,1,3,3],u
   // CHECK: %[[SCALE:.*]] = torch.constant.float 1.000000e+00
   // CHECK: %[[INPUT_ZP:.*]] = torch.aten.item %arg2 : !torch.vtensor<[],ui8> -> !torch.int
   // CHECK: %[[WEIGHT_ZP:.*]] = torch.aten.item %arg3 : !torch.vtensor<[1],ui8> -> !torch.int
+  // CHECK: %[[PAD_0:.*]] = torch.constant.int 0
+  // CHECK: %[[PAD_1:.*]] = torch.constant.int 0
+  // CHECK: %[[PADDING:.*]] = torch.prim.ListConstruct %[[PAD_0]], %[[PAD_1]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[DIL_0:.*]] = torch.constant.int 1
+  // CHECK: %[[DIL_1:.*]] = torch.constant.int 1
+  // CHECK: %[[DILATIONS:.*]] = torch.prim.ListConstruct %[[DIL_0]], %[[DIL_1]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[STRIDE_0:.*]] = torch.constant.int 1
+  // CHECK: %[[STRIDE_1:.*]] = torch.constant.int 1
+  // CHECK: %[[STRIDE:.*]] = torch.prim.ListConstruct %[[STRIDE_0]], %[[STRIDE_1]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[OUT_PAD_0:.*]] = torch.constant.int 0
+  // CHECK: %[[OUT_PAD_1:.*]] = torch.constant.int 0
+  // CHECK: %[[OUTPUT_PADDING:.*]] = torch.prim.ListConstruct %[[OUT_PAD_0]], %[[OUT_PAD_1]] : (!torch.int, !torch.int) -> !torch.list<int>
   // CHECK: %[[TRANSPOSED:.*]] = torch.constant.bool false
   // CHECK: %[[BIAS:.*]] = torch.constant.none
   // CHECK: %[[GROUPS:.*]] = torch.constant.int 1
-  // CHECK: %[[DEQUANT_INPUT:.*]] = torch.quantized_decomposed.dequantize_per_tensor %arg0, %[[SCALE]], %[[INPUT_ZP]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[1,1,3,3],ui8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.none -> !torch.vtensor<[1,1,3,3],f32>
-  // CHECK: %[[DEQUANT_WEIGHT:.*]] = torch.quantized_decomposed.dequantize_per_tensor %arg1, %[[SCALE]], %[[WEIGHT_ZP]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[1,1,2,2],ui8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.none -> !torch.vtensor<[1,1,2,2],f32>
-  // CHECK: %[[CONV:.*]] = torch.aten.convolution %[[DEQUANT_INPUT]], %[[DEQUANT_WEIGHT]], %[[BIAS]], %{{.*}}, %{{.*}}, %{{.*}}, %[[TRANSPOSED]], %{{.*}}, %[[GROUPS]] : !torch.vtensor<[1,1,3,3],f32>, !torch.vtensor<[1,1,2,2],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,1,2,2],f32>
+  // CHECK: %[[DEQUANT_INPUT:.*]] = torch.quantized_decomposed.dequantize_per_tensor %arg0, %[[SCALE]], %[[INPUT_ZP]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[1,1,3,3],ui8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[1,1,3,3],f64>
+  // CHECK: %[[DEQUANT_WEIGHT:.*]] = torch.quantized_decomposed.dequantize_per_tensor %arg1, %[[SCALE]], %[[WEIGHT_ZP]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[1,1,2,2],ui8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[1,1,2,2],f64>
+  // CHECK: %[[CONV:.*]] = torch.aten.convolution %[[DEQUANT_INPUT]], %[[DEQUANT_WEIGHT]], %[[BIAS]], %[[STRIDE]], %[[PADDING]], %[[DILATIONS]], %[[TRANSPOSED]], %[[OUTPUT_PADDING]], %[[GROUPS]] : !torch.vtensor<[1,1,3,3],f64>, !torch.vtensor<[1,1,2,2],f64>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,1,2,2],f64>
   // CHECK: %[[SI32_DTYPE:.*]] = torch.constant.int 3
-  // CHECK: torch.aten.to.dtype %[[CONV]], %[[SI32_DTYPE]], %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[1,1,2,2],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1,2,2],si32>
+  // CHECK: torch.aten.to.dtype %[[CONV]], %[[SI32_DTYPE]], %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[1,1,2,2],f64>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1,2,2],si32>
   %none = torch.constant.none
   %0 = torch.operator "onnx.ConvInteger"(%arg0, %arg1, %arg2, %arg3) {torch.onnx.auto_pad = "VALID"} : (!torch.vtensor<[1,1,3,3],ui8>, !torch.vtensor<[1,1,2,2],ui8>, !torch.vtensor<[],ui8>, !torch.vtensor<[1],ui8>) -> !torch.vtensor<[1,1,2,2],si32>
   return %0 : !torch.vtensor<[1,1,2,2],si32>
@@ -1376,14 +1400,26 @@ func.func @test_convinteger_with_padding(%arg0: !torch.vtensor<[1,1,3,3],ui8>, %
   // CHECK: %[[SCALE:.*]] = torch.constant.float 1.000000e+00
   // CHECK: %[[INPUT_ZP:.*]] = torch.aten.item %arg2 : !torch.vtensor<[],ui8> -> !torch.int
   // CHECK: %[[WEIGHT_ZP:.*]] = torch.constant.int 0
+  // CHECK: %[[PAD_0:.*]] = torch.constant.int 1
+  // CHECK: %[[PAD_1:.*]] = torch.constant.int 1
+  // CHECK: %[[PADDING:.*]] = torch.prim.ListConstruct %[[PAD_0]], %[[PAD_1]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[DIL_0:.*]] = torch.constant.int 1
+  // CHECK: %[[DIL_1:.*]] = torch.constant.int 1
+  // CHECK: %[[DILATIONS:.*]] = torch.prim.ListConstruct %[[DIL_0]], %[[DIL_1]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[STRIDE_0:.*]] = torch.constant.int 1
+  // CHECK: %[[STRIDE_1:.*]] = torch.constant.int 1
+  // CHECK: %[[STRIDE:.*]] = torch.prim.ListConstruct %[[STRIDE_0]], %[[STRIDE_1]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[OUT_PAD_0:.*]] = torch.constant.int 0
+  // CHECK: %[[OUT_PAD_1:.*]] = torch.constant.int 0
+  // CHECK: %[[OUTPUT_PADDING:.*]] = torch.prim.ListConstruct %[[OUT_PAD_0]], %[[OUT_PAD_1]] : (!torch.int, !torch.int) -> !torch.list<int>
   // CHECK: %[[TRANSPOSED:.*]] = torch.constant.bool false
   // CHECK: %[[BIAS:.*]] = torch.constant.none
   // CHECK: %[[GROUPS:.*]] = torch.constant.int 1
-  // CHECK: %[[DEQUANT_INPUT:.*]] = torch.quantized_decomposed.dequantize_per_tensor %arg0, %[[SCALE]], %[[INPUT_ZP]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[1,1,3,3],ui8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.none -> !torch.vtensor<[1,1,3,3],f32>
-  // CHECK: %[[DEQUANT_WEIGHT:.*]] = torch.quantized_decomposed.dequantize_per_tensor %arg1, %[[SCALE]], %[[WEIGHT_ZP]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[1,1,2,2],ui8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.none -> !torch.vtensor<[1,1,2,2],f32>
-  // CHECK: %[[CONV:.*]] = torch.aten.convolution %[[DEQUANT_INPUT]], %[[DEQUANT_WEIGHT]], %[[BIAS]], %{{.*}}, %{{.*}}, %{{.*}}, %[[TRANSPOSED]], %{{.*}}, %[[GROUPS]] : !torch.vtensor<[1,1,3,3],f32>, !torch.vtensor<[1,1,2,2],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,1,4,4],f32>
+  // CHECK: %[[DEQUANT_INPUT:.*]] = torch.quantized_decomposed.dequantize_per_tensor %arg0, %[[SCALE]], %[[INPUT_ZP]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[1,1,3,3],ui8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[1,1,3,3],f64>
+  // CHECK: %[[DEQUANT_WEIGHT:.*]] = torch.quantized_decomposed.dequantize_per_tensor %arg1, %[[SCALE]], %[[WEIGHT_ZP]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[1,1,2,2],ui8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[1,1,2,2],f64>
+  // CHECK: %[[CONV:.*]] = torch.aten.convolution %[[DEQUANT_INPUT]], %[[DEQUANT_WEIGHT]], %[[BIAS]], %[[STRIDE]], %[[PADDING]], %[[DILATIONS]], %[[TRANSPOSED]], %[[OUTPUT_PADDING]], %[[GROUPS]] : !torch.vtensor<[1,1,3,3],f64>, !torch.vtensor<[1,1,2,2],f64>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,1,4,4],f64>
   // CHECK: %[[SI32_DTYPE:.*]] = torch.constant.int 3
-  // CHECK: torch.aten.to.dtype %[[CONV]], %[[SI32_DTYPE]], %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[1,1,4,4],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1,4,4],si32>
+  // CHECK: torch.aten.to.dtype %[[CONV]], %[[SI32_DTYPE]], %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[1,1,4,4],f64>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1,4,4],si32>
   %none = torch.constant.none
   %0 = torch.operator "onnx.ConvInteger"(%arg0, %arg1, %arg2) {torch.onnx.pads = [1 : si64, 1 : si64, 1 : si64, 1 : si64]} : (!torch.vtensor<[1,1,3,3],ui8>, !torch.vtensor<[1,1,2,2],ui8>, !torch.vtensor<[],ui8>) -> !torch.vtensor<[1,1,4,4],si32>
   return %0 : !torch.vtensor<[1,1,4,4],si32>
@@ -1395,15 +1431,32 @@ func.func @test_convinteger_with_padding(%arg0: !torch.vtensor<[1,1,3,3],ui8>, %
 func.func @test_convinteger_per_channel_weight_zp(%arg0: !torch.vtensor<[1,2,3,3],ui8>, %arg1: !torch.vtensor<[3,2,2,2],ui8>, %arg2: !torch.vtensor<[],ui8>, %arg3: !torch.vtensor<[3],ui8>) -> !torch.vtensor<[1,3,2,2],si32> attributes {torch.onnx_meta.ir_version = 5 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
   // CHECK: %[[SCALE:.*]] = torch.constant.float 1.000000e+00
   // CHECK: %[[INPUT_ZP:.*]] = torch.aten.item %arg2 : !torch.vtensor<[],ui8> -> !torch.int
+  // CHECK: %[[PAD_0:.*]] = torch.constant.int 0
+  // CHECK: %[[PAD_1:.*]] = torch.constant.int 0
+  // CHECK: %[[PADDING:.*]] = torch.prim.ListConstruct %[[PAD_0]], %[[PAD_1]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[DIL_0:.*]] = torch.constant.int 1
+  // CHECK: %[[DIL_1:.*]] = torch.constant.int 1
+  // CHECK: %[[DILATIONS:.*]] = torch.prim.ListConstruct %[[DIL_0]], %[[DIL_1]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[STRIDE_0:.*]] = torch.constant.int 1
+  // CHECK: %[[STRIDE_1:.*]] = torch.constant.int 1
+  // CHECK: %[[STRIDE:.*]] = torch.prim.ListConstruct %[[STRIDE_0]], %[[STRIDE_1]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[OUT_PAD_0:.*]] = torch.constant.int 0
+  // CHECK: %[[OUT_PAD_1:.*]] = torch.constant.int 0
+  // CHECK: %[[OUTPUT_PADDING:.*]] = torch.prim.ListConstruct %[[OUT_PAD_0]], %[[OUT_PAD_1]] : (!torch.int, !torch.int) -> !torch.list<int>
   // CHECK: %[[TRANSPOSED:.*]] = torch.constant.bool false
   // CHECK: %[[BIAS:.*]] = torch.constant.none
   // CHECK: %[[GROUPS:.*]] = torch.constant.int 1
-  // CHECK: %[[DEQUANT_INPUT:.*]] = torch.quantized_decomposed.dequantize_per_tensor %arg0, %[[SCALE]], %[[INPUT_ZP]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[1,2,3,3],ui8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.none -> !torch.vtensor<[1,2,3,3],f32>
+  // CHECK: %[[DEQUANT_INPUT:.*]] = torch.quantized_decomposed.dequantize_per_tensor %arg0, %[[SCALE]], %[[INPUT_ZP]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[1,2,3,3],ui8>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[1,2,3,3],f64>
   // CHECK: %[[WEIGHT_SCALES:.*]] = torch.vtensor.literal(dense<1.000000e+00> : tensor<3xf32>) : !torch.vtensor<[3],f32>
-  // CHECK: %[[DEQUANT_WEIGHT:.*]] = torch.quantized_decomposed.dequantize_per_channel %arg1, %[[WEIGHT_SCALES]], %arg3, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[3,2,2,2],ui8>, !torch.vtensor<[3],f32>, !torch.vtensor<[3],ui8>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.none -> !torch.vtensor<[3,2,2,2],f32>
-  // CHECK: %[[CONV:.*]] = torch.aten.convolution %[[DEQUANT_INPUT]], %[[DEQUANT_WEIGHT]], %[[BIAS]], %{{.*}}, %{{.*}}, %{{.*}}, %[[TRANSPOSED]], %{{.*}}, %[[GROUPS]] : !torch.vtensor<[1,2,3,3],f32>, !torch.vtensor<[3,2,2,2],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,3,2,2],f32>
+  // CHECK-NEXT: %[[W_DTYPE:.*]] = torch.constant.int 0
+  // CHECK-NEXT: %[[W_QMIN:.*]] = torch.constant.int 0
+  // CHECK-NEXT: %[[W_QMAX:.*]] = torch.constant.int 255
+  // CHECK-NEXT: %[[W_OUT_DTYPE:.*]] = torch.constant.int 7
+  // CHECK-NEXT: %[[AXIS:.*]] = torch.constant.int 0
+  // CHECK-NEXT: %[[DEQUANT_WEIGHT:.*]] = torch.quantized_decomposed.dequantize_per_channel %arg1, %[[WEIGHT_SCALES]], %arg3, %[[AXIS]], %[[W_QMIN]], %[[W_QMAX]], %[[W_DTYPE]], %[[W_OUT_DTYPE]] : !torch.vtensor<[3,2,2,2],ui8>, !torch.vtensor<[3],f32>, !torch.vtensor<[3],ui8>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[3,2,2,2],f64>
+  // CHECK: %[[CONV:.*]] = torch.aten.convolution %[[DEQUANT_INPUT]], %[[DEQUANT_WEIGHT]], %[[BIAS]], %[[STRIDE]], %[[PADDING]], %[[DILATIONS]], %[[TRANSPOSED]], %[[OUTPUT_PADDING]], %[[GROUPS]] : !torch.vtensor<[1,2,3,3],f64>, !torch.vtensor<[3,2,2,2],f64>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,3,2,2],f64>
   // CHECK: %[[SI32_DTYPE:.*]] = torch.constant.int 3
-  // CHECK: torch.aten.to.dtype %[[CONV]], %[[SI32_DTYPE]], %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[1,3,2,2],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,3,2,2],si32>
+  // CHECK: torch.aten.to.dtype %[[CONV]], %[[SI32_DTYPE]], %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[1,3,2,2],f64>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,3,2,2],si32>
   %none = torch.constant.none
   %0 = torch.operator "onnx.ConvInteger"(%arg0, %arg1, %arg2, %arg3) : (!torch.vtensor<[1,2,3,3],ui8>, !torch.vtensor<[3,2,2,2],ui8>, !torch.vtensor<[],ui8>, !torch.vtensor<[3],ui8>) -> !torch.vtensor<[1,3,2,2],si32>
   return %0 : !torch.vtensor<[1,3,2,2],si32>

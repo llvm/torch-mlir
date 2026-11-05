@@ -4,7 +4,34 @@
 # Also available under a BSD-style license. See LICENSE.
 """Shared reference evaluation for output-shape probing and golden values."""
 
+import numpy as np
 from onnx.reference import ReferenceEvaluator
+from onnx.reference.ops.op_conv_integer import ConvInteger as _OnnxConvInteger
+
+
+# ReferenceEvaluator keys `new_ops` by class name, so this must be named after
+# the ONNX op it overrides.
+class ConvInteger(_OnnxConvInteger):
+    """ConvInteger with per-channel ``w_zero_point`` support.
+
+    The onnx 1.17 reference evaluates ``if w_zero_point:``, which raises for a
+    1-D zero point. This mirrors the upstream fix in onnx/onnx commit 6318ddb
+    (https://github.com/onnx/onnx/pull/7165, first released in onnx 1.20.0)
+    and can be dropped once the pinned onnx version is >= 1.20.0.
+    """
+
+    op_domain = ""
+
+    def _run(self, X, W, x_zero_point=None, w_zero_point=None, **kwargs):
+        if w_zero_point is not None and w_zero_point.ndim == 1:
+            W = W.astype(np.int32) - np.expand_dims(
+                w_zero_point.astype(np.int32), tuple(range(1, W.ndim))
+            )
+            w_zero_point = None
+        return super()._run(X, W, x_zero_point, w_zero_point, **kwargs)
+
+
+_NEW_OPS = [ConvInteger]
 
 
 def create_reference_evaluator(model):
@@ -20,7 +47,7 @@ def create_reference_evaluator(model):
             sess_options=options,
             providers=["CPUExecutionProvider"],
         )
-    return ReferenceEvaluator(model)
+    return ReferenceEvaluator(model, new_ops=_NEW_OPS)
 
 
 def run_reference(model, feed):
