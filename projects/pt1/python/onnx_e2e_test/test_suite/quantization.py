@@ -34,6 +34,9 @@ def _scale_initializer(name: str, value: float):
 # ==============================================================================
 
 
+# ==============================================================================
+
+
 class _MatMulIntegerToFloat(OnnxTestCase):
     extra_opsets = _EXTRA_OPSETS
     optional_inputs = ()
@@ -60,6 +63,9 @@ class _MatMulIntegerToFloat(OnnxTestCase):
         return [node], ["y"], initializers
 
 
+# ==============================================================================
+
+
 @register_onnx_test
 class OnnxMatMulIntegerToFloat_missingOptional(_MatMulIntegerToFloat):
     @annotate_inputs(
@@ -70,6 +76,9 @@ class OnnxMatMulIntegerToFloat_missingOptional(_MatMulIntegerToFloat):
     )
     def graph(self):
         return super().graph()
+
+
+# ==============================================================================
 
 
 @register_onnx_test
@@ -85,6 +94,9 @@ class OnnxMatMulIntegerToFloat_aZeroPoint(_MatMulIntegerToFloat):
     )
     def graph(self):
         return super().graph()
+
+
+# ==============================================================================
 
 
 @register_onnx_test
@@ -103,6 +115,9 @@ class OnnxMatMulIntegerToFloat_bZeroPoint(_MatMulIntegerToFloat):
     )
     def graph(self):
         return super().graph()
+
+
+# ==============================================================================
 
 
 @register_onnx_test
@@ -127,6 +142,9 @@ class OnnxMatMulIntegerToFloat_runtimeQParams(_MatMulIntegerToFloat):
         return super().graph()
 
 
+# ==============================================================================
+
+
 @register_onnx_test
 class OnnxMatMulIntegerToFloat_bias(_MatMulIntegerToFloat):
     optional_inputs = ("", "", "bias")
@@ -139,6 +157,9 @@ class OnnxMatMulIntegerToFloat_bias(_MatMulIntegerToFloat):
     )
     def graph(self):
         return super().graph()
+
+
+# ==============================================================================
 
 
 @register_onnx_test
@@ -163,6 +184,9 @@ class OnnxMatMulIntegerToFloat_perColumn(_MatMulIntegerToFloat):
         return super().graph()
 
 
+# ==============================================================================
+
+
 @register_onnx_test
 class OnnxMatMulIntegerToFloat_mixedQParams(_MatMulIntegerToFloat):
     # B broadcasts its scalar scale alongside per-column zero points.
@@ -179,6 +203,9 @@ class OnnxMatMulIntegerToFloat_mixedQParams(_MatMulIntegerToFloat):
         return super().graph()
 
 
+# ==============================================================================
+
+
 @register_onnx_test
 class OnnxMatMulIntegerToFloat_batchedWeights(_MatMulIntegerToFloat):
     # A [2,4,3] @ B [3,5] -> Y [2,4,5], with B shared across batches.
@@ -188,6 +215,9 @@ class OnnxMatMulIntegerToFloat_batchedWeights(_MatMulIntegerToFloat):
     @annotate_inputs([("a", torch.int8, [2, 4, 3], (-128, 128))])
     def graph(self):
         return super().graph()
+
+
+# ==============================================================================
 
 
 @register_onnx_test
@@ -932,5 +962,66 @@ class OnnxConvInteger_i8_perChannelWeightZp(_ConvInteger):
     w_zp = np.array([-3, 0, 4], dtype=np.int8)
 
     @annotate_inputs([("x", torch.int8, [1, 2, 3, 3], (-128, 128))])
+    def graph(self):
+        return super().graph()
+
+
+# ==============================================================================
+# DynamicQuantizeLinear
+# ==============================================================================
+
+
+class _DynamicQuantizeLinear(OnnxTestCase):
+    """Base for DynamicQuantizeLinear tests: (y, y_scale, y_zero_point) = DQL(x).
+
+    All three outputs are graph outputs so scale and zero point are checked
+    along with the quantized tensor.
+    """
+
+    opset = 11
+
+    def graph(self):
+        node = onnx.helper.make_node(
+            "DynamicQuantizeLinear",
+            ["x"],
+            ["y", "y_scale", "y_zero_point"],
+        )
+        return [node], ["y", "y_scale", "y_zero_point"]
+
+
+@register_onnx_test
+class DynamicQuantizeLinear_basic(_DynamicQuantizeLinear):
+    @annotate_inputs([("x", torch.float32, [3, 4, 5], (-2.0, 2.0))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class DynamicQuantizeLinear_positiveRange(_DynamicQuantizeLinear):
+    # min > 0: the range is extended to include 0, so the zero point is 0.
+    @annotate_inputs([("x", torch.float32, [2, 8], (1.0, 5.0))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class DynamicQuantizeLinear_negativeRange(_DynamicQuantizeLinear):
+    # max < 0: the range is extended to include 0, so the zero point is 255.
+    @annotate_inputs([("x", torch.float32, [2, 8], (-5.0, -1.0))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class DynamicQuantizeLinear_rank1(_DynamicQuantizeLinear):
+    @annotate_inputs([("x", torch.float32, [16], (-3.0, 7.0))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class DynamicQuantizeLinear_dynamicShape(_DynamicQuantizeLinear):
+    # The harness materializes dynamic dimensions as 2.
+    @annotate_inputs([("x", torch.float32, [-1, -1], (-2.0, 2.0))])
     def graph(self):
         return super().graph()

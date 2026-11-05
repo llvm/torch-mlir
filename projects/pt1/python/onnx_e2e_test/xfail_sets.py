@@ -26,6 +26,10 @@ ONNX_E2E_LINALG_XFAIL_SET = {
     # rounds differently from the dequantize/avg_pool/quantize lowering).
     "QLinearAveragePool_ui8_basic",
     "QLinearAveragePool_i8_basic",
+    # OnnxConvInteger_*_perChannelWeightZp: raises "The truth value of an
+    # array with more than one element is ambiguous" for a 1-D w_zero_point.
+    "OnnxConvInteger_ui8_perChannelWeightZp",
+    "OnnxConvInteger_i8_perChannelWeightZp",
 }
 
 # Tests that crash the interpreter and cannot be XFAILed safely.
@@ -93,6 +97,13 @@ ONNX_E2E_TOSA_XFAIL_SET = {
     # these will hit the f64 issue above.
     "OnnxConvInteger_ui8_perChannelWeightZp",
     "OnnxConvInteger_i8_perChannelWeightZp",
+    # DynamicQuantizeLinear_*: the lowering computes the zero point at runtime
+    # and TOSA cannot lower the resulting torch.aten.item.
+    "DynamicQuantizeLinear_basic",
+    "DynamicQuantizeLinear_positiveRange",
+    "DynamicQuantizeLinear_negativeRange",
+    "DynamicQuantizeLinear_rank1",
+    "DynamicQuantizeLinear_dynamicShape",
 }
 
 
