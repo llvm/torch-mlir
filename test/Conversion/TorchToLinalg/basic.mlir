@@ -1081,6 +1081,8 @@ func.func @torch.aten.min.dim$basic(%arg0: tensor<3x2x3xf32>) -> tensor<3x2x1xf3
 // -----
 // COM: this test only locks down that allow-non-finites config produces inf/realmax correctly
 // CHECK-LABEL: func.func @torch.aten.max.dim$basic
+// CHECK: linalg.generic
+// CHECK-NOT: linalg.generic{{.*}} -> (tensor<3x2xf32>, tensor<3x2xsi64>)
 // CHECK: arith.constant 0xFF800000 : f32
 // CHECK-NOT: arith.constant -3.40282347E+38 : f32
 // UNSUPPORTED-NON-FINITES: arith.constant -3.40282347E+38 : f32
