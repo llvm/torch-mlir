@@ -694,6 +694,11 @@ class QLinearAddQLinearSigmoidFused_i8_basic(_QLinearAddQLinearSigmoidFused):
         return super().graph()
 
 
+# ==============================================================================
+# MatMulNBits
+# ==============================================================================
+
+
 class _MatMulNBits(OnnxTestCase):
     extra_opsets = {"com.microsoft": 1}
     k = 64

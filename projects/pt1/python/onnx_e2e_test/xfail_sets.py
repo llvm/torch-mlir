@@ -83,14 +83,18 @@ ONNX_E2E_TOSA_XFAIL_SET = {
     # QLinearAveragePool_i8_basic: off by one quantized step versus the
     # onnxruntime golden (same rounding difference as on linalg).
     "QLinearAveragePool_i8_basic",
-    # OnnxConvInteger_ui8_*: TorchToTosa's vtensor.literal lowering only
-    # retags signed integer dense attrs as signless, so the ui8 weight constant
-    # becomes an invalid tosa.const (ui8 attr with an i8 result type).
+    # OnnxConvInteger_*: ConvInteger is lowered with an f64 convolution so the
+    # int32 accumulator stays exact, but TOSA has no f64 support (tosa.conv2d
+    # rejects acc_type = f64).
+    "OnnxConvInteger_i8_basic",
+    "OnnxConvInteger_i8_noWeightZp",
+    "OnnxConvInteger_i8_withPadding",
     "OnnxConvInteger_ui8_basic",
     "OnnxConvInteger_ui8_noWeightZp",
     "OnnxConvInteger_ui8_withPadding",
-    # OnnxConvInteger_*_perChannelWeightZp: raises "The truth value of an
-    # array with more than one element is ambiguous" for a 1-D w_zero_point.
+    # OnnxConvInteger_*_perChannelWeightZp: TOSA has no lowering for
+    # torch.quantized_decomposed.dequantize_per_channel. Once it is added,
+    # these will hit the f64 issue above.
     "OnnxConvInteger_ui8_perChannelWeightZp",
     "OnnxConvInteger_i8_perChannelWeightZp",
 }

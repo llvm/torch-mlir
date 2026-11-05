@@ -2035,10 +2035,15 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         Value cstGroup = Torch::ConstantIntOp::create(
             rewriter, loc, rewriter.getI64IntegerAttr(group));
 
+        // ConvInteger accumulates in int32. Dequantize to f64 and run the conv
+        // in f64 so that every int32 accumulator value is exactly
+        // representable (f32 is only exact up to 2^24).
+        FloatType computeTy = rewriter.getF64Type();
+
         // Dequantize input (always per-tensor).
         Value dequantizedInput;
         if (failed(createDequantizeTensor(rewriter, loc, input, scale, inputZp,
-                                          dequantizedInput)))
+                                          dequantizedInput, computeTy)))
           return rewriter.notifyMatchFailure(
               binder.op, "failed to dequantize input tensor");
 
@@ -2046,42 +2051,36 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         Value dequantizedWeight;
         if (isPerChannelWeight) {
           int64_t numChannels = weightShape[0];
-          SmallVector<float> onesVec(numChannels, 1.0f);
           auto onesAttr = DenseElementsAttr::get(
               RankedTensorType::get({numChannels}, rewriter.getF32Type()),
-              ArrayRef<float>(onesVec));
+              1.0f);
           auto scalesTensorTy = rewriter.getType<Torch::ValueTensorType>(
               ArrayRef<int64_t>{numChannels}, rewriter.getF32Type());
           Value weightScales = Torch::ValueTensorLiteralOp::create(
               rewriter, loc, scalesTensorTy, onesAttr);
           if (failed(createDequantizePerChannelTensor(
                   rewriter, loc, weight, weightScales, weightZp,
-                  /*axis=*/0, dequantizedWeight)))
+                  /*axis=*/0, dequantizedWeight, computeTy)))
             return rewriter.notifyMatchFailure(
                 binder.op, "failed to dequantize weight tensor (per-channel)");
         } else {
           if (failed(createDequantizeTensor(rewriter, loc, weight, scale,
-                                            weightZp, dequantizedWeight)))
+                                            weightZp, dequantizedWeight,
+                                            computeTy)))
             return rewriter.notifyMatchFailure(
                 binder.op, "failed to dequantize weight tensor");
         }
 
         auto floatResultTy = rewriter.getType<Torch::ValueTensorType>(
-            resultType.getSizes(), rewriter.getF32Type());
+            resultType.getSizes(), computeTy);
         Value conv = Torch::AtenConvolutionOp::create(
             rewriter, loc, floatResultTy, dequantizedInput, dequantizedWeight,
             bias, stridesList, paddingList, dilationsList, transposed,
             outputPaddingList, cstGroup);
 
-        // Cast the f32 result back to si32.
-        Value si32Dtype = Torch::getDtypeIntValueForType(
-            rewriter, loc, rewriter.getIntegerType(32, /*isSigned=*/true));
-        Value cstFalse = Torch::ConstantBoolOp::create(rewriter, loc, false);
-        Value none = Torch::ConstantNoneOp::create(rewriter, loc);
-        rewriter.replaceOpWithNewOp<Torch::AtenToDtypeOp>(
-            binder.op, resultType, conv, si32Dtype,
-            /*non_blocking=*/cstFalse, /*copy=*/cstFalse,
-            /*memory_format=*/none);
+        rewriter.replaceOp(binder.op,
+                           Torch::convertTensorToDtype(rewriter, loc, conv,
+                                                       resultType.getDtype()));
         return success();
       });
   patterns.onOp(

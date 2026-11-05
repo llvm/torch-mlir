@@ -144,10 +144,13 @@ LogicalResult extractPerTensorQuantizationArguments(
 /// affine quantization parameters (scale, zero point) and dequantizes it to
 /// a floating point tensor using `quantized_decomposed.dequantize_per_tensor`
 /// (PT2E representation). `input` must be a `ValueTensorType` with a known
-/// integer dtype and known sizes.
+/// integer dtype and known sizes. If `outFloatTy` is set, it is passed as the
+/// `out_dtype` and used as the result element type; otherwise the result is
+/// f32.
 LogicalResult createDequantizeTensor(ConversionPatternRewriter &rewriter,
                                      Location loc, Value input, Value scale,
-                                     Value zeroPoint, Value &output);
+                                     Value zeroPoint, Value &output,
+                                     FloatType outFloatTy = nullptr);
 
 /// This utility takes as input a floating point tensor along with per-tensor
 /// affine quantization parameters (scale, zero point) and quantizes it to
@@ -165,10 +168,12 @@ LogicalResult createQuantizeTensor(ConversionPatternRewriter &rewriter,
 /// tensor or `torch.none`) and dequantizes it to a floating point tensor
 /// using `quantized_decomposed.dequantize_per_channel` (PT2E representation).
 /// `input` must be a `ValueTensorType` with known integer dtype and sizes.
+/// `outFloatTy` behaves as in `createDequantizeTensor`.
 LogicalResult
 createDequantizePerChannelTensor(ConversionPatternRewriter &rewriter,
                                  Location loc, Value input, Value scales,
-                                 Value zeroPoints, int64_t axis, Value &output);
+                                 Value zeroPoints, int64_t axis, Value &output,
+                                 FloatType outFloatTy = nullptr);
 
 } // namespace mlir::torch::onnx_c
 
