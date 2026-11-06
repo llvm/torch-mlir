@@ -8592,8 +8592,22 @@ LogicalResult ConvertAtenOp<AtenToDtypeOp>::matchAndRewriteImpl(
   auto resultTy = cast<RankedTensorType>(
       getTypeConverter()->convertType(op.getResult().getType()));
 
+  bool selfUnsigned = cast<BaseTensorType>(op.getSelf().getType())
+                          .getDtype()
+                          .isUnsignedInteger();
+  bool resultUnsigned =
+      cast<BaseTensorType>(op.getType()).getDtype().isUnsignedInteger();
+  // tosa.cast from float saturates to the signed range of the destination,
+  // and no wider integer type is available to convert through for unsigned
+  // destinations of 32 bits or more.
+  if (resultUnsigned && isa<mlir::FloatType>(selfType.getElementType()) &&
+      resultTy.getElementType().getIntOrFloatBitWidth() >= 32)
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: float to unsigned integer of 32 or more bits");
   Value result =
-      tosa::tosaCastTensorToType(rewriter, adaptor.getSelf(), resultTy).value();
+      tosa::tosaCastTensorToType(rewriter, adaptor.getSelf(), resultTy,
+                                 selfUnsigned, resultUnsigned)
+          .value();
 
   rewriter.replaceOp(op, result);
   return success();

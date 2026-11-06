@@ -370,8 +370,18 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
   }
 
   if (auto dtypeInteger = dyn_cast<mlir::IntegerType>(dtype)) {
-    if (auto scalarFloat = dyn_cast<mlir::FloatType>(scalarType))
+    if (auto scalarFloat = dyn_cast<mlir::FloatType>(scalarType)) {
+      if (dstOriginalDtype.has_value() &&
+          dstOriginalDtype->isUnsignedInteger()) {
+        if (dtypeInteger.getWidth() == 64)
+          return arith::FPToUIOp::create(b, loc, dtype, scalar);
+        // PyTorch converts floats to uint8 through int64, so out-of-range
+        // values wrap.
+        Value wide = arith::FPToSIOp::create(b, loc, b.getI64Type(), scalar);
+        return arith::TruncIOp::create(b, loc, dtype, wide);
+      }
       return arith::FPToSIOp::create(b, loc, dtype, scalar);
+    }
     assert(isa<mlir::IntegerType>(scalarType));
     auto scalarInteger = cast<mlir::IntegerType>(scalarType);
     if (scalarInteger.getWidth() > dtypeInteger.getWidth())

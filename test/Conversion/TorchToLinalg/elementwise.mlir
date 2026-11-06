@@ -209,3 +209,19 @@ func.func @elementwise_bitwise_right_shift_tensor_unsigned(%arg0: !torch.vtensor
   %0 = torch.aten.bitwise_right_shift.Tensor %arg0, %arg1 : !torch.vtensor<[?],ui8>, !torch.vtensor<[?],ui8> -> !torch.vtensor<[?],ui8>
   return %0 : !torch.vtensor<[?],ui8>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_to_dtype_f32_to_ui8(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[IN:.*]]: f32, %{{.*}}: i8):
+// CHECK-NEXT:        %[[WIDE:.*]] = arith.fptosi %[[IN]] : f32 to i64
+// CHECK-NEXT:        %[[OUT:.*]] = arith.trunci %[[WIDE]] : i64 to i8
+// CHECK-NEXT:        linalg.yield %[[OUT]] : i8
+func.func @elementwise_to_dtype_f32_to_ui8(%arg0: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?],ui8> {
+  %int0 = torch.constant.int 0
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %0 = torch.aten.to.dtype %arg0, %int0, %false, %false, %none : !torch.vtensor<[?],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[?],ui8>
+  return %0 : !torch.vtensor<[?],ui8>
+}

@@ -366,7 +366,9 @@ std::optional<Value> getSplatConstTensor<float>(PatternRewriter &rewriter,
 // Default function to create tosa.cast op. This should be called instead of
 // directly calling rewriter.create<tosa::CastOp>.
 std::optional<Value> tosaCastTensorToType(PatternRewriter &rewriter, Value src,
-                                          TensorType destType) {
+                                          TensorType destType,
+                                          bool inputUnsigned,
+                                          bool outputUnsigned) {
   Operation *op = src.getDefiningOp();
   TensorType srcType = dyn_cast<TensorType>(src.getType());
   Type srcElemTy = srcType.getElementType();
@@ -410,6 +412,18 @@ std::optional<Value> tosaCastTensorToType(PatternRewriter &rewriter, Value src,
   if (srcElemTy == destElemTy)
     return src;
 
+  // tosa.cast from float saturates to the signed range of the integer type.
+  // For an unsigned destination narrower than i32, convert to i32 first; the
+  // narrowing cast from i32 keeps the low bits.
+  if (outputUnsigned && isa<FloatType>(srcElemTy) && destElemTy.isInteger() &&
+      !destElemTy.isInteger(1) && destElemTy.getIntOrFloatBitWidth() < 32) {
+    std::optional<Value> wide = tosaCastTensorToType(
+        rewriter, src, srcType.clone(rewriter.getIntegerType(32)));
+    if (!wide)
+      return std::nullopt;
+    return tosaCastTensorToType(rewriter, *wide, destType);
+  }
+
   if (llvm::isa<FloatType>(srcElemTy) && destElemTy.isInteger() &&
       !destElemTy.isInteger(1)) {
     // For float->int conversion, tosa.cast performs round-to-nearest.
@@ -434,7 +448,15 @@ std::optional<Value> tosaCastTensorToType(PatternRewriter &rewriter, Value src,
   }
 
   TensorType castedSrcType = srcType.clone(destElemTy);
-  return tosa::CastOp::create(rewriter, op->getLoc(), castedSrcType, src);
+  auto castOp =
+      tosa::CastOp::create(rewriter, op->getLoc(), castedSrcType, src);
+  // Narrowing integer casts keep the low bits, so signedness only matters
+  // when the cast widens the integer or converts it to float.
+  if (inputUnsigned && srcElemTy.isInteger() && !srcElemTy.isInteger(1) &&
+      (isa<FloatType>(destElemTy) ||
+       destElemTy.getIntOrFloatBitWidth() > srcElemTy.getIntOrFloatBitWidth()))
+    castOp.setInputUnsigned(true);
+  return castOp.getResult();
 }
 
 Value legalizeArgMaxInputType(PatternRewriter &rewriter, Operation *op,
