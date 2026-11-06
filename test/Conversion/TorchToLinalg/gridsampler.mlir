@@ -1,4 +1,5 @@
 // RUN: torch-mlir-opt <%s -convert-torch-to-linalg -split-input-file -verify-diagnostics | FileCheck %s
+// RUN: torch-mlir-opt <%s -convert-torch-to-linalg -canonicalize -split-input-file -verify-diagnostics | FileCheck %s --check-prefixes=COORD,LARGE
 
 // CHECK: #map
 // CHECK-LABEL: func @grid_sampler
@@ -102,4 +103,121 @@ func.func @grid_sampler4(%arg0: !torch.vtensor<[?,?,?,?],f32>, %arg1: !torch.vte
   %int1 = torch.constant.int 1
   %4 = torch.aten.grid_sampler %arg0, %arg1, %int0, %int1, %false : !torch.vtensor<[?,?,?,?],f32>, !torch.vtensor<[?,?,?,?],f32>, !torch.int, !torch.int, !torch.bool -> !torch.vtensor<[?,?,?,?],f32>
   return %4 : !torch.vtensor<[?,?,?,?],f32>
+}
+
+// -----
+
+// Round before testing bounds, and guard both conversions and loads.
+// COORD-LABEL: func.func @nearest_zeros(
+// COORD-DAG: %[[SIZE:.*]] = arith.constant 4.000000e+00 : f32
+// COORD-DAG: %[[TWO:.*]] = arith.constant 2.000000e+00 : f32
+// COORD-DAG: %[[ONE:.*]] = arith.constant 1.000000e+00 : f32
+// COORD: linalg.generic
+// COORD: %[[PLUS_ONE:.*]] = arith.addf {{.*}}, %[[ONE]] : f32
+// COORD-NEXT: %[[SCALED:.*]] = arith.mulf %[[PLUS_ONE]], %[[SIZE]] : f32
+// COORD-NEXT: %[[SHIFTED:.*]] = arith.subf %[[SCALED]], %[[ONE]] : f32
+// COORD-NEXT: %[[COORD:.*]] = arith.divf %[[SHIFTED]], %[[TWO]] : f32
+// COORD-NEXT: math.roundeven %[[COORD]] : f32
+// CHECK-LABEL: func.func @nearest_zeros
+// CHECK: %[[ZERO:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK: linalg.generic
+// CHECK: %[[ROW:.*]] = math.roundeven {{.*}} : f32
+// CHECK: %[[COL:.*]] = math.roundeven {{.*}} : f32
+// CHECK: %[[LIMIT:.*]] = arith.constant 9.22337203E+18 : f32
+// CHECK: %[[RL:.*]] = arith.cmpf oge, %[[ROW]], %[[ZERO]] : f32
+// CHECK: %[[RU:.*]] = arith.cmpf olt, %[[ROW]], %[[LIMIT]] : f32
+// CHECK: %[[CL:.*]] = arith.cmpf oge, %[[COL]], %[[ZERO]] : f32
+// CHECK: %[[CU:.*]] = arith.cmpf olt, %[[COL]], %[[LIMIT]] : f32
+// CHECK: %[[RV:.*]] = arith.andi %[[RL]], %[[RU]] : i1
+// CHECK: %[[CV:.*]] = arith.andi %[[CL]], %[[CU]] : i1
+// CHECK: %[[CONVERTIBLE:.*]] = arith.andi %[[RV]], %[[CV]] : i1
+// CHECK: %[[N:.*]] = linalg.index 0 : index
+// CHECK: %[[C:.*]] = linalg.index 1 : index
+// CHECK: %[[SAMPLED:.*]] = scf.if %[[CONVERTIBLE]] -> (f32) {
+// CHECK-NEXT: %[[RI:.*]] = arith.fptosi %[[ROW]] : f32 to i64
+// CHECK-NEXT: %[[CI:.*]] = arith.fptosi %[[COL]] : f32 to i64
+// CHECK-NEXT: %[[RB:.*]] = arith.cmpi sle, %[[RI]], {{.*}} : i64
+// CHECK-NEXT: %[[CB:.*]] = arith.cmpi sle, %[[CI]], {{.*}} : i64
+// CHECK-NEXT: %[[BOUNDS:.*]] = arith.andi %[[RB]], %[[CB]] : i1
+// CHECK-NEXT: %[[PIXEL:.*]] = scf.if %[[BOUNDS]] -> (f32) {
+// CHECK-NEXT: %[[R:.*]] = arith.index_cast %[[RI]] : i64 to index
+// CHECK-NEXT: %[[K:.*]] = arith.index_cast %[[CI]] : i64 to index
+// CHECK-NEXT: %[[VALUE:.*]] = tensor.extract {{.*}}[%[[N]], %[[C]], %[[R]], %[[K]]] : tensor<2x3x4x4xf32>
+// CHECK-NEXT: scf.yield %[[VALUE]] : f32
+// CHECK-NEXT: } else {
+// CHECK-NEXT: scf.yield %[[ZERO]] : f32
+// CHECK-NEXT: }
+// CHECK-NEXT: scf.yield %[[PIXEL]] : f32
+// CHECK-NEXT: } else {
+// CHECK-NEXT: scf.yield %[[ZERO]] : f32
+// CHECK-NEXT: }
+// CHECK-NEXT: linalg.yield %[[SAMPLED]] : f32
+func.func @nearest_zeros(%input: !torch.vtensor<[2,3,4,4],f32>, %grid: !torch.vtensor<[2,1,13,2],f32>) -> !torch.vtensor<[2,3,1,13],f32> {
+  %nearest = torch.constant.int 1
+  %zeros = torch.constant.int 0
+  %align = torch.constant.bool false
+  %result = torch.aten.grid_sampler %input, %grid, %nearest, %zeros, %align : !torch.vtensor<[2,3,4,4],f32>, !torch.vtensor<[2,1,13,2],f32>, !torch.int, !torch.int, !torch.bool -> !torch.vtensor<[2,3,1,13],f32>
+  return %result : !torch.vtensor<[2,3,1,13],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @nearest_zeros_dynamic
+// CHECK: %[[INPUT:.*]] = torch_c.to_builtin_tensor {{.*}} : !torch.vtensor<[?,?,?,?],f32> -> tensor<?x?x?x?xf32>
+// CHECK: %[[ONE:.*]] = arith.constant 1 : index
+// CHECK: %[[ZERO:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK: %[[HEIGHT_AXIS:.*]] = arith.constant 2 : index
+// CHECK: %[[HEIGHT:.*]] = tensor.dim %[[INPUT]], %[[HEIGHT_AXIS]] : tensor<?x?x?x?xf32>
+// CHECK: %[[WIDTH_AXIS:.*]] = arith.constant 3 : index
+// CHECK: %[[WIDTH:.*]] = tensor.dim %[[INPUT]], %[[WIDTH_AXIS]] : tensor<?x?x?x?xf32>
+// CHECK: %[[HEIGHT_LAST:.*]] = arith.subi %[[HEIGHT]], %[[ONE]] : index
+// CHECK: %[[WIDTH_LAST:.*]] = arith.subi %[[WIDTH]], %[[ONE]] : index
+// CHECK: %[[ROW_MAX:.*]] = arith.index_cast %[[HEIGHT_LAST]] : index to i64
+// CHECK: %[[COL_MAX:.*]] = arith.index_cast %[[WIDTH_LAST]] : index to i64
+// CHECK: tensor.empty({{.*}}) : tensor<?x?x?x?xf32>
+// CHECK: linalg.generic
+// CHECK: %[[ROW:.*]] = math.roundeven {{.*}} : f32
+// CHECK: %[[COL:.*]] = math.roundeven {{.*}} : f32
+// CHECK: %[[SAMPLED:.*]] = scf.if {{.*}} -> (f32) {
+// CHECK: %[[RI:.*]] = arith.fptosi %[[ROW]] : f32 to i64
+// CHECK: %[[CI:.*]] = arith.fptosi %[[COL]] : f32 to i64
+// CHECK: %[[RB:.*]] = arith.cmpi sle, %[[RI]], %[[ROW_MAX]] : i64
+// CHECK: %[[CB:.*]] = arith.cmpi sle, %[[CI]], %[[COL_MAX]] : i64
+// CHECK: %[[BOUNDS:.*]] = arith.andi %[[RB]], %[[CB]] : i1
+// CHECK: %[[PIXEL:.*]] = scf.if %[[BOUNDS]] -> (f32) {
+// CHECK: %[[VALUE:.*]] = tensor.extract %[[INPUT]][{{.*}}] : tensor<?x?x?x?xf32>
+// CHECK-NEXT: scf.yield %[[VALUE]] : f32
+// CHECK-NEXT: } else {
+// CHECK-NEXT: scf.yield %[[ZERO]] : f32
+// CHECK-NEXT: }
+// CHECK-NEXT: scf.yield %[[PIXEL]] : f32
+// CHECK-NEXT: } else {
+// CHECK-NEXT: scf.yield %[[ZERO]] : f32
+// CHECK-NEXT: }
+// CHECK-NEXT: linalg.yield %[[SAMPLED]] : f32
+func.func @nearest_zeros_dynamic(%input: !torch.vtensor<[?,?,?,?],f32>, %grid: !torch.vtensor<[?,?,?,2],f32>, %align: !torch.bool) -> !torch.vtensor<[?,?,?,?],f32> {
+  %nearest = torch.constant.int 1
+  %zeros = torch.constant.int 0
+  %result = torch.aten.grid_sampler %input, %grid, %nearest, %zeros, %align : !torch.vtensor<[?,?,?,?],f32>, !torch.vtensor<[?,?,?,2],f32>, !torch.int, !torch.int, !torch.bool -> !torch.vtensor<[?,?,?,?],f32>
+  return %result : !torch.vtensor<[?,?,?,?],f32>
+}
+
+// -----
+
+// 16777219 rounds up to 16777220 in f32. Check the exact integer bound.
+// LARGE-LABEL: func.func @nearest_zeros_large_width
+// LARGE-DAG: %[[LAST:.*]] = arith.constant 16777219 : i64
+// LARGE: scf.if
+// LARGE: arith.fptosi
+// LARGE: %[[COL:.*]] = arith.fptosi {{.*}} : f32 to i64
+// LARGE: %[[COL_VALID:.*]] = arith.cmpi sle, %[[COL]], %[[LAST]] : i64
+// LARGE: %[[VALID:.*]] = arith.andi {{.*}}, %[[COL_VALID]] : i1
+// LARGE: scf.if %[[VALID]] -> (f32) {
+// LARGE: tensor.extract {{.*}} : tensor<1x1x1x16777220xf32>
+func.func @nearest_zeros_large_width(%input: !torch.vtensor<[1,1,1,16777220],f32>, %grid: !torch.vtensor<[1,1,1,2],f32>) -> !torch.vtensor<[1,1,1,1],f32> {
+  %nearest = torch.constant.int 1
+  %zeros = torch.constant.int 0
+  %align = torch.constant.bool true
+  %result = torch.aten.grid_sampler %input, %grid, %nearest, %zeros, %align : !torch.vtensor<[1,1,1,16777220],f32>, !torch.vtensor<[1,1,1,2],f32>, !torch.int, !torch.int, !torch.bool -> !torch.vtensor<[1,1,1,1],f32>
+  return %result : !torch.vtensor<[1,1,1,1],f32>
 }
