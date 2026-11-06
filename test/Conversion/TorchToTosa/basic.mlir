@@ -2256,8 +2256,8 @@ func.func @torch.aten.__interpolate.size_list_scale_list.bilinear(%arg0: !torch.
 // CHECK:           %[[VAL_6:.*]] = torch.prim.ListConstruct %[[VAL_5]], %[[VAL_5]] : (!torch.float, !torch.float) -> !torch.list<float>
 // CHECK:           %[[VAL_7:.*]] = tosa.transpose %[[VAL_1]] perms([0, 2, 3, 1]) : (tensor<1x16x135x240xf32>) -> tensor<1x135x240x16xf32>
 // CHECK-DAG:           %[[VAL_8:.*]] = tosa.const_shape values(dense<[4, 2, 4, 2]> : tensor<4xindex>) : () -> !tosa.shape<4>
-// CHECK-DAG:           %[[VAL_9:.*]] = tosa.const_shape values(dense<0> : tensor<2xindex>) : () -> !tosa.shape<2>
-// CHECK-DAG:           %[[VAL_10:.*]] = tosa.const_shape values(dense<2> : tensor<2xindex>) : () -> !tosa.shape<2>
+// CHECK-DAG:           %[[VAL_9:.*]] = tosa.const_shape values(dense<-2> : tensor<2xindex>) : () -> !tosa.shape<2>
+// CHECK-DAG:           %[[VAL_10:.*]] = tosa.const_shape values(dense<0> : tensor<2xindex>) : () -> !tosa.shape<2>
 // CHECK:           %[[VAL_11:.*]] = tosa.resize %[[VAL_7]], %[[VAL_8]], %[[VAL_9]], %[[VAL_10]] mode<NEAREST_NEIGHBOR> : (tensor<1x135x240x16xf32>, !tosa.shape<4>, !tosa.shape<2>, !tosa.shape<2>) -> tensor<1x270x480x16xf32>
 // CHECK:           %[[VAL_12:.*]] = tosa.transpose %[[VAL_11]] perms([0, 3, 1, 2]) : (tensor<1x270x480x16xf32>) -> tensor<1x16x270x480xf32>
 // CHECK:           %[[VAL_13:.*]] = torch_c.from_builtin_tensor %[[VAL_12]] : tensor<1x16x270x480xf32> -> !torch.vtensor<[1,16,270,480],f32>
@@ -2271,6 +2271,67 @@ func.func @torch.aten.__interpolate.size_list_scale_list.nearest(%arg0: !torch.v
   %0 = torch.prim.ListConstruct %float2.000000e00, %float2.000000e00 : (!torch.float, !torch.float) -> !torch.list<float>
   %1 = torch.aten.__interpolate.size_list_scale_list %arg0, %none, %0, %str, %false, %none, %false : !torch.vtensor<[1,16,135,240],f32>, !torch.none, !torch.list<float>, !torch.str, !torch.bool, !torch.none, !torch.bool -> !torch.vtensor<[1,16,270,480],f32>
   return %1 : !torch.vtensor<[1,16,270,480],f32>
+}
+
+// -----
+
+// The width goes from 240 to 360, so scale_n / scale_d = 360 / 240 reduces to
+// 6 / 4. The offset -scale_n / 2 is -3 there and -2 for the height, and the
+// width border is negative.
+// CHECK-LABEL:   func.func @torch.aten.__interpolate.size_list_scale_list.nearest_size(
+// CHECK-DAG:       %[[SCALE:.*]] = tosa.const_shape values(dense<[4, 2, 6, 4]> : tensor<4xindex>) : () -> !tosa.shape<4>
+// CHECK-DAG:       %[[OFFSET:.*]] = tosa.const_shape values(dense<[-2, -3]> : tensor<2xindex>) : () -> !tosa.shape<2>
+// CHECK-DAG:       %[[BORDER:.*]] = tosa.const_shape values(dense<[0, -1]> : tensor<2xindex>) : () -> !tosa.shape<2>
+// CHECK:           tosa.resize %{{.*}}, %[[SCALE]], %[[OFFSET]], %[[BORDER]] mode<NEAREST_NEIGHBOR> : (tensor<1x135x240x16xf32>, !tosa.shape<4>, !tosa.shape<2>, !tosa.shape<2>) -> tensor<1x270x360x16xf32>
+func.func @torch.aten.__interpolate.size_list_scale_list.nearest_size(%arg0: !torch.vtensor<[1,16,135,240],f32>) -> !torch.vtensor<[1,16,270,360],f32> {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %str = torch.constant.str "nearest"
+  %int270 = torch.constant.int 270
+  %int360 = torch.constant.int 360
+  %0 = torch.prim.ListConstruct %int270, %int360 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.__interpolate.size_list_scale_list %arg0, %0, %none, %str, %false, %none, %false : !torch.vtensor<[1,16,135,240],f32>, !torch.list<int>, !torch.none, !torch.str, !torch.bool, !torch.none, !torch.bool -> !torch.vtensor<[1,16,270,360],f32>
+  return %1 : !torch.vtensor<[1,16,270,360],f32>
+}
+
+// -----
+
+// A size list gives the same resize parameters as the equivalent scale factor.
+// CHECK-LABEL:   func.func @torch.aten.__interpolate.size_list_scale_list.bilinear_size(
+// CHECK-DAG:       %[[SCALE:.*]] = tosa.const_shape values(dense<[4, 2, 4, 2]> : tensor<4xindex>) : () -> !tosa.shape<4>
+// CHECK-DAG:       %[[OFFSET:.*]] = tosa.const_shape values(dense<-1> : tensor<2xindex>) : () -> !tosa.shape<2>
+// CHECK-DAG:       %[[BORDER:.*]] = tosa.const_shape values(dense<1> : tensor<2xindex>) : () -> !tosa.shape<2>
+// CHECK:           tosa.resize %{{.*}}, %[[SCALE]], %[[OFFSET]], %[[BORDER]] mode<BILINEAR> : (tensor<1x135x240x16xf32>, !tosa.shape<4>, !tosa.shape<2>, !tosa.shape<2>) -> tensor<1x270x480x16xf32>
+func.func @torch.aten.__interpolate.size_list_scale_list.bilinear_size(%arg0: !torch.vtensor<[1,16,135,240],f32>) -> !torch.vtensor<[1,16,270,480],f32> {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %str = torch.constant.str "bilinear"
+  %int270 = torch.constant.int 270
+  %int480 = torch.constant.int 480
+  %0 = torch.prim.ListConstruct %int270, %int480 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.__interpolate.size_list_scale_list %arg0, %0, %none, %str, %false, %none, %false : !torch.vtensor<[1,16,135,240],f32>, !torch.list<int>, !torch.none, !torch.str, !torch.bool, !torch.none, !torch.bool -> !torch.vtensor<[1,16,270,480],f32>
+  return %1 : !torch.vtensor<[1,16,270,480],f32>
+}
+
+// -----
+
+// Downsampling by 2/3 maps output index 1 to source position 1.5, which must
+// floor to 1. scale_n / scale_d = 2 / 3 becomes 4 / 6, so the offset is -2 and
+// the border is negative in both dimensions.
+// CHECK-LABEL:   func.func @torch.aten.__interpolate.size_list_scale_list.nearest_downsample(
+// CHECK-DAG:       %[[SCALE:.*]] = tosa.const_shape values(dense<[4, 6, 4, 6]> : tensor<4xindex>) : () -> !tosa.shape<4>
+// CHECK-DAG:       %[[OFFSET:.*]] = tosa.const_shape values(dense<-2> : tensor<2xindex>) : () -> !tosa.shape<2>
+// CHECK-DAG:       %[[BORDER:.*]] = tosa.const_shape values(dense<-4> : tensor<2xindex>) : () -> !tosa.shape<2>
+// CHECK:           tosa.resize %{{.*}}, %[[SCALE]], %[[OFFSET]], %[[BORDER]] mode<NEAREST_NEIGHBOR> : (tensor<1x135x240x16xf32>, !tosa.shape<4>, !tosa.shape<2>, !tosa.shape<2>) -> tensor<1x90x160x16xf32>
+func.func @torch.aten.__interpolate.size_list_scale_list.nearest_downsample(%arg0: !torch.vtensor<[1,16,135,240],f32>) -> !torch.vtensor<[1,16,90,160],f32> {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %str = torch.constant.str "nearest"
+  %int90 = torch.constant.int 90
+  %int160 = torch.constant.int 160
+  %0 = torch.prim.ListConstruct %int90, %int160 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.__interpolate.size_list_scale_list %arg0, %0, %none, %str, %false, %none, %false : !torch.vtensor<[1,16,135,240],f32>, !torch.list<int>, !torch.none, !torch.str, !torch.bool, !torch.none, !torch.bool -> !torch.vtensor<[1,16,90,160],f32>
+  return %1 : !torch.vtensor<[1,16,90,160],f32>
 }
 
 // -----

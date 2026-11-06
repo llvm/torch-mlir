@@ -732,6 +732,11 @@ void computeResizeParams(int inputSize, int outputSize, bool alignCorners,
   } else if (mode == tosa::ResizeMode::NEAREST_NEIGHBOR && alignCorners) {
     // If nearest neighbors we need to guarantee we round up.
     offset = scaleN / 2;
+  } else if (mode == tosa::ResizeMode::NEAREST_NEIGHBOR) {
+    // PyTorch "nearest" uses src = floor(dst * scaleD / scaleN), while TOSA
+    // rounds the source coordinate half up. Shifting by half a step turns the
+    // rounding into a floor. scaleN is even, so the shift is exact.
+    offset = -scaleN / 2;
   }
 
   // We can compute this directly based on previous values.
