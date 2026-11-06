@@ -2399,3 +2399,32 @@ func.func @dequantize_per_tensor_tensor2_ui8(
         -> !torch.vtensor<[2,4],f32>
   return %out : !torch.vtensor<[2,4],f32>
 }
+
+// -----
+
+// With dynamic sizes, start/end/step are computed at runtime from the sizes of
+// self and src: step = C + 1, end = start + (L - 1) * step + 1, start = offset.
+// CHECK-LABEL: func.func @torch.aten.diagonal_scatter$dynamic(
+// CHECK-SAME:      %[[SELF:.*]]: !torch.vtensor<[?,?],f32>, %[[SRC:.*]]: !torch.vtensor<[?],f32>
+// CHECK-DAG:     %[[INT0:.*]] = torch.constant.int 0
+// CHECK-DAG:     %[[INT1:.*]] = torch.constant.int 1
+// CHECK:         %[[R:.*]] = torch.aten.size.int %[[SELF]], %[[INT0]]
+// CHECK:         %[[C:.*]] = torch.aten.size.int %[[SELF]], %[[INT1]]
+// CHECK:         %[[L:.*]] = torch.aten.size.int %[[SRC]], %[[INT0]]
+// CHECK:         %[[STEP:.*]] = torch.aten.add.int %[[C]], %[[INT1]]
+// CHECK:         %[[LM1:.*]] = torch.aten.sub.int %[[L]], %[[INT1]]
+// CHECK:         %[[SPAN:.*]] = torch.aten.mul.int %[[LM1]], %[[STEP]]
+// CHECK:         %[[LAST:.*]] = torch.aten.add.int %[[INT1]], %[[SPAN]]
+// CHECK:         %[[END:.*]] = torch.aten.add.int %[[LAST]], %[[INT1]]
+// CHECK:         %[[FLAT:.*]] = torch.aten.view %[[SELF]], %{{.*}} -> !torch.vtensor<[?],f32>
+// CHECK:         %[[SCATTER:.*]] = torch.aten.slice_scatter %[[FLAT]], %[[SRC]], %[[INT0]], %[[INT1]], %[[END]], %[[STEP]]
+// CHECK:         %[[SIZES:.*]] = torch.prim.ListConstruct %[[R]], %[[C]]
+// CHECK:         %[[RES:.*]] = torch.aten.unflatten.int %[[SCATTER]], %[[INT0]], %[[SIZES]]
+// CHECK-NOT:     torch.aten.diagonal_scatter
+// CHECK:         return %[[RES]]
+func.func @torch.aten.diagonal_scatter$dynamic(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,?],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %0 = torch.aten.diagonal_scatter %arg0, %arg1, %int1, %int0, %int1 : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?],f32>, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[?,?],f32>
+  return %0 : !torch.vtensor<[?,?],f32>
+}

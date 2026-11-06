@@ -536,6 +536,91 @@ def SelectScattertStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(6, 8, 5), tu.rand(6, 5))
 
 
+# For aten.diagonal_scatter op, The arguments are: DiagonalScatter(input, src, offset=0, dim1=0, dim2=1).
+class DiagonalScatterModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.float32, True),
+            ([3], torch.float32, True),
+        ]
+    )
+    def forward(self, x, src):
+        return torch.ops.aten.diagonal_scatter(x, src, offset=0, dim1=0, dim2=1)
+
+
+@register_test_case(module_factory=lambda: DiagonalScatterModule())
+def DiagonalScatterModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4), tu.rand(3))
+
+
+class DiagonalScatterNegativeOffsetModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.float32, True),
+            ([2], torch.float32, True),
+        ]
+    )
+    def forward(self, x, src):
+        return torch.ops.aten.diagonal_scatter(x, src, offset=-1, dim1=0, dim2=1)
+
+
+@register_test_case(module_factory=lambda: DiagonalScatterNegativeOffsetModule())
+def DiagonalScatterNegativeOffsetModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4), tu.rand(2))
+
+
+class DiagonalScatterDim20Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3, 4], torch.float32, True),
+            ([3, 2], torch.float32, True),
+        ]
+    )
+    def forward(self, x, src):
+        return torch.ops.aten.diagonal_scatter(x, src, offset=0, dim1=2, dim2=0)
+
+
+@register_test_case(module_factory=lambda: DiagonalScatterDim20Module())
+def DiagonalScatterDim20Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4), tu.rand(3, 2))
+
+
+class DiagonalScatterPositiveOffsetModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, src):
+        return torch.ops.aten.diagonal_scatter(x, src, offset=1, dim1=0, dim2=1)
+
+
+@register_test_case(module_factory=lambda: DiagonalScatterPositiveOffsetModule())
+def DiagonalScatterPositiveOffsetModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 5), tu.rand(4))
+
+
 # ==============================================================================
 
 
