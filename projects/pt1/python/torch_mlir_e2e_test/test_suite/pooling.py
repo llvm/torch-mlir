@@ -1908,6 +1908,30 @@ def AvgPool3dStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 2, 4, 4, 4, low=-1))
 
 
+class AvgPool3dFp32Cancellation(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 1, 2, 2, 2], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.nn.functional.avg_pool3d(x, 2)
+
+
+@register_test_case(module_factory=lambda: AvgPool3dFp32Cancellation())
+def AvgPool3dFp32Cancellation_basic(module, tu: TestUtils):
+    # Averaging the two depth planes separately loses all six small values
+    # and returns 0. A single FP32 accumulator retains the final three ones,
+    # giving 3 / 8 = 0.375.
+    module.forward(
+        torch.tensor([1e8, 1, 1, 1, -1e8, 1, 1, 1], dtype=torch.float32).reshape(
+            1, 1, 2, 2, 2
+        )
+    )
+
+
 class AvgPool3dCountIncludePadFalse(torch.nn.Module):
 
     def __init__(self):
