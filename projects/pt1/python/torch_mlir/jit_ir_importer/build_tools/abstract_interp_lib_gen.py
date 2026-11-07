@@ -8,6 +8,7 @@ import argparse
 import os
 
 import torch
+import torch._inductor.inductor_prims
 from torch import device
 import torch.jit._shape_functions as upstream_shape_functions
 
@@ -240,6 +241,15 @@ def aten〇sqrt〡shape(self: List[int]) -> List[int]:
 
 def prims〇sqrt〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
+
+@check_shape_function([
+    Invocation(TensorOfShape(2, 3), TensorOfShape(2, 3), TensorOfShape(2, 3)),
+    Invocation(TensorOfShape(2, 3), TensorOfShape(), TensorOfShape(3)),
+    Invocation(TensorOfShape(2, 1), TensorOfShape(1, 3), TensorOfShape()),
+    ErrorInvocation(TensorOfShape(2, 3), TensorOfShape(4), TensorOfShape()),
+])
+def prims〇fma〡shape(a: List[int], b: List[int], c: List[int]) -> List[int]:
+    return upstream_shape_functions.broadcast(upstream_shape_functions.broadcast(a, b), c)
 
 def aten〇neg〡shape(self: List[int]) -> List[int]:
     return upstream_shape_functions.unary(self)
@@ -5230,6 +5240,20 @@ def aten〇addcmul〡dtype(self_rank_dtype: Tuple[int, int], tensor1_rank_dtype:
 
     ranks: List[Optional[int]] = [self_rank, tensor1_rank, tensor2_rank]
     dtypes = [self_dtype, tensor1_dtype, tensor2_dtype]
+    return promote_dtypes(ranks, dtypes)
+
+@check_dtype_function([
+    Invocation(TensorOfShape(2, 3, dtype=torch.float16), TensorOfShape(2, 3, dtype=torch.float16), TensorOfShape(2, 3, dtype=torch.float16)),
+    Invocation(TensorOfShape(2, 3, dtype=torch.bfloat16), TensorOfShape(2, 3, dtype=torch.bfloat16), TensorOfShape(2, 3, dtype=torch.bfloat16)),
+    Invocation(TensorOfShape(2, 3, dtype=torch.float32), TensorOfShape(dtype=torch.float64), TensorOfShape(3, dtype=torch.float32)),
+    Invocation(TensorOfShape(2, 3, dtype=torch.float32), TensorOfShape(3, dtype=torch.float64), TensorOfShape(dtype=torch.float32)),
+])
+def prims〇fma〡dtype(a_rank_dtype: Tuple[int, int], b_rank_dtype: Tuple[int, int], c_rank_dtype: Tuple[int, int]) -> int:
+    a_rank, a_dtype = a_rank_dtype
+    b_rank, b_dtype = b_rank_dtype
+    c_rank, c_dtype = c_rank_dtype
+    ranks: List[Optional[int]] = [a_rank, b_rank, c_rank]
+    dtypes = [a_dtype, b_dtype, c_dtype]
     return promote_dtypes(ranks, dtypes)
 
 @check_dtype_function(

@@ -521,3 +521,19 @@ def test_import_frozen_exported_program_with_multiple_buffers():
     model.eval()
     m = fx.export_and_import(model, torch.randn(2, 10, 20, 20))
     print(m)
+
+
+@run
+# CHECK-LABEL: test_prims_fma
+# CHECK: torch.prims.fma
+# CHECK-SAME: !torch.vtensor<[2,3],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[3],f32> -> !torch.vtensor<[2,3],f32>
+def test_prims_fma():
+    from torch._inductor import inductor_prims
+
+    class Fma(nn.Module):
+        def forward(self, a, b, c):
+            return inductor_prims.fma(a, b, c)
+
+    print(
+        fx.export_and_import(Fma(), torch.randn(2, 3), torch.randn(()), torch.randn(3))
+    )

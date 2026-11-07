@@ -1397,6 +1397,18 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     return arith::SelectOp::create(b, loc, payloadArgs[0], lhs, rhs);
   }
 
+  if (auto fma = dyn_cast<PrimsFmaOp>(op)) {
+    Type dtype = cast<ValueTensorType>(fma.getType()).getDtype();
+    if (!isa<mlir::FloatType>(dtype)) {
+      fma.emitError("unimplemented: non-floating point dtype");
+      return nullptr;
+    }
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
+    Value acc = convertScalarToDtype(b, loc, payloadArgs[2], dtype);
+    return math::FmaOp::create(b, loc, lhs, rhs, acc);
+  }
+
   if (auto lerp = dyn_cast<AtenLerpTensorOp>(op)) {
     if (!isa<mlir::FloatType>(
             cast<ValueTensorType>(lerp.getType()).getDtype())) {
@@ -3193,7 +3205,7 @@ public:
              AtenImagOp, AtenDequantizeSelfOp, AtenDequantizeTensorOp,
              AtenQuantizePerTensorOp, AtenIscloseOp,
              QuantizedDecomposedDequantizePerTensorOp,
-             QuantizedDecomposedQuantizePerTensorOp>(op))
+             QuantizedDecomposedQuantizePerTensorOp, PrimsFmaOp>(op))
       return rewriter.notifyMatchFailure(op, "not a supported elementwise op");
 
     if (failed(verifyLinalgCompatibleTypes(op, rewriter)))
@@ -5502,7 +5514,7 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
       AtenRealOp, AtenImagOp, AtenDequantizeSelfOp, AtenDequantizeTensorOp,
       AtenQuantizePerTensorOp, AtenIscloseOp,
       QuantizedDecomposedDequantizePerTensorOp,
-      QuantizedDecomposedQuantizePerTensorOp>();
+      QuantizedDecomposedQuantizePerTensorOp, PrimsFmaOp>();
   target.addIllegalOp<QuantizedDecomposedQuantizePerTokenOp,
                       QuantizedDecomposedDequantizePerTokenOp>();
   patterns.add<ConvertQuantizedDecomposedQuantizePerTokenOp,
