@@ -984,6 +984,8 @@ public:
 
     int64_t inputProduct = productReduce(inputShape);
     int64_t outputProduct = productReduce(outputShape);
+    if (inputProduct == 0 || outputProduct == 0)
+      return;
 
     if (inputDynamicDimCount == 1) {
       inputProduct /= kUnknownSize;
@@ -1093,6 +1095,11 @@ public:
 
     auto [inputShape, outputShape] =
         getInputAndOutputShape(op.getSelf(), outputSizeTorchInt);
+
+    // Zero element counts do not constrain dimension associations. Leave empty
+    // views to the reshape lowerings instead of dividing by a zero gcd.
+    if (productReduce(inputShape) == 0 || productReduce(outputShape) == 0)
+      return rewriter.notifyMatchFailure(op, "empty input or output tensor");
 
     // Currently, we only handle the cases where each dimension is either
     // being expanded or collapsed. We do not handle cases where it's neither
@@ -1230,12 +1237,12 @@ public:
           /// input and output dimensions in the slice statically known
           /// or parallel unknown to have the same number of elements.
           assumedDynamicDimNotSplit = true;
-        } else if (inputShapeSlice[0] == kUnknownSize) {
-          // Defer the dynamic shape check to avoid DialectConversion assertion:
-          if (outputShapeSlice[0] != kUnknownSize) {
-            checkDimPairs.push_back(
-                std::pair<int64_t, int64_t>(inputDim, outputDim));
-          }
+        } else if (inputShapeSlice[0] == kUnknownSize &&
+                   outputShapeSlice[0] != kUnknownSize) {
+          // Check this pairing later to avoid a DialectConversion assertion.
+          // Dynamic output dims may span several input dims; use a fallback.
+          checkDimPairs.push_back(
+              std::pair<int64_t, int64_t>(inputDim, outputDim));
 
           inputShape[inputDim] = outputShape[outputDim];
           inputSliceIndices.push_back(0);
@@ -1447,7 +1454,11 @@ public:
       totalSize = arith::MulIOp::create(b, totalSize, dim);
     }
 
-    Value inferredSize = arith::DivSIOp::create(b, totalSize, knownSize);
+    // Guard the divisor; a result select cannot prevent division by zero.
+    Value hasInferredDim =
+        arith::CmpIOp::create(b, arith::CmpIPredicate::sgt, count, zero);
+    Value divisor = arith::SelectOp::create(b, hasInferredDim, knownSize, one);
+    Value inferredSize = arith::DivSIOp::create(b, totalSize, divisor);
     for (auto &size : sizes) {
       Value isNeg =
           arith::CmpIOp::create(b, arith::CmpIPredicate::slt, size, zero);
