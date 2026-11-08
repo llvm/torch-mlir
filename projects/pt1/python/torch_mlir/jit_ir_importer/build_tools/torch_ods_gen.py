@@ -311,6 +311,7 @@ def emit_ops(emitter_td: TextEmitter, registry: Registry):
         "aten::hardsigmoid : (Tensor) -> (Tensor)",
         "aten::hardswish : (Tensor) -> (Tensor)",
         "aten::erf : (Tensor) -> (Tensor)",
+        "aten::erfc : (Tensor) -> (Tensor)",
         "aten::erfinv : (Tensor) -> (Tensor)",
         "aten::silu : (Tensor) -> (Tensor)",
         "aten::sin : (Tensor) -> (Tensor)",
