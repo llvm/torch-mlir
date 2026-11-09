@@ -1911,11 +1911,24 @@ public:
                   std::is_same<AtenOpT, AtenAnyDimsOp>() ||
                   std::is_same<AtenOpT, AtenAllOp>() ||
                   std::is_same<AtenOpT, AtenAnyOp>()) {
-      self = tosa::tosaCastTensorToType(
-                 rewriter, self,
-                 RankedTensorType::get(selfTy.getShape(),
-                                       rewriter.getIntegerType(1)))
-                 .value();
+      if (!selfElemTy.isInteger(1)) {
+        Value zeroValue = llvm::isa<FloatType>(selfElemTy)
+                              ? *tosa::getConstTensor<float>(rewriter, op, 0.0f,
+                                                             {}, selfElemTy)
+                              : *tosa::getConstTensor<int64_t>(rewriter, op, 0,
+                                                               {}, selfElemTy);
+        if (tosa::EqualizeRanks(rewriter, op->getLoc(), self, zeroValue)
+                .failed())
+          return rewriter.notifyMatchFailure(
+              op, "failed to broadcast zero for boolean conversion");
+
+        auto boolTy = RankedTensorType::get(selfTy.getShape(),
+                                            rewriter.getIntegerType(1));
+        Value isZero = tosa::EqualOp::create(rewriter, op->getLoc(), boolTy,
+                                             self, zeroValue);
+        self =
+            tosa::LogicalNotOp::create(rewriter, op->getLoc(), boolTy, isZero);
+      }
     }
 
     // Handle dtype output and bool elem type for ReduceSum and ReduceProd ops

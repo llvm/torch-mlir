@@ -1441,7 +1441,8 @@ OpFoldResult AtenAnyDimsOp::fold(FoldAdaptor adaptor) {
   auto resultShape = resultType.toBuiltinTensor().getShape();
   auto inputType = dyn_cast<ValueTensorType>(getOperand(0).getType());
   auto inputShape = inputType.toBuiltinTensor().getShape();
-  if ((inputType.getDtype() == resultType.getDtype()) &&
+  if (inputType.getDtype().isInteger(1) &&
+      (inputType.getDtype() == resultType.getDtype()) &&
       (inputShape == resultShape)) {
     return getSelf();
   }

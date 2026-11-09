@@ -28,14 +28,43 @@ func.func @any_dims_explicit_keepdim(%arg0: !torch.vtensor<[2,3,4],i1>) -> !torc
 // -----
 
 // CHECK-LABEL: func.func @any_dims_empty(
-// CHECK: %[[CAST:.*]] = tosa.cast %{{.*}} : (tensor<2x3xi64>) -> tensor<2x3xi1>
+// CHECK: %[[NONZERO:.*]] = tosa.logical_not %{{.*}} : (tensor<2x3xi1>) -> tensor<2x3xi1>
 // CHECK-NOT: tosa.reduce_any
-// CHECK: tosa.identity %[[CAST]] : (tensor<2x3xi1>) -> tensor<2x3xi1>
+// CHECK: tosa.identity %[[NONZERO]] : (tensor<2x3xi1>) -> tensor<2x3xi1>
 func.func @any_dims_empty(%arg0: !torch.vtensor<[2,3],si64>) -> !torch.vtensor<[2,3],i1> {
   %dims = torch.prim.ListConstruct : () -> !torch.list<int>
   %false = torch.constant.bool false
   %0 = torch.aten.any.dims %arg0, %dims, %false : !torch.vtensor<[2,3],si64>, !torch.list<int>, !torch.bool -> !torch.vtensor<[2,3],i1>
   return %0 : !torch.vtensor<[2,3],i1>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @any_dims_uint8(
+// CHECK: %[[NONZERO:.*]] = tosa.logical_not %{{.*}} : (tensor<2x3xi1>) -> tensor<2x3xi1>
+// CHECK: %[[REDUCE:.*]] = tosa.reduce_any %[[NONZERO]] axis(0) : (tensor<2x3xi1>) -> tensor<1x3xi1>
+// CHECK: %[[RESHAPE:.*]] = tosa.reshape %[[REDUCE]], %{{.*}} : (tensor<1x3xi1>, !tosa.shape<1>) -> tensor<3xi1>
+// CHECK: tosa.cast %[[RESHAPE]] input_unsigned(false) : (tensor<3xi1>) -> tensor<3xi8>
+func.func @any_dims_uint8(%arg0: !torch.vtensor<[2,3],ui8>) -> !torch.vtensor<[3],ui8> {
+  %int0 = torch.constant.int 0
+  %dims = torch.prim.ListConstruct %int0 : (!torch.int) -> !torch.list<int>
+  %false = torch.constant.bool false
+  %0 = torch.aten.any.dims %arg0, %dims, %false : !torch.vtensor<[2,3],ui8>, !torch.list<int>, !torch.bool -> !torch.vtensor<[3],ui8>
+  return %0 : !torch.vtensor<[3],ui8>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @any_dims_uint8_empty(
+// CHECK: %[[NONZERO:.*]] = tosa.logical_not %{{.*}} : (tensor<2x3xi1>) -> tensor<2x3xi1>
+// CHECK-NOT: tosa.reduce_any
+// CHECK: %[[IDENTITY:.*]] = tosa.identity %[[NONZERO]] : (tensor<2x3xi1>) -> tensor<2x3xi1>
+// CHECK: tosa.cast %[[IDENTITY]] input_unsigned(false) : (tensor<2x3xi1>) -> tensor<2x3xi8>
+func.func @any_dims_uint8_empty(%arg0: !torch.vtensor<[2,3],ui8>) -> !torch.vtensor<[2,3],ui8> {
+  %dims = torch.prim.ListConstruct : () -> !torch.list<int>
+  %false = torch.constant.bool false
+  %0 = torch.aten.any.dims %arg0, %dims, %false : !torch.vtensor<[2,3],ui8>, !torch.list<int>, !torch.bool -> !torch.vtensor<[2,3],ui8>
+  return %0 : !torch.vtensor<[2,3],ui8>
 }
 
 // -----
