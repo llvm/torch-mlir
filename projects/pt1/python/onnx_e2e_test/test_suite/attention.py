@@ -2,13 +2,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
-"""ONNX-native end-to-end tests for the com.microsoft::Attention operator.
-
-The fused QKV weights and bias are embedded as ONNX initializers; only the
-activation tensors (input, and the optional runtime mask / past KV cache) are
-annotated runtime inputs.  Each case is checked against the ONNX Runtime
-contrib kernels wired into the harness's reference evaluator.
-"""
+"""ONNX-native tests for Microsoft-domain attention ops."""
 
 import numpy as np
 
@@ -147,6 +141,38 @@ class OnnxAttention_unidirectional(OnnxTestCase):
             num_heads=_NUM_HEADS,
             qkv_hidden_sizes=[8, 8, 8],
             scale=0.5,
+            unidirectional=1,
+        )
+        initializers = [
+            onnx.numpy_helper.from_array(self._W, name="weights"),
+            onnx.numpy_helper.from_array(self._b, name="bias"),
+        ]
+        return [node], ["output"], initializers
+
+
+# ==============================================================================
+# Attention with unidirectional (causal) masking and a dynamic sequence length.
+#   input [1, ?, 8]: the causal mask shape is derived at runtime.
+# ==============================================================================
+
+
+@register_onnx_test
+class OnnxAttention_unidirectionalDynamicSeq(OnnxTestCase):
+    extra_opsets = {"com.microsoft": 1}
+
+    def __init__(self):
+        self._W = _weights(16, _INPUT_HIDDEN, _QKV_HIDDEN)
+        self._b = _weights(17, 1, _QKV_HIDDEN).reshape(_QKV_HIDDEN)
+
+    @annotate_inputs([("input", torch.float32, [_BATCH, -1, _INPUT_HIDDEN])])
+    def graph(self):
+        node = onnx.helper.make_node(
+            "Attention",
+            ["input", "weights", "bias"],
+            ["output"],
+            domain="com.microsoft",
+            num_heads=_NUM_HEADS,
+            qkv_hidden_sizes=[8, 8, 8],
             unidirectional=1,
         )
         initializers = [

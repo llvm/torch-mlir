@@ -173,3 +173,83 @@ func.func @test_attention_past_rank(%input: !torch.vtensor<[1,2,16],f32>, %weigh
   %0:2 = torch.operator "onnx.Attention"(%input, %weights, %bias, %none, %past) {torch.onnx.num_heads = 2 : si64, torch.onnx.qkv_hidden_sizes = [8 : si64, 8 : si64, 8 : si64], torch.onnx.scale = 5.000000e-01 : f32} : (!torch.vtensor<[1,2,16],f32>, !torch.vtensor<[16,24],f32>, !torch.vtensor<[24],f32>, !torch.none, !torch.vtensor<[2,1,2,3],f32>) -> (!torch.vtensor<[1,2,8],f32>, !torch.vtensor<[2,1,2,5,4],f32>)
   return %0#0, %0#1 : !torch.vtensor<[1,2,8],f32>, !torch.vtensor<[2,1,2,5,4],f32>
 }
+
+// -----
+
+// `past` dim 0 must be 2 (stacked K and V).
+func.func @test_attention_past_dim0_mismatch(%input: !torch.vtensor<[1,2,16],f32>, %weights: !torch.vtensor<[16,24],f32>, %bias: !torch.vtensor<[24],f32>, %past: !torch.vtensor<[3,1,2,3,4],f32>) -> (!torch.vtensor<[1,2,8],f32>, !torch.vtensor<[2,1,2,5,4],f32>) attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.opset_versions = {ai.onnx = 17 : si64, com.microsoft = 1 : si64}} {
+  %none = torch.constant.none
+  // expected-error @+1 {{failed to legalize operation 'torch.operator'}}
+  %0:2 = torch.operator "onnx.Attention"(%input, %weights, %bias, %none, %past) {torch.onnx.num_heads = 2 : si64} : (!torch.vtensor<[1,2,16],f32>, !torch.vtensor<[16,24],f32>, !torch.vtensor<[24],f32>, !torch.none, !torch.vtensor<[3,1,2,3,4],f32>) -> (!torch.vtensor<[1,2,8],f32>, !torch.vtensor<[2,1,2,5,4],f32>)
+  return %0#0, %0#1 : !torch.vtensor<[1,2,8],f32>, !torch.vtensor<[2,1,2,5,4],f32>
+}
+
+// -----
+
+// `past` dim 1 must match the input batch size.
+func.func @test_attention_past_batch_mismatch(%input: !torch.vtensor<[1,2,16],f32>, %weights: !torch.vtensor<[16,24],f32>, %bias: !torch.vtensor<[24],f32>, %past: !torch.vtensor<[2,3,2,3,4],f32>) -> (!torch.vtensor<[1,2,8],f32>, !torch.vtensor<[2,1,2,5,4],f32>) attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.opset_versions = {ai.onnx = 17 : si64, com.microsoft = 1 : si64}} {
+  %none = torch.constant.none
+  // expected-error @+1 {{failed to legalize operation 'torch.operator'}}
+  %0:2 = torch.operator "onnx.Attention"(%input, %weights, %bias, %none, %past) {torch.onnx.num_heads = 2 : si64} : (!torch.vtensor<[1,2,16],f32>, !torch.vtensor<[16,24],f32>, !torch.vtensor<[24],f32>, !torch.none, !torch.vtensor<[2,3,2,3,4],f32>) -> (!torch.vtensor<[1,2,8],f32>, !torch.vtensor<[2,1,2,5,4],f32>)
+  return %0#0, %0#1 : !torch.vtensor<[1,2,8],f32>, !torch.vtensor<[2,1,2,5,4],f32>
+}
+
+// -----
+
+// `past` dim 2 must match num_heads.
+func.func @test_attention_past_heads_mismatch(%input: !torch.vtensor<[1,2,16],f32>, %weights: !torch.vtensor<[16,24],f32>, %bias: !torch.vtensor<[24],f32>, %past: !torch.vtensor<[2,1,4,3,4],f32>) -> (!torch.vtensor<[1,2,8],f32>, !torch.vtensor<[2,1,2,5,4],f32>) attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.opset_versions = {ai.onnx = 17 : si64, com.microsoft = 1 : si64}} {
+  %none = torch.constant.none
+  // expected-error @+1 {{failed to legalize operation 'torch.operator'}}
+  %0:2 = torch.operator "onnx.Attention"(%input, %weights, %bias, %none, %past) {torch.onnx.num_heads = 2 : si64} : (!torch.vtensor<[1,2,16],f32>, !torch.vtensor<[16,24],f32>, !torch.vtensor<[24],f32>, !torch.none, !torch.vtensor<[2,1,4,3,4],f32>) -> (!torch.vtensor<[1,2,8],f32>, !torch.vtensor<[2,1,2,5,4],f32>)
+  return %0#0, %0#1 : !torch.vtensor<[1,2,8],f32>, !torch.vtensor<[2,1,2,5,4],f32>
+}
+
+// -----
+
+// `past` dim 4 must match the head size.
+func.func @test_attention_past_head_size_mismatch(%input: !torch.vtensor<[1,2,16],f32>, %weights: !torch.vtensor<[16,24],f32>, %bias: !torch.vtensor<[24],f32>, %past: !torch.vtensor<[2,1,2,3,8],f32>) -> (!torch.vtensor<[1,2,8],f32>, !torch.vtensor<[2,1,2,5,4],f32>) attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.opset_versions = {ai.onnx = 17 : si64, com.microsoft = 1 : si64}} {
+  %none = torch.constant.none
+  // expected-error @+1 {{failed to legalize operation 'torch.operator'}}
+  %0:2 = torch.operator "onnx.Attention"(%input, %weights, %bias, %none, %past) {torch.onnx.num_heads = 2 : si64} : (!torch.vtensor<[1,2,16],f32>, !torch.vtensor<[16,24],f32>, !torch.vtensor<[24],f32>, !torch.none, !torch.vtensor<[2,1,2,3,8],f32>) -> (!torch.vtensor<[1,2,8],f32>, !torch.vtensor<[2,1,2,5,4],f32>)
+  return %0#0, %0#1 : !torch.vtensor<[1,2,8],f32>, !torch.vtensor<[2,1,2,5,4],f32>
+}
+
+// -----
+
+// K and V share the single head-size dimension of `past`, so a V head size
+// different from the Q/K head size cannot be combined with a KV cache.
+func.func @test_attention_past_v_head_size_mismatch(%input: !torch.vtensor<[1,2,16],f32>, %weights: !torch.vtensor<[16,32],f32>, %bias: !torch.vtensor<[32],f32>, %past: !torch.vtensor<[2,1,2,3,4],f32>) -> (!torch.vtensor<[1,2,16],f32>, !torch.vtensor<[2,1,2,5,4],f32>) attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.opset_versions = {ai.onnx = 17 : si64, com.microsoft = 1 : si64}} {
+  %none = torch.constant.none
+  // expected-error @+1 {{failed to legalize operation 'torch.operator'}}
+  %0:2 = torch.operator "onnx.Attention"(%input, %weights, %bias, %none, %past) {torch.onnx.num_heads = 2 : si64, torch.onnx.qkv_hidden_sizes = [8 : si64, 8 : si64, 16 : si64]} : (!torch.vtensor<[1,2,16],f32>, !torch.vtensor<[16,32],f32>, !torch.vtensor<[32],f32>, !torch.none, !torch.vtensor<[2,1,2,3,4],f32>) -> (!torch.vtensor<[1,2,16],f32>, !torch.vtensor<[2,1,2,5,4],f32>)
+  return %0#0, %0#1 : !torch.vtensor<[1,2,16],f32>, !torch.vtensor<[2,1,2,5,4],f32>
+}
+
+// -----
+
+// A mask_index whose batch dimension does not match the input batch size must
+// be rejected.
+func.func @test_attention_mask_index_batch_mismatch(%input: !torch.vtensor<[1,4,8],f32>, %weights: !torch.vtensor<[8,24],f32>, %bias: !torch.vtensor<[24],f32>, %mask: !torch.vtensor<[2,4],si32>) -> !torch.vtensor<[1,4,8],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.opset_versions = {ai.onnx = 17 : si64, com.microsoft = 1 : si64}} {
+  // expected-error @+1 {{failed to legalize operation 'torch.operator'}}
+  %0 = torch.operator "onnx.Attention"(%input, %weights, %bias, %mask) {torch.onnx.num_heads = 2 : si64} : (!torch.vtensor<[1,4,8],f32>, !torch.vtensor<[8,24],f32>, !torch.vtensor<[24],f32>, !torch.vtensor<[2,4],si32>) -> !torch.vtensor<[1,4,8],f32>
+  return %0 : !torch.vtensor<[1,4,8],f32>
+}
+
+// -----
+
+// A 3D mask_index whose sequence dimension does not match the input sequence
+// length must be rejected.
+func.func @test_attention_mask_index_3d_seq_mismatch(%input: !torch.vtensor<[1,4,8],f32>, %weights: !torch.vtensor<[8,24],f32>, %bias: !torch.vtensor<[24],f32>, %mask: !torch.vtensor<[1,3,4],si32>) -> !torch.vtensor<[1,4,8],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.opset_versions = {ai.onnx = 17 : si64, com.microsoft = 1 : si64}} {
+  // expected-error @+1 {{failed to legalize operation 'torch.operator'}}
+  %0 = torch.operator "onnx.Attention"(%input, %weights, %bias, %mask) {torch.onnx.num_heads = 2 : si64} : (!torch.vtensor<[1,4,8],f32>, !torch.vtensor<[8,24],f32>, !torch.vtensor<[24],f32>, !torch.vtensor<[1,3,4],si32>) -> !torch.vtensor<[1,4,8],f32>
+  return %0 : !torch.vtensor<[1,4,8],f32>
+}
+
+// -----
+
+// An input without a known dtype must be rejected.
+func.func @test_attention_input_unknown_dtype(%input: !torch.vtensor<[1,4,8],unk>, %weights: !torch.vtensor<[8,24],f32>, %bias: !torch.vtensor<[24],f32>) -> !torch.vtensor<[1,4,8],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.opset_versions = {ai.onnx = 17 : si64, com.microsoft = 1 : si64}} {
+  // expected-error @+1 {{failed to legalize operation 'torch.operator'}}
+  %0 = torch.operator "onnx.Attention"(%input, %weights, %bias) {torch.onnx.num_heads = 2 : si64} : (!torch.vtensor<[1,4,8],unk>, !torch.vtensor<[8,24],f32>, !torch.vtensor<[24],f32>) -> !torch.vtensor<[1,4,8],f32>
+  return %0 : !torch.vtensor<[1,4,8],f32>
+}

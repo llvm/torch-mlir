@@ -2533,6 +2533,9 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
           return rewriter.notifyMatchFailure(
               binder.op, "Expected `input` to have 3 dimensions "
                          "[batch, seq, input_hidden]");
+        if (!inputType.hasDtype())
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected `input` to have a known dtype");
         SmallVector<int64_t> inputSizes{inputType.getSizes()};
         int64_t batchSize = inputSizes[0];
         int64_t sequenceLength = inputSizes[1];
@@ -2580,6 +2583,80 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         int64_t headSize = qHidden / numHeads;
         int64_t vHeadSize = vHidden / numHeads;
 
+        // Derive pastSeq / totalSeqLen early so both the RoPE position-offset
+        // (step 3b) and the causal mask shape (step 4b) can use them. The
+        // actual K/V prepend is done in step 3c below. totalSeqLen is dynamic
+        // whenever the query sequence length is dynamic.
+        auto staticMismatch = [](int64_t a, int64_t b) {
+          return a != Torch::kUnknownSize && b != Torch::kUnknownSize && a != b;
+        };
+        int64_t pastSeq = 0;
+        int64_t totalSeqLen = sequenceLength;
+        if (past) {
+          Torch::ValueTensorType pastPreType =
+              cast<Torch::ValueTensorType>(past.getType());
+          if (!pastPreType.hasSizes() || pastPreType.getSizes().size() != 5)
+            return rewriter.notifyMatchFailure(
+                binder.op, "Expected `past` to have 5 dimensions "
+                           "[2, batch, num_heads, past_seq, head_size]");
+          ArrayRef<int64_t> pastSizes = pastPreType.getSizes();
+          if (staticMismatch(pastSizes[0], 2))
+            return rewriter.notifyMatchFailure(
+                binder.op, "Expected `past` dim 0 to be 2 (stacked K and V)");
+          if (staticMismatch(pastSizes[1], batchSize))
+            return rewriter.notifyMatchFailure(
+                binder.op,
+                "Expected `past` dim 1 to match the input batch size");
+          if (staticMismatch(pastSizes[2], numHeads))
+            return rewriter.notifyMatchFailure(
+                binder.op, "Expected `past` dim 2 to match num_heads");
+          // K and V share the single head-size dimension of `past`.
+          if (vHeadSize != headSize)
+            return rewriter.notifyMatchFailure(
+                binder.op, "Expected equal K and V head sizes when `past` is "
+                           "provided");
+          if (staticMismatch(pastSizes[4], headSize))
+            return rewriter.notifyMatchFailure(
+                binder.op, "Expected `past` dim 4 to match the head size");
+          int64_t ps = pastSizes[3];
+          if (ps == Torch::kUnknownSize)
+            return rewriter.notifyMatchFailure(
+                binder.op, "dynamic past_seq dimension is not supported; "
+                           "past must have a static sequence-length dimension");
+          pastSeq = ps;
+          totalSeqLen = (sequenceLength == Torch::kUnknownSize)
+                            ? Torch::kUnknownSize
+                            : pastSeq + sequenceLength;
+        }
+
+        // Validate the raw mask_index shape: (batch, total_seq) or
+        // (batch, seq, total_seq). Dynamic dims are accepted as-is.
+        if (maskIndex) {
+          auto maskPreType = cast<Torch::ValueTensorType>(maskIndex.getType());
+          if (!maskPreType.hasSizes() || (maskPreType.getSizes().size() != 2 &&
+                                          maskPreType.getSizes().size() != 3))
+            return rewriter.notifyMatchFailure(
+                binder.op,
+                "Unimplemented: only 2D (batch, total_seq) or 3D "
+                "(batch, seq, total_seq) raw mask_index is supported");
+          ArrayRef<int64_t> maskSizes = maskPreType.getSizes();
+          if (staticMismatch(maskSizes[0], batchSize))
+            return rewriter.notifyMatchFailure(
+                binder.op, "mask_index dim 0 must match the input batch size");
+          if (maskSizes.size() == 3 &&
+              staticMismatch(maskSizes[1], sequenceLength))
+            return rewriter.notifyMatchFailure(
+                binder.op,
+                "mask_index dim 1 must match the input sequence length");
+          // The mask's last dimension indexes key positions, so it must match
+          // the attention total sequence length (past_seq + seq).
+          if (staticMismatch(maskSizes.back(), totalSeqLen))
+            return rewriter.notifyMatchFailure(
+                binder.op,
+                "mask_index last dimension must equal the total sequence "
+                "length (past_seq + seq)");
+        }
+
         // Common constants.
         Value cstOne = Torch::ConstantIntOp::create(
             rewriter, loc, rewriter.getI64IntegerAttr(1));
@@ -2599,7 +2676,7 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         Value cstFalse = Torch::ConstantBoolOp::create(rewriter, loc, false);
         Type intListType = Torch::ListType::get(Torch::IntType::get(context));
 
-        auto elemDtype = inputType.getOptionalDtype();
+        Type elemDtype = inputType.getDtype();
 
         // Step 1: fused QKV projection: qkv = input @ weights + bias.
         SmallVector<int64_t> qkvSizes{batchSize, sequenceLength, qkvHiddenSum};
@@ -2663,25 +2740,24 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         Value kHeads = reshapeToHeads(key, headSize);
         Value vHeads = reshapeToHeads(value, vHeadSize);
 
-        // Derive pastSeq / totalSeqLen early so both the RoPE position-offset
-        // (step 3b) and the causal mask shape (step 4b) can use them. The
-        // actual K/V prepend is done in step 3c below.
-        int64_t pastSeq = 0;
-        int64_t totalSeqLen = sequenceLength;
-        if (past) {
-          Torch::ValueTensorType pastPreType =
-              cast<Torch::ValueTensorType>(past.getType());
-          if (!pastPreType.hasSizes() || pastPreType.getSizes().size() != 5)
-            return rewriter.notifyMatchFailure(
-                binder.op, "Expected `past` to have 5 dimensions "
-                           "[2, batch, num_heads, past_seq, head_size]");
-          int64_t ps = pastPreType.getSizes()[3];
-          if (ps == Torch::kUnknownSize)
-            return rewriter.notifyMatchFailure(
-                binder.op, "dynamic past_seq dimension is not supported; "
-                           "past must have a static sequence-length dimension");
-          pastSeq = ps;
-          totalSeqLen = pastSeq + sequenceLength;
+        // Runtime sequence lengths, needed only by the RoPE position table and
+        // the causal mask. These are constants for static shapes and are read
+        // from the input shape when the sequence is dynamic.
+        Value seqLenVal, totalSeqLenVal;
+        if (doRotary != 0 || unidirectional != 0) {
+          if (sequenceLength != Torch::kUnknownSize) {
+            seqLenVal = Torch::ConstantIntOp::create(
+                rewriter, loc, rewriter.getI64IntegerAttr(sequenceLength));
+            totalSeqLenVal = Torch::ConstantIntOp::create(
+                rewriter, loc, rewriter.getI64IntegerAttr(totalSeqLen));
+          } else {
+            Value cstPastSeq = Torch::ConstantIntOp::create(
+                rewriter, loc, rewriter.getI64IntegerAttr(pastSeq));
+            seqLenVal =
+                Torch::AtenSizeIntOp::create(rewriter, loc, input, cstOne);
+            totalSeqLenVal = Torch::AtenAddIntOp::create(rewriter, loc,
+                                                         seqLenVal, cstPastSeq);
+          }
         }
 
         // Step 3b: apply rotary embeddings to Q and K if do_rotary is set.
@@ -2752,18 +2828,21 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
           // tokens are not re-rotated at wrong offsets.
           Torch::ValueTensorType posType = Torch::ValueTensorType::get(
               context, ArrayRef<int64_t>{sequenceLength}, f32Dtype);
-          // Use float scalars so arange produces f32 output matching posType.
+          // Use a float start/step and an explicit f32 dtype so arange produces
+          // f32 output matching posType; the end may be a runtime int when the
+          // sequence length is dynamic.
           Value cstPosStart = Torch::ConstantFloatOp::create(
               rewriter, loc,
               rewriter.getF64FloatAttr(static_cast<double>(pastSeq)));
-          Value cstPosEnd = Torch::ConstantFloatOp::create(
-              rewriter, loc,
-              rewriter.getF64FloatAttr(static_cast<double>(totalSeqLen)));
           Value cstPosStep = Torch::ConstantFloatOp::create(
               rewriter, loc, rewriter.getF64FloatAttr(1.0));
+          Value cstF32Dtype = Torch::ConstantIntOp::create(
+              rewriter, loc,
+              rewriter.getI64IntegerAttr(
+                  static_cast<int64_t>(Torch::getScalarTypeForType(f32Dtype))));
           Value posRange = Torch::AtenArangeStartStepOp::create(
-              rewriter, loc, posType, cstPosStart, cstPosEnd, cstPosStep,
-              cstNone, cstNone, cstNone, cstNone);
+              rewriter, loc, posType, cstPosStart, totalSeqLenVal, cstPosStep,
+              cstF32Dtype, cstNone, cstNone, cstNone);
           // posRange shape [seq] -> [seq, 1]
           Torch::ValueTensorType posU1Type = Torch::ValueTensorType::get(
               context, ArrayRef<int64_t>{sequenceLength, 1}, f32Dtype);
@@ -2988,13 +3067,9 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         //     that query position q (0-based within the new tokens) is allowed
         //     to attend to key positions 0..pastSeq+q.
         if (unidirectional != 0) {
-          Value cstSeq = Torch::ConstantIntOp::create(
-              rewriter, loc, rewriter.getI64IntegerAttr(sequenceLength));
-          Value cstTotalSeq = Torch::ConstantIntOp::create(
-              rewriter, loc, rewriter.getI64IntegerAttr(totalSeqLen));
           Value maskShape = Torch::PrimListConstructOp::create(
               rewriter, loc, intListType,
-              llvm::SmallVector<Value>{cstSeq, cstTotalSeq});
+              llvm::SmallVector<Value>{seqLenVal, totalSeqLenVal});
           Value cstFillOne = Torch::ConstantFloatOp::create(
               rewriter, loc, rewriter.getF64FloatAttr(1.0));
           Torch::ValueTensorType causalType = Torch::ValueTensorType::get(
@@ -3035,23 +3110,8 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         if (maskIndex) {
           Torch::ValueTensorType maskType =
               cast<Torch::ValueTensorType>(maskIndex.getType());
-          if (!maskType.hasSizes() || (maskType.getSizes().size() != 2 &&
-                                       maskType.getSizes().size() != 3))
-            return rewriter.notifyMatchFailure(
-                binder.op,
-                "Unimplemented: only 2D (batch, total_seq) or 3D "
-                "(batch, seq, total_seq) raw mask_index is supported");
           int64_t maskRank = maskType.getSizes().size();
           int64_t totalSeq = maskType.getSizes()[maskRank - 1];
-
-          // The mask's last dimension indexes key positions, so it must match
-          // the attention total sequence length (past_seq + seq). A mismatch
-          // means the mask cannot be broadcast against the scores.
-          if (totalSeq != Torch::kUnknownSize && totalSeq != totalSeqLen)
-            return rewriter.notifyMatchFailure(
-                binder.op,
-                "mask_index last dimension must equal the total sequence "
-                "length (past_seq + seq)");
 
           // Cast the mask to the score element type (no-op if it already
           // matches, so guard to avoid emitting a redundant aten.to.dtype).

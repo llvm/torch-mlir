@@ -124,6 +124,10 @@ ONNX_E2E_TOSA_XFAIL_SET = {
     # golden value), so this fails independent of the backend. See the LINALG
     # set note; the do_rotary lowering is covered by FileCheck.
     "OnnxAttention_doRotary",
+    # OnnxAttention_unidirectionalDynamicSeq: TorchToTosa cannot lower
+    # aten.slice.Tensor on a tensor with a dynamic (sequence) dimension, which
+    # the fused QKV split produces. Passes on linalg.
+    "OnnxAttention_unidirectionalDynamicSeq",
 }
 
 
