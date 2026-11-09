@@ -4029,6 +4029,7 @@ ONNX_TOSA_XFAIL_SET = {
     "ElementwiseRreluTrainStaticModule_basic",
     "FakeQuantizePerTensorAffineCachemaskModule_basic",
     "IndexPutWithNoneAndBroadcastModule_basic",
+    "MaskedScatterEmptySource_basic",
     "MaskedScatterStaticBasic_basic",
     "MaxUnpool3dModulePad0_basic",
     "MaxUnpool3dModule_basic",
