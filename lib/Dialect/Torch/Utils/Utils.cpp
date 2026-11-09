@@ -148,7 +148,7 @@ bool Torch::isBuiltInType(Type type) {
 }
 
 std::optional<int64_t> Torch::getTensorNumel(Value tensor) {
-  BaseTensorType tensorType = cast<BaseTensorType>(tensor.getType());
+  auto tensorType = cast<BaseTensorType>(tensor.getType());
   if (!tensorType.hasSizes())
     return std::nullopt;
   int64_t numel = 1;
