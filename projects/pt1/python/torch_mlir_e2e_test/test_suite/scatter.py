@@ -37,7 +37,7 @@ def MaskedScatterStaticBasic_basic(module, tu: TestUtils):
     module.forward(x, mask, y)
 
 
-class MaskedScatterEmptySource(torch.nn.Module):
+class MaskedScatterBroadcastSelf(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
@@ -45,20 +45,45 @@ class MaskedScatterEmptySource(torch.nn.Module):
     @annotate_args(
         [
             None,
-            ([3, 4], torch.float32, True),
+            ([1, 4], torch.float32, True),
+            ([3, 4], torch.bool, True),
+            ([12], torch.float32, True),
+        ]
+    )
+    def forward(self, x, mask, y):
+        return torch.ops.aten.masked_scatter(x, mask, y)
+
+
+@register_test_case(module_factory=lambda: MaskedScatterBroadcastSelf())
+def MaskedScatterBroadcastSelf_basic(module, tu: TestUtils):
+    x = tu.rand(1, 4)
+    mask = tu.rand(3, 4) > 0.5
+    y = tu.rand(12)
+    module.forward(x, mask, y)
+
+
+class MaskedScatterBroadcastSelfEmptySource(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 4], torch.float32, True),
             ([3, 4], torch.bool, True),
             ([0], torch.float32, True),
         ]
     )
     def forward(self, x, mask, y):
-        return torch.masked_scatter(x, mask, y)
+        return torch.ops.aten.masked_scatter(x, mask, y)
 
 
-@register_test_case(module_factory=lambda: MaskedScatterEmptySource())
-def MaskedScatterEmptySource_basic(module, tu: TestUtils):
-    x = torch.rand(3, 4)
+@register_test_case(module_factory=lambda: MaskedScatterBroadcastSelfEmptySource())
+def MaskedScatterBroadcastSelfEmptySource_basic(module, tu: TestUtils):
+    x = tu.rand(1, 4)
     mask = torch.zeros(3, 4, dtype=torch.bool)
-    y = torch.rand(0)
+    y = tu.rand(0)
     module.forward(x, mask, y)
 
 
