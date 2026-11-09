@@ -11244,8 +11244,9 @@ public:
       }
     }
 
-    // Match PyTorch nearest_idx's size-based compatibility cases before
-    // applying the general explicit-scale sampling formula.
+    // Match PyTorch nearest_idx's same-size and exact-2x compatibility cases
+    // before applying the general explicit-scale sampling formula.
+    // https://github.com/pytorch/pytorch/blob/0fabc3ba44823f257e70ce397d989c8de5e362c1/aten/src/ATen/native/UpSample.h#L339-L358
     if (outputHeight == selfHeight)
       scalesH = 1.0;
     else if (outputHeight == 2 * selfHeight)
@@ -11265,7 +11266,10 @@ public:
         RankedTensorType::get(reshapedSelfShape, selfElemTy), self,
         tosa::getTosaConstShape(rewriter, op->getLoc(), reshapedSelfShape));
 
-    // Match PyTorch's float32 inverse-scale multiplication for source indices.
+    // Match PyTorch nearest_idx's compute_scales_value<float> and the float
+    // multiplication in nearest_neighbor_compute_source_index.
+    // https://github.com/pytorch/pytorch/blob/0fabc3ba44823f257e70ce397d989c8de5e362c1/aten/src/ATen/native/UpSample.h#L258-L268
+    // https://github.com/pytorch/pytorch/blob/0fabc3ba44823f257e70ce397d989c8de5e362c1/aten/src/ATen/native/UpSample.h#L316-L358
     // Keep output-size calculations above in double precision.
     float inverseScaleH = useExplicitScalesH
                               ? static_cast<float>(1.0 / scalesH)
