@@ -2399,3 +2399,34 @@ func.func @dequantize_per_tensor_tensor2_ui8(
         -> !torch.vtensor<[2,4],f32>
   return %out : !torch.vtensor<[2,4],f32>
 }
+
+// -----
+
+// masked_scatter with dynamic shapes: the source is padded by one element
+// before the gather.
+// CHECK-LABEL:  func.func @masked_scatter_dynamic(
+// CHECK-SAME:      %[[SELF:.*]]: !torch.vtensor<[?,?],f32>, %[[MASK:.*]]: !torch.vtensor<[?,?],i1>, %[[SOURCE:.*]]: !torch.vtensor<[?],f32>)
+// CHECK-DAG:      %[[C0:.*]] = torch.constant.int 0
+// CHECK-DAG:      %[[C1:.*]] = torch.constant.int 1
+// CHECK:          %[[INDEX:.*]] = torch.aten.clamp
+// CHECK:          %[[PAD:.*]] = torch.prim.ListConstruct %[[C0]], %[[C1]] :
+// CHECK:          %[[PADDED:.*]] = torch.aten.constant_pad_nd %[[SOURCE]], %[[PAD]], %[[C0]] : {{.*}} -> !torch.vtensor<[?],f32>
+// CHECK:          %[[GATHER:.*]] = torch.aten.index_select %[[PADDED]], %[[C0]], %[[INDEX]] :
+// CHECK:          %[[VIEW:.*]] = torch.aten.view %[[GATHER]],
+// CHECK:          torch.aten.where.self %[[MASK]], %[[VIEW]], %[[SELF]] :
+func.func @masked_scatter_dynamic(%self: !torch.vtensor<[?,?],f32>, %mask: !torch.vtensor<[?,?],i1>, %source: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,?],f32> {
+  %0 = torch.aten.masked_scatter %self, %mask, %source : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],i1>, !torch.vtensor<[?],f32> -> !torch.vtensor<[?,?],f32>
+  return %0 : !torch.vtensor<[?,?],f32>
+}
+
+// -----
+
+// masked_scatter with a static, non-empty source gathers from it directly.
+// CHECK-LABEL:  func.func @masked_scatter_static_source(
+// CHECK-SAME:      %{{.*}}: !torch.vtensor<[2,3],f32>, %{{.*}}: !torch.vtensor<[2,3],i1>, %[[SOURCE:.*]]: !torch.vtensor<[4],f32>)
+// CHECK-NOT:      torch.aten.constant_pad_nd
+// CHECK:          torch.aten.index_select %[[SOURCE]],
+func.func @masked_scatter_static_source(%self: !torch.vtensor<[2,3],f32>, %mask: !torch.vtensor<[2,3],i1>, %source: !torch.vtensor<[4],f32>) -> !torch.vtensor<[2,3],f32> {
+  %0 = torch.aten.masked_scatter %self, %mask, %source : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],i1>, !torch.vtensor<[4],f32> -> !torch.vtensor<[2,3],f32>
+  return %0 : !torch.vtensor<[2,3],f32>
+}

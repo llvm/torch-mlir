@@ -5913,16 +5913,19 @@ public:
     if (!resTy || !resTy.hasDtype()) {
       return rewriter.notifyMatchFailure(op, "result should have dtype");
     }
-    if (!selfTy || !selfTy.areAllSizesKnown())
+    if (!selfTy.hasSizes())
+      return rewriter.notifyMatchFailure(op, "expected self with known rank");
+    if (!sourceTy.hasSizes() || !sourceTy.hasDtype())
       return rewriter.notifyMatchFailure(
-          op, "Unimplemented: no implementation for rankless tensor");
-    if (!sourceTy || !sourceTy.areAllSizesKnown() || !sourceTy.hasDtype())
-      return rewriter.notifyMatchFailure(
-          op, "Unimplemented: no implementation for rankless tensor");
+          op, "expected source with known rank and dtype");
 
-    int64_t selfNumel = getTensorNumel(self).value(); // as selfTy has sizes
-    int64_t sourceNumel =
-        getTensorNumel(source).value(); // as sourceTy has sizes
+    // An empty source leaves every element of self unchanged.
+    int64_t sourceNumel = *getTensorNumel(source);
+    if (sourceNumel == 0) {
+      rewriter.replaceOpWithNewOp<TensorStaticInfoCastOp>(op, resTy, self);
+      return success();
+    }
+    int64_t selfNumel = *getTensorNumel(self);
     int64_t selfRank = selfTy.getSizes().size();
     int64_t sourceRank = sourceTy.getSizes().size();
 
@@ -5965,6 +5968,18 @@ public:
         /*optionalSizes=*/{sourceNumel}, sourceTy.getDtype());
     Value sourceFlatten = Torch::AtenFlattenUsingIntsOp::create(
         rewriter, loc, sourceFlattenType, source, constZero, sourceLastDim);
+
+    // Append one element to a source that may be empty, so that the gather
+    // below stays in bounds.
+    if (sourceNumel == kUnknownSize) {
+      Type paddedType = sourceTy.getWithSizesAndDtype(
+          /*optionalSizes=*/{kUnknownSize}, sourceTy.getDtype());
+      Value padding = PrimListConstructOp::create(
+          rewriter, loc, ListType::get(IntType::get(context)),
+          ValueRange{constZero, constOne});
+      sourceFlatten = AtenConstantPadNdOp::create(
+          rewriter, loc, paddedType, sourceFlatten, padding, constZero);
+    }
 
     auto selectSourceType = sourceTy.getWithSizesAndDtype(
         /*optionalSizes=*/{selfNumel}, sourceTy.getDtype());

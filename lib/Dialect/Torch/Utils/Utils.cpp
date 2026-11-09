@@ -152,9 +152,9 @@ std::optional<int64_t> Torch::getTensorNumel(Value tensor) {
   if (!tensorType.hasSizes())
     return std::nullopt;
   int64_t numel = 1;
-  for (auto dim : tensorType.getSizes()) {
-    if (dim == ShapedType::kDynamic)
-      return ShapedType::kDynamic;
+  for (int64_t dim : tensorType.getSizes()) {
+    if (dim == kUnknownSize)
+      return kUnknownSize;
     numel *= dim;
   }
   return numel;
