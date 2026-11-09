@@ -934,3 +934,64 @@ class OnnxConvInteger_i8_perChannelWeightZp(_ConvInteger):
     @annotate_inputs([("x", torch.int8, [1, 2, 3, 3], (-128, 128))])
     def graph(self):
         return super().graph()
+
+
+# ==============================================================================
+# DynamicQuantizeLinear
+# ==============================================================================
+
+
+class _DynamicQuantizeLinear(OnnxTestCase):
+    """Base for DynamicQuantizeLinear tests: (y, y_scale, y_zero_point) = DQL(x).
+
+    All three outputs are graph outputs so scale and zero point are checked
+    along with the quantized tensor.
+    """
+
+    opset = 11
+
+    def graph(self):
+        node = onnx.helper.make_node(
+            "DynamicQuantizeLinear",
+            ["x"],
+            ["y", "y_scale", "y_zero_point"],
+        )
+        return [node], ["y", "y_scale", "y_zero_point"]
+
+
+@register_onnx_test
+class DynamicQuantizeLinear_basic(_DynamicQuantizeLinear):
+    @annotate_inputs([("x", torch.float32, [3, 4, 5], (-2.0, 2.0))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class DynamicQuantizeLinear_positiveRange(_DynamicQuantizeLinear):
+    # min > 0: the range is extended to include 0, so the zero point is 0.
+    @annotate_inputs([("x", torch.float32, [2, 8], (1.0, 5.0))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class DynamicQuantizeLinear_negativeRange(_DynamicQuantizeLinear):
+    # max < 0: the range is extended to include 0, so the zero point is 255.
+    @annotate_inputs([("x", torch.float32, [2, 8], (-5.0, -1.0))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class DynamicQuantizeLinear_rank1(_DynamicQuantizeLinear):
+    @annotate_inputs([("x", torch.float32, [16], (-3.0, 7.0))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class DynamicQuantizeLinear_dynamicShape(_DynamicQuantizeLinear):
+    # The harness materializes dynamic dimensions as 2.
+    @annotate_inputs([("x", torch.float32, [-1, -1], (-2.0, 2.0))])
+    def graph(self):
+        return super().graph()
