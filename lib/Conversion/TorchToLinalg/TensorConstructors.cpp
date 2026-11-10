@@ -11,6 +11,7 @@
 
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
+#include "mlir/Dialect/Arith/Utils/Utils.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/IR/Matchers.h"
@@ -18,9 +19,6 @@
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
-#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
-
-#include <numeric>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -94,6 +92,25 @@ static Value replicationPad(ConversionPatternRewriter &rewriter, Location loc,
   return res;
 }
 
+/// Splits a torch padding amount into the number of elements to pad,
+/// `max(amount, 0)`, and the number of elements to crop, `max(-amount, 0)`.
+static std::pair<OpFoldResult, OpFoldResult>
+splitPadAmount(OpBuilder &b, Location loc, const TypeConverter *typeConverter,
+               Value amount) {
+  int64_t constant;
+  if (matchPattern(amount, m_TorchConstantInt(&constant)))
+    return {b.getIndexAttr(std::max<int64_t>(constant, 0)),
+            b.getIndexAttr(std::max<int64_t>(-constant, 0))};
+
+  amount = typeConverter->materializeTargetConversion(
+      b, loc, typeConverter->convertType(amount.getType()), amount);
+  amount = castIntToIndex(b, loc, amount);
+  Value zero = arith::ConstantIndexOp::create(b, loc, 0);
+  Value pad = arith::MaxSIOp::create(b, loc, amount, zero);
+  Value crop = arith::SubIOp::create(b, loc, pad, amount);
+  return {pad, crop};
+}
+
 namespace {
 class ConvertAtenConstantPadNdOp
     : public OpConversionPattern<AtenConstantPadNdOp> {
@@ -119,48 +136,57 @@ public:
     uint64_t padRank = padVals.size() / 2;
     if (padRank * 2 != padVals.size())
       return rewriter.notifyMatchFailure(op, "pad range size is not even");
-    if (rank < 0 || padRank > (uint64_t)rank)
+    if (padRank > (uint64_t)rank)
       return rewriter.notifyMatchFailure(op, "padding exceeds tensor rank");
 
-    // Initialize low/high paddings with the dims that should not be padded.
+    // Initialize low/high paddings and croppings with the dims that should
+    // not be padded.
     int64_t noPad = rank - padRank;
     Attribute zero = rewriter.getIndexAttr(0);
-    SmallVector<int64_t> staticLow(noPad, 0);
-    SmallVector<int64_t> staticHigh(noPad, 0);
     SmallVector<OpFoldResult> lowPad(noPad, zero);
     SmallVector<OpFoldResult> highPad(noPad, zero);
-
-    auto tc = getTypeConverter();
+    SmallVector<OpFoldResult> lowCrop(noPad, zero);
+    SmallVector<OpFoldResult> highCrop(noPad, zero);
 
     // Add the requested padding - note op.pad() is highest dim first ordered
-    // pairs of low,high.
+    // pairs of low,high. A negative amount crops instead of padding.
     for (uint64_t i = padRank; i > 0; --i) {
-      int64_t lowi, highi;
-      Value lowv = padVals[i * 2 - 2];
-      Value highv = padVals[i * 2 - 1];
-      if (!matchPattern(lowv, m_TorchConstantInt(&lowi))) {
-        Type cty = tc->convertType(lowv.getType());
-        lowv = tc->materializeTargetConversion(rewriter, loc, cty, lowv);
-        lowv = arith::IndexCastOp::create(rewriter, loc,
-                                          rewriter.getIndexType(), lowv);
-        lowPad.push_back(lowv);
-        staticLow.push_back(ShapedType::kDynamic);
-      } else {
-        lowPad.push_back(rewriter.getIndexAttr(lowi));
-        staticLow.push_back(lowi);
-      }
+      auto [lowPadAmount, lowCropAmount] =
+          splitPadAmount(rewriter, loc, getTypeConverter(), padVals[i * 2 - 2]);
+      auto [highPadAmount, highCropAmount] =
+          splitPadAmount(rewriter, loc, getTypeConverter(), padVals[i * 2 - 1]);
+      lowPad.push_back(lowPadAmount);
+      highPad.push_back(highPadAmount);
+      lowCrop.push_back(lowCropAmount);
+      highCrop.push_back(highCropAmount);
+    }
 
-      if (!matchPattern(highv, m_TorchConstantInt(&highi))) {
-        Type cty = tc->convertType(highv.getType());
-        highv = tc->materializeTargetConversion(rewriter, loc, cty, highv);
-        highv = arith::IndexCastOp::create(rewriter, loc,
-                                           rewriter.getIndexType(), highv);
-        highPad.push_back(highv);
-        staticHigh.push_back(ShapedType::kDynamic);
-      } else {
-        highPad.push_back(rewriter.getIndexAttr(highi));
-        staticHigh.push_back(highi);
+    // Crop the dims with a negative amount.
+    if (!areAllConstantIntValue(lowCrop, 0) ||
+        !areAllConstantIntValue(highCrop, 0)) {
+      SmallVector<OpFoldResult> offsets(lowCrop);
+      SmallVector<OpFoldResult> sizes;
+      for (int64_t dim = 0; dim < rank; ++dim) {
+        Value size = getValueOrCreateConstantIndexOp(
+            rewriter, loc, tensor::getMixedSize(rewriter, loc, self, dim));
+        size = rewriter.createOrFold<arith::SubIOp>(
+            loc, size,
+            getValueOrCreateConstantIndexOp(rewriter, loc, lowCrop[dim]));
+        // A slice emptied by the low crop starts at 0 to stay in bounds.
+        if (isConstantIntValue(size, 0))
+          offsets[dim] = zero;
+        size = rewriter.createOrFold<arith::SubIOp>(
+            loc, size,
+            getValueOrCreateConstantIndexOp(rewriter, loc, highCrop[dim]));
+        std::optional<int64_t> staticSize = getConstantIntValue(size);
+        if (staticSize && *staticSize < 0)
+          return rewriter.notifyMatchFailure(op,
+                                             "expected crops that fit the dim");
+        sizes.push_back(getAsOpFoldResult(size));
       }
+      SmallVector<OpFoldResult> strides(rank, rewriter.getIndexAttr(1));
+      self = tensor::ExtractSliceOp::create(rewriter, loc, self, offsets, sizes,
+                                            strides);
     }
 
     Type newResultType = getTypeConverter()->convertType(op.getType());
@@ -172,9 +198,7 @@ public:
         convertScalarToDtype(rewriter, loc, adaptor.getValue(), elementType,
                              std::nullopt, dstOriginalDtype);
 
-    Type padType = tensor::PadOp::inferResultType(
-        cast<RankedTensorType>(self.getType()), staticLow, staticHigh);
-    Value paddedInput = tensor::PadOp::create(rewriter, loc, padType, self,
+    Value paddedInput = tensor::PadOp::create(rewriter, loc, Type(), self,
                                               lowPad, highPad, castedValue);
     rewriter.replaceOpWithNewOp<tensor::CastOp>(op, newResultType, paddedInput);
     return success();

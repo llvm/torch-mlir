@@ -623,6 +623,26 @@ def ConstantPadNdPartialStaticModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 20, 20, 4, 4, low=-1))
 
 
+class ConstantPadNdNegativeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.constant_pad_nd(x, (8 - x.shape[-1], 3, 1, -1), 0.5)
+
+
+@register_test_case(module_factory=lambda: ConstantPadNdNegativeModule())
+def ConstantPadNdNegativeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 12))
+
+
 # ==============================================================================
 class ReflectionPad1dModule3dInput(torch.nn.Module):
     def __init__(self):
