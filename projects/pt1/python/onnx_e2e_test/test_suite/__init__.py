@@ -14,6 +14,7 @@ def register_all_tests():
     """Register all built-in ONNX e2e tests."""
     # Imported only to run their @register_onnx_test side effects.
     from . import elementwise  # noqa: F401
+    from . import embedding  # noqa: F401
     from . import linear  # noqa: F401
     from . import normalization  # noqa: F401
     from . import quantization  # noqa: F401
