@@ -15,6 +15,7 @@ def register_all_tests():
     # Imported only to run their @register_onnx_test side effects.
     from . import attention  # noqa: F401
     from . import elementwise  # noqa: F401
+    from . import embedding  # noqa: F401
     from . import linear  # noqa: F401
     from . import normalization  # noqa: F401
     from . import quantization  # noqa: F401
