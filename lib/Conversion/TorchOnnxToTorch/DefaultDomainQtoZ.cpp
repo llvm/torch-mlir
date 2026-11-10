@@ -413,20 +413,6 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value outputZp = operands[7];
         Value bias = operands.size() == 9 ? operands[8] : nullptr;
 
-        auto extract = [&rewriter, &loc](Value v) -> Value {
-          auto vTy = cast<Torch::ValueTensorType>(v.getType());
-          Type extractTy = rewriter.getType<Torch::FloatType>();
-          if (isa<IntegerType>(vTy.getDtype()))
-            extractTy = rewriter.getType<Torch::IntType>();
-          return Torch::AtenItemOp::create(rewriter, loc, extractTy, v);
-        };
-
-        // Input and output are always quantized per-tensor.
-        inputZp = extract(inputZp);
-        outputZp = extract(outputZp);
-        inputScale = extract(inputScale);
-        outputScale = extract(outputScale);
-
         // ONNX QLinearConv allows the weight to be quantized either
         // per-tensor (scalar or single-element w_scale / w_zero_point) or
         // per-channel along the output-channel axis (axis = 0), in which case
@@ -460,6 +446,18 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                          "per-tensor or per-channel (axis = 0) "
                          "weight_scale and weight_zero_point");
 
+        // Input and output are always quantized per-tensor.
+        if (failed(extractPerTensorQuantizationArguments(
+                rewriter, loc, inputScale, inputZp, inputScale, inputZp)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Incompatible input arguments for per-tensor "
+                         "quantization");
+        if (failed(extractPerTensorQuantizationArguments(
+                rewriter, loc, outputScale, outputZp, outputScale, outputZp)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Incompatible output arguments for per-tensor "
+                         "quantization");
+
         // Dequantize the input (per-tensor).
         Value dequantizedInput;
         if (failed(createDequantizeTensor(rewriter, loc, input, inputScale,
@@ -470,8 +468,11 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         // Dequantize the weight (per-tensor or per-channel along axis 0).
         Value dequantizedWeight;
         if (isPerTensorWeight) {
-          weightZp = extract(weightZp);
-          weightScale = extract(weightScale);
+          if (failed(extractPerTensorQuantizationArguments(
+                  rewriter, loc, weightScale, weightZp, weightScale, weightZp)))
+            return rewriter.notifyMatchFailure(
+                binder.op, "Incompatible weight arguments for per-tensor "
+                           "quantization");
           if (failed(createDequantizeTensor(rewriter, loc, weight, weightScale,
                                             weightZp, dequantizedWeight)))
             return rewriter.notifyMatchFailure(
@@ -517,9 +518,9 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         // Run the convolution in floating point via onnx.Conv, forwarding
         // the original attributes (pads, strides, dilations, group, ...).
         // Unlike ConvInteger, which returns the raw int32 accumulator and
-        // therefore runs in f64, the result here is requantized to 8 bits,
-        // so f32 rounding of large accumulators is below the output
-        // resolution except at exact rounding ties.
+        // therefore runs in f64, the result here is requantized to 8 bits. So,
+        // f32 accumulation error changes the output by at most one quantization
+        // step, and only when it lies within that error of a rounding boundary.
         llvm::SmallVector<Value> newOperands = {dequantizedInput,
                                                 dequantizedWeight};
         if (bias)

@@ -1003,6 +1003,10 @@ class DynamicQuantizeLinear_dynamicShape(_DynamicQuantizeLinear):
 
 
 class _QLinearConv(OnnxTestCase):
+    # Given that the onnx reference computes round(R + y_zp),
+    # while QuantizeLinear, ONNX Runtime and the lowering compute
+    # round(R) + y_zp (and the QLinearConv spec does not specify which
+    # is correct), tests here are using even valued y_zero_point.
     x_scale = np.array(0.0625, dtype=np.float32)
     x_zero_point = np.array(-3, dtype=np.int8)
     w = np.random.default_rng(46).integers(-8, 9, size=(4, 2, 3, 3), dtype=np.int8)
@@ -1104,5 +1108,22 @@ class OnnxQLinearConv_perChannelBias(_QLinearConv):
     B = np.array([-300, 0, 250, 1000], dtype=np.int32)
 
     @annotate_inputs([("x", torch.int8, [1, 2, 5, 5], (-128, 128))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class OnnxQLinearConv_nonPoT(_QLinearConv):
+    # Non power-of-two (PoT) scales to avoid the f32 conv path matching
+    # the reference by construction.
+    x_scale = np.array(0.0213, dtype=np.float32)
+    w = np.random.default_rng(47).integers(-24, 25, size=(16, 8, 3, 3), dtype=np.int8)
+    w_scale = np.array(0.00731, dtype=np.float32)
+    w_zero_point = np.array(0, dtype=np.int8)
+    y_scale = np.array(0.0417, dtype=np.float32)
+    y_zero_point = np.array(-4, dtype=np.int8)
+    B = np.random.default_rng(48).integers(-2000, 2001, size=(16,), dtype=np.int32)
+
+    @annotate_inputs([("x", torch.int8, [1, 8, 6, 6], (-128, 128))])
     def graph(self):
         return super().graph()
