@@ -3976,6 +3976,7 @@ ONNX_TOSA_XFAIL_SET = {
     "SafeSoftmaxNonNoneDtypeModule_basic",
     "AdaptiveAvgPool2dFixedKernelStrideSizeStaticModule_basic",
     "ArgmaxKeepdimModule_basic",
+    "AtenInstanceNormDynamicModule_basic",
     # TODO: The values are extremely close to the golden values, but the test fails because of strict rtol/atol.
     "AtenInstanceNormModuleFp16_basic",
     "AtenIntMM_basic",
