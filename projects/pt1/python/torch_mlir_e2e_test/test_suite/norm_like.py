@@ -802,6 +802,30 @@ def AtenInstanceNormModuleFp16_basic(module, tu: TestUtils):
     module.forward(x, w, b)
 
 
+class AtenInstanceNormDynamicModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1, -1], torch.float32, True),
+            ([-1], torch.float32, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, w, b):
+        return torch.ops.aten.instance_norm(
+            x, w, b, None, None, True, 0.0, 1e-05, False
+        )
+
+
+@register_test_case(module_factory=lambda: AtenInstanceNormDynamicModule())
+def AtenInstanceNormDynamicModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4, 5), tu.rand(3), tu.rand(3))
+
+
 # ==============================================================================
 class RMSNormModule(torch.nn.Module):
     def __init__(self):

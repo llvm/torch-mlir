@@ -1434,6 +1434,94 @@ func.func @instance_norm_fp16(%arg0: !torch.vtensor<[1,2,4,4],f16>, %arg1: !torc
 
 // -----
 
+// InstanceNorm without weight and bias returns the normalized input.
+// CHECK-LABEL:  func.func @instance_norm_without_affine(
+// CHECK:          %[[CENTERED:.*]] = torch.aten.sub.Tensor
+// CHECK:          %[[RSQRT:.*]] = torch.aten.rsqrt
+// CHECK:          %[[RSQRT_BC:.*]] = torch.aten.broadcast_to %[[RSQRT]]
+// CHECK:          %[[NORM:.*]] = torch.aten.mul.Tensor %[[CENTERED]], %[[RSQRT_BC]] :
+// CHECK-NEXT:     return %[[NORM]] : !torch.vtensor<[1,2,4,4],f32>
+func.func @instance_norm_without_affine(%arg0: !torch.vtensor<[1,2,4,4],f32>) -> !torch.vtensor<[1,2,4,4],f32> {
+  %none = torch.constant.none
+  %true = torch.constant.bool true
+  %false = torch.constant.bool false
+  %eps = torch.constant.float 1.000000e-05
+  %mom = torch.constant.float 0.000000e+00
+  %0 = torch.aten.instance_norm %arg0, %none, %none, %none, %none, %true, %mom, %eps, %false : !torch.vtensor<[1,2,4,4],f32>, !torch.none, !torch.none, !torch.none, !torch.none, !torch.bool, !torch.float, !torch.float, !torch.bool -> !torch.vtensor<[1,2,4,4],f32>
+  return %0 : !torch.vtensor<[1,2,4,4],f32>
+}
+
+// -----
+
+// InstanceNorm with use_input_stats=false is batch_norm in inference mode.
+// CHECK-LABEL:  func.func @instance_norm_running_stats(
+// CHECK-SAME:          %[[INPUT:.*]]: !torch.vtensor<[1,2,4,4],f32>, %[[MEAN:.*]]: !torch.vtensor<[2],f32>, %[[VAR:.*]]: !torch.vtensor<[2],f32>)
+// CHECK:          torch.aten.unsqueeze %[[MEAN]],
+// CHECK:          %[[MEAN_BC:.*]] = torch.aten.unsqueeze {{.*}} -> !torch.vtensor<[1,2,1,1],f32>
+// CHECK:          torch.aten.unsqueeze %[[VAR]],
+// CHECK:          %[[VAR_BC:.*]] = torch.aten.unsqueeze {{.*}} -> !torch.vtensor<[1,2,1,1],f32>
+// CHECK:          %[[VAR_EPS:.*]] = torch.aten.add.Scalar %[[VAR_BC]],
+// CHECK:          %[[RSQRT:.*]] = torch.aten.rsqrt %[[VAR_EPS]] : !torch.vtensor<[1,2,1,1],f32>
+// CHECK:          %[[CENTERED:.*]] = torch.aten.sub.Tensor %[[INPUT]], %[[MEAN_BC]],
+// CHECK:          %[[NORM:.*]] = torch.aten.mul.Tensor %[[CENTERED]], %[[RSQRT]] :
+// CHECK-NEXT:     return %[[NORM]] : !torch.vtensor<[1,2,4,4],f32>
+func.func @instance_norm_running_stats(%arg0: !torch.vtensor<[1,2,4,4],f32>, %arg1: !torch.vtensor<[2],f32>, %arg2: !torch.vtensor<[2],f32>) -> !torch.vtensor<[1,2,4,4],f32> {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %eps = torch.constant.float 1.000000e-05
+  %mom = torch.constant.float 1.000000e-01
+  %0 = torch.aten.instance_norm %arg0, %none, %none, %arg1, %arg2, %false, %mom, %eps, %false : !torch.vtensor<[1,2,4,4],f32>, !torch.none, !torch.none, !torch.vtensor<[2],f32>, !torch.vtensor<[2],f32>, !torch.bool, !torch.float, !torch.float, !torch.bool -> !torch.vtensor<[1,2,4,4],f32>
+  return %0 : !torch.vtensor<[1,2,4,4],f32>
+}
+
+// -----
+
+// InstanceNorm of an input without sizes is not decomposed.
+// CHECK-LABEL:  func.func @instance_norm_no_decompose_unranked(
+// CHECK:          torch.aten.instance_norm
+func.func @instance_norm_no_decompose_unranked(%arg0: !torch.vtensor<*,f32>) -> !torch.vtensor<*,f32> {
+  %none = torch.constant.none
+  %true = torch.constant.bool true
+  %false = torch.constant.bool false
+  %eps = torch.constant.float 1.000000e-05
+  %mom = torch.constant.float 0.000000e+00
+  %0 = torch.aten.instance_norm %arg0, %none, %none, %none, %none, %true, %mom, %eps, %false : !torch.vtensor<*,f32>, !torch.none, !torch.none, !torch.none, !torch.none, !torch.bool, !torch.float, !torch.float, !torch.bool -> !torch.vtensor<*,f32>
+  return %0 : !torch.vtensor<*,f32>
+}
+
+// -----
+
+// InstanceNorm with an optional weight is not decomposed.
+// CHECK-LABEL:  func.func @instance_norm_no_decompose_optional_weight(
+// CHECK:          torch.aten.instance_norm
+func.func @instance_norm_no_decompose_optional_weight(%arg0: !torch.vtensor<[1,2,4,4],f32>, %arg1: !torch.vtensor<[2],f32>) -> !torch.vtensor<[1,2,4,4],f32> {
+  %none = torch.constant.none
+  %true = torch.constant.bool true
+  %false = torch.constant.bool false
+  %eps = torch.constant.float 1.000000e-05
+  %mom = torch.constant.float 0.000000e+00
+  %weight = torch.derefine %arg1 : !torch.vtensor<[2],f32> to !torch.optional<vtensor<[2],f32>>
+  %0 = torch.aten.instance_norm %arg0, %weight, %none, %none, %none, %true, %mom, %eps, %false : !torch.vtensor<[1,2,4,4],f32>, !torch.optional<vtensor<[2],f32>>, !torch.none, !torch.none, !torch.none, !torch.bool, !torch.float, !torch.float, !torch.bool -> !torch.vtensor<[1,2,4,4],f32>
+  return %0 : !torch.vtensor<[1,2,4,4],f32>
+}
+
+// -----
+
+// InstanceNorm with an optional running_mean is not decomposed.
+// CHECK-LABEL:  func.func @instance_norm_no_decompose_optional_running_mean(
+// CHECK:          torch.aten.instance_norm
+func.func @instance_norm_no_decompose_optional_running_mean(%arg0: !torch.vtensor<[1,2,4,4],f32>, %arg1: !torch.vtensor<[2],f32>, %arg2: !torch.vtensor<[2],f32>) -> !torch.vtensor<[1,2,4,4],f32> {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %eps = torch.constant.float 1.000000e-05
+  %mom = torch.constant.float 1.000000e-01
+  %mean = torch.derefine %arg1 : !torch.vtensor<[2],f32> to !torch.optional<vtensor<[2],f32>>
+  %0 = torch.aten.instance_norm %arg0, %none, %none, %mean, %arg2, %false, %mom, %eps, %false : !torch.vtensor<[1,2,4,4],f32>, !torch.none, !torch.none, !torch.optional<vtensor<[2],f32>>, !torch.vtensor<[2],f32>, !torch.bool, !torch.float, !torch.float, !torch.bool -> !torch.vtensor<[1,2,4,4],f32>
+  return %0 : !torch.vtensor<[1,2,4,4],f32>
+}
+
+// -----
+
 // CHECK-LABEL: func @pixel_unshuffle_static
 // CHECK-DAG: %[[C2:.*]] = torch.constant.int 2
 // CHECK-DAG: %[[C0:.*]] = torch.constant.int 0
