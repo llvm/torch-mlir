@@ -589,8 +589,6 @@ func.func @torch.aten.transpose$basic(%arg0: !torch.vtensor<[4,3],f32>) -> !torc
 // CHECK:           %[[COS:.*]] = torch_c.to_builtin_tensor %arg2 : !torch.vtensor<[4,3],f32> -> tensor<4x3xf32>
 // CHECK:           %[[INPUT:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[1,3,2,6],f32> -> tensor<1x3x2x6xf32>
 // CHECK:           %[[EMPTY:.*]] = tensor.empty() : tensor<1x3x2x6xf32>
-// CHECK-DAG:       %[[ONE:.*]] = arith.constant 1.000000e+00 : f32
-// CHECK-DAG:       %[[MINUS_ONE:.*]] = arith.constant -1.000000e+00 : f32
 // CHECK-DAG:       %[[ROT_DIM:.*]] = arith.constant 6 : index
 // CHECK-DAG:       %[[HALF_ROT_DIM:.*]] = arith.constant 3 : index
 // CHECK:           %[[ROTARY:.*]] = linalg.generic {indexing_maps = [#[[$ID]], #[[$POS]], #[[$ID]]], iterator_types = ["parallel", "parallel", "parallel", "parallel"]} ins(%[[INPUT]], %{{.*}} : tensor<1x3x2x6xf32>, tensor<1x2xi64>) outs(%[[EMPTY]] : tensor<1x3x2x6xf32>) {
@@ -607,11 +605,11 @@ func.func @torch.aten.transpose$basic(%arg0: !torch.vtensor<[4,3],f32>) -> !torc
 // CHECK:             %[[COS_EMB:.*]] = tensor.extract %[[COS]]{{\[}}%[[POS_IDX]], %[[CACHE_IDX]]] : tensor<4x3xf32>
 // CHECK:             %[[SIN_EMB:.*]] = tensor.extract %[[SIN]]{{\[}}%[[POS_IDX]], %[[CACHE_IDX]]] : tensor<4x3xf32>
 // CHECK:             %[[ROTATED:.*]] = tensor.extract %[[INPUT]]{{\[}}%[[I0]], %[[I1]], %[[I2]], %[[J]]] : tensor<1x3x2x6xf32>
-// CHECK:             %[[SIGN_MUL:.*]] = arith.select %[[SIGN]], %[[ONE]], %[[MINUS_ONE]] : f32
-// CHECK:             %[[OUT_I:.*]] = arith.mulf %[[IN]], %[[COS_EMB]] : f32
-// CHECK:             %[[OUT_J:.*]] = arith.mulf %[[ROTATED]], %[[SIN_EMB]] : f32
-// CHECK:             %[[SIGNED_J:.*]] = arith.mulf %[[OUT_J]], %[[SIGN_MUL]] : f32
-// CHECK:             %[[OUT:.*]] = arith.addf %[[OUT_I]], %[[SIGNED_J]] : f32
+// CHECK:             %[[COS_TERM:.*]] = arith.mulf %[[IN]], %[[COS_EMB]] : f32
+// CHECK:             %[[SIN_TERM:.*]] = arith.mulf %[[ROTATED]], %[[SIN_EMB]] : f32
+// CHECK:             %[[SUM:.*]] = arith.addf %[[COS_TERM]], %[[SIN_TERM]] : f32
+// CHECK:             %[[DIFF:.*]] = arith.subf %[[COS_TERM]], %[[SIN_TERM]] : f32
+// CHECK:             %[[OUT:.*]] = arith.select %[[SIGN]], %[[SUM]], %[[DIFF]] : f32
 // CHECK:             linalg.yield %[[OUT]] : f32
 // CHECK:           tensor.cast %[[ROTARY]] : tensor<1x3x2x6xf32> to tensor<1x3x2x6xf32>
 func.func @test_rotary_embedding(%arg0: !torch.vtensor<[1,3,2,6],f32>, %arg1: !torch.vtensor<[1,2],si64>, %arg2: !torch.vtensor<[4,3],f32>, %arg3: !torch.vtensor<[4,3],f32>) -> !torch.vtensor<[1,3,2,6],f32> {
@@ -645,20 +643,46 @@ func.func @test_rotary_embedding_rank3(%arg0: !torch.vtensor<[?,?,8],f32>, %arg1
 
 // -----
 
-// A scale other than 1 multiplies the rotated input before the collapse.
-// CHECK-LABEL:   func.func @test_rotary_embedding_rank3_with_scale(
-// CHECK:           %[[EMPTY:.*]] = tensor.empty() : tensor<1x2x2x4xf32>
-// CHECK:           %[[ROTARY:.*]] = linalg.generic
-// CHECK:           %[[SCALE:.*]] = arith.constant 2.000000e+00 : f32
-// CHECK:           %[[SCALED:.*]] = linalg.generic {{.*}} ins(%[[ROTARY]] : tensor<1x2x2x4xf32>) outs(%[[EMPTY]] : tensor<1x2x2x4xf32>)
-// CHECK:             %[[MUL:.*]] = arith.mulf %{{.*}}, %[[SCALE]] : f32
-// CHECK:             linalg.yield %[[MUL]] : f32
-// CHECK:           tensor.collapse_shape %[[SCALED]]
-func.func @test_rotary_embedding_rank3_with_scale(%arg0: !torch.vtensor<[1,2,8],f32>, %arg1: !torch.vtensor<[1,2],si64>, %arg2: !torch.vtensor<[4,2],f32>, %arg3: !torch.vtensor<[4,2],f32>) -> !torch.vtensor<[1,2,8],f32> {
+// An interleaved rotation pairs each even index with the next odd one, and
+// indices from rotary_embedding_dim on keep the input.
+// CHECK-LABEL:   func.func @test_rotary_embedding_interleaved_partial(
+// CHECK:           %[[ROT_DIM:.*]] = arith.constant 4 : index
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[IN:.*]]: f32, %{{.*}}: i64, %{{.*}}: f32):
+// CHECK:             %[[H:.*]] = linalg.index 3 : index
+// CHECK:             %[[ODD:.*]] = arith.andi %[[H]], %{{.*}} : index
+// CHECK:             %[[SIGN:.*]] = arith.index_cast %[[ODD]] : index to i1
+// CHECK:             %[[OUT:.*]] = arith.select %[[SIGN]], %{{.*}}, %{{.*}} : f32
+// CHECK:             %[[IS_ROTATED:.*]] = arith.cmpi slt, %[[H]], %[[ROT_DIM]] : index
+// CHECK:             %[[RESULT:.*]] = arith.select %[[IS_ROTATED]], %[[OUT]], %[[IN]] : f32
+// CHECK:             linalg.yield %[[RESULT]] : f32
+func.func @test_rotary_embedding_interleaved_partial(%arg0: !torch.vtensor<[1,2,3,8],f32>, %arg1: !torch.vtensor<[1,3],si64>, %arg2: !torch.vtensor<[8,2],f32>, %arg3: !torch.vtensor<[8,2],f32>) -> !torch.vtensor<[1,2,3,8],f32> {
   %int0 = torch.constant.int 0
-  %float = torch.constant.float 2.000000e+00
-  %0 = torch.onnx.rotary_embedding %arg0, %arg1, %arg2, %arg3, %int0, %int0, %int0, %int0, %float : !torch.vtensor<[1,2,8],f32>, !torch.vtensor<[1,2],si64>, !torch.vtensor<[4,2],f32>, !torch.vtensor<[4,2],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor<[1,2,8],f32>
-  return %0 : !torch.vtensor<[1,2,8],f32>
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int4 = torch.constant.int 4
+  %float = torch.constant.float 1.000000e+00
+  %0 = torch.onnx.rotary_embedding %arg0, %arg1, %arg2, %arg3, %int1, %int0, %int2, %int4, %float : !torch.vtensor<[1,2,3,8],f32>, !torch.vtensor<[1,3],si64>, !torch.vtensor<[8,2],f32>, !torch.vtensor<[8,2],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor<[1,2,3,8],f32>
+  return %0 : !torch.vtensor<[1,2,3,8],f32>
+}
+
+// -----
+
+// A single position_ids value is an offset added to the seq index.
+// CHECK-DAG: #[[$ID:.+]] = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>
+// CHECK-DAG: #[[$POS:.+]] = affine_map<(d0, d1, d2, d3) -> ()>
+// CHECK-LABEL:   func.func @test_rotary_embedding_position_offset(
+// CHECK:           linalg.generic {indexing_maps = [#[[$ID]], #[[$POS]], #[[$ID]]], {{.*}}} ins(%{{.*}}, %{{.*}} : tensor<1x3x2x6xf32>, tensor<i64>)
+// CHECK:           ^bb0(%{{.*}}: f32, %[[OFFSET:.*]]: i64, %{{.*}}: f32):
+// CHECK:             %[[SEQ:.*]] = linalg.index 2 : index
+// CHECK:             %[[OFFSET_IDX:.*]] = arith.index_cast %[[OFFSET]] : i64 to index
+// CHECK:             %[[POS_ID:.*]] = arith.addi %[[OFFSET_IDX]], %[[SEQ]] : index
+// CHECK:             tensor.extract %{{.*}}{{\[}}%[[POS_ID]], %{{.*}}] : tensor<4x3xf32>
+func.func @test_rotary_embedding_position_offset(%arg0: !torch.vtensor<[1,3,2,6],f32>, %arg1: !torch.vtensor<[],si64>, %arg2: !torch.vtensor<[4,3],f32>, %arg3: !torch.vtensor<[4,3],f32>) -> !torch.vtensor<[1,3,2,6],f32> {
+  %int0 = torch.constant.int 0
+  %float = torch.constant.float 1.000000e+00
+  %0 = torch.onnx.rotary_embedding %arg0, %arg1, %arg2, %arg3, %int0, %int0, %int0, %int0, %float : !torch.vtensor<[1,3,2,6],f32>, !torch.vtensor<[],si64>, !torch.vtensor<[4,3],f32>, !torch.vtensor<[4,3],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor<[1,3,2,6],f32>
+  return %0 : !torch.vtensor<[1,3,2,6],f32>
 }
 
 // -----

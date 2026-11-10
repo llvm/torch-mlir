@@ -5048,7 +5048,7 @@ getRotaryParameters(OnnxVariantRotaryEmbeddingOp op, Value input,
                     int64_t numHeads, int64_t rotaryEmbeddingDim,
                     ConversionPatternRewriter &rewriter) {
   // input        : (batch, seq, hidden) or (batch, num_heads, seq, head_size)
-  // position_ids : (batch, seq)
+  // position_ids : (batch, seq), (1) or ()
   // cos_cache    : (max_seq, head_size / 2) or
   //                (max_seq, rotary_embedding_dim / 2)
   // sin_cache    : same shape as cos_cache
@@ -5062,11 +5062,15 @@ getRotaryParameters(OnnxVariantRotaryEmbeddingOp op, Value input,
                                        "expected a static innermost input dim");
 
   auto positionIdsType = cast<RankedTensorType>(positionIds.getType());
+  SmallVector<int64_t> positionIdsShape = {inputShape[0],
+                                           inputShape[inputRank - 2]};
+  if (positionIdsType.getRank() < 2)
+    positionIdsShape.assign(positionIdsType.getRank(), 1);
   if (!isa<IntegerType>(positionIdsType.getElementType()) ||
-      failed(verifyCompatibleShape(positionIdsType.getShape(),
-                                   {inputShape[0], inputShape[inputRank - 2]})))
+      failed(
+          verifyCompatibleShape(positionIdsType.getShape(), positionIdsShape)))
     return rewriter.notifyMatchFailure(
-        op, "expected integer position_ids of shape (batch, seq)");
+        op, "expected integer position_ids of shape (batch, seq), (1) or ()");
 
   auto cosCacheType = cast<RankedTensorType>(cosCache.getType());
   auto sinCacheType = cast<RankedTensorType>(sinCache.getType());
@@ -5142,13 +5146,12 @@ public:
           op, "expected a result type compatible with the input");
     Type elementType = inputType.getElementType();
 
+    // Like ONNX Runtime, the lowering ignores `scale` and `is_packed_batching`.
     int64_t interleaved, numHeads, rotaryEmbeddingDim;
-    double scale;
     if (!matchPattern(op.getInterleaved(), m_TorchConstantInt(&interleaved)) ||
         !matchPattern(op.getNumHeads(), m_TorchConstantInt(&numHeads)) ||
         !matchPattern(op.getRotaryEmbeddingDim(),
-                      m_TorchConstantInt(&rotaryEmbeddingDim)) ||
-        !matchPattern(op.getScale(), m_TorchConstantFloat(&scale)))
+                      m_TorchConstantInt(&rotaryEmbeddingDim)))
       return rewriter.notifyMatchFailure(op, "expected constant attributes");
 
     FailureOr<RotaryParameters> parameters =
@@ -5176,10 +5179,6 @@ public:
     Value outTensor = tensor::EmptyOp::create(
         rewriter, loc, tensor::getMixedSizes(rewriter, loc, processedInput),
         elementType);
-    Value cstFloatOne = arith::ConstantOp::create(
-        rewriter, loc, rewriter.getFloatAttr(elementType, 1.0));
-    Value cstFloatMinusOne = arith::ConstantOp::create(
-        rewriter, loc, rewriter.getFloatAttr(elementType, -1.0));
     Value cstRotaryEmbDim = arith::ConstantIndexOp::create(
         rewriter, loc, parameters->rotaryEmbeddingDim);
     Value cstHalfRotaryEmbDim = arith::ConstantIndexOp::create(
@@ -5187,8 +5186,19 @@ public:
 
     AffineMap identityMap =
         AffineMap::getMultiDimIdentityMap(4, rewriter.getContext());
-    SmallVector<AffineMap> indexingMaps{
-        identityMap, identityMap.getSubMap({0, seqDim}), identityMap};
+    // A single position_ids value is an offset added to the seq index.
+    int64_t positionIdsRank =
+        cast<RankedTensorType>(positionIds.getType()).getRank();
+    AffineMap positionIdsMap =
+        positionIdsRank == 2
+            ? identityMap.getSubMap({0, seqDim})
+            : AffineMap::get(
+                  4, 0,
+                  SmallVector<AffineExpr>(positionIdsRank,
+                                          rewriter.getAffineConstantExpr(0)),
+                  rewriter.getContext());
+    SmallVector<AffineMap> indexingMaps{identityMap, positionIdsMap,
+                                        identityMap};
     SmallVector<utils::IteratorType> iteratorTypes(
         4, utils::IteratorType::parallel);
     Value result =
@@ -5209,14 +5219,12 @@ public:
               //     sign = (h >= half_rotary_emb_dim)
               //     j = (h + half_rotary_emb_dim) % rotary_emb_dim
               //
-              // orig_input = input[i][h]
-              // rotated_input = input[i][j]
-              // position_id = position_ids[batch][seq]
-              // cos_emb = cos_cache[position_id][cache_idx]
-              // sin_emb = sin_cache[position_id][cache_idx]
-              // out[i][h] = orig_input * cos_emb
-              //                       +
-              //            (rotated_input * sin_emb) * sign
+              // position_id = position_ids[batch][seq] or position_ids + seq
+              // cos_term = input[i][h] * cos_cache[position_id][cache_idx]
+              // sin_term = input[i][j] * sin_cache[position_id][cache_idx]
+              // out[i][h] = sign ? cos_term + sin_term : cos_term - sin_term
+              //
+              // An h at or past rotary_emb_dim keeps input[i][h].
 
               SmallVector<Value> indices;
               for (int64_t dim = 0; dim < 4; ++dim)
@@ -5233,9 +5241,8 @@ public:
                 cacheIdx = arith::RemSIOp::create(builder, loc, cacheIdx,
                                                   cstHalfRotaryEmbDim);
                 sign = arith::AndIOp::create(builder, loc, h, cstIndexOne);
-                // Converting sign value from index type to bool type.
-                sign = arith::TruncIOp::create(builder, loc,
-                                               rewriter.getI1Type(), sign);
+                sign = arith::IndexCastOp::create(builder, loc,
+                                                  builder.getI1Type(), sign);
                 rotatedInputLastIdx = arith::SelectOp::create(
                     builder, loc, sign,
                     arith::SubIOp::create(builder, loc, h, cstIndexOne),
@@ -5253,6 +5260,9 @@ public:
               }
 
               Value positionId = castIntToIndex(builder, loc, args[1]);
+              if (positionIdsRank < 2)
+                positionId = arith::AddIOp::create(builder, loc, positionId,
+                                                   indices[seqDim]);
               Value cosEmb = tensor::ExtractOp::create(
                   builder, loc, cosCache, ValueRange{positionId, cacheIdx});
               Value sinEmb = tensor::ExtractOp::create(
@@ -5263,33 +5273,24 @@ public:
               Value rotatedInput = tensor::ExtractOp::create(
                   builder, loc, processedInput, indices);
 
-              Value signMultiplier = arith::SelectOp::create(
-                  builder, loc, sign, cstFloatOne, cstFloatMinusOne);
-
-              Value outputI =
+              Value cosTerm =
                   arith::MulFOp::create(builder, loc, origInput, cosEmb);
-              Value outputJ =
+              Value sinTerm =
                   arith::MulFOp::create(builder, loc, rotatedInput, sinEmb);
-              outputJ =
-                  arith::MulFOp::create(builder, loc, outputJ, signMultiplier);
-              Value out = arith::AddFOp::create(builder, loc, outputI, outputJ);
+              Value out = arith::SelectOp::create(
+                  builder, loc, sign,
+                  arith::AddFOp::create(builder, loc, cosTerm, sinTerm),
+                  arith::SubFOp::create(builder, loc, cosTerm, sinTerm));
+              if (parameters->rotaryEmbeddingDim < parameters->headSize) {
+                Value isRotated = arith::CmpIOp::create(
+                    builder, loc, arith::CmpIPredicate::slt, h,
+                    cstRotaryEmbDim);
+                out = arith::SelectOp::create(builder, loc, isRotated, out,
+                                              origInput);
+              }
               linalg::YieldOp::create(builder, loc, out);
             })
             .getResult(0);
-
-    if (scale != 1.0) {
-      Value cstScale = arith::ConstantOp::create(
-          rewriter, loc, rewriter.getFloatAttr(elementType, scale));
-      result = linalg::GenericOp::create(
-                   rewriter, loc, outTensor.getType(), result, outTensor,
-                   SmallVector<AffineMap>(2, identityMap), iteratorTypes,
-                   [&](OpBuilder &builder, Location loc, ValueRange args) {
-                     Value scaled =
-                         arith::MulFOp::create(builder, loc, args[0], cstScale);
-                     linalg::YieldOp::create(builder, loc, scaled);
-                   })
-                   .getResult(0);
-    }
 
     if (inputType.getRank() == 3)
       result =

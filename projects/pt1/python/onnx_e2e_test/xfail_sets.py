@@ -62,6 +62,10 @@ ONNX_E2E_TOSA_XFAIL_SET = {
     # OnnxRotaryEmbedding_*: RotaryEmbedding has no torch -> tosa lowering.
     "OnnxRotaryEmbedding_3d_dynamic",
     "OnnxRotaryEmbedding_4d",
+    "OnnxRotaryEmbedding_interleaved",
+    "OnnxRotaryEmbedding_partialRotaryDim",
+    "OnnxRotaryEmbedding_positionOffset",
+    "OnnxRotaryEmbedding_scale",
     # OnnxAdd_f32_dynamicInput: TOSA -> linalg -> RefBackend fails to bufferize
     # a dynamic-shaped tensor ("bufferization.dealloc ... marked illegal").
     "OnnxAdd_f32_dynamicInput",
