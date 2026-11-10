@@ -59,6 +59,9 @@ ONNX_E2E_TOSA_XFAIL_SET = {
     "OnnxLSTM_forward_basic",
     # OnnxSTFT_onesided_basic: STFT has no torch -> tosa lowering.
     "OnnxSTFT_onesided_basic",
+    # OnnxRotaryEmbedding_*: RotaryEmbedding has no torch -> tosa lowering.
+    "OnnxRotaryEmbedding_3d_dynamic",
+    "OnnxRotaryEmbedding_4d",
     # OnnxAdd_f32_dynamicInput: TOSA -> linalg -> RefBackend fails to bufferize
     # a dynamic-shaped tensor ("bufferization.dealloc ... marked illegal").
     "OnnxAdd_f32_dynamicInput",
