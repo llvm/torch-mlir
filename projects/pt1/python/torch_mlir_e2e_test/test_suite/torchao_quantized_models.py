@@ -75,6 +75,151 @@ def TorchaoDequantizeAffinePerGroup_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class TorchaoChooseQparamsAffineAsymmetricPerToken(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 16, 64], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.torchao.choose_qparams_affine.default(
+            x, "ASYMMETRIC", [1, 1, 64], torch.int8, -128, 127, None, None, torch.int8
+        )
+
+
+@register_test_case(
+    module_factory=lambda: TorchaoChooseQparamsAffineAsymmetricPerToken()
+)
+def TorchaoChooseQparamsAffineAsymmetricPerToken_basic(module, tu: TestUtils):
+    module.forward(10 * tu.rand(2, 16, 64) - 3)
+
+
+# ==============================================================================
+
+
+class TorchaoChooseQparamsAffineSymmetricPerGroupKeepdim(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 32], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.torchao.choose_qparams_affine.default(
+            x, "SYMMETRIC", [1, 8], torch.int8, -8, 7, keepdim=True
+        )
+
+
+@register_test_case(
+    module_factory=lambda: TorchaoChooseQparamsAffineSymmetricPerGroupKeepdim()
+)
+def TorchaoChooseQparamsAffineSymmetricPerGroupKeepdim_basic(module, tu: TestUtils):
+    module.forward(2 * tu.rand(4, 32) - 1)
+
+
+# ==============================================================================
+
+
+class TorchaoChooseQparamsAffineSymmetricNoClippingErrPerTensor(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 16], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.torchao.choose_qparams_affine.default(
+            x,
+            "SYMMETRIC_NO_CLIPPING_ERR",
+            [4, 16],
+            torch.int8,
+            -8,
+            7,
+            1e-6,
+            torch.float32,
+            torch.int32,
+        )
+
+
+@register_test_case(
+    module_factory=lambda: TorchaoChooseQparamsAffineSymmetricNoClippingErrPerTensor()
+)
+def TorchaoChooseQparamsAffineSymmetricNoClippingErrPerTensor_basic(
+    module, tu: TestUtils
+):
+    module.forward(6 * tu.rand(4, 16) - 2)
+
+
+# ==============================================================================
+
+
+class TorchaoQuantizeRoundTripAsymmetricPerToken(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 16, 64], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        block_size = [1, 1, 64]
+        scale, zero_point = torch.ops.torchao.choose_qparams_affine.default(
+            x, "ASYMMETRIC", block_size, torch.int8, -128, 127, None, None, torch.int8
+        )
+        quantized = torch.ops.torchao.quantize_affine.default(
+            x, block_size, scale, zero_point, torch.int8, -128, 127
+        )
+        return torch.ops.torchao.dequantize_affine.default(
+            quantized, block_size, scale, zero_point, torch.int8, -128, 127
+        )
+
+
+@register_test_case(module_factory=lambda: TorchaoQuantizeRoundTripAsymmetricPerToken())
+def TorchaoQuantizeRoundTripAsymmetricPerToken_basic(module, tu: TestUtils):
+    module.forward(10 * tu.rand(2, 16, 64) - 3)
+
+
+# ==============================================================================
+
+
+class TorchaoQuantizeRoundTripSymmetricPerGroupKeepdim(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 32], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        block_size = [1, 8]
+        scale, zero_point = torch.ops.torchao.choose_qparams_affine.default(
+            x, "SYMMETRIC", block_size, torch.int8, -8, 7, keepdim=True
+        )
+        quantized = torch.ops.torchao.quantize_affine.default(
+            x, block_size, scale, zero_point, torch.int8, -8, 7
+        )
+        return torch.ops.torchao.dequantize_affine.default(
+            quantized, block_size, scale, zero_point, torch.int8, -8, 7
+        )
+
+
+@register_test_case(
+    module_factory=lambda: TorchaoQuantizeRoundTripSymmetricPerGroupKeepdim()
+)
+def TorchaoQuantizeRoundTripSymmetricPerGroupKeepdim_basic(module, tu: TestUtils):
+    x = tu.randint(4, 32, low=-7, high=8).to(torch.float32)
+    x[:, ::8] = 7.5
+    x[1::2, ::8] = -7.5
+    module.forward(x / 4)
+
+
+# ==============================================================================
+
+
 class TorchaoLinearInt8DynamicActivationInt4Weight(torch.nn.Module):
     def __init__(self):
         super().__init__()

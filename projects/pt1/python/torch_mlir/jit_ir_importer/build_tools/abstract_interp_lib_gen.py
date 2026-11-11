@@ -6659,6 +6659,31 @@ def torchao〇dequantize_affine〡shape(input: List[int], block_size: List[int],
 def torchao〇dequantize_affine〡dtype(input_rank_dtype: Tuple[int, int], block_size: List[int], scale_rank_dtype: Tuple[int, int], zero_point_rank_dtype: Optional[Tuple[int, int]], input_dtype: int, quant_min: Optional[Union[int, float, complex]] = None, quant_max: Optional[Union[int, float, complex]] = None, output_dtype: int = 6) -> int:
     return output_dtype
 
+@not_present_in_registry
+def torchao〇choose_qparams_affine〡shape(input: List[int], mapping_type: str, block_size: List[int], target_dtype: int, quant_min: Optional[float] = None, quant_max: Optional[float] = None, eps: Optional[float] = None, scale_dtype: Optional[int] = None, zero_point_dtype: Optional[int] = None, keepdim: bool = False) -> Tuple[List[int], List[int]]:
+    assert len(block_size) == len(input)
+    shape: List[int] = []
+    reduces = False
+    for i in range(len(input)):
+        if block_size[i] > 1:
+            reduces = True
+        if keepdim or block_size[i] == 1 or block_size[i] != input[i]:
+            shape.append(input[i] // block_size[i])
+    # Without any reduced dimension, torchao reduces over all of them.
+    if not keepdim and not reduces:
+        shape = []
+    return shape, shape
+
+@not_present_in_registry
+def torchao〇choose_qparams_affine〡dtype(input_rank_dtype: Tuple[int, int], mapping_type: str, block_size: List[int], target_dtype: int, quant_min: Optional[Union[int, float, complex]] = None, quant_max: Optional[Union[int, float, complex]] = None, eps: Optional[float] = None, scale_dtype: Optional[int] = None, zero_point_dtype: Optional[int] = None, keepdim: bool = False) -> Tuple[int, int]:
+    _, input_dtype = input_rank_dtype
+    result_scale_dtype = input_dtype if scale_dtype is None else scale_dtype
+    if zero_point_dtype is None:
+        result_zero_point_dtype = torch.int32 if mapping_type == "ASYMMETRIC" else input_dtype
+    else:
+        result_zero_point_dtype = zero_point_dtype
+    return result_scale_dtype, result_zero_point_dtype
+
 # ==============================================================================
 # Main
 # ==============================================================================
