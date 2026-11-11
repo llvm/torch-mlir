@@ -1336,6 +1336,28 @@ func.func @torch.aten.remainder.int() -> !torch.int {
     return %ret : !torch.int
 }
 
+// CHECK-LABEL:   func.func @torch.aten.remainder.int$negative_dividend() -> !torch.int {
+// CHECK:           %[[CST7:.*]] = torch.constant.int 7
+// CHECK:           return %[[CST7]] : !torch.int
+func.func @torch.aten.remainder.int$negative_dividend() -> !torch.int {
+    %cst-33 = torch.constant.int -33
+    %cst8 = torch.constant.int 8
+    %ret = torch.aten.remainder.int %cst-33, %cst8: !torch.int, !torch.int -> !torch.int
+    return %ret : !torch.int
+}
+
+// CHECK-LABEL:   func.func @torch.aten.remainder.int$no_fold_zero_divisor() -> !torch.int {
+// CHECK-DAG:       %[[CST18:.*]] = torch.constant.int 18
+// CHECK-DAG:       %[[CST0:.*]] = torch.constant.int 0
+// CHECK:           %[[RET:.*]] = torch.aten.remainder.int %[[CST18]], %[[CST0]] : !torch.int, !torch.int -> !torch.int
+// CHECK:           return %[[RET]] : !torch.int
+func.func @torch.aten.remainder.int$no_fold_zero_divisor() -> !torch.int {
+    %cst18 = torch.constant.int 18
+    %cst0 = torch.constant.int 0
+    %ret = torch.aten.remainder.int %cst18, %cst0: !torch.int, !torch.int -> !torch.int
+    return %ret : !torch.int
+}
+
 // CHECK-LABEL: func.func @torch.aten.pow.Tensor_Tensor$canonicalize
 // CHECK:         %[[SCALAR_EXP:.*]] = torch.constant.float 3.5
 // CHECK:         %[[POW:.*]] = torch.aten.pow.Tensor_Scalar %arg0, %[[SCALAR_EXP]]

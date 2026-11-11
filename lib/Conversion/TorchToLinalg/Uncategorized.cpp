@@ -332,51 +332,7 @@ Value createRemainderPayload(OpBuilder &b, Location loc,
       std::is_same_v<OpT, AtenRemainderScalarOp> ? operands[1] : payloadArgs[1],
       dtype);
 
-  // The remainder op we wish to create would look roughly like this:
-  // rem = a % b
-  // if rem != 0 AND (rem < 0 XOR b < 0) rem += b
-  // This is how python calucates remainders for floats and longs:
-  // https://github.com/python/cpython/blob/2afd1751dd9a35d4ec03b708e3e5cddd72c43f7e/Objects/floatobject.c#L645
-  // https://github.com/python/cpython/blob/2afd1751dd9a35d4ec03b708e3e5cddd72c43f7e/Objects/longobject.c#L3662
-  Value result;
-  if (isa<mlir::FloatType>(dtype)) {
-    Value remainder = arith::RemFOp::create(b, loc, lhs, rhs);
-
-    Value zero = arith::ConstantOp::create(b, loc, b.getZeroAttr(dtype));
-    Value remainderNotEqualToZero = arith::CmpFOp::create(
-        b, loc, arith::CmpFPredicate::ONE, remainder, zero);
-    Value otherLessThanZero =
-        arith::CmpFOp::create(b, loc, arith::CmpFPredicate::OLT, rhs, zero);
-    Value remainderLessThanZero = arith::CmpFOp::create(
-        b, loc, arith::CmpFPredicate::OLT, remainder, zero);
-    Value xorCondition =
-        arith::XOrIOp::create(b, loc, otherLessThanZero, remainderLessThanZero);
-    Value condition =
-        arith::AndIOp::create(b, loc, remainderNotEqualToZero, xorCondition);
-    Value fixedRemainder = arith::AddFOp::create(b, loc, remainder, rhs);
-    result =
-        arith::SelectOp::create(b, loc, condition, fixedRemainder, remainder);
-  } else {
-    assert(dtype.isInteger() &&
-           "dtype should be a float or integer (signless or signed)");
-    Value remainder = arith::RemSIOp::create(b, loc, lhs, rhs);
-
-    Value zero = arith::ConstantOp::create(b, loc, b.getZeroAttr(dtype));
-    Value remainderNotEqualToZero = arith::CmpIOp::create(
-        b, loc, arith::CmpIPredicate::ne, remainder, zero);
-    Value otherLessThanZero =
-        arith::CmpIOp::create(b, loc, arith::CmpIPredicate::slt, rhs, zero);
-    Value remainderLessThanZero = arith::CmpIOp::create(
-        b, loc, arith::CmpIPredicate::slt, remainder, zero);
-    Value xorCondition =
-        arith::XOrIOp::create(b, loc, otherLessThanZero, remainderLessThanZero);
-    Value condition =
-        arith::AndIOp::create(b, loc, remainderNotEqualToZero, xorCondition);
-    Value fixedRemainder = arith::AddIOp::create(b, loc, remainder, rhs);
-    result =
-        arith::SelectOp::create(b, loc, condition, fixedRemainder, remainder);
-  }
-  return result;
+  return createRemainder(b, loc, lhs, rhs);
 }
 
 // Emit the arithmetic for affine quantization: (input / scale) [+zp] [round]
