@@ -4289,8 +4289,16 @@ void AtenFloordivIntOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
 //===----------------------------------------------------------------------===//
 
 OpFoldResult AtenRemainderIntOp::fold(FoldAdaptor adaptor) {
-  return atenBinaryIntOperatorFoldHelper(
-      adaptor.getOperands(), [](int64_t a, int64_t b) { return a % b; });
+  auto lhs = dyn_cast_if_present<IntegerAttr>(adaptor.getA());
+  auto rhs = dyn_cast_if_present<IntegerAttr>(adaptor.getB());
+  if (!lhs || !rhs || rhs.getValue().isZero())
+    return nullptr;
+  // A non-zero result takes the sign of the divisor, as in `torch.remainder`.
+  APInt remainder = lhs.getValue().srem(rhs.getValue());
+  if (!remainder.isZero() &&
+      remainder.isNegative() != rhs.getValue().isNegative())
+    remainder += rhs.getValue();
+  return IntegerAttr::get(lhs.getType(), remainder);
 }
 
 // ===----------------------------------------------------------------------===//

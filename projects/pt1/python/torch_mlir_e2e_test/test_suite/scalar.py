@@ -206,6 +206,30 @@ def DivFloatModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class RemainderIntModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([], torch.int64, True),
+            ([], torch.int64, True),
+        ]
+    )
+    def forward(self, lhs, rhs):
+        return int(lhs) % int(rhs)
+
+
+@register_test_case(module_factory=lambda: RemainderIntModule())
+def RemainderIntModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(low=-100, high=0), tu.randint(low=3, high=10))
+
+
+# ==============================================================================
+
+
 class CeilFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

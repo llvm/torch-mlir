@@ -455,6 +455,47 @@ Value materializeScalarToDtype(OpBuilder &b, Location loc,
       srcOriginalDtype ? std::optional<Type>(srcOriginalDtype) : std::nullopt);
 }
 
+Value createRemainder(OpBuilder &b, Location loc, Value lhs, Value rhs) {
+  // Adds `rhs` to the truncated remainder when it is non-zero and its sign
+  // differs from the sign of `rhs`.
+  Type dtype = lhs.getType();
+  if (isa<mlir::FloatType>(dtype)) {
+    Value remainder = arith::RemFOp::create(b, loc, lhs, rhs);
+
+    Value zero = arith::ConstantOp::create(b, loc, b.getZeroAttr(dtype));
+    Value remainderNotEqualToZero = arith::CmpFOp::create(
+        b, loc, arith::CmpFPredicate::ONE, remainder, zero);
+    Value rhsLessThanZero =
+        arith::CmpFOp::create(b, loc, arith::CmpFPredicate::OLT, rhs, zero);
+    Value remainderLessThanZero = arith::CmpFOp::create(
+        b, loc, arith::CmpFPredicate::OLT, remainder, zero);
+    Value xorCondition =
+        arith::XOrIOp::create(b, loc, rhsLessThanZero, remainderLessThanZero);
+    Value condition =
+        arith::AndIOp::create(b, loc, remainderNotEqualToZero, xorCondition);
+    Value fixedRemainder = arith::AddFOp::create(b, loc, remainder, rhs);
+    return arith::SelectOp::create(b, loc, condition, fixedRemainder,
+                                   remainder);
+  }
+  assert(dtype.isInteger() &&
+         "dtype should be a float or integer (signless or signed)");
+  Value remainder = arith::RemSIOp::create(b, loc, lhs, rhs);
+
+  Value zero = arith::ConstantOp::create(b, loc, b.getZeroAttr(dtype));
+  Value remainderNotEqualToZero =
+      arith::CmpIOp::create(b, loc, arith::CmpIPredicate::ne, remainder, zero);
+  Value rhsLessThanZero =
+      arith::CmpIOp::create(b, loc, arith::CmpIPredicate::slt, rhs, zero);
+  Value remainderLessThanZero =
+      arith::CmpIOp::create(b, loc, arith::CmpIPredicate::slt, remainder, zero);
+  Value xorCondition =
+      arith::XOrIOp::create(b, loc, rhsLessThanZero, remainderLessThanZero);
+  Value condition =
+      arith::AndIOp::create(b, loc, remainderNotEqualToZero, xorCondition);
+  Value fixedRemainder = arith::AddIOp::create(b, loc, remainder, rhs);
+  return arith::SelectOp::create(b, loc, condition, fixedRemainder, remainder);
+}
+
 Value toPositiveValidDim(ConversionPatternRewriter &rewriter, Location loc,
                          Value torchOptionalInt, Value builtinInt,
                          Value defaultValue, Value dimSize) {

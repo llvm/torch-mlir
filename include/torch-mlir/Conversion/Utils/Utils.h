@@ -109,6 +109,10 @@ Value materializeScalarToDtype(OpBuilder &b, Location loc,
                                const TypeConverter *converter, Value scalar,
                                Type dtype, Type srcOriginalDtype = {});
 
+/// Returns `lhs % rhs` like `torch.remainder`: a non-zero result takes the
+/// sign of `rhs`. Both operands must have the same float or integer type.
+Value createRemainder(OpBuilder &b, Location loc, Value lhs, Value rhs);
+
 Value toPositiveValidDim(ConversionPatternRewriter &rewriter, Location loc,
                          Value torchOptionalInt, Value builtinInt,
                          Value defaultValue, Value dimSize);
