@@ -608,6 +608,25 @@ public:
 };
 } // namespace
 
+/// Wraps the negative entries of the index tensor `index` around the size of
+/// `input` along `dim`.
+static Value wrapNegativeIndices(OpBuilder &b, Location loc, Value input,
+                                 Value index, int64_t dim) {
+  auto indexType = cast<ValueTensorType>(index.getType());
+  Value cstZero = Torch::ConstantIntOp::create(b, loc, 0);
+  Value cstOne = Torch::ConstantIntOp::create(b, loc, 1);
+  Value cstDim = Torch::ConstantIntOp::create(b, loc, dim);
+  Value dimSize = AtenSizeIntOp::create(b, loc, input, cstDim);
+  Value isNegative =
+      AtenLtScalarOp::create(b, loc,
+                             indexType.getWithSizesAndDtype(
+                                 indexType.getOptionalSizes(), b.getI1Type()),
+                             index, cstZero);
+  Value wrapped =
+      AtenAddScalarOp::create(b, loc, indexType, index, dimSize, cstOne);
+  return AtenWhereSelfOp::create(b, loc, indexType, isNegative, wrapped, index);
+}
+
 namespace {
 
 // Determine the common broadcast shape of all the index tensors.
@@ -893,7 +912,8 @@ public:
     for (int i = 0, s = optionalIndicesList.size(); i < s; ++i) {
       if (isa<Torch::NoneType>(optionalIndicesList[i].getType()))
         continue;
-      indicesList.push_back(optionalIndicesList[i]);
+      indicesList.push_back(
+          wrapNegativeIndices(rewriter, loc, input, optionalIndicesList[i], i));
       indicesMap.push_back(i);
 
       auto indexTy = cast<ValueTensorType>(indicesList.back().getType());
