@@ -2911,20 +2911,20 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
                                                         x, cstDim3, cstHalfRot,
                                                         cstRotDim, cstOne);
             // rotated = [x1*cos - x2*sin, x2*cos + x1*sin]
-            Value r1 = Torch::AtenSubTensorOp::create(
-                rewriter, loc, halfType,
-                Torch::AtenMulTensorOp::create(rewriter, loc, halfType, x1,
-                                               cosB),
-                Torch::AtenMulTensorOp::create(rewriter, loc, halfType, x2,
-                                               sinB),
-                cstOne);
-            Value r2 = Torch::AtenAddTensorOp::create(
-                rewriter, loc, halfType,
-                Torch::AtenMulTensorOp::create(rewriter, loc, halfType, x2,
-                                               cosB),
-                Torch::AtenMulTensorOp::create(rewriter, loc, halfType, x1,
-                                               sinB),
-                cstOne);
+            // The products are created as separate statements so the op order
+            // does not depend on the compiler's argument evaluation order.
+            Value x1Cos = Torch::AtenMulTensorOp::create(rewriter, loc,
+                                                         halfType, x1, cosB);
+            Value x2Sin = Torch::AtenMulTensorOp::create(rewriter, loc,
+                                                         halfType, x2, sinB);
+            Value r1 = Torch::AtenSubTensorOp::create(rewriter, loc, halfType,
+                                                      x1Cos, x2Sin, cstOne);
+            Value x2Cos = Torch::AtenMulTensorOp::create(rewriter, loc,
+                                                         halfType, x2, cosB);
+            Value x1Sin = Torch::AtenMulTensorOp::create(rewriter, loc,
+                                                         halfType, x1, sinB);
+            Value r2 = Torch::AtenAddTensorOp::create(rewriter, loc, halfType,
+                                                      x2Cos, x1Sin, cstOne);
             // cat([r1, r2], dim=-1) -> [batch,heads,seq,rotDim]
             Torch::ValueTensorType rotType = Torch::ValueTensorType::get(
                 context,
