@@ -92,6 +92,8 @@ except ModuleNotFoundError:
     IntInfinity = None
     NegativeIntInfinity = None
 
+from torch.utils._sympy.functions import FloorDiv
+
 from torch.fx.node import (
     Argument as NodeArgument,
 )
@@ -100,6 +102,7 @@ from ..ir import (
     AffineAddExpr,
     AffineConstantExpr,
     AffineExpr,
+    AffineFloorDivExpr,
     AffineMap,
     AffineMapAttr,
     AffineModExpr,
@@ -395,6 +398,12 @@ def sympy_expr_to_semi_affine_expr(
     elif isinstance(expr, sympy.Mod):
         dividend, divisor = expr.args
         return AffineModExpr.get(
+            sympy_expr_to_semi_affine_expr(dividend, symbols_map),
+            sympy_expr_to_semi_affine_expr(divisor, symbols_map),
+        )
+    elif isinstance(expr, FloorDiv):
+        dividend, divisor = expr.args
+        return AffineFloorDivExpr.get(
             sympy_expr_to_semi_affine_expr(dividend, symbols_map),
             sympy_expr_to_semi_affine_expr(divisor, symbols_map),
         )

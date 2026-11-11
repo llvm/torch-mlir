@@ -7,6 +7,7 @@
 # This file contains tests checking translating sympy expressions to (semi-)affine expressions.
 
 from sympy import Symbol
+from torch.utils._sympy.functions import FloorDiv
 from torch_mlir.extras.fx_importer import sympy_expr_to_semi_affine_expr
 
 from torch_mlir.ir import (
@@ -63,6 +64,10 @@ def test_sympy_to_semi_affine_expr_translation():
             (s0 % 10),
             # CHECK: s0 - s1 * 2 + 5
             (s0 + 5 - 2 * s1),
+            # CHECK: s0 floordiv 2
+            (FloorDiv(s0, 2)),
+            # CHECK: s0 floordiv s1
+            (FloorDiv(s0, s1)),
         ]
 
         for expr in SYMPY_EXPRS:
