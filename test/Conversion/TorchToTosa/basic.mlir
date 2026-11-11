@@ -7922,3 +7922,22 @@ func.func @i32_gather_coefficient_overflow(%input: !torch.vtensor<[2,65536,65536
   %result = torch.aten.gather %input, %dim, %index, %false : !torch.vtensor<[2,65536,65536],f32>, !torch.int, !torch.vtensor<[1,1,1],si32>, !torch.bool -> !torch.vtensor<[1,1,1],f32>
   return %result : !torch.vtensor<[1,1,1],f32>
 }
+
+// -----
+
+func.func @negative_torch.aten.index.Tensor_hacked_twin$dynamic_index(%arg0: !torch.vtensor<[6,5],f32>, %arg1: !torch.vtensor<[?],si64>) -> !torch.vtensor<[?,5],f32> {
+  %0 = torch.prim.ListConstruct %arg1 : (!torch.vtensor<[?],si64>) -> !torch.list<vtensor>
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.index.Tensor_hacked_twin'}}
+  %1 = torch.aten.index.Tensor_hacked_twin %arg0, %0 : !torch.vtensor<[6,5],f32>, !torch.list<vtensor> -> !torch.vtensor<[?,5],f32>
+  return %1 : !torch.vtensor<[?,5],f32>
+}
+
+// -----
+
+func.func @negative_torch.aten.index_put.hacked_twin$dynamic_index(%arg0: !torch.vtensor<[6,5],f32>, %arg1: !torch.vtensor<[?],si64>, %arg2: !torch.vtensor<[?,5],f32>) -> !torch.vtensor<[6,5],f32> {
+  %false = torch.constant.bool false
+  %0 = torch.prim.ListConstruct %arg1 : (!torch.vtensor<[?],si64>) -> !torch.list<vtensor>
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.index_put.hacked_twin'}}
+  %1 = torch.aten.index_put.hacked_twin %arg0, %0, %arg2, %false : !torch.vtensor<[6,5],f32>, !torch.list<vtensor>, !torch.vtensor<[?,5],f32>, !torch.bool -> !torch.vtensor<[6,5],f32>
+  return %1 : !torch.vtensor<[6,5],f32>
+}

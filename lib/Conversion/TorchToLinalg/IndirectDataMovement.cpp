@@ -506,8 +506,11 @@ public:
 };
 } // namespace
 
+/// Sign-extends `index` to i64 and wraps a negative value around the size of
+/// `input` along `dim`.
 static Value makeIndexValuePositive(OpBuilder &b, Location loc, Value index,
                                     Value input, int64_t dim) {
+  index = convertScalarToDtype(b, loc, index, b.getI64Type());
   Value cstZero = arith::ConstantOp::create(b, loc, b.getI64IntegerAttr(0));
   Value isIndexNegative =
       arith::CmpIOp::create(b, loc, arith::CmpIPredicate::slt, index, cstZero);
@@ -565,6 +568,11 @@ public:
       Value index = indicesVal[i];
       if (!index || failed(checkNotNone(rewriter, op, index)))
         continue;
+      if (!cast<BaseTensorType>(indicesTuple[i].getType())
+               .getDtype()
+               .isSignedInteger())
+        return rewriter.notifyMatchFailure(
+            op, "unimplemented: index tensors without a signed integer dtype");
       if (!indexTensorDims.empty() && indexTensorDims.back() != i - 1)
         contiguous = false;
       indexTensorDims.push_back(i);
@@ -586,11 +594,8 @@ public:
     int replacedIndexCount = indexTensorDims.size();
     int64_t startIndex = contiguous ? firstIndexDim : 0;
 
-    // Currently we only support statically sized index tensors or dynamic size
-    // index tensors without overlapping dynamic dims when there is more than
-    // one index tensor.
-    // TODO: Add support for dynamic size index tensors with overlapping
-    // dynamic dims.
+    // Broadcast the index tensors. Dynamic sizes in one broadcast dim must be
+    // equal.
     SmallVector<Value> broadcastedIndexShape;
     if (indexTensors.size() > 1) {
       int maxRank = -1;
@@ -600,8 +605,7 @@ public:
         maxRank = std::max(maxRank, (int)indexTensorType.getRank());
       }
 
-      // Because we are assuming static shapes, we can get the shape of the
-      // broadcasted index tensors from the shape refinement pass
+      // Static broadcast sizes come from the refined result type.
       auto refinedResultShape = resultType.getShape();
       for (auto i : llvm::seq(startIndex, startIndex + maxRank)) {
         auto resultDimSize = refinedResultShape[i];
@@ -621,11 +625,19 @@ public:
               staticDimSize =
                   std::max(staticDimSize, indexTensorType.getShape()[dim]);
           }
-          if (dynamicDims.size() >= 2)
-            return rewriter.notifyMatchFailure(
-                op,
-                "unimplemented: index tensors with overlapping dynamic dims");
+          if (dynamicDims.empty()) {
+            broadcastedIndexShape.push_back(getConstant(
+                rewriter, loc, staticDimSize, rewriter.getIndexType()));
+            continue;
+          }
           if (!isAssumingStrictSymbolicShapes(rewriter)) {
+            for (Value dynamicDim : ArrayRef(dynamicDims).drop_front()) {
+              auto equalToFirst =
+                  arith::CmpIOp::create(rewriter, loc, arith::CmpIPredicate::eq,
+                                        dynamicDims[0], dynamicDim);
+              cf::AssertOp::create(rewriter, loc, equalToFirst,
+                                   "mismatched size for broadcast");
+            }
             if (staticDimSize > 1) {
               Value cstStaticDimSize = getConstant(rewriter, loc, staticDimSize,
                                                    rewriter.getIndexType());
@@ -648,8 +660,6 @@ public:
           getTensorSizes(rewriter, loc, indexTensors.front());
     }
 
-    // This result shape calculation assumes that there is only one
-    // index tensor, or all of the index tensors are statically shaped.
     int broadcastRank = broadcastedIndexShape.size();
 
     SmallVector<Value> resultShape;
@@ -674,15 +684,11 @@ public:
       }
     }
 
-    // Initialize the indexing maps for the generic op. Because we are assuming
-    // static shapes for the indexing tensors when there are more than 1, we can
-    // safely map all size 1 dims to 0 in the corresponding affine maps.
-    // TODO: For dynamic shapes, we have to either broadcast the index tensors
-    // to a common shape or introduce some form of control flow.
     Value initTensor = tensor::EmptyOp::create(
         rewriter, loc, getAsOpFoldResult(resultShape), elementType);
     SmallVector<AffineMap> indexingMaps;
 
+    // Static size-1 index dims broadcast and map to 0 in the indexing maps.
     for (auto indexTensor : indexTensors) {
       RankedTensorType indexTensorType =
           cast<RankedTensorType>(indexTensor.getType());

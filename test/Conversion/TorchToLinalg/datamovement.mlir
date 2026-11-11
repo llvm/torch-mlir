@@ -212,3 +212,53 @@ func.func @torch.aten.diag_embed$positive_offset(%arg0: !torch.vtensor<[3],f32>)
   %0 = torch.aten.diag_embed %arg0, %int1, %int0, %int_neg1 : !torch.vtensor<[3],f32>, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,4],f32>
   return %0 : !torch.vtensor<[4,4],f32>
 }
+
+// -----
+
+// Dynamic sizes in one broadcast dim of the index tensors must match.
+
+// CHECK-LABEL:   func.func @torch.aten.index.Tensor_hacked_twin$dynamic_indices(
+// CHECK:           %[[DIM0:.*]] = tensor.dim %{{.*}}, %{{.*}} : tensor<?xi64>
+// CHECK:           %[[DIM1:.*]] = tensor.dim %{{.*}}, %{{.*}} : tensor<?xi64>
+// CHECK:           %[[EQ:.*]] = arith.cmpi eq, %[[DIM0]], %[[DIM1]] : index
+// CHECK:           cf.assert %[[EQ]], "mismatched size for broadcast"
+// CHECK:           %[[EMPTY:.*]] = tensor.empty(%[[DIM0]]) : tensor<?xf32>
+// CHECK:           linalg.generic {{.*}} outs(%[[EMPTY]] : tensor<?xf32>)
+func.func @torch.aten.index.Tensor_hacked_twin$dynamic_indices(%arg0: !torch.vtensor<[6,5],f32>, %arg1: !torch.vtensor<[?],si64>, %arg2: !torch.vtensor<[?],si64>) -> !torch.vtensor<[?],f32> {
+  %0 = torch.prim.ListConstruct %arg1, %arg2 : (!torch.vtensor<[?],si64>, !torch.vtensor<[?],si64>) -> !torch.list<vtensor>
+  %1 = torch.aten.index.Tensor_hacked_twin %arg0, %0 : !torch.vtensor<[6,5],f32>, !torch.list<vtensor> -> !torch.vtensor<[?],f32>
+  return %1 : !torch.vtensor<[?],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.index.Tensor_hacked_twin$static_indices_dynamic_result(
+// CHECK:           tensor.empty() : tensor<3xf32>
+// CHECK:           linalg.generic
+func.func @torch.aten.index.Tensor_hacked_twin$static_indices_dynamic_result(%arg0: !torch.vtensor<[6,5],f32>, %arg1: !torch.vtensor<[3],si64>, %arg2: !torch.vtensor<[3],si64>) -> !torch.vtensor<[?],f32> {
+  %0 = torch.prim.ListConstruct %arg1, %arg2 : (!torch.vtensor<[3],si64>, !torch.vtensor<[3],si64>) -> !torch.list<vtensor>
+  %1 = torch.aten.index.Tensor_hacked_twin %arg0, %0 : !torch.vtensor<[6,5],f32>, !torch.list<vtensor> -> !torch.vtensor<[?],f32>
+  return %1 : !torch.vtensor<[?],f32>
+}
+
+// -----
+
+func.func @negative_torch.aten.index.Tensor_hacked_twin$bool_index(%arg0: !torch.vtensor<[6,5],f32>, %arg1: !torch.vtensor<[6],i1>) -> !torch.vtensor<[?,5],f32> {
+  %0 = torch.prim.ListConstruct %arg1 : (!torch.vtensor<[6],i1>) -> !torch.list<vtensor>
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.index.Tensor_hacked_twin'}}
+  %1 = torch.aten.index.Tensor_hacked_twin %arg0, %0 : !torch.vtensor<[6,5],f32>, !torch.list<vtensor> -> !torch.vtensor<[?,5],f32>
+  return %1 : !torch.vtensor<[?,5],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.index.Tensor_hacked_twin$si32_index(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[IN:.*]]: i32, %{{.*}}: f32):
+// CHECK:             %[[EXT:.*]] = arith.extsi %[[IN]] : i32 to i64
+// CHECK:             arith.cmpi slt, %[[EXT]], %{{.*}} : i64
+func.func @torch.aten.index.Tensor_hacked_twin$si32_index(%arg0: !torch.vtensor<[6,5],f32>, %arg1: !torch.vtensor<[3],si32>) -> !torch.vtensor<[3,5],f32> {
+  %0 = torch.prim.ListConstruct %arg1 : (!torch.vtensor<[3],si32>) -> !torch.list<vtensor>
+  %1 = torch.aten.index.Tensor_hacked_twin %arg0, %0 : !torch.vtensor<[6,5],f32>, !torch.list<vtensor> -> !torch.vtensor<[3,5],f32>
+  return %1 : !torch.vtensor<[3,5],f32>
+}

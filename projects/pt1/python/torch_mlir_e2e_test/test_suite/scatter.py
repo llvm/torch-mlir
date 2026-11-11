@@ -1613,6 +1613,33 @@ def IndexPutBoolMaskDynamicModule_basic(module, tu: TestUtils):
     module.forward(input_t, mask, values)
 
 
+# Assigning to the columns selected by a bool mask, which exports as index_put
+# with a None index before the mask.
+class IndexPutBoolMaskColumnsModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 5], torch.float32, True),
+            ([5], torch.bool, True),
+            ([4, 1], torch.float32, True),
+        ]
+    )
+    def forward(self, input, mask, values):
+        output = input.clone()
+        output[:, mask] = values
+        return output
+
+
+@register_test_case(module_factory=lambda: IndexPutBoolMaskColumnsModule())
+def IndexPutBoolMaskColumnsModule_basic(module, tu: TestUtils):
+    mask = torch.tensor([True, False, True, False, True])
+    module.forward(tu.rand(4, 5), mask, tu.rand(4, 1))
+
+
 # index_put with mixed int and bool indices: an integer index tensor selects
 # rows (dim 0) and a bool mask selects columns (dim 1).  The two index tensors
 # broadcast together, so values has shape [3] — one scalar per selected element.
