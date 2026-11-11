@@ -10677,6 +10677,137 @@ public:
 } // namespace
 
 namespace {
+// Decompose `aten.diagonal_scatter` into `aten.slice_scatter`.
+//
+// After moving `dim1` and `dim2` to the end, the diagonal of a [..., R, C]
+// tensor is a strided slice of the flattened [..., R*C] tensor:
+//   step  = C + 1
+//   start = offset >= 0 ? offset : -offset * C
+//   end   = start + (L - 1) * step + 1, where L is the diagonal length
+// So the decomposition is:
+//   permute -> flatten -> slice_scatter -> unflatten -> permute
+class DecomposeAtenDiagonalScatterOp
+    : public OpRewritePattern<AtenDiagonalScatterOp> {
+public:
+  using OpRewritePattern::OpRewritePattern;
+  LogicalResult matchAndRewrite(AtenDiagonalScatterOp op,
+                                PatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    Value self = op.getSelf();
+    Value src = op.getSrc();
+    auto selfType = cast<BaseTensorType>(self.getType());
+    auto srcType = cast<BaseTensorType>(src.getType());
+    if (!selfType.hasSizes() || !srcType.hasSizes())
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: self and src must have known ranks");
+
+    int64_t rank = selfType.getSizes().size();
+    if (rank < 2)
+      return rewriter.notifyMatchFailure(op, "self must have rank >= 2");
+
+    int64_t offset, dim1, dim2;
+    if (!matchPattern(op.getOffset(), m_TorchConstantInt(&offset)) ||
+        !matchPattern(op.getDim1(), m_TorchConstantInt(&dim1)) ||
+        !matchPattern(op.getDim2(), m_TorchConstantInt(&dim2)))
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: offset, dim1 and dim2 must be constants");
+
+    dim1 = toPositiveDim(dim1, rank);
+    dim2 = toPositiveDim(dim2, rank);
+    if (!isValidDim(dim1, rank) || !isValidDim(dim2, rank) || dim1 == dim2)
+      return rewriter.notifyMatchFailure(op, "invalid dim1 or dim2");
+
+    // Permutation that moves dim1 and dim2 to the last two positions.
+    SmallVector<int64_t> perm;
+    for (int64_t d = 0; d < rank; ++d)
+      if (d != dim1 && d != dim2)
+        perm.push_back(d);
+    perm.push_back(dim1);
+    perm.push_back(dim2);
+    bool needsPermute = !llvm::equal(perm, llvm::seq<int64_t>(0, rank));
+
+    SmallVector<int64_t> inversePerm(rank);
+    for (int64_t i = 0; i < rank; ++i)
+      inversePerm[perm[i]] = i;
+
+    ArrayRef<int64_t> selfSizes = selfType.getSizes();
+    SmallVector<int64_t> permutedSizes;
+    for (int64_t d : perm)
+      permutedSizes.push_back(selfSizes[d]);
+
+    Type dtype = selfType.getOptionalDtype();
+    Type intListType =
+        Torch::ListType::get(Torch::IntType::get(op.getContext()));
+    auto createIntList = [&](ArrayRef<int64_t> values) -> Value {
+      SmallVector<Value> elements;
+      for (int64_t v : values)
+        elements.push_back(ConstantIntOp::create(rewriter, loc, v));
+      return PrimListConstructOp::create(rewriter, loc, intListType, elements);
+    };
+
+    Value input = self;
+    if (needsPermute)
+      input = AtenPermuteOp::create(
+          rewriter, loc, selfType.getWithSizesAndDtype(permutedSizes, dtype),
+          self, createIntList(perm));
+
+    Value one = ConstantIntOp::create(rewriter, loc, 1);
+    Value rowDim = ConstantIntOp::create(rewriter, loc, rank - 2);
+    Value colDim = ConstantIntOp::create(rewriter, loc, rank - 1);
+    Value srcLastDim = ConstantIntOp::create(
+        rewriter, loc, static_cast<int64_t>(srcType.getSizes().size()) - 1);
+
+    Value numRows = AtenSizeIntOp::create(rewriter, loc, input, rowDim);
+    Value numCols = AtenSizeIntOp::create(rewriter, loc, input, colDim);
+    Value diagLen = AtenSizeIntOp::create(rewriter, loc, src, srcLastDim);
+
+    Value step = AtenAddIntOp::create(rewriter, loc, numCols, one);
+    Value start;
+    if (offset >= 0) {
+      start = ConstantIntOp::create(rewriter, loc, offset);
+    } else {
+      Value negOffset = ConstantIntOp::create(rewriter, loc, -offset);
+      start = AtenMulIntOp::create(rewriter, loc, negOffset, numCols);
+    }
+    Value diagLenMinusOne = AtenSubIntOp::create(rewriter, loc, diagLen, one);
+    Value lastOffset =
+        AtenMulIntOp::create(rewriter, loc, diagLenMinusOne, step);
+    Value lastIndex = AtenAddIntOp::create(rewriter, loc, start, lastOffset);
+    Value end = AtenAddIntOp::create(rewriter, loc, lastIndex, one);
+
+    // Flatten the last two dims: [..., R, C] -> [..., R*C].
+    SmallVector<int64_t> flatSizes(permutedSizes.begin(),
+                                   permutedSizes.end() - 2);
+    int64_t numRowsInt = permutedSizes[rank - 2];
+    int64_t numColsInt = permutedSizes[rank - 1];
+    flatSizes.push_back(numRowsInt == kUnknownSize || numColsInt == kUnknownSize
+                            ? kUnknownSize
+                            : numRowsInt * numColsInt);
+    Type flatType = selfType.getWithSizesAndDtype(flatSizes, dtype);
+    Value flat = AtenFlattenUsingIntsOp::create(rewriter, loc, flatType, input,
+                                                rowDim, colDim);
+
+    Value scattered = AtenSliceScatterOp::create(
+        rewriter, loc, flatType, flat, src, /*dim=*/rowDim, start, end, step);
+
+    // Unflatten back to [..., R, C].
+    Value unflattenSizes = PrimListConstructOp::create(
+        rewriter, loc, intListType, ValueRange{numRows, numCols});
+    Value result = AtenUnflattenIntOp::create(
+        rewriter, loc, selfType.getWithSizesAndDtype(permutedSizes, dtype),
+        scattered, rowDim, unflattenSizes);
+
+    if (needsPermute)
+      result = AtenPermuteOp::create(rewriter, loc, op.getType(), result,
+                                     createIntList(inversePerm));
+
+    rewriter.replaceOp(op, result);
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class DecomposeAten_EmbeddingBagOp
     : public OpRewritePattern<Aten_EmbeddingBagOp> {
 public:
@@ -14192,6 +14323,7 @@ public:
     addPatternIfTargetOpIsIllegal<DecomposeAtenFloorDivideScalarOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenNumpyTOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenSelectScatterOp>(patterns);
+    addPatternIfTargetOpIsIllegal<DecomposeAtenDiagonalScatterOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarDimOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenVarCorrectionOp>(patterns);
     addPatternIfTargetOpIsIllegal<DecomposeAtenStdDimOp>(patterns);
