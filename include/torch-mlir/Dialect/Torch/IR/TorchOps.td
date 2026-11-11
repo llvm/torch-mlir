@@ -2139,6 +2139,57 @@ def Torch_QuantizedDecomposedChooseQparamsPerTokenOp : Torch_Op<
 // Hand-authored for torchao ops that appear in torch.export graphs.
 //===----------------------------------------------------------------------===//
 
+def Torch_TorchaoChooseQparamsAffineOp : Torch_Op<
+    "torchao.choose_qparams_affine", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly,
+  ]> {
+  let hasVerifier = 1;
+  let summary = "torchao choose_qparams_affine";
+  let description = [{
+    Computes the `scale` and `zero_point` of affine quantization in blocks of
+    shape `block_size` from the minimum and maximum of each block of `input`.
+    `mapping_type` is the name of a torchao `MappingType`. A None `quant_min`
+    or `quant_max` is the bound of `target_dtype`, a None `eps` is the
+    smallest normal number of the input dtype and a None `scale_dtype` is the
+    input dtype. A None `zero_point_dtype` is int32 for the `ASYMMETRIC`
+    mapping and the input dtype otherwise.
+
+    With `keepdim`, the results have shape `input.shape / block_size`.
+    Otherwise, as in torchao, dimensions whose block covers the whole
+    dimension are dropped, and the results are 0-d if no block is larger
+    than 1.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    Torch_StringType:$mapping_type,
+    AnyTorchListOfTorchIntType:$block_size,
+    Torch_IntType:$target_dtype,
+    AnyTorchOptionalScalarType:$quant_min,
+    AnyTorchOptionalScalarType:$quant_max,
+    AnyTorchOptionalFloatType:$eps,
+    AnyTorchOptionalIntType:$scale_dtype,
+    AnyTorchOptionalIntType:$zero_point_dtype,
+    Torch_BoolType:$keepdim
+  );
+  let results = (outs
+    AnyTorchTensorType:$scale,
+    AnyTorchTensorType:$zero_point
+  );
+  let assemblyFormat = [{
+    $input `,` $mapping_type `,` $block_size `,` $target_dtype `,`
+        $quant_min `,` $quant_max `,` $eps `,` $scale_dtype `,`
+        $zero_point_dtype `,` $keepdim attr-dict
+    `:` qualified(type($input)) `,` qualified(type($mapping_type)) `,`
+        qualified(type($block_size)) `,` qualified(type($target_dtype)) `,`
+        qualified(type($quant_min)) `,` qualified(type($quant_max)) `,`
+        qualified(type($eps)) `,` qualified(type($scale_dtype)) `,`
+        qualified(type($zero_point_dtype)) `,` qualified(type($keepdim))
+    `->` qualified(type($scale)) `,` qualified(type($zero_point))
+  }];
+}
+
 def Torch_TorchaoQuantizeAffineOp : Torch_Op<
     "torchao.quantize_affine", [
     AllowsTypeRefinement,
