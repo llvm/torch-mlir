@@ -65,6 +65,33 @@ def test_import_frozen_exported_program():
 
 
 @run
+# CHECK-LABEL: test_import_frozen_exported_program_with_non_persistent_buffer
+# CHECK:     func.func @main(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32>
+# CHECK-DAG: %[[tanh:.+]] = torch.aten.tanh %[[ARG0]]
+# CHECK-DAG: %[[nb:.+]] = torch.vtensor.literal({{.*}}) : !torch.vtensor<[3,1],f32>
+# CHECK-DAG: %[[mul_nb:.+]] = torch.aten.mul.Tensor %[[tanh]], %[[nb]]
+# CHECK-DAG: %[[b:.+]] = torch.vtensor.literal({{.*}}) : !torch.vtensor<[3,1],f32>
+# CHECK-DAG: %[[mul_b:.+]] = torch.aten.mul.Tensor %[[mul_nb]], %[[b]]
+# CHECK:     return %[[mul_b]]
+def test_import_frozen_exported_program_with_non_persistent_buffer():
+    # A buffer registered with persistent=False is recorded in
+    # ExportedProgram.constants rather than in its state_dict, while still
+    # being listed in graph_signature.inputs_to_buffers. Both kinds must be
+    # frozen into literals, leaving the input as the only function argument.
+    class Basic(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.register_buffer("nb", torch.randn(3, 1), persistent=False)
+            self.register_buffer("b", torch.randn(3, 1), persistent=True)
+
+        def forward(self, x):
+            return torch.tanh(x) * self.nb * self.b
+
+    m = fx.export_and_import(Basic(), torch.randn(3, 4))
+    print(m)
+
+
+@run
 # CHECK-LABEL: test_import_frozen_exported_program_with_func_name
 # CHECK:     func.func @test_net(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32>
 def test_import_frozen_exported_program_with_func_name():
