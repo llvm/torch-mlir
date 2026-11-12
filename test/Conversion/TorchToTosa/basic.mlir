@@ -7951,6 +7951,52 @@ func.func @add_i16(%a: !torch.vtensor<[2],si16>, %b: !torch.vtensor<[2],si16>) -
 
 // -----
 
+// CHECK-LABEL: func.func @avg_pool3d_f16_fp32_compute
+// CHECK-SAME: (%[[ARG:.*]]: !torch.vtensor<[1,2,4,4,4],f16>)
+// CHECK: %[[INPUT:.*]] = torch_c.to_builtin_tensor %[[ARG]]
+// CHECK: %[[PROMOTED:.*]] = tosa.cast %[[INPUT]] input_unsigned(false) : (tensor<1x2x4x4x4xf16>) -> tensor<1x2x4x4x4xf32>
+// CHECK: %[[DHWNC:.*]] = tosa.transpose %[[PROMOTED]] perms([2, 3, 4, 0, 1])
+// CHECK: %[[FLAT:.*]] = tosa.reshape %[[DHWNC]], %{{.*}} : (tensor<4x4x4x1x2xf32>, !tosa.shape<3>) -> tensor<1x64x2xf32>
+// CHECK: %[[ZERO:.*]] = tosa.const values(dense<0.000000e+00> : tensor<1x27x2xf32>)
+// The first two masked additions must carry the previous accumulator.
+// CHECK: %[[FIRST:.*]] = tosa.gather %[[FLAT]], %{{.*}} : (tensor<1x64x2xf32>, tensor<1x27xi32>) -> tensor<1x27x2xf32>
+// CHECK-NEXT: %[[ADD0:.*]] = tosa.add %[[ZERO]], %[[FIRST]]
+// CHECK-NEXT: %[[MASK0:.*]] = tosa.const values(dense<{{.*}}> : tensor<1x27x1xi1>)
+// CHECK-NEXT: %[[SUM0:.*]] = tosa.select %[[MASK0]], %[[ADD0]], %[[ZERO]]
+// CHECK: %[[SECOND:.*]] = tosa.gather %[[FLAT]], %{{.*}}
+// CHECK-NEXT: %[[ADD1:.*]] = tosa.add %[[SUM0]], %[[SECOND]]
+// CHECK-NEXT: %[[MASK1:.*]] = tosa.const values(dense<{{.*}}> : tensor<1x27x1xi1>)
+// CHECK-NEXT: %[[SUM1:.*]] = tosa.select %[[MASK1]], %[[ADD1]], %[[SUM0]]
+// Anchor the final kernel position, then normalize its completed accumulator.
+// CHECK: %[[LAST_INDEX:.*]] = tosa.const values(dense<{{\[\[}}21, 23, 0, 29, 31, 0, 0, 0, 0, 53, 55, 0, 61, 63, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]> : tensor<1x27xi32>)
+// CHECK-NEXT: %[[LAST:.*]] = tosa.gather %[[FLAT]], %[[LAST_INDEX]]
+// CHECK-NEXT: %[[LAST_ADD:.*]] = tosa.add %[[PREVIOUS:.*]], %[[LAST]]
+// CHECK-NEXT: %[[LAST_MASK:.*]] = tosa.const values(dense<{{.*}}> : tensor<1x27x1xi1>)
+// CHECK-NEXT: %[[COMPLETE:.*]] = tosa.select %[[LAST_MASK]], %[[LAST_ADD]], %[[PREVIOUS]]
+// CHECK-NEXT: %[[SCALE:.*]] = tosa.const values(dense<{{.*}}> : tensor<1x27x1xf32>)
+// CHECK-NEXT: %[[SHIFT:.*]] = tosa.const values(dense<0> : tensor<1xi8>)
+// CHECK-NEXT: %[[NORMALIZED:.*]] = tosa.mul %[[COMPLETE]], %[[SCALE]], %[[SHIFT]] : (tensor<1x27x2xf32>, tensor<1x27x1xf32>, tensor<1xi8>) -> tensor<1x27x2xf32>
+// CHECK: %[[SPATIAL:.*]] = tosa.reshape %[[NORMALIZED]], %{{.*}} : (tensor<1x27x2xf32>, !tosa.shape<5>) -> tensor<3x3x3x1x2xf32>
+// CHECK-NEXT: %[[NCDHW:.*]] = tosa.transpose %[[SPATIAL]] perms([3, 4, 0, 1, 2]) : (tensor<3x3x3x1x2xf32>) -> tensor<1x2x3x3x3xf32>
+// CHECK-NEXT: %[[RESTORED:.*]] = tosa.cast %[[NCDHW]] input_unsigned(false) : (tensor<1x2x3x3x3xf32>) -> tensor<1x2x3x3x3xf16>
+// CHECK-NEXT: %[[CAST:.*]] = tensor.cast %[[RESTORED]] : tensor<1x2x3x3x3xf16> to tensor<1x2x3x3x3xf16>
+// CHECK-NEXT: %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[CAST]]
+// CHECK-NEXT: return %[[RESULT]] : !torch.vtensor<[1,2,3,3,3],f16>
+func.func @avg_pool3d_f16_fp32_compute(%arg0: !torch.vtensor<[1,2,4,4,4],f16>) -> !torch.vtensor<[1,2,3,3,3],f16> {
+  %one = torch.constant.int 1
+  %two = torch.constant.int 2
+  %three = torch.constant.int 3
+  %true = torch.constant.bool true
+  %none = torch.constant.none
+  %kernel = torch.prim.ListConstruct %three, %three, %three : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %two, %two, %two : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %one, %one, %one : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %result = torch.aten.avg_pool3d %arg0, %kernel, %stride, %padding, %true, %true, %none : !torch.vtensor<[1,2,4,4,4],f16>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,2,3,3,3],f16>
+  return %result : !torch.vtensor<[1,2,3,3,3],f16>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @add_i32(
 // CHECK: tosa.const values(dense<2> : tensor<i32>)
 // CHECK: tosa.mul {{.*}} : (tensor<2xi32>, tensor<1xi32>, tensor<1xi8>) -> tensor<2xi32>
@@ -7959,6 +8005,55 @@ func.func @add_i32(%a: !torch.vtensor<[2],si32>, %b: !torch.vtensor<[2],si32>) -
   %alpha = torch.constant.int 2
   %result = torch.aten.add.Tensor %a, %b, %alpha : !torch.vtensor<[2],si32>, !torch.vtensor<[2],si32>, !torch.int -> !torch.vtensor<[2],si32>
   return %result : !torch.vtensor<[2],si32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @avg_pool3d_bf16_fp32_compute
+// CHECK-SAME: (%[[ARG:.*]]: !torch.vtensor<[2,4,4,4],bf16>)
+// CHECK: %[[INPUT:.*]] = torch_c.to_builtin_tensor %[[ARG]]
+// CHECK: %[[PROMOTED:.*]] = tosa.cast %[[INPUT]] input_unsigned(false) : (tensor<2x4x4x4xbf16>) -> tensor<2x4x4x4xf32>
+// CHECK: %[[BATCHED:.*]] = tosa.reshape %[[PROMOTED]], %{{.*}} : (tensor<2x4x4x4xf32>, !tosa.shape<5>) -> tensor<1x2x4x4x4xf32>
+// CHECK: %[[DHWNC:.*]] = tosa.transpose %[[BATCHED]] perms([2, 3, 4, 0, 1])
+// CHECK: %[[FLAT:.*]] = tosa.reshape %[[DHWNC]], %{{.*}} : (tensor<4x4x4x1x2xf32>, !tosa.shape<3>) -> tensor<1x64x2xf32>
+// CHECK: %[[ZERO:.*]] = tosa.const values(dense<0.000000e+00> : tensor<1x27x2xf32>)
+// The first two masked additions must carry the previous accumulator.
+// CHECK: %[[FIRST:.*]] = tosa.gather %[[FLAT]], %{{.*}} : (tensor<1x64x2xf32>, tensor<1x27xi32>) -> tensor<1x27x2xf32>
+// CHECK-NEXT: %[[ADD0:.*]] = tosa.add %[[ZERO]], %[[FIRST]]
+// CHECK-NEXT: %[[MASK0:.*]] = tosa.const values(dense<{{.*}}> : tensor<1x27x1xi1>)
+// CHECK-NEXT: %[[SUM0:.*]] = tosa.select %[[MASK0]], %[[ADD0]], %[[ZERO]]
+// CHECK: %[[SECOND:.*]] = tosa.gather %[[FLAT]], %{{.*}}
+// CHECK-NEXT: %[[ADD1:.*]] = tosa.add %[[SUM0]], %[[SECOND]]
+// CHECK-NEXT: %[[MASK1:.*]] = tosa.const values(dense<{{.*}}> : tensor<1x27x1xi1>)
+// CHECK-NEXT: %[[SUM1:.*]] = tosa.select %[[MASK1]], %[[ADD1]], %[[SUM0]]
+// Anchor the final kernel position, then normalize its completed accumulator.
+// CHECK: %[[LAST_INDEX:.*]] = tosa.const values(dense<{{\[\[}}21, 23, 0, 29, 31, 0, 0, 0, 0, 53, 55, 0, 61, 63, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]]> : tensor<1x27xi32>)
+// CHECK-NEXT: %[[LAST:.*]] = tosa.gather %[[FLAT]], %[[LAST_INDEX]]
+// CHECK-NEXT: %[[LAST_ADD:.*]] = tosa.add %[[PREVIOUS:.*]], %[[LAST]]
+// CHECK-NEXT: %[[LAST_MASK:.*]] = tosa.const values(dense<{{.*}}> : tensor<1x27x1xi1>)
+// CHECK-NEXT: %[[COMPLETE:.*]] = tosa.select %[[LAST_MASK]], %[[LAST_ADD]], %[[PREVIOUS]]
+// CHECK-NEXT: %[[SCALE:.*]] = tosa.const values(dense<-5.000000e-01> : tensor<1x27x1xf32>)
+// CHECK-NEXT: %[[SHIFT:.*]] = tosa.const values(dense<0> : tensor<1xi8>)
+// CHECK-NEXT: %[[NORMALIZED:.*]] = tosa.mul %[[COMPLETE]], %[[SCALE]], %[[SHIFT]] : (tensor<1x27x2xf32>, tensor<1x27x1xf32>, tensor<1xi8>) -> tensor<1x27x2xf32>
+// CHECK: %[[SPATIAL:.*]] = tosa.reshape %[[NORMALIZED]], %{{.*}} : (tensor<1x27x2xf32>, !tosa.shape<5>) -> tensor<3x3x3x1x2xf32>
+// CHECK-NEXT: %[[NCDHW:.*]] = tosa.transpose %[[SPATIAL]] perms([3, 4, 0, 1, 2]) : (tensor<3x3x3x1x2xf32>) -> tensor<1x2x3x3x3xf32>
+// CHECK: %[[UNBATCHED:.*]] = tosa.reshape %[[NCDHW]], %{{.*}} : (tensor<1x2x3x3x3xf32>, !tosa.shape<4>) -> tensor<2x3x3x3xf32>
+// CHECK-NEXT: %[[RESTORED:.*]] = tosa.cast %[[UNBATCHED]] input_unsigned(false) : (tensor<2x3x3x3xf32>) -> tensor<2x3x3x3xbf16>
+// CHECK-NEXT: %[[CAST:.*]] = tensor.cast %[[RESTORED]] : tensor<2x3x3x3xbf16> to tensor<2x3x3x3xbf16>
+// CHECK-NEXT: %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[CAST]]
+// CHECK-NEXT: return %[[RESULT]] : !torch.vtensor<[2,3,3,3],bf16>
+func.func @avg_pool3d_bf16_fp32_compute(%arg0: !torch.vtensor<[2,4,4,4],bf16>) -> !torch.vtensor<[2,3,3,3],bf16> {
+  %one = torch.constant.int 1
+  %two = torch.constant.int 2
+  %three = torch.constant.int 3
+  %true = torch.constant.bool true
+  %none = torch.constant.none
+  %divisor = torch.constant.int -2
+  %kernel = torch.prim.ListConstruct %three, %three, %three : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %two, %two, %two : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %one, %one, %one : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %result = torch.aten.avg_pool3d %arg0, %kernel, %stride, %padding, %true, %true, %divisor : !torch.vtensor<[2,4,4,4],bf16>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.int -> !torch.vtensor<[2,3,3,3],bf16>
+  return %result : !torch.vtensor<[2,3,3,3],bf16>
 }
 
 // -----
@@ -7980,4 +8075,107 @@ func.func @i32_gather_coefficient_overflow(%input: !torch.vtensor<[2,65536,65536
   // expected-error @+1 {{failed to legalize operation 'torch.aten.gather' that was explicitly marked illegal}}
   %result = torch.aten.gather %input, %dim, %index, %false : !torch.vtensor<[2,65536,65536],f32>, !torch.int, !torch.vtensor<[1,1,1],si32>, !torch.bool -> !torch.vtensor<[1,1,1],f32>
   return %result : !torch.vtensor<[1,1,1],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @avg_pool3d_f32_non_global
+// CHECK-SAME: (%[[ARG:.*]]: !torch.vtensor<[1,2,4,5,6],f32>)
+// CHECK: %[[INPUT:.*]] = torch_c.to_builtin_tensor %[[ARG]]
+// CHECK: %[[DHWNC:.*]] = tosa.transpose %[[INPUT]] perms([2, 3, 4, 0, 1])
+// CHECK: %[[FLAT:.*]] = tosa.reshape %[[DHWNC]], %{{.*}} : (tensor<4x5x6x1x2xf32>, !tosa.shape<3>) -> tensor<1x120x2xf32>
+// CHECK: %[[ZERO:.*]] = tosa.const values(dense<0.000000e+00> : tensor<1x18x2xf32>)
+// Keep one accumulation chain through both depth planes of the 2x3x2 window.
+// CHECK: %[[VALUE0:.*]] = tosa.gather %[[FLAT]], %{{.*}} : (tensor<1x120x2xf32>, tensor<1x18xi32>) -> tensor<1x18x2xf32>
+// CHECK-NEXT: %[[SUM0:.*]] = tosa.add %[[ZERO]], %[[VALUE0]]
+// CHECK: %[[VALUE1:.*]] = tosa.gather %[[FLAT]], %{{.*}} : (tensor<1x120x2xf32>, tensor<1x18xi32>) -> tensor<1x18x2xf32>
+// CHECK-NEXT: %[[SUM1:.*]] = tosa.add %[[SUM0]], %[[VALUE1]]
+// CHECK: %[[VALUE2:.*]] = tosa.gather %[[FLAT]], %{{.*}} : (tensor<1x120x2xf32>, tensor<1x18xi32>) -> tensor<1x18x2xf32>
+// CHECK-NEXT: %[[SUM2:.*]] = tosa.add %[[SUM1]], %[[VALUE2]]
+// CHECK: %[[VALUE3:.*]] = tosa.gather %[[FLAT]], %{{.*}} : (tensor<1x120x2xf32>, tensor<1x18xi32>) -> tensor<1x18x2xf32>
+// CHECK-NEXT: %[[SUM3:.*]] = tosa.add %[[SUM2]], %[[VALUE3]]
+// CHECK: %[[VALUE4:.*]] = tosa.gather %[[FLAT]], %{{.*}} : (tensor<1x120x2xf32>, tensor<1x18xi32>) -> tensor<1x18x2xf32>
+// CHECK-NEXT: %[[SUM4:.*]] = tosa.add %[[SUM3]], %[[VALUE4]]
+// CHECK: %[[VALUE5:.*]] = tosa.gather %[[FLAT]], %{{.*}} : (tensor<1x120x2xf32>, tensor<1x18xi32>) -> tensor<1x18x2xf32>
+// CHECK-NEXT: %[[SUM5:.*]] = tosa.add %[[SUM4]], %[[VALUE5]]
+// The first value of the second depth plane adds to the first plane's sum.
+// CHECK: %[[VALUE6:.*]] = tosa.gather %[[FLAT]], %{{.*}} : (tensor<1x120x2xf32>, tensor<1x18xi32>) -> tensor<1x18x2xf32>
+// CHECK-NEXT: %[[SUM6:.*]] = tosa.add %[[SUM5]], %[[VALUE6]]
+// CHECK: %[[VALUE7:.*]] = tosa.gather %[[FLAT]], %{{.*}} : (tensor<1x120x2xf32>, tensor<1x18xi32>) -> tensor<1x18x2xf32>
+// CHECK-NEXT: %[[SUM7:.*]] = tosa.add %[[SUM6]], %[[VALUE7]]
+// CHECK: %[[VALUE8:.*]] = tosa.gather %[[FLAT]], %{{.*}} : (tensor<1x120x2xf32>, tensor<1x18xi32>) -> tensor<1x18x2xf32>
+// CHECK-NEXT: %[[SUM8:.*]] = tosa.add %[[SUM7]], %[[VALUE8]]
+// CHECK: %[[VALUE9:.*]] = tosa.gather %[[FLAT]], %{{.*}} : (tensor<1x120x2xf32>, tensor<1x18xi32>) -> tensor<1x18x2xf32>
+// CHECK-NEXT: %[[SUM9:.*]] = tosa.add %[[SUM8]], %[[VALUE9]]
+// CHECK: %[[VALUE10:.*]] = tosa.gather %[[FLAT]], %{{.*}} : (tensor<1x120x2xf32>, tensor<1x18xi32>) -> tensor<1x18x2xf32>
+// CHECK-NEXT: %[[SUM10:.*]] = tosa.add %[[SUM9]], %[[VALUE10]]
+// CHECK: %[[VALUE11:.*]] = tosa.gather %[[FLAT]], %{{.*}} : (tensor<1x120x2xf32>, tensor<1x18xi32>) -> tensor<1x18x2xf32>
+// CHECK-NEXT: %[[SUM11:.*]] = tosa.add %[[SUM10]], %[[VALUE11]]
+// CHECK-NEXT: %[[SCALE:.*]] = tosa.const values(dense<0.0833333358> : tensor<1x18x1xf32>)
+// CHECK-NEXT: %[[SHIFT:.*]] = tosa.const values(dense<0> : tensor<1xi8>)
+// CHECK-NEXT: %[[NORMALIZED:.*]] = tosa.mul %[[SUM11]], %[[SCALE]], %[[SHIFT]] : (tensor<1x18x2xf32>, tensor<1x18x1xf32>, tensor<1xi8>) -> tensor<1x18x2xf32>
+// CHECK: %[[SPATIAL:.*]] = tosa.reshape %[[NORMALIZED]], %{{.*}} : (tensor<1x18x2xf32>, !tosa.shape<5>) -> tensor<3x2x3x1x2xf32>
+// CHECK-NEXT: %[[NCDHW:.*]] = tosa.transpose %[[SPATIAL]] perms([3, 4, 0, 1, 2]) : (tensor<3x2x3x1x2xf32>) -> tensor<1x2x3x2x3xf32>
+// CHECK-NEXT: %[[CAST:.*]] = tensor.cast %[[NCDHW]] : tensor<1x2x3x2x3xf32> to tensor<1x2x3x2x3xf32>
+// CHECK-NEXT: %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[CAST]]
+// CHECK-NEXT: return %[[RESULT]] : !torch.vtensor<[1,2,3,2,3],f32>
+func.func @avg_pool3d_f32_non_global(%arg0: !torch.vtensor<[1,2,4,5,6],f32>) -> !torch.vtensor<[1,2,3,2,3],f32> {
+  %zero = torch.constant.int 0
+  %one = torch.constant.int 1
+  %two = torch.constant.int 2
+  %three = torch.constant.int 3
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %kernel = torch.prim.ListConstruct %two, %three, %two : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %one, %two, %two : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %zero, %zero, %zero : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %result = torch.aten.avg_pool3d %arg0, %kernel, %stride, %padding, %false, %false, %none : !torch.vtensor<[1,2,4,5,6],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,2,3,2,3],f32>
+  return %result : !torch.vtensor<[1,2,3,2,3],f32>
+}
+
+// -----
+
+// Requested padding counts in the divisor; the extra ceil-mode padding does not.
+// Depth windows have (valid, counted) sizes (2, 3), (3, 3), (1, 2).
+// CHECK-LABEL: func.func @avg_pool3d_ceil_divisor_correction
+// CHECK-SAME: (%[[ARG:.*]]: !torch.vtensor<[1,1,4,1,1],f32>)
+// CHECK: %[[INPUT:.*]] = torch_c.to_builtin_tensor %[[ARG]]
+// CHECK: %[[DHWNC:.*]] = tosa.transpose %[[INPUT]] perms([2, 3, 4, 0, 1])
+// CHECK: %[[FLAT:.*]] = tosa.reshape %[[DHWNC]], %{{.*}} : (tensor<4x1x1x1x1xf32>, !tosa.shape<3>) -> tensor<1x4x1xf32>
+// CHECK: %[[ZERO:.*]] = tosa.const values(dense<0.000000e+00> : tensor<1x3x1xf32>)
+// CHECK-NEXT: %[[INDEX0:.*]] = tosa.const values(dense<{{\[\[}}0, 1, 3]]> : tensor<1x3xi32>)
+// CHECK-NEXT: %[[VALUE0:.*]] = tosa.gather %[[FLAT]], %[[INDEX0]] : (tensor<1x4x1xf32>, tensor<1x3xi32>) -> tensor<1x3x1xf32>
+// CHECK-NEXT: %[[ADD0:.*]] = tosa.add %[[ZERO]], %[[VALUE0]]
+// CHECK-NEXT: %[[MASK0:.*]] = tosa.const values(dense<{{\[\[\[}}false], [true], [true]]]> : tensor<1x3x1xi1>)
+// CHECK-NEXT: %[[SUM0:.*]] = tosa.select %[[MASK0]], %[[ADD0]], %[[ZERO]]
+// CHECK-NEXT: %[[INDEX1:.*]] = tosa.const values(dense<{{\[\[}}0, 2, 0]]> : tensor<1x3xi32>)
+// CHECK-NEXT: %[[VALUE1:.*]] = tosa.gather %[[FLAT]], %[[INDEX1]] : (tensor<1x4x1xf32>, tensor<1x3xi32>) -> tensor<1x3x1xf32>
+// CHECK-NEXT: %[[ADD1:.*]] = tosa.add %[[SUM0]], %[[VALUE1]]
+// CHECK-NEXT: %[[MASK1:.*]] = tosa.const values(dense<{{\[\[\[}}true], [true], [false]]]> : tensor<1x3x1xi1>)
+// CHECK-NEXT: %[[SUM1:.*]] = tosa.select %[[MASK1]], %[[ADD1]], %[[SUM0]]
+// CHECK-NEXT: %[[INDEX2:.*]] = tosa.const values(dense<{{\[\[}}1, 3, 0]]> : tensor<1x3xi32>)
+// CHECK-NEXT: %[[VALUE2:.*]] = tosa.gather %[[FLAT]], %[[INDEX2]] : (tensor<1x4x1xf32>, tensor<1x3xi32>) -> tensor<1x3x1xf32>
+// CHECK-NEXT: %[[ADD2:.*]] = tosa.add %[[SUM1]], %[[VALUE2]]
+// CHECK-NEXT: %[[MASK2:.*]] = tosa.const values(dense<{{\[\[\[}}true], [true], [false]]]> : tensor<1x3x1xi1>)
+// CHECK-NEXT: %[[SUM2:.*]] = tosa.select %[[MASK2]], %[[ADD2]], %[[SUM1]]
+// CHECK-NEXT: %[[SCALE:.*]] = tosa.const values(dense<{{\[\[\[}}0.333333343], [0.333333343], [5.000000e-01]]]> : tensor<1x3x1xf32>)
+// CHECK-NEXT: %[[SHIFT:.*]] = tosa.const values(dense<0> : tensor<1xi8>)
+// CHECK-NEXT: %[[NORMALIZED:.*]] = tosa.mul %[[SUM2]], %[[SCALE]], %[[SHIFT]] : (tensor<1x3x1xf32>, tensor<1x3x1xf32>, tensor<1xi8>) -> tensor<1x3x1xf32>
+// CHECK: %[[SPATIAL:.*]] = tosa.reshape %[[NORMALIZED]], %{{.*}} : (tensor<1x3x1xf32>, !tosa.shape<5>) -> tensor<3x1x1x1x1xf32>
+// CHECK-NEXT: %[[NCDHW:.*]] = tosa.transpose %[[SPATIAL]] perms([3, 4, 0, 1, 2]) : (tensor<3x1x1x1x1xf32>) -> tensor<1x1x3x1x1xf32>
+// CHECK-NEXT: %[[CAST:.*]] = tensor.cast %[[NCDHW]] : tensor<1x1x3x1x1xf32> to tensor<1x1x3x1x1xf32>
+// CHECK-NEXT: %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[CAST]]
+// CHECK-NEXT: return %[[RESULT]] : !torch.vtensor<[1,1,3,1,1],f32>
+func.func @avg_pool3d_ceil_divisor_correction(%arg0: !torch.vtensor<[1,1,4,1,1],f32>) -> !torch.vtensor<[1,1,3,1,1],f32> {
+  %zero = torch.constant.int 0
+  %one = torch.constant.int 1
+  %two = torch.constant.int 2
+  %three = torch.constant.int 3
+  %true = torch.constant.bool true
+  %none = torch.constant.none
+  %kernel = torch.prim.ListConstruct %three, %one, %one : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %stride = torch.prim.ListConstruct %two, %one, %one : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %padding = torch.prim.ListConstruct %one, %zero, %zero : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %result = torch.aten.avg_pool3d %arg0, %kernel, %stride, %padding, %true, %true, %none : !torch.vtensor<[1,1,4,1,1],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,1,3,1,1],f32>
+  return %result : !torch.vtensor<[1,1,3,1,1],f32>
 }
