@@ -10,15 +10,12 @@
 #include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/Quant/IR/QuantTypes.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/Dialect/Tosa/Utils/ConversionUtils.h"
-#include "mlir/IR/DialectResourceBlobManager.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "torch-mlir/Conversion/Passes.h"
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeCommon.h"
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeUtils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
@@ -40,8 +37,6 @@
 #include <random>
 #include <tuple>
 #include <type_traits>
-
-#include "mlir/Dialect/Tosa/Utils/QuantUtils.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -322,6 +317,14 @@ static Type getCommonIndexElementType(ValueRange indices) {
       elementType = getNormalizedIndexElementType(indexType.getElementType());
   }
   return elementType;
+}
+
+/// Returns whether every index is a ranked tensor with a static shape.
+static bool areStaticallyShaped(ValueRange indices) {
+  return llvm::all_of(indices, [](Value index) {
+    auto indexType = dyn_cast<RankedTensorType>(index.getType());
+    return indexType && indexType.hasStaticShape();
+  });
 }
 
 // Cast tensor indices to an i32 or i64 target type.
@@ -7016,10 +7019,9 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewriteImpl(
   auto indexTensors = getTypeConvertedValues(
       rewriter, op->getLoc(), getTypeConverter(), tensorsTorchType);
   Type indexElementType = getCommonIndexElementType(indexTensors);
-  if (!indexElementType || llvm::any_of(indexTensors, [](Value index) {
-        return !isa<RankedTensorType>(index.getType());
-      }))
-    return rewriter.notifyMatchFailure(op, "expected ranked tensor indices");
+  if (!indexElementType || !areStaticallyShaped(indexTensors))
+    return rewriter.notifyMatchFailure(op,
+                                       "unimplemented: dynamic index shapes");
 
   auto outType = getTypeConverter()->convertType(op.getType());
 
@@ -7165,10 +7167,9 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewriteImpl(
   auto indexTensors = getTypeConvertedValues(
       rewriter, op->getLoc(), getTypeConverter(), tensorsTorchType);
   Type indexElementType = getCommonIndexElementType(indexTensors);
-  if (!indexElementType || llvm::any_of(indexTensors, [](Value index) {
-        return !isa<RankedTensorType>(index.getType());
-      }))
-    return rewriter.notifyMatchFailure(op, "expected ranked tensor indices");
+  if (!indexElementType || !areStaticallyShaped(indexTensors))
+    return rewriter.notifyMatchFailure(op,
+                                       "unimplemented: dynamic index shapes");
 
   auto outType = getTypeConverter()->convertType(op.getType());
 

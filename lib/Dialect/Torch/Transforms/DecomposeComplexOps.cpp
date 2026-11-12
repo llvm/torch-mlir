@@ -23,7 +23,6 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
-#include "llvm/Support/MathExtras.h"
 #include <cstdint>
 #include <set>
 using namespace mlir;
@@ -12650,6 +12649,86 @@ public:
 };
 } // namespace
 
+/// Returns, for each input dimension, whether a tensor index selects along
+/// it. A rank-k bool mask in `indices` covers k input dimensions.
+static FailureOr<SmallVector<bool>>
+getTensorIndexedDims(Operation *op, PatternRewriter &rewriter,
+                     ArrayRef<Value> indices, ArrayRef<int64_t> inputSizes) {
+  SmallVector<bool> indexUsed;
+  for (Value index : indices) {
+    auto indexType = dyn_cast<BaseTensorType>(index.getType());
+    if (!indexType) {
+      indexUsed.push_back(false);
+      continue;
+    }
+    if (!indexType.hasSizes() || !indexType.hasDtype())
+      return rewriter.notifyMatchFailure(
+          op, "index with unknown rank or dtype not supported");
+    if (!indexType.getDtype().isInteger(1)) {
+      indexUsed.push_back(true);
+      continue;
+    }
+    ArrayRef<int64_t> maskSizes = indexType.getSizes();
+    if (maskSizes.empty())
+      return rewriter.notifyMatchFailure(op, "rank-0 bool mask not supported");
+    for (int64_t maskSize : maskSizes) {
+      size_t inputDim = indexUsed.size();
+      if (inputDim >= inputSizes.size())
+        return rewriter.notifyMatchFailure(
+            op, "bool mask rank exceeds remaining input dimensions");
+      if (maskSize != kUnknownSize && inputSizes[inputDim] != kUnknownSize &&
+          maskSize != inputSizes[inputDim])
+        return rewriter.notifyMatchFailure(
+            op, "bool mask dimension does not match input dimension");
+      indexUsed.push_back(true);
+    }
+  }
+  if (indexUsed.size() < inputSizes.size())
+    indexUsed.resize(inputSizes.size(), false);
+  return indexUsed;
+}
+
+/// Returns whether the tensor-indexed dimensions form one consecutive run.
+static bool areTensorIndexedDimsConsecutive(ArrayRef<bool> indexUsed) {
+  auto first = llvm::find(indexUsed, true);
+  auto end = std::find(first, indexUsed.end(), false);
+  return std::find(end, indexUsed.end(), true) == indexUsed.end();
+}
+
+/// Replaces each rank-k bool mask in `indices` by k integer index tensors
+/// that hold the coordinates of its true elements. Expects the indices to have
+/// passed `getTensorIndexedDims`.
+static SmallVector<Value> expandBoolMaskIndices(PatternRewriter &rewriter,
+                                                Location loc,
+                                                ArrayRef<Value> indices) {
+  Type si64Type = rewriter.getIntegerType(64, /*isSigned=*/true);
+  auto columnType = rewriter.getType<ValueTensorType>(
+      SmallVector<int64_t>{kUnknownSize}, si64Type);
+  Value cstOne;
+  SmallVector<Value> expandedIndices;
+  for (Value index : indices) {
+    auto indexType = dyn_cast<BaseTensorType>(index.getType());
+    if (!indexType || !indexType.getDtype().isInteger(1)) {
+      expandedIndices.push_back(index);
+      continue;
+    }
+    int64_t maskRank = indexType.getSizes().size();
+    Value nonzero = AtenNonzeroOp::create(
+        rewriter, loc,
+        rewriter.getType<ValueTensorType>(
+            SmallVector<int64_t>{kUnknownSize, maskRank}, si64Type),
+        index);
+    if (!cstOne)
+      cstOne = ConstantIntOp::create(rewriter, loc, 1);
+    for (int64_t column = 0; column < maskRank; ++column) {
+      Value cstColumn = ConstantIntOp::create(rewriter, loc, column);
+      expandedIndices.push_back(AtenSelectIntOp::create(
+          rewriter, loc, columnType, nonzero, cstOne, cstColumn));
+    }
+  }
+  return expandedIndices;
+}
+
 // Torch ops related to indexing tensors, e.g., AtenIndexTensor, AtenIndexPut.
 namespace {
 
@@ -12775,9 +12854,8 @@ static FailureOr<Value> createNewIndices(Operation *op,
   return newIndexList;
 }
 
-// The goal of this pattern is to eliminate `None` index in aten.Index.Tensor's
-// `indices` param and transform it to aten.index.Tensor_hacked_twin, for the
-// ease of various backend.
+/// Replaces the `None` indices and bool masks of aten.index.Tensor with
+/// integer index tensors and rewrites it to aten.index.Tensor_hacked_twin.
 class DecomposeAtenIndexTensorOp : public OpRewritePattern<AtenIndexTensorOp> {
 public:
   using OpRewritePattern::OpRewritePattern;
@@ -12793,18 +12871,23 @@ public:
 
     auto input = op.getSelf();
     auto inputType = cast<BaseTensorType>(input.getType());
-    if (!inputType.hasSizes()) {
+    if (!inputType.hasSizes())
       return rewriter.notifyMatchFailure(
           op, "only input with shape information is supported");
-    }
     auto inputSizes = inputType.getSizes();
     int64_t inputRank = inputSizes.size();
+
+    FailureOr<SmallVector<bool>> indexUsed =
+        getTensorIndexedDims(op, rewriter, indices, inputSizes);
+    if (failed(indexUsed))
+      return failure();
+    indices = expandBoolMaskIndices(rewriter, loc, indices);
 
     auto isTensor = [](Value v) {
       return isa<Torch::BaseTensorType>(v.getType());
     };
 
-    // directly replace aten.Index.Tensor with aten.index.Tensor_hacked_twin
+    // Without `None` indices, rewrite directly to the hacked twin.
     if (llvm::all_of(indices, isTensor)) {
       // By default, we regard the first index type as the list element type.
       auto indexElemType = cast<BaseTensorType>(indices[0].getType())
@@ -12816,42 +12899,19 @@ public:
       return success();
     }
 
-    SmallVector<bool> indexUsed =
-        llvm::to_vector(llvm::map_range(indices, isTensor));
-    for (int64_t i = indices.size(); i < inputRank; ++i)
-      indexUsed.emplace_back(false);
-
-    bool indexIsConsecutive = true;
-    int64_t firstUsedIndex = -1;
-    for (size_t i = 0; i < indices.size(); ++i) {
-      if (indexUsed[i] && firstUsedIndex == -1) {
-        firstUsedIndex = i;
-      } else if (indexUsed[i] && !indexUsed[i - 1]) {
-        indexIsConsecutive = false;
-        break;
-      }
-    }
-
     Value newInput;
     SmallVector<int64_t> newToOldDimMap;
-    // permute input to make the non-none indices consecutive.
-    if (!indexIsConsecutive) {
+    // Permute the tensor-indexed dims of the input to the front.
+    if (!areTensorIndexedDimsConsecutive(*indexUsed)) {
       SmallVector<Value> dimValues;
       SmallVector<int64_t> permutedSizes;
-      for (int i = 0; i < inputRank; i++) {
-        if (indexUsed[i]) {
-          newToOldDimMap.emplace_back(i);
-          dimValues.emplace_back(Torch::ConstantIntOp::create(
-              rewriter, loc, rewriter.getI64IntegerAttr(i)));
-          permutedSizes.emplace_back(inputSizes[i]);
-        }
-      }
-      for (int i = 0; i < inputRank; i++) {
-        if (!indexUsed[i]) {
-          newToOldDimMap.emplace_back(i);
-          dimValues.emplace_back(Torch::ConstantIntOp::create(
-              rewriter, loc, rewriter.getI64IntegerAttr(i)));
-          permutedSizes.emplace_back(inputSizes[i]);
+      for (bool used : {true, false}) {
+        for (int64_t i = 0; i < inputRank; ++i) {
+          if ((*indexUsed)[i] != used)
+            continue;
+          newToOldDimMap.push_back(i);
+          dimValues.push_back(Torch::ConstantIntOp::create(rewriter, loc, i));
+          permutedSizes.push_back(inputSizes[i]);
         }
       }
       auto dimValueList = Torch::PrimListConstructOp::create(
@@ -12864,25 +12924,21 @@ public:
           input, dimValueList);
     } else {
       newInput = input;
-      for (int i = 0; i < inputRank; i++) {
-        newToOldDimMap.emplace_back(i);
-      }
+      newToOldDimMap = llvm::to_vector(llvm::seq<int64_t>(0, inputRank));
     }
 
-    auto newIndeicesInfo = createNewIndices(op, rewriter, newInput, indices,
-                                            newToOldDimMap, indexUsed);
-    if (failed(newIndeicesInfo)) {
-      return rewriter.notifyMatchFailure(op, "failed to replcae `None` index");
-    }
+    FailureOr<Value> newIndices = createNewIndices(
+        op, rewriter, newInput, indices, newToOldDimMap, *indexUsed);
+    if (failed(newIndices))
+      return rewriter.notifyMatchFailure(op, "failed to replace `None` index");
     rewriter.replaceOpWithNewOp<Torch::AtenIndexTensorHackedTwinOp>(
-        op, op.getType(), newInput, *newIndeicesInfo);
+        op, op.getType(), newInput, *newIndices);
     return success();
   }
 };
 
-// The goal of this pattern is to eliminate `None` index in aten.inde_put-like
-// ops' `indices` param and transform it to aten.index_put.hacked_twin, for the
-// ease of various backend.
+/// Replaces the `None` indices and bool masks of aten.index_put-like ops with
+/// integer index tensors and rewrites them to aten.index_put.hacked_twin.
 template <typename AtenIndexPutLikeOpT>
 class DecomposeAtenIndexPutLikeOp
     : public OpRewritePattern<AtenIndexPutLikeOpT> {
@@ -12899,128 +12955,26 @@ public:
 
     auto input = op.getSelf();
     auto inputType = cast<BaseTensorType>(input.getType());
-    if (!inputType.hasSizes()) {
+    if (!inputType.hasSizes())
       return rewriter.notifyMatchFailure(
           op, "only input with shape information is supported");
-    }
     auto inputSizes = inputType.getSizes();
     int64_t inputRank = inputSizes.size();
 
-    // A bool index tensor semantically selects positions where the mask is
-    // true.  Replace each bool index with its equivalent integer indices:
-    //   rank-1 mask → nonzero(mask).flatten() → one [N] index tensor
-    //   rank-k mask → nonzero(mask) gives [N,k]; split into k [N] tensors
-    //                 via select(nz, dim=1, i) for i in 0..k-1
-    // The expanded slots replace the single bool slot in-place; the rest of
-    // this pattern only handles the integer-indexed case.
-    // We require the rank to be statically known (to emit the right number of
-    // select ops), but individual dimensions may be dynamic.
-    //
-    // Validation pass: check all preconditions before emitting any IR so that
-    // a late failure (e.g. non-consecutive indices) does not leave dangling
-    // ops. Bool masks always expand to tensor slots, so we can compute
-    // indexUsed without emitting anything.
-    SmallVector<bool> indexUsed;
-    {
-      int64_t inputDimOffset = 0;
-      for (Value idx : indices) {
-        auto tt = dyn_cast<BaseTensorType>(idx.getType());
-        if (!tt) {
-          // None index — selects the entire dimension, not a tensor index.
-          indexUsed.push_back(false);
-          continue;
-        }
-        if (!tt.hasDtype())
-          return rewriter.notifyMatchFailure(
-              op, "index with unknown dtype not supported");
-        if (!tt.getDtype().isInteger(1)) {
-          indexUsed.push_back(true);
-          ++inputDimOffset;
-          continue;
-        }
-        if (!tt.hasSizes())
-          return rewriter.notifyMatchFailure(
-              op, "bool mask index with unknown rank not supported");
-        int64_t maskRank = tt.getSizes().size();
-        if (maskRank == 0)
-          return rewriter.notifyMatchFailure(op,
-                                             "rank-0 bool mask not supported");
-        auto maskSizes = tt.getSizes();
-        for (int64_t j = 0; j < maskRank; ++j) {
-          int64_t inputDim = inputDimOffset + j;
-          if (inputDim >= inputRank)
-            return rewriter.notifyMatchFailure(
-                op, "bool mask rank exceeds remaining input dimensions");
-          if (maskSizes[j] != Torch::kUnknownSize &&
-              inputSizes[inputDim] != Torch::kUnknownSize &&
-              maskSizes[j] != inputSizes[inputDim])
-            return rewriter.notifyMatchFailure(
-                op, "bool mask dimension does not match input dimension");
-          indexUsed.push_back(true); // each expanded slot is a tensor
-        }
-        inputDimOffset += maskRank;
-      }
-      for (int64_t i = indexUsed.size(); i < inputRank; ++i)
-        indexUsed.push_back(false);
-
-      // Reject non-consecutive tensor index slots before emitting any IR.
-      bool isConsecutive = true;
-      int64_t firstUsed = -1;
-      for (size_t i = 0; i < indexUsed.size(); ++i) {
-        if (indexUsed[i] && firstUsed == -1) {
-          firstUsed = i;
-        } else if (indexUsed[i] && !indexUsed[i - 1]) {
-          isConsecutive = false;
-          break;
-        }
-      }
-      if (!isConsecutive)
-        return rewriter.notifyMatchFailure(
-            op, "non consecutive indices is not supported");
-    }
-
-    // Emission pass: all checks passed, now build the expanded index list.
-    SmallVector<Value> expandedIndices;
-    expandedIndices.reserve(indices.size());
-    for (Value idx : indices) {
-      auto tt = dyn_cast<BaseTensorType>(idx.getType());
-      if (!tt || !tt.hasDtype() || !tt.getDtype().isInteger(1)) {
-        expandedIndices.push_back(idx);
-        continue;
-      }
-      int64_t maskRank = tt.getSizes().size();
-      auto si64Ty =
-          IntegerType::get(rewriter.getContext(), 64, IntegerType::Signed);
-      auto nzType = rewriter.getType<ValueTensorType>(
-          SmallVector<int64_t>{Torch::kUnknownSize, maskRank}, si64Ty);
-      Value nz = AtenNonzeroOp::create(rewriter, loc, nzType, idx);
-      auto colType = rewriter.getType<ValueTensorType>(
-          SmallVector<int64_t>{Torch::kUnknownSize}, si64Ty);
-      Value dimOne =
-          ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
-      if (maskRank == 1) {
-        // Single column: flatten [N,1] → [N].
-        Value d0 =
-            ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
-        expandedIndices.push_back(AtenFlattenUsingIntsOp::create(
-            rewriter, loc, colType, nz, d0, dimOne));
-      } else {
-        // k columns: emit one select per dimension.
-        for (int64_t col = 0; col < maskRank; ++col) {
-          Value colIdx = ConstantIntOp::create(rewriter, loc,
-                                               rewriter.getI64IntegerAttr(col));
-          expandedIndices.push_back(AtenSelectIntOp::create(
-              rewriter, loc, colType, nz, dimOne, colIdx));
-        }
-      }
-    }
-    indices = std::move(expandedIndices);
+    FailureOr<SmallVector<bool>> indexUsed =
+        getTensorIndexedDims(op, rewriter, indices, inputSizes);
+    if (failed(indexUsed))
+      return failure();
+    if (!areTensorIndexedDimsConsecutive(*indexUsed))
+      return rewriter.notifyMatchFailure(
+          op, "non consecutive indices is not supported");
+    indices = expandBoolMaskIndices(rewriter, loc, indices);
 
     auto isTensor = [](Value v) {
       return isa<Torch::BaseTensorType>(v.getType());
     };
 
-    // directly replace current op with aten.index_put.hacked_twin
+    // Without `None` indices, rewrite directly to the hacked twin.
     if (llvm::all_of(indices, isTensor)) {
       // By default, we regard the first index type as the list element type.
       auto indexElemType = cast<BaseTensorType>(indices[0].getType())
@@ -13033,18 +12987,14 @@ public:
       return success();
     }
 
-    SmallVector<int64_t> newToOldDimMap;
-    for (int i = 0; i < inputRank; i++) {
-      newToOldDimMap.emplace_back(i);
-    }
-
-    auto newIndicesInfo = createNewIndices(op, rewriter, input, indices,
-                                           newToOldDimMap, indexUsed);
-    if (failed(newIndicesInfo)) {
+    SmallVector<int64_t> newToOldDimMap =
+        llvm::to_vector(llvm::seq<int64_t>(0, inputRank));
+    FailureOr<Value> newIndices = createNewIndices(op, rewriter, input, indices,
+                                                   newToOldDimMap, *indexUsed);
+    if (failed(newIndices))
       return rewriter.notifyMatchFailure(op, "failed to replace `None` index");
-    }
     rewriter.replaceOpWithNewOp<AtenIndexPutHackedTwinOp>(
-        op, op.getType(), input, *newIndicesInfo, op.getValues(),
+        op, op.getType(), input, *newIndices, op.getValues(),
         op.getAccumulate());
     return success();
   }

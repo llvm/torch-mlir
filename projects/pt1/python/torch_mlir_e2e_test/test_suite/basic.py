@@ -3691,6 +3691,31 @@ def IndexTensorModule_basic(module, tu: TestUtils):
 
 
 # ==============================================================================
+
+
+# Indexing with an int32 index tensor that holds negative indices.
+class IndexTensorInt32IndexModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([5, 4], torch.float32, True),
+            ([3], torch.int32, True),
+        ]
+    )
+    def forward(self, x, index):
+        return x[index]
+
+
+@register_test_case(module_factory=lambda: IndexTensorInt32IndexModule())
+def IndexTensorInt32IndexModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(5, 4), torch.tensor([3, -1, -5], dtype=torch.int32))
+
+
+# ==============================================================================
 class IndexTensorStaticModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

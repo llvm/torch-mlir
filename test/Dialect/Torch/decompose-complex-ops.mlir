@@ -1738,7 +1738,7 @@ func.func @bool_mask_dim_mismatch(%input: !torch.vtensor<[4,4],f32>,
 // CHECK:         torch.aten.cumsum
 // CHECK:         torch.aten.scatter_add
 // CHECK:         torch.aten.slice.Tensor
-// CHECK:         [[EXPANDED:%.*]] = torch.aten.view
+// CHECK:         [[EXPANDED:%.*]] = torch.aten.squeeze.dim
 // CHECK:         [[LIST:%.*]] = torch.prim.ListConstruct %arg1, [[EXPANDED]] : (!torch.vtensor<[3],si64>, !torch.vtensor<[?],si64>)
 // CHECK-NOT:     torch.aten.index_put
 // CHECK:         torch.aten.index_put.hacked_twin {{.*}}, [[LIST]]
@@ -1753,6 +1753,42 @@ func.func @mixed_int_and_bool(%input: !torch.vtensor<[5,5],f32>,
       : !torch.vtensor<[5,5],f32>, !torch.list<optional<vtensor>>, !torch.vtensor<[3],f32>, !torch.bool
       -> !torch.vtensor<[5,5],f32>
   return %result : !torch.vtensor<[5,5],f32>
+}
+
+// -----
+
+// A bool mask after a None index covers the input dims from its position on.
+// CHECK-LABEL: func.func @index_tensor_bool_mask_after_none(
+// CHECK:         torch.aten.cumsum
+// CHECK:         [[COL0:%.*]] = torch.aten.squeeze.dim
+// CHECK:         [[COL1:%.*]] = torch.aten.squeeze.dim
+// CHECK:         [[DIM0:%.*]] = torch.aten.unsqueeze {{.*}} -> !torch.vtensor<[2,1],si64>
+// CHECK:         [[LIST:%.*]] = torch.prim.ListConstruct [[DIM0]], [[COL0]], [[COL1]]
+// CHECK:         torch.aten.index.Tensor_hacked_twin %arg0, [[LIST]] {{.*}} -> !torch.vtensor<[2,?],f32>
+func.func @index_tensor_bool_mask_after_none(%input: !torch.vtensor<[2,4,5],f32>,
+                                             %mask: !torch.vtensor<[4,5],i1>) -> !torch.vtensor<[2,?],f32> {
+  %none = torch.constant.none
+  %indices = torch.prim.ListConstruct %none, %mask
+      : (!torch.none, !torch.vtensor<[4,5],i1>) -> !torch.list<optional<vtensor>>
+  %result = torch.aten.index.Tensor %input, %indices
+      : !torch.vtensor<[2,4,5],f32>, !torch.list<optional<vtensor>> -> !torch.vtensor<[2,?],f32>
+  return %result : !torch.vtensor<[2,?],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @negative_index_tensor_unranked_index_after_mask(
+// CHECK-NOT:     torch.aten.nonzero
+// CHECK:         torch.aten.index.Tensor %arg0
+func.func @negative_index_tensor_unranked_index_after_mask(%input: !torch.vtensor<[2,4,5],f32>,
+                                                           %mask: !torch.vtensor<[4],i1>,
+                                                           %idx: !torch.vtensor<*,si64>) -> !torch.vtensor<*,f32> {
+  %none = torch.constant.none
+  %indices = torch.prim.ListConstruct %none, %mask, %idx
+      : (!torch.none, !torch.vtensor<[4],i1>, !torch.vtensor<*,si64>) -> !torch.list<optional<vtensor>>
+  %result = torch.aten.index.Tensor %input, %indices
+      : !torch.vtensor<[2,4,5],f32>, !torch.list<optional<vtensor>> -> !torch.vtensor<*,f32>
+  return %result : !torch.vtensor<*,f32>
 }
 
 // -----
