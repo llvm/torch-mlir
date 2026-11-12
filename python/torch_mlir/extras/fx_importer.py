@@ -298,7 +298,7 @@ PY_BUILTIN_TO_TORCH_OP = {
     "ge": torch.ops.aten.ge,
     "ne": torch.ops.aten.ne,
     "gt": torch.ops.aten.gt,
-    "mod": torch.ops.aten.fmod,
+    "mod": torch.ops.aten.remainder,
     "eq": torch.ops.aten.eq,
     "floordiv": torch.ops.aten.floordiv,
     "neg": torch.ops.aten.neg,

@@ -401,3 +401,26 @@ class ReflectionPad3dModuleBack(torch.nn.Module):
 @register_test_case(module_factory=lambda: ReflectionPad3dModuleBack())
 def ReflectionPad3dModuleBack_basic(module, tu: TestUtils):
     module.forward(tu.rand(2, 3, 20, 20, 12))
+
+
+# ==============================================================================
+
+
+class PadToMultipleModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 4, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.nn.functional.pad(x, (0, (-x.shape[-1]) % 8))
+
+
+@register_test_case(module_factory=lambda: PadToMultipleModule())
+def PadToMultipleModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 4, 33))
