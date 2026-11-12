@@ -1207,24 +1207,65 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         // 1. Separate Q, K, V inputs (9 operands with rotary, 7 without):
         //    query, key, value, past_key, past_value, seqlens_k, total_seq_len,
         //    [cos_cache, sin_cache]
-        // 2. Packed QKV input (7 operands with rotary, 5 without):
-        //    packed_qkv, past_key, past_value, seqlens_k, total_seq_len,
-        //    [cos_cache, sin_cache]
+        // 2. Packed QKV input using the ONNX positional layout, where key
+        //    and value are omitted (imported as torch.constant.none):
+        //    packed_qkv, none, none, past_key, past_value, seqlens_k,
+        //    total_seq_len, [cos_cache, sin_cache]
+        //    This matches onnxruntime, which detects packed QKV by checking
+        //    whether the key input is absent.
+        // Operands beyond the expected count (e.g. position_ids,
+        // attention_bias, head_sink in newer onnxruntime versions, or empty
+        // trailing inputs from exporters) are accepted only when they are
+        // absent (torch.constant.none). Non-empty extra inputs are not
+        // supported by this lowering and make the match fail.
+        auto isNone = [](Value v) { return isa<Torch::NoneType>(v.getType()); };
         int numOperands = operands.size();
-        if (doRotary && numOperands != 7 && numOperands != 9) {
+        int expectedNumOperands = doRotary ? 9 : 7;
+        if (numOperands < expectedNumOperands)
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected at least " +
+                             std::to_string(expectedNumOperands) +
+                             " operands (query, key, value, past_key, "
+                             "past_value, seqlens_k, total_sequence_length" +
+                             (doRotary ? ", cos_cache, sin_cache)" : ")"));
+        for (int idx = expectedNumOperands; idx < numOperands; ++idx)
+          if (!isNone(operands[idx]))
+            return rewriter.notifyMatchFailure(
+                binder.op, "Unsupported non-empty optional input at operand "
+                           "index " +
+                               std::to_string(idx));
+        // Fixed ONNX input positions, shared by both input formats.
+        constexpr int queryIdx = 0;
+        constexpr int keyIdx = 1;
+        constexpr int valueIdx = 2;
+        constexpr int pastKeyIdx = 3;
+        constexpr int pastValueIdx = 4;
+        constexpr int seqlensKIdx = 5;
+        // index 6 (total_sequence_length) is unused
+        constexpr int cosCacheIdx = 7;
+        constexpr int sinCacheIdx = 8;
+
+        bool keyIsNone = isNone(operands[keyIdx]);
+        bool valueIsNone = isNone(operands[valueIdx]);
+        if (keyIsNone != valueIsNone)
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected key and value to be both present or "
+                         "both absent");
+        bool isPackedQKV = keyIsNone;
+
+        if (isNone(operands[queryIdx]))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "Expected query to be present");
+        for (int idx : {pastKeyIdx, pastValueIdx, seqlensKIdx})
+          if (isNone(operands[idx]))
+            return rewriter.notifyMatchFailure(
+                binder.op, "Expected past_key, past_value and seqlens_k to "
+                           "be present");
+        if (doRotary &&
+            (isNone(operands[cosCacheIdx]) || isNone(operands[sinCacheIdx])))
           return rewriter.notifyMatchFailure(
               binder.op,
-              "Expected 7 operands (packed QKV) or 9 operands (separate Q, "
-              "K, V) when do_rotary is enabled");
-        }
-        if (!doRotary && numOperands != 5 && numOperands != 7) {
-          return rewriter.notifyMatchFailure(
-              binder.op,
-              "Expected 5 operands (packed QKV) or 7 operands (separate Q, "
-              "K, V) when do_rotary is disabled");
-        }
-        bool isPackedQKV =
-            (doRotary && numOperands == 7) || (!doRotary && numOperands == 5);
+              "Expected cos_cache and sin_cache when do_rotary is enabled");
 
         if (kvNumHeads == 0)
           return rewriter.notifyMatchFailure(
@@ -1260,13 +1301,13 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
 
         if (isPackedQKV) {
           // Packed QKV mode: first operand contains Q, K, V concatenated
-          Value packedQKV = operands[0];
-          pastKey = operands[1];
-          pastValue = operands[2];
-          seqlensK = operands[3];
+          Value packedQKV = operands[queryIdx];
+          pastKey = operands[pastKeyIdx];
+          pastValue = operands[pastValueIdx];
+          seqlensK = operands[seqlensKIdx];
           if (doRotary) {
-            cosCache = operands[5];
-            sinCache = operands[6];
+            cosCache = operands[cosCacheIdx];
+            sinCache = operands[sinCacheIdx];
           }
 
           // Split packed QKV into separate Q, K, V tensors
@@ -1359,15 +1400,15 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
               /*step=*/cstOne);
         } else {
           // Separate Q, K, V mode
-          query = operands[0];
-          key = operands[1];
-          value = operands[2];
-          pastKey = operands[3];
-          pastValue = operands[4];
-          seqlensK = operands[5];
+          query = operands[queryIdx];
+          key = operands[keyIdx];
+          value = operands[valueIdx];
+          pastKey = operands[pastKeyIdx];
+          pastValue = operands[pastValueIdx];
+          seqlensK = operands[seqlensKIdx];
           if (doRotary) {
-            cosCache = operands[7];
-            sinCache = operands[8];
+            cosCache = operands[cosCacheIdx];
+            sinCache = operands[sinCacheIdx];
           }
         }
 
