@@ -81,12 +81,10 @@ public:
         llvm::cast<ValueTensorType>(op.getSelf().getType());
     ValueTensorType resultTy =
         llvm::cast<ValueTensorType>(op.getResult().getType());
+    bool keepdimIsFalse = false;
     if (selfTy.hasSizes() && resultTy.hasSizes() &&
         selfTy.getSizes().size() != resultTy.getSizes().size()) {
-      return rewriter.notifyMatchFailure(
-          op,
-          "RestructureNonConstantAxes does not yet support keepdim=false, but "
-          "the input and output tensors have different ranks");
+      keepdimIsFalse = true;
     }
 
     Type intType = rewriter.getType<Torch::IntType>();
@@ -185,6 +183,8 @@ public:
     Value reshapedSelf =
         Torch::AtenViewOp::create(rewriter, loc, newSelfTy, self, newShape);
 
+    Value forcedKeepdim = Torch::ConstantBoolOp::create(rewriter, loc, true);
+
     // construct new operange range where self is replaced with reshapedSelf
     // tensor, and dim is replaced with 1
     Value newDim;
@@ -202,6 +202,8 @@ public:
         newOperandsVect.push_back(reshapedSelf);
       } else if (oldOperands[i] == op.getDim()) {
         newOperandsVect.push_back(newDim);
+      } else if (keepdimIsFalse && oldOperands[i] == op.getKeepdim()) {
+        newOperandsVect.push_back(forcedKeepdim);
       } else {
         newOperandsVect.push_back(oldOperands[i]);
       }
@@ -220,15 +222,63 @@ public:
     // Reshape the result back to original shape
     ValueTensorType oldResultTy =
         cast<ValueTensorType>(op.getResult().getType());
-    SmallVector<Value> shapeValues;
-    for (auto dim : oldResultTy.getSizes()) {
-      shapeValues.push_back(createInt(dim));
+
+    if (!keepdimIsFalse) {
+      // keepdim=true: unchanged.
+      SmallVector<Value> shapeValues;
+      for (auto d : oldResultTy.getSizes())
+        shapeValues.push_back(createInt(d));
+      Value originalShape = Torch::PrimListConstructOp::create(
+          rewriter, loc, rewriter.getType<Torch::ListType>(intType),
+          shapeValues);
+      Value result =
+          Torch::AtenViewOp::create(rewriter, loc, op->getResult(0).getType(),
+                                    newReductionOp, originalShape);
+      rewriter.replaceOp(op, result);
+      return success();
     }
-    Value originalShape = Torch::PrimListConstructOp::create(
-        rewriter, loc, rewriter.getType<Torch::ListType>(intType), shapeValues);
-    Value result =
-        Torch::AtenViewOp::create(rewriter, loc, op->getResult(0).getType(),
-                                  newReductionOp, originalShape);
+
+    // keepdim=false: two-step reshape via a STATIC keepdim-shaped intermediate.
+    //
+    // A direct view from the dynamic [beforeProd,1,afterProd] intermediate to
+    // the low-rank result forces IREE into a collapse_shape [[0],[1,2]] guarded
+    // by a runtime "mismatching contracting dimension" assert that only holds
+    // when the reduced axis is the middle one (fails for e.g. a trailing axis).
+    //
+    // Instead:
+    //   Step 1: view to a STATIC [result_sizes..., 1] (reduced axis restored as
+    //           a trailing 1). Target rank == intermediate rank, so IREE emits
+    //           a generic tensor.reshape (no assert).
+    //   Step 2: view the STATIC [result_sizes..., 1] down to [result_sizes...].
+    //           Static source => IREE proves the collapse, no assert.
+
+    // Step 1 static type and runtime shape: result sizes + trailing 1.
+    SmallVector<int64_t> keepdimStaticSizes(oldResultTy.getSizes().begin(),
+                                            oldResultTy.getSizes().end());
+    keepdimStaticSizes.push_back(1);
+    auto keepdimTy = cast<ValueTensorType>(oldResultTy.getWithSizesAndDtype(
+        keepdimStaticSizes, oldResultTy.getDtype()));
+
+    SmallVector<Value> step1ShapeValues;
+    for (auto d : oldResultTy.getSizes())
+      step1ShapeValues.push_back(createInt(d));
+    step1ShapeValues.push_back(one);
+    Value step1Shape = Torch::PrimListConstructOp::create(
+        rewriter, loc, rewriter.getType<Torch::ListType>(intType),
+        step1ShapeValues);
+
+    Value keptResult = Torch::AtenViewOp::create(rewriter, loc, keepdimTy,
+                                                 newReductionOp, step1Shape);
+
+    // Step 2: drop the trailing 1 -> low-rank result.
+    SmallVector<Value> step2ShapeValues;
+    for (auto d : oldResultTy.getSizes())
+      step2ShapeValues.push_back(createInt(d));
+    Value step2Shape = Torch::PrimListConstructOp::create(
+        rewriter, loc, rewriter.getType<Torch::ListType>(intType),
+        step2ShapeValues);
+    Value result = Torch::AtenViewOp::create(
+        rewriter, loc, op->getResult(0).getType(), keptResult, step2Shape);
 
     rewriter.replaceOp(op, result);
     return success();
