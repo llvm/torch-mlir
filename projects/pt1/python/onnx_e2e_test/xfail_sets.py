@@ -100,6 +100,13 @@ ONNX_E2E_TOSA_XFAIL_SET = {
     "DynamicQuantizeLinear_negativeRange",
     "DynamicQuantizeLinear_rank1",
     "DynamicQuantizeLinear_dynamicShape",
+    # OnnxQLinearConv_perChannel*: TOSA has no lowering for
+    # torch.quantized_decomposed.dequantize_per_channel.
+    "OnnxQLinearConv_perChannel",
+    "OnnxQLinearConv_perChannelBias",
+    # OnnxQLinearConv_ui8_basic: TOSA mishandles uint8 inputs above 127.
+    # Keep the full unsigned range in these tests to expose it.
+    "OnnxQLinearConv_ui8_basic",
 }
 
 
