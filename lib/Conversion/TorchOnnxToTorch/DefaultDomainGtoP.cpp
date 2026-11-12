@@ -1599,37 +1599,34 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                       binder.op, resultType, lhs, rhs);
                   return success();
                 });
-  patterns.onOp(
-      "InstanceNormalization", 6,
-      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Torch::ValueTensorType resultType;
-        llvm::SmallVector<Value> operands;
-        float eps;
+  patterns.onOp("InstanceNormalization", 6,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Location loc = binder.getLoc();
+                  Torch::ValueTensorType resultType;
+                  llvm::SmallVector<Value> operands;
+                  float eps;
+                  if (binder.tensorOperands(operands, 3) ||
+                      binder.tensorResultType(resultType) ||
+                      binder.f32FloatAttr(eps, "epsilon", 1e-05f))
+                    return failure();
 
-        if (binder.tensorOperands(operands, 3) ||
-            binder.tensorResultType(resultType) || operands.size() != 3 ||
-            binder.f32FloatAttr(eps, "epsilon", 1e-05f)) {
-          return failure();
-        }
-        Value none = Torch::ConstantNoneOp::create(rewriter, binder.getLoc());
-        Value boolTrue =
-            Torch::ConstantBoolOp::create(rewriter, binder.getLoc(), true);
-        Value boolFalse =
-            Torch::ConstantBoolOp::create(rewriter, binder.getLoc(), false);
-        auto epsValue = Torch::ConstantFloatOp::create(
-            rewriter, binder.getLoc(), rewriter.getF64FloatAttr(eps));
-
-        auto momentum = Torch::ConstantFloatOp::create(
-            rewriter, binder.getLoc(), rewriter.getF64FloatAttr(0.0f));
-        rewriter.replaceOpWithNewOp<Torch::AtenInstanceNormOp>(
-            binder.op, resultType, /* input */ operands[0],
-            /* weight */ operands[1],
-            /* bias */ operands[2], /* running mean */ none,
-            /* running var */ none,
-            /* use input stats */ boolTrue, momentum, epsValue,
-            /* cudnn enabled */ boolFalse);
-        return success();
-      });
+                  Value none = Torch::ConstantNoneOp::create(rewriter, loc);
+                  Value boolTrue =
+                      Torch::ConstantBoolOp::create(rewriter, loc, true);
+                  Value boolFalse =
+                      Torch::ConstantBoolOp::create(rewriter, loc, false);
+                  Value epsValue = Torch::ConstantFloatOp::create(
+                      rewriter, loc, rewriter.getF64FloatAttr(eps));
+                  Value momentum = Torch::ConstantFloatOp::create(
+                      rewriter, loc, rewriter.getF64FloatAttr(0.0));
+                  rewriter.replaceOpWithNewOp<Torch::AtenInstanceNormOp>(
+                      binder.op, resultType, /*input=*/operands[0],
+                      /*weight=*/operands[1], /*bias=*/operands[2],
+                      /*running_mean=*/none, /*running_var=*/none,
+                      /*use_input_stats=*/boolTrue, momentum, epsValue,
+                      /*cudnn_enabled=*/boolFalse);
+                  return success();
+                });
   patterns.onOp(
       "MeanVarianceNormalization", 13,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
