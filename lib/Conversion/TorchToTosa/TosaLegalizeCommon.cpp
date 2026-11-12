@@ -777,7 +777,7 @@ std::optional<Value> convertReduceOpCommon(
   if (axes_elems.getNumElements() == 0) {
     // No axes means return the original tensor.
     auto identity_op = CreateOpAndInfer<tosa::IdentityOp>(
-        rewriter, op->getLoc(), output_type, val);
+        rewriter, op->getLoc(), input_type, val);
     val = identity_op.getResult();
   } else {
     // Reduce along each axis
@@ -871,7 +871,7 @@ convertReduceAnyOp(PatternRewriter &rewriter, Operation *op,
 
   return convertReduceOpCommon<tosa::ReduceAnyOp>(
       rewriter, op, output_type, input_value, axes_elems, keep_dims,
-      output_type.getElementType(), false, 1.0f, 0, 1.0f, 0);
+      input_type.getElementType(), false, 1.0f, 0, 1.0f, 0);
 }
 
 // Lowers ReduceMin to a sequence of TOSA ops.
