@@ -10,7 +10,6 @@
 #include "torch-mlir/Conversion/TorchToTosa/TorchToTosa.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Dialect/Quant/IR/QuantTypes.h"
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/Dialect/Tosa/Utils/ConversionUtils.h"
@@ -18,7 +17,6 @@
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "torch-mlir/Conversion/Passes.h"
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeCommon.h"
 #include "torch-mlir/Conversion/TorchToTosa/TosaLegalizeUtils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
@@ -40,8 +38,6 @@
 #include <random>
 #include <tuple>
 #include <type_traits>
-
-#include "mlir/Dialect/Tosa/Utils/QuantUtils.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -10442,7 +10438,7 @@ LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewriteImpl(
   uint64_t padRank = padInts.size() / 2;
   if (padRank * 2 != padInts.size())
     return rewriter.notifyMatchFailure(op, "pad range size is not even");
-  if (rank < 0 || padRank > (uint64_t)rank)
+  if (padRank > (uint64_t)rank)
     return rewriter.notifyMatchFailure(op, "padding exceeds tensor rank");
 
   // Initialize low/high paddings with 0 for all the dims.
@@ -10457,6 +10453,33 @@ LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewriteImpl(
   // END the code snippet from
   // lib/Conversion/TorchToLinalg/TensorConstructors.cpp (see:
   // ConvertAtenConstantPadNdOp)
+
+  // A negative amount crops instead of padding.
+  SmallVector<int64_t> sliceStart(rank, 0);
+  SmallVector<int64_t> sliceSize(selfTy.getShape());
+  bool needsCrop = false;
+  for (int64_t i = 0; i < rank; ++i) {
+    int64_t lowCrop = std::max<int64_t>(-lowPadding[i], 0);
+    int64_t highCrop = std::max<int64_t>(-highPadding[i], 0);
+    if (lowCrop == 0 && highCrop == 0)
+      continue;
+    if (!selfTy.hasStaticShape())
+      return rewriter.notifyMatchFailure(op,
+                                         "cropping requires a static shape");
+    sliceStart[i] = lowCrop;
+    sliceSize[i] -= lowCrop + highCrop;
+    if (sliceSize[i] <= 0)
+      return rewriter.notifyMatchFailure(
+          op, "expected cropping to leave a non-empty dim");
+    needsCrop = true;
+    lowPadding[i] += lowCrop;
+    highPadding[i] += highCrop;
+  }
+  if (needsCrop)
+    self = tosa::SliceOp::create(
+        rewriter, loc, RankedTensorType::get(sliceSize, selfElemTy), self,
+        tosa::getTosaConstShape(rewriter, loc, sliceStart),
+        tosa::getTosaConstShape(rewriter, loc, sliceSize));
 
   llvm::SmallVector<int64_t> translatePadsList;
 

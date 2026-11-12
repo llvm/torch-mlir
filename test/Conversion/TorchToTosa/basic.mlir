@@ -5017,6 +5017,52 @@ func.func @torch.aten.constant_pad_nd$basic(%arg0: !torch.vtensor<[1,1,20,20,4,4
 
 // -----
 
+// Negative amounts crop with tosa.slice before tosa.pad pads the rest.
+// CHECK-LABEL:   func.func @torch.aten.constant_pad_nd$crop_and_pad(
+// CHECK:           %[[START:.*]] = tosa.const_shape  values(dense<[0, 2]> : tensor<2xindex>)
+// CHECK:           %[[SIZE:.*]] = tosa.const_shape  values(dense<[3, 4]> : tensor<2xindex>)
+// CHECK:           %[[SLICE:.*]] = tosa.slice %{{.*}}, %[[START]], %[[SIZE]] : (tensor<4x6xf32>, !tosa.shape<2>, !tosa.shape<2>) -> tensor<3x4xf32>
+// CHECK:           %[[PADDING:.*]] = tosa.const_shape  values(dense<[1, 0, 0, 3]> : tensor<4xindex>)
+// CHECK:           tosa.pad %[[SLICE]], %[[PADDING]], %{{.*}} : (tensor<3x4xf32>, !tosa.shape<4>, tensor<1xf32>) -> tensor<4x7xf32>
+func.func @torch.aten.constant_pad_nd$crop_and_pad(%arg0: !torch.vtensor<[4,6],f32>) -> !torch.vtensor<[4,7],f32> {
+  %int-2 = torch.constant.int -2
+  %int3 = torch.constant.int 3
+  %int1 = torch.constant.int 1
+  %int-1 = torch.constant.int -1
+  %float = torch.constant.float 5.000000e-01
+  %pad = torch.prim.ListConstruct %int-2, %int3, %int1, %int-1 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.constant_pad_nd %arg0, %pad, %float : !torch.vtensor<[4,6],f32>, !torch.list<int>, !torch.float -> !torch.vtensor<[4,7],f32>
+  return %0 : !torch.vtensor<[4,7],f32>
+}
+
+// -----
+
+// TOSA has no zero-size tensors, so cropping a whole dim is rejected.
+func.func @negative_torch.aten.constant_pad_nd$crop_whole_dim(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,2],f32> {
+  %int-4 = torch.constant.int -4
+  %int2 = torch.constant.int 2
+  %float = torch.constant.float 5.000000e-01
+  %pad = torch.prim.ListConstruct %int-4, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.constant_pad_nd'}}
+  %0 = torch.aten.constant_pad_nd %arg0, %pad, %float : !torch.vtensor<[3,4],f32>, !torch.list<int>, !torch.float -> !torch.vtensor<[3,2],f32>
+  return %0 : !torch.vtensor<[3,2],f32>
+}
+
+// -----
+
+// TOSA needs a static shape to crop.
+func.func @negative_torch.aten.constant_pad_nd$crop_dynamic_shape(%arg0: !torch.vtensor<[?,4],f32>) -> !torch.vtensor<[?,3],f32> {
+  %int-1 = torch.constant.int -1
+  %int0 = torch.constant.int 0
+  %float = torch.constant.float 0.000000e+00
+  %pad = torch.prim.ListConstruct %int-1, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.constant_pad_nd'}}
+  %0 = torch.aten.constant_pad_nd %arg0, %pad, %float : !torch.vtensor<[?,4],f32>, !torch.list<int>, !torch.float -> !torch.vtensor<[?,3],f32>
+  return %0 : !torch.vtensor<[?,3],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.convolution$basic(
 // CHECK-SAME:                                            %[[ARG:.*]]: !torch.vtensor<[5,2,10,20],f32>) -> !torch.vtensor<[5,10,14,24],f32> {
 // CHECK:           %[[INPUT:.*]] = torch_c.to_builtin_tensor %[[ARG]] : !torch.vtensor<[5,2,10,20],f32> -> tensor<5x2x10x20xf32>

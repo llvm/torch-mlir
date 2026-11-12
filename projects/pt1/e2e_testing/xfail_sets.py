@@ -4207,6 +4207,7 @@ ONNX_TOSA_XFAIL_SET = {
     "CollapseRank1DynamicModule_basic",
     "CollapseStaticModule_basic",
     "ConstantBoolParameterModule_basic",
+    "ConstantPadNdNegativeModule_basic",
     "ContainsIntList_False",
     "ContainsIntList_True",
     "Conv1dModule_basic",
