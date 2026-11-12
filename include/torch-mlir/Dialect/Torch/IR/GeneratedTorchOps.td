@@ -6694,6 +6694,33 @@ def Torch_AtenMmOp : Torch_Op<"aten.mm", [
   }];
 }
 
+def Torch_Aten_GroupedMmOp : Torch_Op<"aten._grouped_mm", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly
+  ]> {
+  let summary = "Generated op for `aten::_grouped_mm : (Tensor, Tensor, Tensor?, Tensor?, int?) -> (Tensor)`";
+  let arguments = (ins
+    AnyTorchTensorType:$self,
+    AnyTorchTensorType:$mat2,
+    AnyTorchOptionalTensorType:$offs,
+    AnyTorchOptionalTensorType:$bias,
+    AnyTorchOptionalIntType:$out_dtype
+  );
+  let results = (outs
+    AnyTorchOptionalTensorType:$result
+  );
+  let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult Aten_GroupedMmOp::parse(OpAsmParser &parser, OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 5, 1);
+    }
+    void Aten_GroupedMmOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 5, 1);
+    }
+  }];
+}
+
 def Torch_Aten_ScaledMmOp : Torch_Op<"aten._scaled_mm", [
     AllowsTypeRefinement,
     HasValueSemantics,
