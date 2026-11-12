@@ -11,7 +11,6 @@
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
-#include <numeric>
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -796,16 +795,14 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
             binder.s64IntegerAttr(numHeads, "num_heads", 0) ||
             binder.s64IntegerAttr(rotaryEmbeddingDim, "rotary_embedding_dim",
                                   0) ||
-            binder.f32FloatAttr(scale, "scale", 1.0)) {
+            binder.f32FloatAttr(scale, "scale", 1.0))
           return rewriter.notifyMatchFailure(binder.op,
                                              "Failed to get required inputs");
-        }
 
         Torch::ValueTensorType resultType;
-        if (binder.tensorResultType(resultType)) {
+        if (binder.tensorResultType(resultType))
           return rewriter.notifyMatchFailure(binder.op,
                                              "result type bind failure");
-        }
 
         Value cstInterleaved = Torch::ConstantIntOp::create(
             rewriter, loc, rewriter.getI64IntegerAttr(interleaved));
