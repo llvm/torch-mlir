@@ -8,13 +8,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/Traits.h"
 #include "mlir/Dialect/Utils/StaticValueUtils.h"
-#include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
-#include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
@@ -23,7 +22,6 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
-#include "llvm/Support/MathExtras.h"
 #include <cstdint>
 #include <set>
 using namespace mlir;
@@ -5885,15 +5883,13 @@ public:
 };
 } // namespace
 
-// Decompose aten.masked_scatter:
-// def masked_scatter(self: Tensor, mask: Tensor, source: Tensor) -> Tensor:
-//     mask_int = mask + torch.zeros_like(self)
-//     prefix_sum = torch.cumsum(mask_int.flatten(), dim=0)
-//     mask_prefix = torch.clamp(prefix_sum - 1, min=0)
-//     mask = mask.to(torch.bool)
-//     source = source.flatten()[mask_prefix].reshape(mask.shape)
-//     return torch.where(mask, source, self)
 namespace {
+/// Decomposes `aten.masked_scatter` into a gather from the flattened source:
+///   index = clamp(cumsum(flatten(mask + zeros_like(self))) - 1, min=0)
+///   result = where(mask, flatten(source)[index].view(shape), self)
+/// where `shape` is the broadcast shape of self and mask. An empty source
+/// yields `self` broadcast to that shape, and a source of unknown size is
+/// padded by one element before the gather.
 class DecomposeAtenMaskedScatterOp
     : public OpRewritePattern<AtenMaskedScatterOp> {
 public:
@@ -5901,83 +5897,110 @@ public:
   LogicalResult matchAndRewrite(AtenMaskedScatterOp op,
                                 PatternRewriter &rewriter) const override {
     Location loc = op.getLoc();
-    auto context = op.getContext();
+    MLIRContext *context = op.getContext();
     Value mask = op.getMask();
     Value source = op.getSource();
     Value self = op.getSelf();
 
     auto selfTy = cast<BaseTensorType>(self.getType());
+    auto maskTy = cast<BaseTensorType>(mask.getType());
     auto resTy = cast<BaseTensorType>(op.getType());
     auto sourceTy = cast<BaseTensorType>(source.getType());
 
-    if (!resTy || !resTy.hasDtype()) {
-      return rewriter.notifyMatchFailure(op, "result should have dtype");
-    }
-    if (!selfTy || !selfTy.areAllSizesKnown())
+    if (!resTy.hasDtype())
+      return rewriter.notifyMatchFailure(op,
+                                         "expected result with known dtype");
+    if (!selfTy.hasSizes() || !maskTy.hasSizes())
       return rewriter.notifyMatchFailure(
-          op, "Unimplemented: no implementation for rankless tensor");
-    if (!sourceTy || !sourceTy.areAllSizesKnown() || !sourceTy.hasDtype())
+          op, "expected self and mask with known rank");
+    if (!sourceTy.hasSizes() || !sourceTy.hasDtype())
       return rewriter.notifyMatchFailure(
-          op, "Unimplemented: no implementation for rankless tensor");
+          op, "expected source with known rank and dtype");
 
-    int64_t selfNumel = getTensorNumel(self).value(); // as selfTy has sizes
-    int64_t sourceNumel =
-        getTensorNumel(source).value(); // as sourceTy has sizes
-    int64_t selfRank = selfTy.getSizes().size();
-    int64_t sourceRank = sourceTy.getSizes().size();
+    SmallVector<int64_t> broadcastShape;
+    if (!mlir::OpTrait::util::getBroadcastedShape(
+            makeShapeLLVMCompatible(selfTy.getSizes()),
+            makeShapeLLVMCompatible(maskTy.getSizes()), broadcastShape))
+      return rewriter.notifyMatchFailure(
+          op, "expected self and mask with broadcast-compatible shapes");
+    broadcastShape = makeShapeTorchCompatible(broadcastShape);
+    Type broadcastTy =
+        selfTy.getWithSizesAndDtype(broadcastShape, selfTy.getOptionalDtype());
+    int64_t sourceNumel = *getTensorNumel(source);
 
-    Value constZero = Torch::ConstantIntOp::create(
-        rewriter, loc, rewriter.getI64IntegerAttr(0));
-    Value constOne = Torch::ConstantIntOp::create(
-        rewriter, loc, rewriter.getI64IntegerAttr(1));
+    Value constZero =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(0));
+    Value constOne =
+        ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
     Value constNone = ConstantNoneOp::create(rewriter, loc);
-    Value selfLastDim = Torch::ConstantIntOp::create(
-        rewriter, loc, rewriter.getI64IntegerAttr(selfRank - 1));
-    Value sourceLastDim = Torch::ConstantIntOp::create(
-        rewriter, loc, rewriter.getI64IntegerAttr(sourceRank - 1));
 
     auto si64Type = IntegerType::get(context, 64, IntegerType::Signed);
-    auto int64Dtype = getDtypeIntValueForType(
-        rewriter, loc,
-        rewriter.getIntegerType(/*width=*/64, /*isSigned=*/true));
-    auto selfIntType = selfTy.getWithSizesAndDtype(selfTy.getSizes(), si64Type);
+    Type intListType = ListType::get(IntType::get(context));
+    Value int64Dtype = getDtypeIntValueForType(rewriter, loc, si64Type);
+    Type selfIntType = selfTy.getWithSizesAndDtype(selfTy.getSizes(), si64Type);
 
-    Value zerosLike = Torch::AtenZerosLikeOp::create(
-        rewriter, loc, selfIntType, self, int64Dtype, constNone, constNone,
-        constNone, constNone);
-    Value maskInt = Torch::AtenAddTensorOp::create(rewriter, loc, selfIntType,
-                                                   mask, zerosLike, constOne);
+    Value zerosLike =
+        AtenZerosLikeOp::create(rewriter, loc, selfIntType, self, int64Dtype,
+                                constNone, constNone, constNone, constNone);
+    Type maskIntType = selfTy.getWithSizesAndDtype(broadcastShape, si64Type);
+    Value maskInt = AtenAddTensorOp::create(rewriter, loc, maskIntType, mask,
+                                            zerosLike, constOne);
+    Value broadcastSizes =
+        AtenSizeOp::create(rewriter, loc, intListType, maskInt);
 
-    auto flattenMaskedType = selfTy.getWithSizesAndDtype(
-        /*optionalSizes=*/{selfNumel}, si64Type);
-    Value maskIntFlatten = Torch::AtenFlattenUsingIntsOp::create(
-        rewriter, loc, flattenMaskedType, maskInt, constZero, selfLastDim);
-    Value prefixSum = Torch::AtenCumsumOp::create(
-        rewriter, loc, flattenMaskedType, maskIntFlatten,
-        /*dim=*/constZero, constNone);
-    Value prefixSumMinusOne = Torch::AtenSubScalarOp::create(
+    // An empty source yields self broadcast to the shape of self and mask.
+    if (sourceNumel == 0) {
+      rewriter.replaceOpWithNewOp<AtenBroadcastToOp>(op, resTy, self,
+                                                     broadcastSizes);
+      return success();
+    }
+
+    int64_t broadcastNumel = *getTensorNumel(maskInt);
+    int64_t broadcastRank = broadcastShape.size();
+    int64_t sourceRank = sourceTy.getSizes().size();
+    Value broadcastLastDim = ConstantIntOp::create(
+        rewriter, loc, rewriter.getI64IntegerAttr(broadcastRank - 1));
+    Value sourceLastDim = ConstantIntOp::create(
+        rewriter, loc, rewriter.getI64IntegerAttr(sourceRank - 1));
+
+    Type flattenMaskedType = selfTy.getWithSizesAndDtype(
+        /*optionalSizes=*/{broadcastNumel}, si64Type);
+    Value maskIntFlatten = AtenFlattenUsingIntsOp::create(
+        rewriter, loc, flattenMaskedType, maskInt, constZero, broadcastLastDim);
+    Value prefixSum =
+        AtenCumsumOp::create(rewriter, loc, flattenMaskedType, maskIntFlatten,
+                             /*dim=*/constZero, constNone);
+    Value prefixSumMinusOne = AtenSubScalarOp::create(
         rewriter, loc, flattenMaskedType, prefixSum, constOne, constOne);
-    Value maskPrefix = Torch::AtenClampOp::create(
-        rewriter, loc, flattenMaskedType, prefixSumMinusOne, /*min=*/constZero,
-        /*max=*/constNone);
+    Value maskPrefix = AtenClampOp::create(rewriter, loc, flattenMaskedType,
+                                           prefixSumMinusOne, /*min=*/constZero,
+                                           /*max=*/constNone);
 
-    auto sourceFlattenType = sourceTy.getWithSizesAndDtype(
+    Type sourceFlattenType = sourceTy.getWithSizesAndDtype(
         /*optionalSizes=*/{sourceNumel}, sourceTy.getDtype());
-    Value sourceFlatten = Torch::AtenFlattenUsingIntsOp::create(
+    Value sourceFlatten = AtenFlattenUsingIntsOp::create(
         rewriter, loc, sourceFlattenType, source, constZero, sourceLastDim);
 
-    auto selectSourceType = sourceTy.getWithSizesAndDtype(
-        /*optionalSizes=*/{selfNumel}, sourceTy.getDtype());
-    Value selectSource = Torch::AtenIndexSelectOp::create(
+    // Pad a source of unknown size by one element.
+    if (sourceNumel == kUnknownSize) {
+      Type paddedType = sourceTy.getWithSizesAndDtype(
+          /*optionalSizes=*/{kUnknownSize}, sourceTy.getDtype());
+      Value padding = PrimListConstructOp::create(
+          rewriter, loc, intListType, ValueRange{constZero, constOne});
+      sourceFlatten = AtenConstantPadNdOp::create(
+          rewriter, loc, paddedType, sourceFlatten, padding, constZero);
+    }
+
+    Type selectSourceType = sourceTy.getWithSizesAndDtype(
+        /*optionalSizes=*/{broadcastNumel}, sourceTy.getDtype());
+    Value selectSource = AtenIndexSelectOp::create(
         rewriter, loc, selectSourceType, sourceFlatten, constZero, maskPrefix);
 
-    // Reshape normalized output back to the original input shape
-    auto selfShape = AtenSizeOp::create(
-        rewriter, loc, Torch::ListType::get(IntType::get(context)), self);
-    Value sourceReshape = Torch::AtenViewOp::create(rewriter, loc, selfTy,
-                                                    selectSource, selfShape);
-    rewriter.replaceOpWithNewOp<Torch::AtenWhereSelfOp>(op, resTy, mask,
-                                                        sourceReshape, self);
+    // Reshape the gathered values to the broadcast shape of self and mask.
+    Value sourceReshape = AtenViewOp::create(rewriter, loc, broadcastTy,
+                                             selectSource, broadcastSizes);
+    rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, resTy, mask, sourceReshape,
+                                                 self);
     return success();
   }
 };

@@ -214,7 +214,8 @@ inline std::optional<unsigned> getTensorRank(Value tensor) {
   return tensorType.getSizes().size();
 }
 
-// Helper function to get the number of elements in a tensor.
+/// Returns the number of elements of `tensor`, `kUnknownSize` if a dimension
+/// is unknown, or `std::nullopt` if the rank is unknown.
 std::optional<int64_t> getTensorNumel(Value tensor);
 
 bool isViewLikeOp(Operation *op);

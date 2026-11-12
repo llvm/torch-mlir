@@ -180,6 +180,7 @@ cc_library(
         ":TorchMLIRTorchDialect",
         ":TorchMLIRTorchOnnxToTorch",
         ":TorchMLIRTorchPassesIncGen",
+        "@llvm-project//mlir:Dialect",
         "@llvm-project//mlir:FuncDialect",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:Parser",

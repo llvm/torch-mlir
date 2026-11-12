@@ -2232,7 +2232,7 @@ def aten〇slice_scatter〡shape(self: List[int], src: List[int], dim: int = 0, 
     return self
 
 def aten〇masked_scatter〡shape(self: List[int], mask: List[int], source: List[int]) -> List[int]:
-    return self
+    return upstream_shape_functions.broadcast(self, mask)
 
 def aten〇select〇int〡shape(self: List[int], dim: int, index: int) -> List[int]:
     return upstream_shape_functions.select(self, dim, index)
