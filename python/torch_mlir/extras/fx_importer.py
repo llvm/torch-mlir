@@ -2899,6 +2899,21 @@ def register_canonicalize(op: TorchOpOverload):
     return wrapper
 
 
+@register_canonicalize(torch.ops.prims.device_put.default)
+def prims_device_put_default(node: torch_fx.Node):
+    # Reuse the existing device-copy op without changing the tensor's dtype.
+    tensor = node.args[0]
+    tensor_meta = tensor.meta.get("tensor_meta") or tensor.meta["val"]
+    device = node.args[1] if len(node.args) > 1 else node.kwargs["device"]
+    non_blocking = (
+        node.args[2] if len(node.args) > 2 else node.kwargs.get("non_blocking", False)
+    )
+    node.target = torch.ops.aten.to.device
+    node.args = (tensor, device, tensor_meta.dtype)
+    node.kwargs = {"non_blocking": non_blocking, "copy": True}
+    return node
+
+
 @register_canonicalize(torch.ops.aten.lift_fresh_copy.default)
 def lift_fresh_copy_default(node: torch_fx.Node):
     # replace lift_fresh_copy with clone op
