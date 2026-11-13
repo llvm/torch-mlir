@@ -1929,13 +1929,23 @@ public:
       // result dtype and is then widened with the signedness of the result.
       unsigned outWidth = outType.getElementTypeBitWidth();
       auto castToComputeType = [&](Value operand, bool operandUnsigned) {
-        if (cast<TensorType>(operand.getType()).getElementTypeBitWidth() <
-            outWidth)
+        auto operandType = cast<TensorType>(operand.getType());
+        unsigned operandWidth = operandType.getElementTypeBitWidth();
+        if (operandWidth < outWidth)
           return tosa::tosaCastTensorToType(rewriter, operand, computeType,
                                             operandUnsigned)
               .value();
-        Value wrapped =
-            tosa::tosaCastTensorToType(rewriter, operand, outType).value();
+        // TOSA casts i64 only to i32, so an i64 operand is wrapped to a
+        // narrower result dtype in two casts: i64 to i32, then i32 to the
+        // result dtype. Both keep the low bits, so the value is unchanged.
+        Value wrapped = operand;
+        if (operandWidth > 32 && outWidth < 32)
+          wrapped = tosa::tosaCastTensorToType(
+                        rewriter, operand,
+                        operandType.clone(rewriter.getIntegerType(32)))
+                        .value();
+        wrapped =
+            tosa::tosaCastTensorToType(rewriter, wrapped, outType).value();
         return tosa::tosaCastTensorToType(rewriter, wrapped, computeType,
                                           resultUnsigned)
             .value();

@@ -2744,7 +2744,8 @@ func.func @torch.aten.div.Scalar$uint8_by_float(%arg0: !torch.vtensor<[4],ui8>) 
 // CHECK:           %[[SCALAR:.*]] = tosa.const values(dense<300> : tensor<i64>) : () -> tensor<i64>
 // CHECK:           %[[RHS:.*]] = tosa.reshape %[[SCALAR]], %{{.*}} : (tensor<i64>, !tosa.shape<1>) -> tensor<1xi64>
 // CHECK:           %[[LHS_I32:.*]] = tosa.cast %[[LHS]] input_unsigned(true) : (tensor<4xi8>) -> tensor<4xi32>
-// CHECK:           %[[RHS_I8:.*]] = tosa.cast %[[RHS]] input_unsigned(false) : (tensor<1xi64>) -> tensor<1xi8>
+// CHECK:           %[[RHS_I32_WRAP:.*]] = tosa.cast %[[RHS]] input_unsigned(false) : (tensor<1xi64>) -> tensor<1xi32>
+// CHECK:           %[[RHS_I8:.*]] = tosa.cast %[[RHS_I32_WRAP]] input_unsigned(false) : (tensor<1xi32>) -> tensor<1xi8>
 // CHECK:           %[[RHS_I32:.*]] = tosa.cast %[[RHS_I8]] input_unsigned(true) : (tensor<1xi8>) -> tensor<1xi32>
 // CHECK:           %[[DIV:.*]] = tosa.intdiv %[[LHS_I32]], %[[RHS_I32]] : (tensor<4xi32>, tensor<1xi32>) -> tensor<4xi32>
 // CHECK:           %[[OUT:.*]] = tosa.cast %[[DIV]] input_unsigned(false) : (tensor<4xi32>) -> tensor<4xi8>
@@ -2767,7 +2768,8 @@ func.func @torch.aten.div.Scalar_mode$uint8_by_out_of_range_int_floor(%arg0: !to
 // CHECK:           %[[LHS:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[4],ui8> -> tensor<4xi8>
 // CHECK:           %[[RHS_1D:.*]] = tosa.reshape %[[RHS]], %{{.*}} : (tensor<i64>, !tosa.shape<1>) -> tensor<1xi64>
 // CHECK:           %[[LHS_I32:.*]] = tosa.cast %[[LHS]] input_unsigned(true) : (tensor<4xi8>) -> tensor<4xi32>
-// CHECK:           %[[RHS_I8:.*]] = tosa.cast %[[RHS_1D]] input_unsigned(false) : (tensor<1xi64>) -> tensor<1xi8>
+// CHECK:           %[[RHS_I32_WRAP:.*]] = tosa.cast %[[RHS_1D]] input_unsigned(false) : (tensor<1xi64>) -> tensor<1xi32>
+// CHECK:           %[[RHS_I8:.*]] = tosa.cast %[[RHS_I32_WRAP]] input_unsigned(false) : (tensor<1xi32>) -> tensor<1xi8>
 // CHECK:           %[[RHS_I32:.*]] = tosa.cast %[[RHS_I8]] input_unsigned(true) : (tensor<1xi8>) -> tensor<1xi32>
 // CHECK:           %[[DIV:.*]] = tosa.intdiv %[[LHS_I32]], %[[RHS_I32]] : (tensor<4xi32>, tensor<1xi32>) -> tensor<4xi32>
 // CHECK:           %[[OUT:.*]] = tosa.cast %[[DIV]] input_unsigned(false) : (tensor<4xi32>) -> tensor<4xi8>
