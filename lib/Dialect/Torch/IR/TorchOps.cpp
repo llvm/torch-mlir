@@ -8184,7 +8184,8 @@ LogicalResult TorchaoDequantizeAffineOp::verify() {
 //===----------------------------------------------------------------------===//
 
 // Returns the dtype that the optional `dtype` resolves to, `defaultDtype` if
-// it is None, or a null type if it is unknown.
+// it is None, or a null type if it is unknown or not a uint8, int8, int16,
+// int32, int64, f16, bf16, f32 or f64 dtype.
 static Type getTorchaoOptionalDtype(MLIRContext *context, Value dtype,
                                     Type defaultDtype) {
   if (isa<Torch::NoneType>(dtype.getType()))
@@ -8192,9 +8193,15 @@ static Type getTorchaoOptionalDtype(MLIRContext *context, Value dtype,
   int64_t dtypeInt;
   if (!matchPattern(dtype, m_TorchConstantInt(&dtypeInt)))
     return Type();
-  FailureOr<Type> type = getTypeForScalarType(
-      context, static_cast<torch_upstream::ScalarType>(dtypeInt));
-  return succeeded(type) ? *type : Type();
+  using torch_upstream::ScalarType;
+  auto scalarType = static_cast<ScalarType>(dtypeInt);
+  if (!llvm::is_contained({ScalarType::Byte, ScalarType::Char,
+                           ScalarType::Short, ScalarType::Int, ScalarType::Long,
+                           ScalarType::Half, ScalarType::BFloat16,
+                           ScalarType::Float, ScalarType::Double},
+                          scalarType))
+    return Type();
+  return *getTypeForScalarType(context, scalarType);
 }
 
 LogicalResult TorchaoChooseQparamsAffineOp::verify() {
@@ -8213,12 +8220,15 @@ LogicalResult TorchaoChooseQparamsAffineOp::verify() {
   std::string mappingType;
   Type defaultZeroPointDtype;
   if (matchPattern(getMappingType(), m_TorchConstantStr(mappingType))) {
-    if (mappingType == "ASYMMETRIC")
-      defaultZeroPointDtype =
-          IntegerType::get(getContext(), 32, IntegerType::Signed);
-    else if (mappingType == "SYMMETRIC" ||
-             mappingType == "SYMMETRIC_NO_CLIPPING_ERR")
-      defaultZeroPointDtype = inputDtype;
+    std::optional<TorchaoMappingType> mapping =
+        getTorchaoMappingType(mappingType);
+    if (!mapping)
+      return emitOpError("mapping_type must be ASYMMETRIC, SYMMETRIC or "
+                         "SYMMETRIC_NO_CLIPPING_ERR");
+    defaultZeroPointDtype =
+        *mapping == TorchaoMappingType::Asymmetric
+            ? IntegerType::get(getContext(), 32, IntegerType::Signed)
+            : inputDtype;
   }
 
   Type scaleDtype =
@@ -8233,8 +8243,9 @@ LogicalResult TorchaoChooseQparamsAffineOp::verify() {
         "zero_point must have the dtype given by zero_point_dtype");
 
   if (scaleType.hasSizes() && zeroPointType.hasSizes() &&
-      failed(verifyCompatibleShape(scaleType.getSizes(),
-                                   zeroPointType.getSizes())))
+      failed(verifyCompatibleShape(
+          makeShapeLLVMCompatible(scaleType.getSizes()),
+          makeShapeLLVMCompatible(zeroPointType.getSizes()))))
     return emitOpError("scale and zero_point must have the same shape");
 
   SmallVector<int64_t> blocks;
@@ -8247,27 +8258,22 @@ LogicalResult TorchaoChooseQparamsAffineOp::verify() {
       !scaleType.hasSizes())
     return success();
 
-  // Dimensions may get reduction or dropped
   ArrayRef<int64_t> inputShape = inputType.getSizes();
-  SmallVector<int64_t> expectedShape;
-  bool reduces = false;
-  for (auto [block, size] : llvm::zip_equal(blocks, inputShape)) {
-    reduces |= block > 1;
-    if (size == kUnknownSize) {
-      // Without `keepdim`, a dynamic dimension may or may not be dropped.
-      if (!keepdim && block > 1)
-        return success();
-      expectedShape.push_back(kUnknownSize);
-    } else if (keepdim || block == 1 || block != size) {
-      expectedShape.push_back(size / block);
-    }
-  }
-  if (!reduces) {
-    if (keepdim)
-      return success();
-    expectedShape.clear();
-  }
-  if (failed(verifyCompatibleShape(scaleType.getSizes(), expectedShape)))
+  SmallVector<bool> reduced, spans;
+  if (!getTorchaoReducedDims(inputShape, blocks, reduced, spans) && keepdim)
+    return success();
+  // Without `keepdim`, a block may span a dynamic dimension and drop it.
+  if (!keepdim &&
+      llvm::any_of(llvm::zip_equal(blocks, inputShape), [](auto blockAndSize) {
+        auto [block, size] = blockAndSize;
+        return size == kUnknownSize && block > 1;
+      }))
+    return success();
+  SmallVector<int64_t> expectedShape =
+      getTorchaoQparamsShape(inputShape, blocks, spans, keepdim);
+  if (failed(
+          verifyCompatibleShape(makeShapeLLVMCompatible(scaleType.getSizes()),
+                                makeShapeLLVMCompatible(expectedShape))))
     return emitOpError("scale and zero_point must have one element per block, "
                        "in the shape given by block_size and keepdim");
   return success();

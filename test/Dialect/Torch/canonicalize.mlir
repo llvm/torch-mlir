@@ -4112,3 +4112,20 @@ func.func @cumsum_unknown_rank(%input: !torch.vtensor<*,f32>) -> !torch.vtensor<
   %0 = torch.aten.cumsum %input, %zero, %none : !torch.vtensor<*,f32>, !torch.int, !torch.none -> !torch.vtensor<*,f32>
   return %0 : !torch.vtensor<*,f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.torchao.choose_qparams_affine$refine_dynamic_input(
+// CHECK-SAME:                                               %[[ARG:.*]]: !torch.vtensor<[4,32],f32>)
+// CHECK:           torch.torchao.choose_qparams_affine %[[ARG]], {{.*}} : !torch.vtensor<[4,32],f32>, {{.*}} -> !torch.vtensor<[?,4],f32>, !torch.vtensor<[?,4],si32>
+func.func @torch.torchao.choose_qparams_affine$refine_dynamic_input(%arg0: !torch.vtensor<[4,32],f32>) -> (!torch.vtensor<[?,4],f32>, !torch.vtensor<[?,4],si32>) {
+  %0 = torch.tensor_static_info_cast %arg0 : !torch.vtensor<[4,32],f32> to !torch.vtensor<[?,32],f32>
+  %int1 = torch.constant.int 1
+  %int8 = torch.constant.int 8
+  %none = torch.constant.none
+  %true = torch.constant.bool true
+  %str = torch.constant.str "ASYMMETRIC"
+  %block_size = torch.prim.ListConstruct %int1, %int8 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1:2 = torch.torchao.choose_qparams_affine %0, %str, %block_size, %int1, %none, %none, %none, %none, %none, %true : !torch.vtensor<[?,32],f32>, !torch.str, !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none, !torch.none, !torch.bool -> !torch.vtensor<[?,4],f32>, !torch.vtensor<[?,4],si32>
+  return %1#0, %1#1 : !torch.vtensor<[?,4],f32>, !torch.vtensor<[?,4],si32>
+}
