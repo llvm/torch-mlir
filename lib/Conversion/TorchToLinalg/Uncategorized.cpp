@@ -254,16 +254,33 @@ Value createDivModePayload(OpBuilder &b, Location loc,
   typename OpT::Adaptor adaptor(operands);
   Type dtype = cast<RankedTensorType>(converter->convertType(op.getType()))
                    .getElementType();
-  Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
-  Value rhs = convertScalarToDtype(
-      b, loc,
-      std::is_same_v<OpT, AtenDivScalarModeOp> ? operands[1] : payloadArgs[1],
-      dtype);
+  // convertScalarToDtype requires the result dtype for 8-bit destinations.
+  Type resultDtype = cast<BaseTensorType>(op.getType()).getDtype();
+  bool isUnsigned = resultDtype.isUnsignedInteger();
+  Type lhsOriginalDtype =
+      cast<BaseTensorType>(op.getSelf().getType()).getDtype();
+  Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype,
+                                   /*srcOriginalDtype=*/lhsOriginalDtype,
+                                   /*dstOriginalDtype=*/resultDtype);
+  Value rhs;
+  if constexpr (std::is_same_v<OpT, AtenDivScalarModeOp>) {
+    rhs = convertScalarToDtype(b, loc, operands[1], dtype,
+                               /*srcOriginalDtype=*/std::nullopt,
+                               /*dstOriginalDtype=*/resultDtype);
+  } else {
+    Type rhsOriginalDtype =
+        cast<BaseTensorType>(op.getOther().getType()).getDtype();
+    rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype,
+                               /*srcOriginalDtype=*/rhsOriginalDtype,
+                               /*dstOriginalDtype=*/resultDtype);
+  }
+  if (!lhs || !rhs)
+    return nullptr;
 
   Value quotient;
   if (isa<mlir::FloatType>(dtype)) {
     quotient = arith::DivFOp::create(b, loc, lhs, rhs);
-  } else if (dtype.isUnsignedInteger()) {
+  } else if (isUnsigned) {
     quotient = arith::DivUIOp::create(b, loc, lhs, rhs);
   } else {
     assert(dtype.isInteger() &&
@@ -302,13 +319,15 @@ Value createDivModePayload(OpBuilder &b, Location loc,
     // floor division in Python (the // operator)
     if (isa<mlir::FloatType>(dtype))
       return math::FloorOp::create(b, loc, quotient);
-    if (!dtype.isUnsignedInteger()) {
+    if (!isUnsigned) {
       Type defaultIntToFloatType = b.getF64Type();
       lhs = convertScalarToDtype(b, loc, lhs, defaultIntToFloatType);
       rhs = convertScalarToDtype(b, loc, rhs, defaultIntToFloatType);
       quotient = arith::DivFOp::create(b, loc, lhs, rhs);
       Value floor = math::FloorOp::create(b, loc, quotient);
-      Value convert = convertScalarToDtype(b, loc, floor, dtype);
+      Value convert = convertScalarToDtype(b, loc, floor, dtype,
+                                           /*srcOriginalDtype=*/std::nullopt,
+                                           /*dstOriginalDtype=*/resultDtype);
       return convert;
     }
   }
@@ -1271,12 +1290,23 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     AtenDivTensorOp::Adaptor adaptor(operands);
     Type dtype = cast<RankedTensorType>(converter->convertType(div.getType()))
                      .getElementType();
-    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
-    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
+    Type resultDtype = cast<BaseTensorType>(div.getType()).getDtype();
+    Type lhsOriginalDtype =
+        cast<BaseTensorType>(div.getSelf().getType()).getDtype();
+    Type rhsOriginalDtype =
+        cast<BaseTensorType>(div.getOther().getType()).getDtype();
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype,
+                                     /*srcOriginalDtype=*/lhsOriginalDtype,
+                                     /*dstOriginalDtype=*/resultDtype);
+    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype,
+                                     /*srcOriginalDtype=*/rhsOriginalDtype,
+                                     /*dstOriginalDtype=*/resultDtype);
+    if (!lhs || !rhs)
+      return nullptr;
     if (isa<mlir::FloatType>(dtype))
       return arith::DivFOp::create(b, loc, lhs, rhs);
     else if (isa<mlir::IntegerType>(dtype)) {
-      if (dtype.isUnsignedInteger())
+      if (resultDtype.isUnsignedInteger())
         return arith::DivUIOp::create(b, loc, lhs, rhs);
       return arith::DivSIOp::create(b, loc, lhs, rhs);
     }
@@ -1593,7 +1623,10 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       divScalar.emitError("unimplemented: non-floating point dtype");
       return nullptr;
     }
-    Value self = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
+    Type selfOriginalDtype =
+        cast<BaseTensorType>(divScalar.getSelf().getType()).getDtype();
+    Value self = convertScalarToDtype(b, loc, payloadArgs[0], dtype,
+                                      /*srcOriginalDtype=*/selfOriginalDtype);
     Value other = convertScalarToDtype(b, loc, operands[1], dtype);
     return arith::DivFOp::create(b, loc, self, other);
   }

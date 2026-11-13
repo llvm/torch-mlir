@@ -1835,10 +1835,41 @@ public:
       return rewriter.notifyMatchFailure(
           op, "Only floating-point or integer datatype legalization supported");
 
+    auto outType = cast<TensorType>(
+        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
+            op.getType()));
+    bool isFloatResult = isa<mlir::FloatType>(outType.getElementType());
+
+    // Casts follow the signedness of the torch dtypes, so that unsigned values
+    // are zero-extended.
+    auto isUnsignedDtype = [](Value value) {
+      auto tensorType = dyn_cast<ValueTensorType>(value.getType());
+      return tensorType && tensorType.hasDtype() &&
+             tensorType.getDtype().isUnsignedInteger();
+    };
+    bool lhsUnsigned = isUnsignedDtype(op.getSelf());
+    bool rhsUnsigned = rhsTy && isUnsignedDtype(op.getOther());
+    bool resultUnsigned = isUnsignedDtype(op.getResult());
+
+    // tosa.intdiv divides as signed, so an unsigned result must be narrower
+    // than the compute type.
+    auto computeType = getIntDivComputeType(outType, rewriter);
+    if (!isFloatResult && resultUnsigned &&
+        outType.getElementTypeBitWidth() >=
+            computeType.getElementTypeBitWidth())
+      return rewriter.notifyMatchFailure(
+          op, "unimplemented: unsigned result as wide as the integer "
+              "division compute type");
+
+    // A scalar rhs is a signed i64 or f64 value. It is materialized in the
+    // float result type, or in i64 for an integer result, so that the
+    // conversion to the result dtype below wraps it as PyTorch does.
     Value rhsAsTensor;
     if (!rhsTy) {
+      Type scalarElemTy =
+          isFloatResult ? outType.getElementType() : rewriter.getI64Type();
       if (failed(torchScalarToTosaTensor(rewriter, op, op.getOther(),
-                                         rhsAsTensor, lhsElemTy, {})))
+                                         rhsAsTensor, scalarElemTy, {})))
         return rewriter.notifyMatchFailure(
             op, "Currently only scalar constants are supported for "
                 "conversion in TOSA operation");
@@ -1848,10 +1879,6 @@ public:
             .failed())
       return rewriter.notifyMatchFailure(
           op, "Failed to equalize ranks among operands and result");
-
-    auto outType = cast<TensorType>(
-        OpConversionPattern<AtenOpT>::getTypeConverter()->convertType(
-            op.getType()));
 
     // Get rounding mode for aten.div.Tensor_mode
     std::string roundMode;
@@ -1863,12 +1890,15 @@ public:
     }
 
     Value result;
-    if (isa<mlir::FloatType>(outType.getElementType())) {
+    if (isFloatResult) {
+      lhs = tosa::tosaCastTensorToType(rewriter, lhs, outType, lhsUnsigned)
+                .value();
       // The input to the reciprocal is an integer sometimes, and we may need
       // to promote it to a floating point. Per TOSA specification, the input
       // types can only be floating point for tosa::ReciprocalOp.
       rhsTensor =
-          tosa::tosaCastTensorToType(rewriter, rhsTensor, outType).value();
+          tosa::tosaCastTensorToType(rewriter, rhsTensor, outType, rhsUnsigned)
+              .value();
       auto rhsRcp = tosa::ReciprocalOp::create(rewriter, op->getLoc(),
                                                rhsTensor.getType(), rhsTensor);
 
@@ -1893,19 +1923,45 @@ public:
         result = divResult.getResult();
       }
     } else {
-      if (roundMode.compare("floor") == 0) {
+      // PyTorch converts the operands to the result dtype before it divides.
+      // An operand narrower than the result keeps its value when it is widened
+      // with its own signedness. A wider operand, or a scalar, wraps to the
+      // result dtype and is then widened with the signedness of the result.
+      unsigned outWidth = outType.getElementTypeBitWidth();
+      auto castToComputeType = [&](Value operand, bool operandUnsigned) {
+        auto operandType = cast<TensorType>(operand.getType());
+        unsigned operandWidth = operandType.getElementTypeBitWidth();
+        if (operandWidth < outWidth)
+          return tosa::tosaCastTensorToType(rewriter, operand, computeType,
+                                            operandUnsigned)
+              .value();
+        // TOSA casts i64 only to i32, so an i64 operand is wrapped to a
+        // narrower result dtype in two casts: i64 to i32, then i32 to the
+        // result dtype. Both keep the low bits, so the value is unchanged.
+        Value wrapped = operand;
+        if (operandWidth > 32 && outWidth < 32)
+          wrapped = tosa::tosaCastTensorToType(
+                        rewriter, operand,
+                        operandType.clone(rewriter.getIntegerType(32)))
+                        .value();
+        wrapped =
+            tosa::tosaCastTensorToType(rewriter, wrapped, outType).value();
+        return tosa::tosaCastTensorToType(rewriter, wrapped, computeType,
+                                          resultUnsigned)
+            .value();
+      };
+      lhs = castToComputeType(lhs, lhsUnsigned);
+      rhsTensor = castToComputeType(rhsTensor, rhsUnsigned);
+
+      if (roundMode.compare("floor") == 0 && !resultUnsigned) {
         // "floor": rounds the results of the division down. Equivalent to floor
         // division in Python (the // operator).
         result = floorIntDiv(rewriter, op, outType, lhs, rhsTensor).value();
       } else {
         // "trunc": rounds the results of the division towards zero. Equivalent
-        // to C-style integer division.
+        // to C-style integer division. Floor division of unsigned values is
+        // the same.
         // None: no rounding mode.
-
-        auto computeType = getIntDivComputeType(outType, rewriter);
-        lhs = tosa::tosaCastTensorToType(rewriter, lhs, computeType).value();
-        rhsTensor = tosa::tosaCastTensorToType(rewriter, rhsTensor, computeType)
-                        .value();
 
         auto intDivOp = tosa::IntDivOp::create(rewriter, op->getLoc(),
                                                computeType, lhs, rhsTensor);
