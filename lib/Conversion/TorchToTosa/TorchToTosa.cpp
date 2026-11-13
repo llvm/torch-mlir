@@ -6989,6 +6989,36 @@ LogicalResult ConvertAtenOp<AtenIndexSelectOp>::matchAndRewriteImpl(
   return success();
 }
 
+/// Wraps the negative entries of `index` around `maxIndex`.
+static std::optional<Value>
+wrapNegativeIndices(Value index, int64_t maxIndex, Operation *op,
+                    ConversionPatternRewriter &rewriter) {
+  auto indexType = cast<TensorType>(index.getType());
+  Value zeroValue = tosa::getIndexConstTensor(rewriter, op, {0}, {},
+                                              indexType.getElementType())
+                        .value();
+  auto maxIndexConstant = tosa::getIndexConstTensor(
+      rewriter, op, {maxIndex}, {}, indexType.getElementType());
+  if (!maxIndexConstant)
+    return std::nullopt;
+  Value maxIndexValue = maxIndexConstant.value();
+
+  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), index, zeroValue)
+          .failed() ||
+      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), index, maxIndexValue)
+          .failed())
+    return std::nullopt;
+
+  auto wrappedIndicesOp = tosa::CreateOpAndInfer<tosa::AddOp>(
+      rewriter, op->getLoc(), indexType, maxIndexValue, index);
+  auto boolType = indexType.clone(rewriter.getIntegerType(1));
+  auto isNegativeIndices = tosa::CreateOpAndInfer<tosa::GreaterOp>(
+      rewriter, op->getLoc(), boolType, zeroValue, index);
+  return tosa::CreateOpAndInfer<tosa::SelectOp>(rewriter, op->getLoc(),
+                                                indexType, isNegativeIndices,
+                                                wrappedIndicesOp, index);
+}
+
 template <>
 LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewriteImpl(
     AtenIndexPutHackedTwinOp op, OpAdaptor adaptor,
@@ -6999,6 +7029,9 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewriteImpl(
   if (!selfType)
     return rewriter.notifyMatchFailure(
         op, "Only tensor types input are currently supported");
+  if (!selfType.hasStaticShape())
+    return rewriter.notifyMatchFailure(op,
+                                       "unimplemented: dynamic input shape");
 
   auto fillValues = adaptor.getValues();
   auto valuesType = dyn_cast<TensorType>(fillValues.getType());
@@ -7013,6 +7046,9 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewriteImpl(
   SmallVector<Value> tensorsTorchType;
   if (!getListConstructElements(tensorList, tensorsTorchType))
     return op.emitError("Tensor list is not from list construct");
+  if (static_cast<int64_t>(tensorsTorchType.size()) > selfType.getRank())
+    return rewriter.notifyMatchFailure(
+        op, "indices list size should not be greater than the input rank");
   auto indexTensors = getTypeConvertedValues(
       rewriter, op->getLoc(), getTypeConverter(), tensorsTorchType);
   Type indexElementType = getCommonIndexElementType(indexTensors);
@@ -7047,6 +7083,11 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewriteImpl(
     indexesRank.push_back(indexType.getRank());
 
     index = castTosaIndexToType(rewriter, index, indexElementType);
+    std::optional<Value> wrappedIndex =
+        wrapNegativeIndices(index, selfType.getDimSize(i), op, rewriter);
+    if (!wrappedIndex)
+      return failure();
+    index = *wrappedIndex;
 
     // Expand last dim of index to tf indices [3] -> [3,1]
     // convert [0,0,0]  to [[0],[0],[0]]
@@ -7098,36 +7139,6 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewriteImpl(
   rewriter.replaceOp(op, {result.value()});
 
   return success();
-}
-
-std::optional<Value> wrapNegativeIndices(Value index, int64_t maxIndex,
-                                         Operation *op,
-                                         ConversionPatternRewriter &rewriter) {
-
-  auto indexType = cast<TensorType>(index.getType());
-  Value zeroValue = tosa::getIndexConstTensor(rewriter, op, {0}, {},
-                                              indexType.getElementType())
-                        .value();
-  auto maxIndexConstant = tosa::getIndexConstTensor(
-      rewriter, op, {maxIndex}, {}, indexType.getElementType());
-  if (!maxIndexConstant)
-    return std::nullopt;
-  Value maxIndexValue = maxIndexConstant.value();
-
-  if (mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), index, zeroValue)
-          .failed() ||
-      mlir::tosa::EqualizeRanks(rewriter, op->getLoc(), index, maxIndexValue)
-          .failed())
-    return std::nullopt;
-
-  auto wrappedIndicesOp = tosa::CreateOpAndInfer<tosa::AddOp>(
-      rewriter, op->getLoc(), indexType, maxIndexValue, index);
-  auto boolType = indexType.clone(rewriter.getIntegerType(1));
-  auto isNegativeIndices = tosa::CreateOpAndInfer<tosa::GreaterOp>(
-      rewriter, op->getLoc(), boolType, zeroValue, index);
-  return tosa::CreateOpAndInfer<tosa::SelectOp>(rewriter, op->getLoc(),
-                                                indexType, isNegativeIndices,
-                                                wrappedIndicesOp, index);
 }
 
 template <>

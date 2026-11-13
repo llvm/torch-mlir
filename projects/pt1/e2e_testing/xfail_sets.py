@@ -727,6 +727,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "IndexPutBoolMaskAccumulateModule_basic",
     "IndexPutBoolMaskDynamicModule_basic",
     "IndexPutMixedIntBoolModule_basic",
+    "IndexPutNegativeIndexModule_basic",
     "IndexPutHackedTwin1DFloatAccumulateModule_basic",
     "IndexPutHackedTwin1DFloatNonAccumulateModule_basic",
     "IndexPutHackedTwin1DIntAccumulateModule_basic",

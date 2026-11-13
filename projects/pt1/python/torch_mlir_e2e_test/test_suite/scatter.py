@@ -1505,6 +1505,34 @@ def IndexPutWithNoneAndBroadcastModule_basic(module, tu: TestUtils):
     )
 
 
+# Assigning through two index tensors that hold negative indices.
+class IndexPutNegativeIndexModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 5], torch.float32, True),
+            ([2], torch.int64, True),
+            ([2], torch.int64, True),
+            ([2], torch.float32, True),
+        ]
+    )
+    def forward(self, input, rows, cols, values):
+        output = input.clone()
+        output[rows, cols] = values
+        return output
+
+
+@register_test_case(module_factory=lambda: IndexPutNegativeIndexModule())
+def IndexPutNegativeIndexModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(4, 5), torch.tensor([-1, 0]), torch.tensor([-2, 1]), tu.rand(2)
+    )
+
+
 # index_put with a boolean mask index — rows where mask=True are overwritten.
 class IndexPutBoolMask2DModule(torch.nn.Module):
     def __init__(self):

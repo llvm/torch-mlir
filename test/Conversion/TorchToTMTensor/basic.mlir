@@ -197,3 +197,18 @@ func.func @scatter_src_dim2(%arg0: !torch.vtensor<[2,2,5,8],f32>, %arg1: !torch.
   %0 = torch.aten.scatter.src %arg0, %int2, %arg1, %arg2 : !torch.vtensor<[2,2,5,8],f32>, !torch.int, !torch.vtensor<[2,2,1,8],si64>, !torch.vtensor<[2,2,1,8],f32> -> !torch.vtensor<[2,2,5,8],f32>
   return %0 : !torch.vtensor<[2,2,5,8],f32>
 }
+
+// -----
+
+// CHECK-LABEL: @index_put_negative_index
+// CHECK:         %[[NEG:.*]] = torch.aten.lt.Scalar %arg1, %{{.*}} : !torch.vtensor<[2],si64>, !torch.int -> !torch.vtensor<[2],i1>
+// CHECK:         %[[WRAPPED:.*]] = torch.aten.add.Scalar %arg1, %{{.*}}, %{{.*}} : !torch.vtensor<[2],si64>, !torch.int, !torch.int -> !torch.vtensor<[2],si64>
+// CHECK:         %[[INDEX:.*]] = torch.aten.where.self %[[NEG]], %[[WRAPPED]], %arg1
+// CHECK:         torch.aten.broadcast_to %[[INDEX]]
+// CHECK:         tm_tensor.scatter
+func.func @index_put_negative_index(%arg0: !torch.vtensor<[5,4],f32>, %arg1: !torch.vtensor<[2],si64>, %arg2: !torch.vtensor<[2,4],f32>) -> !torch.vtensor<[5,4],f32> {
+  %false = torch.constant.bool false
+  %0 = torch.prim.ListConstruct %arg1 : (!torch.vtensor<[2],si64>) -> !torch.list<vtensor>
+  %1 = torch.aten.index_put.hacked_twin %arg0, %0, %arg2, %false : !torch.vtensor<[5,4],f32>, !torch.list<vtensor>, !torch.vtensor<[2,4],f32>, !torch.bool -> !torch.vtensor<[5,4],f32>
+  return %1 : !torch.vtensor<[5,4],f32>
+}
