@@ -818,7 +818,7 @@ static void forwardResultUserAttrs(Operation *from, unsigned srcResultIndex,
 
 // Forward the source op's per-result user attributes onto the values (op
 // results or function entry-block arguments) that replace each result.
-static void forwardUserAttrs(Operation *from, ValueRange replacement) {
+void forwardUserAttrs(Operation *from, ValueRange replacement) {
   if (!from->hasAttrOfType<ArrayAttr>(kUserAttrPrefix))
     return;
 
