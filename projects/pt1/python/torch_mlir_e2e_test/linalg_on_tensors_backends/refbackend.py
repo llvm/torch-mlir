@@ -63,7 +63,7 @@ memref_type_to_np_dtype = {
 elemental_type_to_ctype = {
     "i1": ctypes.c_bool,
     "i8": ctypes.c_byte,
-    "i64": ctypes.c_int,
+    "i64": ctypes.c_int64,
     "f32": ctypes.c_float,
     "f64": ctypes.c_double,
 }
