@@ -14,6 +14,7 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
@@ -269,9 +270,12 @@ public:
 
     // TODO: Debug visitation order to make this more efficient.
     // A single linear scan should suffice.
+    wrapPatternsWithForwarding(patterns);
+    auto listener = createConversionForwardingListener();
     GreedyRewriteConfig config;
     config.setUseTopDownTraversal(true);
     config.setMaxIterations(GreedyRewriteConfig::kNoLimit);
+    config.setListener(listener.get());
     if (failed(applyPatternsGreedily(getOperation(), std::move(patterns),
                                      config))) {
       return signalPassFailure();
