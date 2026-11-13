@@ -1178,7 +1178,8 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         SmallVector<Value> operands;
         SmallVector<Type> resultTypes;
         int64_t doRotary, kvNumHeads, localWindowSize, numHeads,
-            rotaryInterleaved, smoothSoftmax;
+            rotaryInterleaved, smoothSoftmax, causal;
+        std::string kQuantType, vQuantType;
         float scale, softcap;
         if (binder.tensorOperandsList(operands))
           return rewriter.notifyMatchFailure(binder.op,
@@ -1199,9 +1200,23 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
             binder.s64IntegerAttr(rotaryInterleaved, "rotary_interleaved") ||
             binder.f32FloatAttr(scale, "scale") ||
             binder.s64IntegerAttr(smoothSoftmax, "smooth_softmax") ||
-            binder.f32FloatAttr(softcap, "softcap"))
+            binder.f32FloatAttr(softcap, "softcap") ||
+            binder.s64IntegerAttr(causal, "causal", 1) ||
+            binder.customOpNameStringAttr(kQuantType, "k_quant_type", "NONE") ||
+            binder.customOpNameStringAttr(vQuantType, "v_quant_type", "NONE"))
           return rewriter.notifyMatchFailure(binder.op,
                                              "op attributes bind failure");
+
+        // The lowering always builds a causal mask over a floating-point KV
+        // cache, which is what onnxruntime does with its default attributes.
+        if (causal != 1)
+          return rewriter.notifyMatchFailure(
+              binder.op, "Unimplemented: only causal attention (causal = 1) "
+                         "is supported");
+        if (kQuantType != "NONE" || vQuantType != "NONE")
+          return rewriter.notifyMatchFailure(
+              binder.op, "Unimplemented: quantized KV cache (k_quant_type / "
+                         "v_quant_type) is not supported");
 
         // This lowering supports two input formats:
         // 1. Separate Q, K, V inputs (9 operands with rotary, 7 without):
@@ -1253,16 +1268,19 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
                          "both absent");
         bool isPackedQKV = keyIsNone;
 
-        if (isNone(operands[queryIdx]))
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "Expected query to be present");
-        for (int idx : {pastKeyIdx, pastValueIdx, seqlensKIdx})
-          if (isNone(operands[idx]))
-            return rewriter.notifyMatchFailure(
-                binder.op, "Expected past_key, past_value and seqlens_k to "
-                           "be present");
-        if (doRotary &&
-            (isNone(operands[cosCacheIdx]) || isNone(operands[sinCacheIdx])))
+        // Bind the required inputs; this fails the match if any of them is
+        // absent.
+        Value query, key, value, pastKey, pastValue, seqlensK;
+        Value cosCache, sinCache;
+        if (binder.tensorOperandAtIndex(query, queryIdx) ||
+            binder.tensorOperandAtIndex(pastKey, pastKeyIdx) ||
+            binder.tensorOperandAtIndex(pastValue, pastValueIdx) ||
+            binder.tensorOperandAtIndex(seqlensK, seqlensKIdx))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected query, past_key, past_value and seqlens_k "
+                         "to be present");
+        if (doRotary && (binder.tensorOperandAtIndex(cosCache, cosCacheIdx) ||
+                         binder.tensorOperandAtIndex(sinCache, sinCacheIdx)))
           return rewriter.notifyMatchFailure(
               binder.op,
               "Expected cos_cache and sin_cache when do_rotary is enabled");
@@ -1296,19 +1314,10 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
 
         Location loc = binder.getLoc();
         MLIRContext *context = binder.op->getContext();
-        Value query, key, value, pastKey, pastValue, seqlensK;
-        Value cosCache, sinCache;
 
         if (isPackedQKV) {
           // Packed QKV mode: first operand contains Q, K, V concatenated
-          Value packedQKV = operands[queryIdx];
-          pastKey = operands[pastKeyIdx];
-          pastValue = operands[pastValueIdx];
-          seqlensK = operands[seqlensKIdx];
-          if (doRotary) {
-            cosCache = operands[cosCacheIdx];
-            sinCache = operands[sinCacheIdx];
-          }
+          Value packedQKV = query;
 
           // Split packed QKV into separate Q, K, V tensors
           // packed_qkv shape: [batch, seq, q_hidden + k_hidden + v_hidden]
@@ -1400,16 +1409,8 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
               /*step=*/cstOne);
         } else {
           // Separate Q, K, V mode
-          query = operands[queryIdx];
           key = operands[keyIdx];
           value = operands[valueIdx];
-          pastKey = operands[pastKeyIdx];
-          pastValue = operands[pastValueIdx];
-          seqlensK = operands[seqlensKIdx];
-          if (doRotary) {
-            cosCache = operands[cosCacheIdx];
-            sinCache = operands[sinCacheIdx];
-          }
         }
 
         Torch::ValueTensorType queryType =

@@ -34,6 +34,7 @@ _HEAD_SIZE = 16
 _Q_HIDDEN = _NUM_HEADS * _HEAD_SIZE
 _KV_HIDDEN = _KV_NUM_HEADS * _HEAD_SIZE
 _PACKED_HIDDEN = _Q_HIDDEN + 2 * _KV_HIDDEN
+_PROMPT_LEN = 4
 _GQA_OUTPUTS = ["output", "present_key", "present_value"]
 
 
@@ -71,24 +72,25 @@ def _empty_past_initializers():
 
 
 @register_onnx_test
-class OnnxGroupQueryAttention_packed_qkv_rotary(OnnxTestCase):
-    # Packed QKV with empty key/value and rotary embedding: the input layout
-    # emitted by the onnxruntime-genai model builder (9 positional inputs).
+class OnnxGroupQueryAttention_packedQkvRotary(OnnxTestCase):
+    # Packed QKV with empty key/value and rotary embedding (9 positional
+    # inputs). The prompt has several tokens so that attention mixes different
+    # keys and the query and its rotary affect the compared output.
     extra_opsets = {"com.microsoft": 1}
 
     @annotate_inputs(
         [
-            ("packed_qkv", torch.float32, [1, 1, _PACKED_HIDDEN]),
-            ("cos_cache", torch.float32, [4, _HEAD_SIZE // 2]),
-            ("sin_cache", torch.float32, [4, _HEAD_SIZE // 2]),
+            ("packed_qkv", torch.float32, [1, _PROMPT_LEN, _PACKED_HIDDEN]),
+            ("cos_cache", torch.float32, [_PROMPT_LEN, _HEAD_SIZE // 2]),
+            ("sin_cache", torch.float32, [_PROMPT_LEN, _HEAD_SIZE // 2]),
         ]
     )
     def graph(self):
         node = _gqa_node(
             [
                 "packed_qkv",
-                "",
-                "",
+                "",  # key (omitted)
+                "",  # value (omitted)
                 "past_key",
                 "past_value",
                 "seqlens_k",
@@ -98,26 +100,62 @@ class OnnxGroupQueryAttention_packed_qkv_rotary(OnnxTestCase):
             ],
             do_rotary=1,
         )
-        initializers = _empty_past_initializers() + _seq_initializers(0, 1)
+        initializers = _empty_past_initializers() + _seq_initializers(0, _PROMPT_LEN)
         return [node], _GQA_OUTPUTS, initializers
 
 
 @register_onnx_test
-class OnnxGroupQueryAttention_packed_qkv_no_rotary(OnnxTestCase):
-    # Packed QKV with empty key/value and no rotary (7 positional inputs).
+class OnnxGroupQueryAttention_packedQkvTrailingNone(OnnxTestCase):
+    # Packed QKV with rotary and the 12-input layout that the
+    # onnxruntime-genai model builder emits since v0.13.0: empty key, value,
+    # position_ids, attention_bias and head_sink.
     extra_opsets = {"com.microsoft": 1}
 
     @annotate_inputs(
         [
-            ("packed_qkv", torch.float32, [1, 1, _PACKED_HIDDEN]),
+            ("packed_qkv", torch.float32, [1, _PROMPT_LEN, _PACKED_HIDDEN]),
+            ("cos_cache", torch.float32, [_PROMPT_LEN, _HEAD_SIZE // 2]),
+            ("sin_cache", torch.float32, [_PROMPT_LEN, _HEAD_SIZE // 2]),
         ]
     )
     def graph(self):
         node = _gqa_node(
             [
                 "packed_qkv",
-                "",
-                "",
+                "",  # key (omitted)
+                "",  # value (omitted)
+                "past_key",
+                "past_value",
+                "seqlens_k",
+                "total_seq_len",
+                "cos_cache",
+                "sin_cache",
+                "",  # position_ids (omitted)
+                "",  # attention_bias (omitted)
+                "",  # head_sink (omitted)
+            ],
+            do_rotary=1,
+        )
+        initializers = _empty_past_initializers() + _seq_initializers(0, _PROMPT_LEN)
+        return [node], _GQA_OUTPUTS, initializers
+
+
+@register_onnx_test
+class OnnxGroupQueryAttention_packedQkvNoRotary(OnnxTestCase):
+    # Packed QKV with empty key/value and no rotary (7 positional inputs).
+    extra_opsets = {"com.microsoft": 1}
+
+    @annotate_inputs(
+        [
+            ("packed_qkv", torch.float32, [1, _PROMPT_LEN, _PACKED_HIDDEN]),
+        ]
+    )
+    def graph(self):
+        node = _gqa_node(
+            [
+                "packed_qkv",
+                "",  # key (omitted)
+                "",  # value (omitted)
                 "past_key",
                 "past_value",
                 "seqlens_k",
@@ -125,12 +163,12 @@ class OnnxGroupQueryAttention_packed_qkv_no_rotary(OnnxTestCase):
             ],
             do_rotary=0,
         )
-        initializers = _empty_past_initializers() + _seq_initializers(0, 1)
+        initializers = _empty_past_initializers() + _seq_initializers(0, _PROMPT_LEN)
         return [node], _GQA_OUTPUTS, initializers
 
 
 @register_onnx_test
-class OnnxGroupQueryAttention_packed_qkv_past_kv(OnnxTestCase):
+class OnnxGroupQueryAttention_packedQkvPastKv(OnnxTestCase):
     # Packed QKV decoding one token on top of a non-empty past KV cache, so
     # the KV-cache scatter and causal mask are compared against ONNX Runtime.
     extra_opsets = {"com.microsoft": 1}
@@ -146,8 +184,8 @@ class OnnxGroupQueryAttention_packed_qkv_past_kv(OnnxTestCase):
         node = _gqa_node(
             [
                 "packed_qkv",
-                "",
-                "",
+                "",  # key (omitted)
+                "",  # value (omitted)
                 "past_key",
                 "past_value",
                 "seqlens_k",
@@ -159,17 +197,17 @@ class OnnxGroupQueryAttention_packed_qkv_past_kv(OnnxTestCase):
 
 
 @register_onnx_test
-class OnnxGroupQueryAttention_separate_qkv_rotary(OnnxTestCase):
+class OnnxGroupQueryAttention_separateQkvRotary(OnnxTestCase):
     # Baseline: separate Q, K and V inputs with rotary embedding.
     extra_opsets = {"com.microsoft": 1}
 
     @annotate_inputs(
         [
-            ("query", torch.float32, [1, 1, _Q_HIDDEN]),
-            ("key", torch.float32, [1, 1, _KV_HIDDEN]),
-            ("value", torch.float32, [1, 1, _KV_HIDDEN]),
-            ("cos_cache", torch.float32, [4, _HEAD_SIZE // 2]),
-            ("sin_cache", torch.float32, [4, _HEAD_SIZE // 2]),
+            ("query", torch.float32, [1, _PROMPT_LEN, _Q_HIDDEN]),
+            ("key", torch.float32, [1, _PROMPT_LEN, _KV_HIDDEN]),
+            ("value", torch.float32, [1, _PROMPT_LEN, _KV_HIDDEN]),
+            ("cos_cache", torch.float32, [_PROMPT_LEN, _HEAD_SIZE // 2]),
+            ("sin_cache", torch.float32, [_PROMPT_LEN, _HEAD_SIZE // 2]),
         ]
     )
     def graph(self):
@@ -187,5 +225,5 @@ class OnnxGroupQueryAttention_separate_qkv_rotary(OnnxTestCase):
             ],
             do_rotary=1,
         )
-        initializers = _empty_past_initializers() + _seq_initializers(0, 1)
+        initializers = _empty_past_initializers() + _seq_initializers(0, _PROMPT_LEN)
         return [node], _GQA_OUTPUTS, initializers
