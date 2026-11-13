@@ -15,6 +15,7 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Conversion/Passes.h"
+#include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchDialect.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
@@ -345,8 +346,12 @@ public:
     patterns.add<ConvertTorchPrimLoopWhileLikeOp>(typeConverter, context);
     patterns.add<ConvertTorchPrimLoopForLikeOp>(typeConverter, context);
 
+    wrapPatternsWithForwarding(patterns);
+    auto listener = createConversionForwardingListener();
+    ConversionConfig config;
+    config.listener = listener.get();
     if (failed(applyPartialConversion(getOperation(), target,
-                                      std::move(patterns))))
+                                      std::move(patterns), config)))
       return signalPassFailure();
   }
 };

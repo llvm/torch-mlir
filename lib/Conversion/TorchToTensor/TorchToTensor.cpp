@@ -15,6 +15,7 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Conversion/Passes.h"
+#include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
@@ -167,8 +168,12 @@ public:
     patterns.add<ConvertAtenShapeToTensorPatternOp, ConvertAtenItemOp,
                  ConvertAtenTensorOpPattern>(typeConverter, context);
 
+    wrapPatternsWithForwarding(patterns);
+    auto listener = createConversionForwardingListener();
+    ConversionConfig config;
+    config.listener = listener.get();
     if (failed(applyPartialConversion(getOperation(), target,
-                                      std::move(patterns))))
+                                      std::move(patterns), config)))
       return signalPassFailure();
   }
 };

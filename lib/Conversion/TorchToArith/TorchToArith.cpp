@@ -601,8 +601,12 @@ public:
                               arith::CmpIPredicate, arith::CmpIPredicate::ne>>(
         typeConverter, context);
 
+    wrapPatternsWithForwarding(patterns);
+    auto listener = createConversionForwardingListener();
+    ConversionConfig config;
+    config.listener = listener.get();
     if (failed(applyPartialConversion(getOperation(), target,
-                                      std::move(patterns))))
+                                      std::move(patterns), config)))
       return signalPassFailure();
   }
 };
