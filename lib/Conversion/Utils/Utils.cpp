@@ -685,15 +685,6 @@ APFloat getFloatInf(mlir::FloatType fpType, bool negative,
              : APFloat::getLargest(fpType.getFloatSemantics(), negative);
 }
 
-void forwardUserDiscardableAttrs(Operation *from, Operation *to) {
-  if (!from || !to)
-    return;
-  for (NamedAttribute attr : from->getDiscardableAttrs()) {
-    if (attr.getName().getValue().starts_with(kUserAttrPrefix))
-      to->setAttr(attr.getName(), attr.getValue());
-  }
-}
-
 // Look through cast operations to find the actual value that produces a
 // replacement. This handles tensor.cast, unrealized_conversion_cast, and other
 // cast-like ops that may be eliminated by canonicalization, while preserving

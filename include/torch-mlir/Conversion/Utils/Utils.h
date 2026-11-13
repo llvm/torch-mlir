@@ -158,8 +158,6 @@ getConstantPerTensorQParams(PatternRewriter &rewriter, Operation *op,
 APFloat getFloatInf(mlir::FloatType fpType, bool negative,
                     bool allowNonFinites);
 
-void forwardUserDiscardableAttrs(Operation *from, Operation *to);
-
 // Forwards the per-result `mlir.user` annotations of `from` onto the values in
 // `replacement` that replace each of its results. For result `i`, the
 // dictionary `from.mlir.user[i]` is merged into the `mlir.user` attribute of
