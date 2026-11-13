@@ -2883,6 +2883,36 @@ func.func @test_group_query_attention_packed_qkv_trailing_none(%packed_qkv: !tor
 
 // -----
 
+// Test GroupQueryAttention with the 12-input layout emitted by the
+// onnxruntime-genai model builder: packed QKV, rotary embedding and empty
+// key, value, position_ids, attention_bias and head_sink inputs.
+// CHECK-LABEL: func.func @test_group_query_attention_genai_layout
+func.func @test_group_query_attention_genai_layout(%packed_qkv: !torch.vtensor<[1,1,64],f32>, %past_key: !torch.vtensor<[1,2,0,8],f32>, %past_value: !torch.vtensor<[1,2,0,8],f32>, %seqlens_k: !torch.vtensor<[1],si32>, %total: !torch.vtensor<[1],si32>, %cos_cache: !torch.vtensor<[2,4],f32>, %sin_cache: !torch.vtensor<[2,4],f32>) -> (!torch.vtensor<[1,1,32],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>) attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 22 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {
+  // CHECK: torch.aten.slice.Tensor %arg0, {{.*}} -> !torch.vtensor<[1,1,32],f32>
+  // CHECK: torch.onnx.rotary_embedding
+  // CHECK: torch.aten.scaled_dot_product_attention
+  // CHECK-NOT: onnx.GroupQueryAttention
+  %none = torch.constant.none
+  %0:3 = torch.operator "onnx.GroupQueryAttention"(%packed_qkv, %none, %none, %past_key, %past_value, %seqlens_k, %total, %cos_cache, %sin_cache, %none, %none, %none) {torch.onnx.kv_num_heads = 2 : si64, torch.onnx.num_heads = 4 : si64, torch.onnx.do_rotary = 1 : si64, torch.onnx.rotary_interleaved = 0 : si64, torch.onnx.scale = 0.353553385 : f32, torch.onnx.softcap = 0.000000e+00 : f32, torch.onnx.local_window_size = -1 : si64} : (!torch.vtensor<[1,1,64],f32>, !torch.none, !torch.none, !torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1],si32>, !torch.vtensor<[1],si32>, !torch.vtensor<[2,4],f32>, !torch.vtensor<[2,4],f32>, !torch.none, !torch.none, !torch.none) -> (!torch.vtensor<[1,1,32],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>)
+  return %0#0, %0#1, %0#2 : !torch.vtensor<[1,1,32],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>
+}
+
+// -----
+
+// Test that the attributes onnxruntime documents as optional may be omitted:
+// do_rotary and rotary_interleaved default to 0, causal to 1 and the KV cache
+// quantization types to NONE.
+// CHECK-LABEL: func.func @test_group_query_attention_default_attributes
+func.func @test_group_query_attention_default_attributes(%packed_qkv: !torch.vtensor<[1,1,64],f32>, %past_key: !torch.vtensor<[1,2,0,8],f32>, %past_value: !torch.vtensor<[1,2,0,8],f32>, %seqlens_k: !torch.vtensor<[1],si32>, %total: !torch.vtensor<[1],si32>) -> (!torch.vtensor<[1,1,32],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>) attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 22 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {
+  // CHECK: torch.aten.scaled_dot_product_attention
+  // CHECK-NOT: onnx.GroupQueryAttention
+  %none = torch.constant.none
+  %0:3 = torch.operator "onnx.GroupQueryAttention"(%packed_qkv, %none, %none, %past_key, %past_value, %seqlens_k, %total) {torch.onnx.kv_num_heads = 2 : si64, torch.onnx.num_heads = 4 : si64, torch.onnx.causal = 1 : si64, torch.onnx.k_quant_type = "NONE", torch.onnx.v_quant_type = "NONE"} : (!torch.vtensor<[1,1,64],f32>, !torch.none, !torch.none, !torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1],si32>, !torch.vtensor<[1],si32>) -> (!torch.vtensor<[1,1,32],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>)
+  return %0#0, %0#1, %0#2 : !torch.vtensor<[1,1,32],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>
+}
+
+// -----
+
 // Test GroupQueryAttention with separate Q, K, V, no rotary embedding, and
 // absent trailing optional inputs (imported as torch.constant.none).
 // CHECK-LABEL: func.func @test_group_query_attention_trailing_none
