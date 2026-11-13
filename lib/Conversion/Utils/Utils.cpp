@@ -832,6 +832,43 @@ static void forwardUserAttrs(Operation *from, ValueRange replacement) {
   }
 }
 
+// In rollback mode (the default for `applyPartialConversion` and
+// `applyFullConversion`), `ConversionPatternRewriter::replaceOp` only records
+// the replacement; listeners are not notified until the conversion commits.
+// At that point the driver reports a null replacement for any result whose
+// users were all converted as well (e.g. the annotated `add` in
+// `add -> relu`), so the pass-level listener cannot forward annotations for
+// such intermediate values. Instead, eagerly look up the values that replace
+// `op`'s results in the conversion mapping right after the pattern succeeds,
+// while `op` is still alive.
+static void forwardUserAttrsAfterConversionPattern(Operation *op,
+                                                   PatternRewriter &rewriter) {
+  // `ConversionPatternRewriter` is the only rewriter that can recover from a
+  // rewrite failure; use that as an RTTI-free check for being inside a
+  // dialect conversion.
+  if (!rewriter.canRecoverFromRewriteFailure())
+    return;
+  auto &conversionRewriter = static_cast<ConversionPatternRewriter &>(rewriter);
+  // Without rollback, replacements are applied immediately and the
+  // `ForwardingListener` already observed them.
+  if (!conversionRewriter.getConfig().allowPatternRollback)
+    return;
+  if (!op->hasAttrOfType<ArrayAttr>(kUserAttrPrefix))
+    return;
+
+  SmallVector<Value> replacements;
+  replacements.reserve(op->getNumResults());
+  for (OpResult result : op->getResults()) {
+    // The wrapper is not itself a `ConversionPattern`, so no type converter is
+    // active here and this returns the most recently mapped value without
+    // building any materialization.
+    Value repl = conversionRewriter.getRemappedValue(result);
+    // Results that were not replaced map to themselves; skip those.
+    replacements.push_back(repl == result ? Value() : repl);
+  }
+  forwardUserAttrs(op, replacements);
+}
+
 namespace {
 class ForwardingListener : public RewriterBase::ForwardingListener {
   Operation *sourceOp;
@@ -854,7 +891,10 @@ static LogicalResult matchAndRewriteImpl(Operation *op,
   ForwardingListener listener(parentListener, op);
   rewriter.setListener(&listener);
   llvm::scope_exit cleanup([&]() { rewriter.setListener(parentListener); });
-  return innerPattern.matchAndRewrite(op, rewriter);
+  if (failed(innerPattern.matchAndRewrite(op, rewriter)))
+    return failure();
+  forwardUserAttrsAfterConversionPattern(op, rewriter);
+  return success();
 }
 
 class ForwardingOpNamePatternWrapper : public RewritePattern {
