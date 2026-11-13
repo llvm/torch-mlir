@@ -75,7 +75,7 @@ void mlir::torch::RefBackend::registerRefBackendPasses() { ::registerPasses(); }
 static bool isArgMemRefTypeValid(Type type) {
   if (auto memRefType = dyn_cast<MemRefType>(type)) {
     Type elemTy = memRefType.getElementType();
-    if (isa<Float16Type, Float32Type, Float64Type>(elemTy)) {
+    if (isa<Float16Type, BFloat16Type, Float32Type, Float64Type>(elemTy)) {
       return true;
     } else if (auto integerTy = dyn_cast<IntegerType>(elemTy)) {
       if (integerTy.isSignlessInteger(64))
@@ -111,6 +111,9 @@ static Type getAbiTypeForMemRef(Type type) {
 static std::string getTypeToken(Type type) {
   if (type.isSignlessInteger())
     return ("i" + Twine(type.getIntOrFloatBitWidth())).str();
+  // bf16 and f16 have the same bit width, so give bf16 its own token.
+  else if (isa<BFloat16Type>(type))
+    return "bf16";
   else if (isa<mlir::FloatType>(type))
     return ("f" + Twine(type.getIntOrFloatBitWidth())).str();
   else if (auto complexTy = dyn_cast<mlir::ComplexType>(type))
@@ -171,10 +174,8 @@ static LogicalResult mungeFunction(
     auto type = arg.getType();
     if (!isArgMemRefTypeValid(type)) {
       return emitError(arg.getLoc())
-          .append("argument must be a memref of f16, f32, f64, i1, i8, i16, "
-                  "i32, i64, "
-                  "c32, c64, but "
-                  "got ",
+          .append("argument must be a memref of f16, bf16, f32, f64, i1, i8, "
+                  "i16, i32, i64, c32, c64, but got ",
                   type);
     }
     auto cast = memref::CastOp::create(b, arg.getLoc(), type, arg);

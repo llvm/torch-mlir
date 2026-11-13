@@ -455,7 +455,6 @@ FX_IMPORTER_XFAIL_SET = {
     "CumprodModule_basic",
     "DeformConv2D_basic",
     "DivIntModule_basic",
-    "ElementwiseAtanTensorBFloat16SpecialValuesModule_basic",
     "ElementwiseDequantizePerChannelModule_basic",
     "ElementwiseDequantizePerTensorModule_basic",
     "ElementwiseQuantizePerTensorModule_basic",
@@ -509,11 +508,6 @@ FX_IMPORTER_XFAIL_SET = {
     "UniformModule_basic",
     "UniformStaticShapeModule_basic",
     "ElementwiseClampIntToFloatModule_basic",
-    # error: argument must be a memref of f32, f64, i32, i64, i8, i1, c32, c64, but got 'memref<3x5xbf16>'
-    "ElementwiseClampMaxModule_bfloat16",
-    "ElementwiseClampMinModule_bfloat16",
-    "ElementwiseClampModule_bfloat16",
-    "ElementwiseReluModule_bfloat16",
 }
 
 FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
@@ -545,7 +539,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "AtenKthvalueModule_basic",
     # StableHLO does not support non-default embedding forward flags.
     "EmbeddingForwardFlagsModule_basic",
-    "ElementwiseAtanTensorBFloat16SpecialValuesModule_basic",
     "ElementwiseClampIntToFloatModule_basic",
     "ElementwiseRemainderScalarModule_Bool_NegativeDivisor_basic",
     "ElementwiseRemainderScalarModule_Float_NegativeDividend_basic",
@@ -927,11 +920,6 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "Aten_AssertScalar_basic",
     "AvgPool2dCeilModeFullDimIndivisibleByStrideModule_basic",
     "MaxPool2dCeilModeFullDimIndivisibleByStrideModule_basic",
-    # error: argument must be a memref of f32, f64, i32, i64, i8, i1, c32, c64, but got 'memref<3x5xbf16>'
-    "ElementwiseClampMaxModule_bfloat16",
-    "ElementwiseClampMinModule_bfloat16",
-    "ElementwiseClampModule_bfloat16",
-    "ElementwiseReluModule_bfloat16",
     # Runtime error: failed to legalize operation 'torch.constant.int'
     "TorchPrimLoopWhileLikeHOPModule_basic",
 }
@@ -2833,7 +2821,6 @@ ONNX_XFAIL_SET = {
     # same-size/exact-2x nearest-neighbor compatibility sampling.
     "UpSampleNearest2dSizeCompatibility_basic",
     "AvgPool2dDivisorOverrideModule_basic",
-    "ElementwiseAtanTensorBFloat16SpecialValuesModule_basic",
     "ElementwiseFminModule_basic",
     "ElementwiseFmaxModule_basic",
     "MultinomialModule2D_basic",
@@ -3289,11 +3276,6 @@ ONNX_XFAIL_SET = {
     # RuntimeError: Given input size: (1x1x1). Calculated output size: (1x0x0). Output size is too small
     "AvgPool2dWithoutPadFullDimIndivisibleByStrideModule_basic",
     "MaxPool2dWithoutPadFullDimIndivisibleByStrideModule_basic",
-    # error: argument must be a memref of f32, f64, i32, i64, i8, i1, c32, c64, but got 'memref<?x?xbf16>'
-    "ElementwiseClampMaxModule_bfloat16",
-    "ElementwiseClampMinModule_bfloat16",
-    "ElementwiseClampModule_bfloat16",
-    "ElementwiseReluModule_bfloat16",
     # Regressed by the switch to the dynamo ONNX exporter, see https://github.com/llvm/torch-mlir/issues/4690
     "ArgmaxKeepdimModule_basic",
     "BucketizeTensorFloatModule_basic",
@@ -3449,7 +3431,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "LayerNormManualFwAndBwModule_basic",
     "SelfAttentionFwAndBwModule_basic",
     "ElementwiseCopysignModule_basic",
-    "ElementwiseAtanTensorBFloat16SpecialValuesModule_basic",
     "ElementwiseSignbitModule_basic",
     "Aten_TrilinearModuleZerodDimBug_basic",
     "AtenNonzero1DDynamicModule_basic",
@@ -3840,11 +3821,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "IndexPutImpl1DFloatNonAccumulateModule_basic",
     "IndexPutImpl1DIntNonAccumulateModule_basic",
     "UnsafeIndexPutHackedTwin1DFloatNonAccumulateModule_basic",
-    # error: argument must be a memref of f32, f64, i32, i64, i8, i1, c32, c64, but got 'memref<3x5xbf16>'
-    "ElementwiseClampMaxModule_bfloat16",
-    "ElementwiseClampMinModule_bfloat16",
-    "ElementwiseClampModule_bfloat16",
-    "ElementwiseReluModule_bfloat16",
 }
 
 ONNX_TOSA_CRASHING_SET = {
@@ -3922,7 +3898,6 @@ ONNX_TOSA_XFAIL_SET = {
     "ElementwiseLogAddExp2BroadcastModule_basic",
     "FloatPowerTensorTensorStaticModule_basic",
     "IsInfiniteModule_basic",
-    "ElementwiseAtanTensorBFloat16SpecialValuesModule_basic",
     "ElementwiseCopysignModule_basic",
     "ElementwiseFracModule_basic",
     "ElementwiseLdexpModule_basic",
@@ -5047,6 +5022,8 @@ ONNX_TOSA_XFAIL_SET = {
     "_ConvolutionDeprecated2DDeterministicModule_basic",
     "_LogSoftmaxModule_basic",
     "_SoftmaxModule_basic",
+    # Lowering Torch Backend IR -> TOSA Backend IR failed
+    "TypeConversionF32ToBF16Module_basic",
 }
 
 if torch_version_for_comparison() > version.parse("2.5.1"):

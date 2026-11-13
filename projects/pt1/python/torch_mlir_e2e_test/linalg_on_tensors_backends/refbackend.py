@@ -5,6 +5,7 @@
 
 import ctypes
 import os
+import ml_dtypes
 import numpy as np
 
 from torch_mlir.ir import *
@@ -24,6 +25,7 @@ __all__ = [
 def assert_arg_type_is_supported(ty):
     SUPPORTED = [
         np.float16,
+        ml_dtypes.bfloat16,
         np.float32,
         np.float64,
         np.uint8,
@@ -50,6 +52,7 @@ def with_identity_layout_strides(arg):
 
 memref_type_to_np_dtype = {
     "mrf16": np.float16,
+    "mrbf16": ml_dtypes.bfloat16,
     "mrf32": np.float32,
     "mrf64": np.float64,
     "mri1": np.bool_,

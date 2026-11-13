@@ -13,6 +13,7 @@ from torch._dynamo.backends.common import aot_autograd
 from torch_mlir import fx
 from torch_mlir.compiler_utils import OutputType
 from torch_mlir_e2e_test.configs.utils import (
+    numpy_to_tensor,
     recursively_convert_to_numpy,
     recursively_convert_from_numpy,
 )
@@ -33,7 +34,7 @@ def refine_result_type(_result):
     if isinstance(_result, tuple):
         return tuple(refine_result_type(x) for x in _result)
     elif isinstance(_result, np.ndarray):
-        return torch.from_numpy(_result)
+        return numpy_to_tensor(_result)
     elif isinstance(_result, (bool, int, float)):
         return _result
     else:
