@@ -1,26 +1,11 @@
 // RUN: torch-mlir-opt <%s -pass-pipeline='builtin.module(torch-backend-to-stablehlo-backend-pipeline)' -split-input-file | FileCheck %s
 
-// XFAIL: *
-//
-// Known bug: user annotations are dropped by the StableHLO rewrites that run
-// at the tail of `createTorchBackendToStablehloBackendPipeline` (see
-// lib/Conversion/Passes.cpp). Those passes rebuild ops via
-// `rewriter.replaceOpWithNewOp<...>(...)`, which does not carry discardable
-// attributes over to the new op.
-//
-// Two distinct passes are implicated:
-//   * `stablehlo-canonicalize-dynamism` rewrites `stablehlo.dynamic_reshape`
-//     into `stablehlo.reshape` (CanonicalizeDynamicReshapeOpPattern).
-//   * `stablehlo-legalize-deprecated-ops` rewrites `stablehlo.dot` into
-//     `stablehlo.dot_general`.
-//
-// Note that the per-conversion tests in linear.mlir and view_like.mlir pass,
-// because they only run `-convert-torch-to-stablehlo` and stop before the
-// rewrites that drop the attribute. This file exercises the whole pipeline so
-// the loss is visible.
-//
-// This is an all-or-nothing signal: fixing only one of the two cases below
-// still leaves the file failing. Remove the `XFAIL` once both hold.
+// Verify that user annotations survive the full StableHLO backend pipeline,
+// including the upstream StableHLO rewrites that run at its tail
+// (`stablehlo-canonicalize-dynamism` folding `stablehlo.dynamic_reshape` into
+// `stablehlo.reshape`, and `stablehlo-legalize-deprecated-ops` rewriting
+// `stablehlo.dot` into `stablehlo.dot_general`). The per-conversion tests in
+// linear.mlir and view_like.mlir stop before those rewrites.
 
 // A static-shaped `aten.unsqueeze` lowers to `stablehlo.dynamic_reshape`, which
 // `stablehlo-canonicalize-dynamism` then folds to `stablehlo.reshape`.
