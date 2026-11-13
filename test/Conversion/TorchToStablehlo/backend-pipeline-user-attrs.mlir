@@ -5,7 +5,8 @@
 // (`stablehlo-canonicalize-dynamism` folding `stablehlo.dynamic_reshape` into
 // `stablehlo.reshape`, and `stablehlo-legalize-deprecated-ops` rewriting
 // `stablehlo.dot` into `stablehlo.dot_general`). The per-conversion tests in
-// linear.mlir and view_like.mlir stop before those rewrites.
+// linear.mlir and view_like.mlir stop before those rewrites. See
+// docs/user_annotations.md.
 
 // A static-shaped `aten.unsqueeze` lowers to `stablehlo.dynamic_reshape`, which
 // `stablehlo-canonicalize-dynamism` then folds to `stablehlo.reshape`.
