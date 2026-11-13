@@ -2157,9 +2157,9 @@ def Torch_TorchaoChooseQparamsAffineOp : Torch_Op<
     mapping and the input dtype otherwise.
 
     With `keepdim`, the results have shape `input.shape / block_size`.
-    Otherwise, as in torchao, dimensions whose block covers the whole
-    dimension are dropped, and the results are 0-d if no block is larger
-    than 1.
+    Otherwise, as in torchao, a dimension is dropped only if its block is
+    larger than 1 and equal to the dimension size; size-1 dimensions are
+    kept. If no block is larger than 1, the results are 0-d.
   }];
   let arguments = (ins
     AnyTorchTensorType:$input,

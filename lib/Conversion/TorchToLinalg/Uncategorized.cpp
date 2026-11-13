@@ -18,6 +18,7 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
@@ -3155,23 +3156,20 @@ private:
         failed(result))
       return result;
     Value input = adaptor.getInput();
-    auto inputType = dyn_cast<RankedTensorType>(input.getType());
-    auto scaleType = dyn_cast_or_null<RankedTensorType>(
+    auto inputType = cast<RankedTensorType>(input.getType());
+    auto scaleType = cast<RankedTensorType>(
         getTypeConverter()->convertType(op.getScale().getType()));
-    auto zeroPointType = dyn_cast_or_null<RankedTensorType>(
+    auto zeroPointType = cast<RankedTensorType>(
         getTypeConverter()->convertType(op.getZeroPoint().getType()));
-    if (!inputType || !scaleType || !zeroPointType ||
-        !isa<mlir::FloatType>(inputType.getElementType()) ||
-        scaleType.getRank() != zeroPointType.getRank())
-      return rewriter.notifyMatchFailure(
-          op, "expected a ranked float input and ranked results of one rank");
     auto inputElemType = cast<mlir::FloatType>(inputType.getElementType());
 
-    std::string mappingType;
-    if (!matchPattern(op.getMappingType(), m_TorchConstantStr(mappingType)) ||
-        !llvm::is_contained(
-            {"ASYMMETRIC", "SYMMETRIC", "SYMMETRIC_NO_CLIPPING_ERR"},
-            mappingType))
+    std::string mappingName;
+    if (!matchPattern(op.getMappingType(), m_TorchConstantStr(mappingName)))
+      return rewriter.notifyMatchFailure(op,
+                                         "expected a constant mapping_type");
+    std::optional<TorchaoMappingType> mappingType =
+        getTorchaoMappingType(mappingName);
+    if (!mappingType)
       return rewriter.notifyMatchFailure(
           op, "expected an ASYMMETRIC, SYMMETRIC or SYMMETRIC_NO_CLIPPING_ERR "
               "mapping_type");
@@ -3197,34 +3195,28 @@ private:
 
     ArrayRef<int64_t> inputShape = inputType.getShape();
     int64_t rank = inputType.getRank();
+    SmallVector<int64_t> torchInputShape = makeShapeTorchCompatible(inputShape);
     FailureOr<SmallVector<int64_t>> blockSize =
-        getTorchaoBlockSize(op.getBlockSize(), inputShape);
+        getTorchaoBlockSize(op.getBlockSize(), torchInputShape);
     if (failed(blockSize))
       return rewriter.notifyMatchFailure(op, "expected a block_size list");
-    // As in torchao's `_get_reduction_params`, a block of the whole dimension
-    // spans it, and is reduced and dropped without `keepdim` unless the size
-    // is 1. A non-constant entry spans its dimension. Without any reduced
-    // dimension, torchao reduces over all dimensions.
-    SmallVector<bool> spans, reduced;
-    for (auto [size, block] : llvm::zip_equal(inputShape, *blockSize)) {
-      spans.push_back(block == size && size != 1);
-      reduced.push_back(block > 1 || spans.back());
-    }
-    if (!llvm::is_contained(reduced, true)) {
-      if (keepdim)
-        return rewriter.notifyMatchFailure(
-            op, "expected a block_size entry larger than 1 with keepdim");
-      spans.assign(rank, true);
-      reduced.assign(rank, true);
-    }
-    int64_t resultRank = keepdim ? rank : llvm::count(spans, false);
-    if (scaleType.getRank() != resultRank)
+    SmallVector<bool> reduced, spans;
+    if (!getTorchaoReducedDims(torchInputShape, *blockSize, reduced, spans) &&
+        keepdim)
       return rewriter.notifyMatchFailure(
-          op, "expected results of the rank given by block_size and keepdim");
+          op, "expected a block_size entry larger than 1 with keepdim");
+    SmallVector<int64_t> expectedShape = makeShapeLLVMCompatible(
+        getTorchaoQparamsShape(torchInputShape, *blockSize, spans, keepdim));
+    if (failed(verifyCompatibleShape(scaleType.getShape(), expectedShape)) ||
+        failed(verifyCompatibleShape(zeroPointType.getShape(), expectedShape)))
+      return rewriter.notifyMatchFailure(
+          op, "expected results of the shape given by block_size and keepdim");
+    int64_t resultRank = expectedShape.size();
 
     // Expands each reduced dimension to [size / block, block].
     Location loc = op.getLoc();
-    SmallVector<Value> inputSizes = getTensorSizes(rewriter, loc, input);
+    SmallVector<OpFoldResult> inputSizes =
+        tensor::getMixedSizes(rewriter, loc, input);
     SmallVector<ReassociationIndices> reassociation;
     SmallVector<OpFoldResult> expandedSizes, blockSizes;
     SmallVector<AffineExpr> blockExprs;
@@ -3233,7 +3225,7 @@ private:
       int64_t expandedDim = expandedSizes.size();
       if (!reduced[dim]) {
         reassociation.push_back({expandedDim});
-        expandedSizes.push_back(getAsOpFoldResult(inputSizes[dim]));
+        expandedSizes.push_back(inputSizes[dim]);
         blockSizes.push_back(expandedSizes.back());
         blockExprs.push_back(rewriter.getAffineDimExpr(expandedDim));
         reductionIterators.push_back(utils::IteratorType::parallel);
@@ -3242,12 +3234,12 @@ private:
       reassociation.push_back({expandedDim, expandedDim + 1});
       if (spans[dim]) {
         expandedSizes.push_back(rewriter.getIndexAttr(1));
-        expandedSizes.push_back(getAsOpFoldResult(inputSizes[dim]));
+        expandedSizes.push_back(inputSizes[dim]);
       } else {
         int64_t block = (*blockSize)[dim];
         if (ShapedType::isDynamic(inputShape[dim]))
           expandedSizes.push_back(getAsOpFoldResult(arith::DivUIOp::create(
-              rewriter, loc, inputSizes[dim],
+              rewriter, loc, cast<Value>(inputSizes[dim]),
               arith::ConstantIndexOp::create(rewriter, loc, block))));
         else
           expandedSizes.push_back(
@@ -3259,22 +3251,15 @@ private:
       reductionIterators.push_back(utils::IteratorType::parallel);
       reductionIterators.push_back(utils::IteratorType::reduction);
     }
-    auto toStaticShape = [](ArrayRef<OpFoldResult> sizes) {
-      return llvm::map_to_vector(sizes, [](OpFoldResult size) {
-        std::optional<int64_t> constant = getConstantIntValue(size);
-        return constant ? *constant : ShapedType::kDynamic;
-      });
-    };
     Value expanded = input;
     if (rank > 0)
       expanded = tensor::ExpandShapeOp::create(
           rewriter, loc,
-          RankedTensorType::get(toStaticShape(expandedSizes), inputElemType),
+          RankedTensorType::get(decomposeMixedValues(expandedSizes).first,
+                                inputElemType),
           input, reassociation, expandedSizes);
 
     // Computes the minimum and maximum of each block, in the input dtype.
-    auto blockType =
-        RankedTensorType::get(toStaticShape(blockSizes), inputElemType);
     auto createFilled = [&](bool negative) {
       Value init =
           tensor::EmptyOp::create(rewriter, loc, blockSizes, inputElemType);
@@ -3292,8 +3277,8 @@ private:
     AffineMap blockMap = AffineMap::get(expandedSizes.size(), 0, blockExprs,
                                         rewriter.getContext());
     auto minMax = linalg::GenericOp::create(
-        rewriter, loc, TypeRange{blockType, blockType}, expanded,
-        ValueRange{minInit, maxInit},
+        rewriter, loc, TypeRange{minInit.getType(), maxInit.getType()},
+        expanded, ValueRange{minInit, maxInit},
         SmallVector<AffineMap>{expandedMap, blockMap, blockMap},
         reductionIterators,
         [&](OpBuilder &b, Location bodyLoc, ValueRange args) {
@@ -3353,13 +3338,14 @@ private:
           Value maxPos = arith::MaximumFOp::create(b, bodyLoc, max, zero);
 
           Value scale, zeroPoint;
-          if (mappingType == "SYMMETRIC") {
+          if (*mappingType == TorchaoMappingType::Symmetric) {
             // scale = max(-min_neg, max_pos) / ((qmax - qmin) / 2)
             Value absMax = arith::MaximumFOp::create(
                 b, bodyLoc, arith::NegFOp::create(b, bodyLoc, minNeg), maxPos);
             scale = round(arith::DivFOp::create(b, bodyLoc, absMax,
                                                 constant((qmax - qmin) / 2)));
-          } else if (mappingType == "SYMMETRIC_NO_CLIPPING_ERR") {
+          } else if (*mappingType ==
+                     TorchaoMappingType::SymmetricNoClippingErr) {
             // scale = smin > smax ? smin : smax, with smin = min_neg / qmin
             // and smax = max_pos / qmax
             Value smin = round(
@@ -3371,7 +3357,6 @@ private:
             scale =
                 arith::SelectOp::create(b, bodyLoc, isSminLarger, smin, smax);
           } else {
-            // ASYMMETRIC
             // scale = (max_pos - min_neg) / (qmax - qmin)
             Value range =
                 round(arith::SubFOp::create(b, bodyLoc, maxPos, minNeg));
@@ -3381,7 +3366,7 @@ private:
           scale = round(
               arith::MaximumFOp::create(b, bodyLoc, scale, constant(eps)));
 
-          if (mappingType == "ASYMMETRIC") {
+          if (*mappingType == TorchaoMappingType::Asymmetric) {
             // zero_point = clamp(qmin - round(min_neg / scale), qmin, qmax)
             Value descaledMin =
                 round(arith::DivFOp::create(b, bodyLoc, minNeg, scale));

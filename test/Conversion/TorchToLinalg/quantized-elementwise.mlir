@@ -2183,15 +2183,14 @@ func.func @choose_qparams_affine_no_clipping_err_per_tensor_dynamic(
 
 // -----
 
-func.func @choose_qparams_affine_unsupported_mapping_type(
-    %input: !torch.vtensor<[4,16],f32>)
+func.func @choose_qparams_affine_non_constant_mapping_type(
+    %input: !torch.vtensor<[4,16],f32>, %mapping: !torch.str)
     -> (!torch.vtensor<[4],f32>, !torch.vtensor<[4],f32>) {
   %int1 = torch.constant.int 1
   %int16 = torch.constant.int 16
   %dtype = torch.constant.int 1
   %none = torch.constant.none
   %false = torch.constant.bool false
-  %mapping = torch.constant.str "SYMMETRIC_POWER_OF_TWO"
   %block_size = torch.prim.ListConstruct %int1, %int16
       : (!torch.int, !torch.int) -> !torch.list<int>
   // expected-error @+1 {{failed to legalize operation 'torch.torchao.choose_qparams_affine' that was explicitly marked illegal}}
@@ -2202,6 +2201,78 @@ func.func @choose_qparams_affine_unsupported_mapping_type(
         !torch.none, !torch.none, !torch.none, !torch.none, !torch.none,
         !torch.bool -> !torch.vtensor<[4],f32>, !torch.vtensor<[4],f32>
   return %scale, %zero_point : !torch.vtensor<[4],f32>, !torch.vtensor<[4],f32>
+}
+
+// -----
+
+func.func @choose_qparams_affine_keepdim_without_reduction(
+    %input: !torch.vtensor<[4,16],f32>)
+    -> (!torch.vtensor<[4,16],f32>, !torch.vtensor<[4,16],f32>) {
+  %int1 = torch.constant.int 1
+  %dtype = torch.constant.int 1
+  %none = torch.constant.none
+  %true = torch.constant.bool true
+  %mapping = torch.constant.str "SYMMETRIC"
+  %block_size = torch.prim.ListConstruct %int1, %int1
+      : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.torchao.choose_qparams_affine' that was explicitly marked illegal}}
+  %scale, %zero_point = torch.torchao.choose_qparams_affine
+      %input, %mapping, %block_size, %dtype, %none, %none, %none, %none,
+      %none, %true
+      : !torch.vtensor<[4,16],f32>, !torch.str, !torch.list<int>, !torch.int,
+        !torch.none, !torch.none, !torch.none, !torch.none, !torch.none,
+        !torch.bool -> !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,16],f32>
+  return %scale, %zero_point : !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,16],f32>
+}
+
+// -----
+
+func.func @choose_qparams_affine_wrong_result_shape(
+    %input: !torch.vtensor<[?,16],f32>)
+    -> (!torch.vtensor<[3,7],f32>, !torch.vtensor<[3,7],f32>) {
+  %int0 = torch.constant.int 0
+  %int8 = torch.constant.int 8
+  %dtype = torch.constant.int 1
+  %none = torch.constant.none
+  %true = torch.constant.bool true
+  %mapping = torch.constant.str "SYMMETRIC"
+  %size = torch.aten.size.int %input, %int0
+      : !torch.vtensor<[?,16],f32>, !torch.int -> !torch.int
+  %block_size = torch.prim.ListConstruct %size, %int8
+      : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.torchao.choose_qparams_affine' that was explicitly marked illegal}}
+  %scale, %zero_point = torch.torchao.choose_qparams_affine
+      %input, %mapping, %block_size, %dtype, %none, %none, %none, %none,
+      %none, %true
+      : !torch.vtensor<[?,16],f32>, !torch.str, !torch.list<int>, !torch.int,
+        !torch.none, !torch.none, !torch.none, !torch.none, !torch.none,
+        !torch.bool -> !torch.vtensor<[3,7],f32>, !torch.vtensor<[3,7],f32>
+  return %scale, %zero_point : !torch.vtensor<[3,7],f32>, !torch.vtensor<[3,7],f32>
+}
+
+// -----
+
+func.func @choose_qparams_affine_wrong_result_rank(
+    %input: !torch.vtensor<[?,16],f32>)
+    -> (!torch.vtensor<[1],f32>, !torch.vtensor<[1],f32>) {
+  %int0 = torch.constant.int 0
+  %int8 = torch.constant.int 8
+  %dtype = torch.constant.int 1
+  %none = torch.constant.none
+  %true = torch.constant.bool true
+  %mapping = torch.constant.str "SYMMETRIC"
+  %size = torch.aten.size.int %input, %int0
+      : !torch.vtensor<[?,16],f32>, !torch.int -> !torch.int
+  %block_size = torch.prim.ListConstruct %size, %int8
+      : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.torchao.choose_qparams_affine' that was explicitly marked illegal}}
+  %scale, %zero_point = torch.torchao.choose_qparams_affine
+      %input, %mapping, %block_size, %dtype, %none, %none, %none, %none,
+      %none, %true
+      : !torch.vtensor<[?,16],f32>, !torch.str, !torch.list<int>, !torch.int,
+        !torch.none, !torch.none, !torch.none, !torch.none, !torch.none,
+        !torch.bool -> !torch.vtensor<[1],f32>, !torch.vtensor<[1],f32>
+  return %scale, %zero_point : !torch.vtensor<[1],f32>, !torch.vtensor<[1],f32>
 }
 
 // -----
