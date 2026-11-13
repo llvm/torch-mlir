@@ -1325,6 +1325,57 @@ def UpSampleNearest2dVecNoneScales_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 1, 6, 12).to(torch.float64))
 
 
+class UpSampleNearest2dFractionalScales(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([1, 1, 5, 3], torch.float32, True)])
+    def forward(self, input):
+        return torch.ops.aten.upsample_nearest2d.default(
+            input, output_size=[2, 4], scales_h=0.5, scales_w=1.5
+        )
+
+
+@register_test_case(module_factory=lambda: UpSampleNearest2dFractionalScales())
+def UpSampleNearest2dFractionalScales_basic(module, tu: TestUtils):
+    module.forward(torch.arange(15, dtype=torch.float32).reshape(1, 1, 5, 3))
+
+
+class UpSampleNearest2dSizeCompatibility(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([1, 1, 2, 2], torch.float32, True)])
+    def forward(self, input):
+        return torch.ops.aten.upsample_nearest2d.default(
+            input, output_size=[2, 4], scales_h=1.25, scales_w=2.25
+        )
+
+
+@register_test_case(module_factory=lambda: UpSampleNearest2dSizeCompatibility())
+def UpSampleNearest2dSizeCompatibility_basic(module, tu: TestUtils):
+    module.forward(torch.arange(4, dtype=torch.float32).reshape(1, 1, 2, 2))
+
+
+class UpSampleNearest2dFloat32Scale(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([1, 1, 1, 2], torch.float32, True)])
+    def forward(self, input):
+        return torch.ops.aten.upsample_nearest2d.default(
+            input, output_size=[1, 6], scales_h=1.0, scales_w=3.00000001
+        )
+
+
+@register_test_case(module_factory=lambda: UpSampleNearest2dFloat32Scale())
+def UpSampleNearest2dFloat32Scale_basic(module, tu: TestUtils):
+    module.forward(torch.arange(2, dtype=torch.float32).reshape(1, 1, 1, 2))
+
+
 class UpSampleNearest1dVecNoneShape(torch.nn.Module):
     def __init__(self):
         super().__init__()

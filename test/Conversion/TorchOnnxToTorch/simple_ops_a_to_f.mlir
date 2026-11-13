@@ -941,16 +941,18 @@ func.func @test_dynamicquantizelinear(%arg0: !torch.vtensor<[3,4,5],f32>) -> (!t
   // CHECK: %[[PZP_1:.*]] = torch.aten.sub.Tensor %[[CF0_T]], %[[PZP_0]], %[[CI1]] : !torch.vtensor<[],f32>, !torch.vtensor<[],f32>, !torch.int -> !torch.vtensor<[],f32>
   // CHECK: %[[PZP_2:.*]] = torch.aten.clamp %[[PZP_1]], %[[CF0]], %[[CQMAX]] : !torch.vtensor<[],f32>, !torch.float, !torch.float -> !torch.vtensor<[],f32>
   // CHECK: %[[PZP_3:.*]] = torch.aten.round %[[PZP_2]] : !torch.vtensor<[],f32> -> !torch.vtensor<[],f32>
-  // CHECK: %[[CI13:.*]] = torch.constant.int 13
+  // CHECK: %[[DTYPE0:.*]] = torch.constant.int 0
   // CHECK: %[[NONE_2:.*]] = torch.constant.none
   // CHECK: %[[FALSE:.*]] = torch.constant.bool false
-  // CHECK: %[[ZP_T:.*]] = torch.aten.to.dtype %[[PZP_3]], %[[CI13]], %[[FALSE]], %[[FALSE]], %[[NONE_2]] : !torch.vtensor<[],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[],ui8>
+  // CHECK: %[[ZP_T:.*]] = torch.aten.to.dtype %[[PZP_3]], %[[DTYPE0]], %[[FALSE]], %[[FALSE]], %[[NONE_2]] : !torch.vtensor<[],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[],ui8>
   // CHECK: %[[ZP:.*]] = torch.aten.item %[[ZP_T]] : !torch.vtensor<[],ui8> -> !torch.int
   // CHECK: %[[SCALE:.*]] = torch.aten.item %[[SCALE_T]] : !torch.vtensor<[],f32> -> !torch.float
-  // CHECK: %[[QUANT:.*]] = torch.aten.quantize_per_tensor %arg0, %[[SCALE]], %[[ZP]], %[[CI13]] : !torch.vtensor<[3,4,5],f32>, !torch.float, !torch.int, !torch.int -> !torch.vtensor<[3,4,5],!torch.quint8>
-  // CHECK: %[[INTQUANT:.*]] = torch.aten.int_repr %[[QUANT]] : !torch.vtensor<[3,4,5],!torch.quint8> -> !torch.vtensor<[3,4,5],ui8>
+  // CHECK: %[[DTYPE0_2:.*]] = torch.constant.int 0
+  // CHECK: %[[QMIN:.*]] = torch.constant.int 0
+  // CHECK: %[[QMAX:.*]] = torch.constant.int 255
+  // CHECK: %[[QUANT:.*]] = torch.quantized_decomposed.quantize_per_tensor %arg0, %[[SCALE]], %[[ZP]], %[[QMIN]], %[[QMAX]], %[[DTYPE0_2]] : !torch.vtensor<[3,4,5],f32>, !torch.float, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[3,4,5],ui8>
   %0:3 = torch.operator "onnx.DynamicQuantizeLinear"(%arg0) : (!torch.vtensor<[3,4,5],f32>) -> (!torch.vtensor<[3,4,5],ui8>, !torch.vtensor<[],f32>, !torch.vtensor<[],ui8>)
-  // CHECK: return %[[INTQUANT]], %[[SCALE_T]], %[[ZP_T]] : !torch.vtensor<[3,4,5],ui8>, !torch.vtensor<[],f32>, !torch.vtensor<[],ui8>
+  // CHECK: return %[[QUANT]], %[[SCALE_T]], %[[ZP_T]] : !torch.vtensor<[3,4,5],ui8>, !torch.vtensor<[],f32>, !torch.vtensor<[],ui8>
   return %0#0, %0#1, %0#2 : !torch.vtensor<[3,4,5],ui8>, !torch.vtensor<[],f32>, !torch.vtensor<[],ui8>
 }
 

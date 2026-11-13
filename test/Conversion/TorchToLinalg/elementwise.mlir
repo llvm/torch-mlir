@@ -383,3 +383,34 @@ func.func @elementwise_to_dtype_f32_to_ui8(%arg0: !torch.vtensor<[?],f32>) -> !t
   %0 = torch.aten.to.dtype %arg0, %int0, %false, %false, %none : !torch.vtensor<[?],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[?],ui8>
   return %0 : !torch.vtensor<[?],ui8>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_to_dtype_f32_to_ui16(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[IN:.*]]: f32, %{{.*}}: i16):
+// CHECK-NEXT:        %[[WIDE:.*]] = arith.fptosi %[[IN]] : f32 to i64
+// CHECK-NEXT:        %[[OUT:.*]] = arith.trunci %[[WIDE]] : i64 to i16
+// CHECK-NEXT:        linalg.yield %[[OUT]] : i16
+func.func @elementwise_to_dtype_f32_to_ui16(%arg0: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?],ui16> {
+  %int27 = torch.constant.int 27
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %0 = torch.aten.to.dtype %arg0, %int27, %false, %false, %none : !torch.vtensor<[?],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[?],ui16>
+  return %0 : !torch.vtensor<[?],ui16>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_to_dtype_f32_to_ui64(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[IN:.*]]: f32, %{{.*}}: i64):
+// CHECK-NEXT:        %[[OUT:.*]] = arith.fptoui %[[IN]] : f32 to i64
+// CHECK-NEXT:        linalg.yield %[[OUT]] : i64
+func.func @elementwise_to_dtype_f32_to_ui64(%arg0: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?],ui64> {
+  %int29 = torch.constant.int 29
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %0 = torch.aten.to.dtype %arg0, %int29, %false, %false, %none : !torch.vtensor<[?],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[?],ui64>
+  return %0 : !torch.vtensor<[?],ui64>
+}

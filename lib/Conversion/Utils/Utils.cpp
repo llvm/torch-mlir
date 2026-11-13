@@ -373,6 +373,9 @@ Value convertScalarToDtype(OpBuilder &b, Location loc, Value scalar, Type dtype,
     if (auto scalarFloat = dyn_cast<mlir::FloatType>(scalarType)) {
       if (dstOriginalDtype.has_value() &&
           dstOriginalDtype->isUnsignedInteger()) {
+        // There is no wider signed type to convert through for 64-bit
+        // results, so negative and out-of-range inputs give poison here
+        // instead of wrapping as in the narrower path below.
         if (dtypeInteger.getWidth() == 64)
           return arith::FPToUIOp::create(b, loc, dtype, scalar);
         // PyTorch converts floats to uint8 through int64, so out-of-range
