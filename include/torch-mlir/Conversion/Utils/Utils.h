@@ -158,6 +158,26 @@ getConstantPerTensorQParams(PatternRewriter &rewriter, Operation *op,
 APFloat getFloatInf(mlir::FloatType fpType, bool negative,
                     bool allowNonFinites);
 
+// Forwards the per-result `mlir.user` annotations of `from` onto the values in
+// `replacement` that replace each of its results. For result `i`, the
+// dictionary `from.mlir.user[i]` is merged into the `mlir.user` attribute of
+// whatever produces `replacement[i]` (after looking through `tensor.cast` and
+// single-input `unrealized_conversion_cast`): slot `j` of the defining op's
+// `mlir.user` array if it is op result `j`, or the function argument's
+// `mlir.user` dictionary if it is an entry-block argument. Keys already present
+// on the target take precedence. Null replacement values are skipped.
+//
+// Passes that replace ops without going through a pattern driver can call this
+// directly; pattern-based passes should prefer `wrapPatternsWithForwarding` and
+// `createConversionForwardingListener`.
+void forwardUserAttrs(Operation *from, ValueRange replacement);
+
+void wrapPatternsWithForwarding(RewritePatternSet &patterns);
+
+// Creates a listener for attribute forwarding during conversions.
+// This should be installed before calling applyPartialConversion.
+std::unique_ptr<RewriterBase::Listener> createConversionForwardingListener();
+
 } // namespace Torch
 } // namespace torch
 } // namespace mlir

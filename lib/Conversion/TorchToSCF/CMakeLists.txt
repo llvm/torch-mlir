@@ -14,6 +14,7 @@ add_mlir_conversion_library(TorchMLIRTorchToSCF
   MLIRSCFDialect
   MLIRFuncDialect
   MLIRTransformUtils
+  TorchMLIRConversionUtils
   TorchMLIRTorchConversionPasses
   TorchMLIRTorchDialect
 )

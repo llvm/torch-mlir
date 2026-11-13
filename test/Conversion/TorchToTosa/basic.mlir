@@ -6555,6 +6555,15 @@ func.func @torch.aten.addmm$zero_k(%bias: !torch.vtensor<[4],f32>, %mat1: !torch
 }
 
 // -----
+// CHECK-LABEL:   func.func @test_tosa_matmul_user_attrs(
+// CHECK:           tosa.reshape {{.*}} {mlir.user = [{tag = "attn_proj"}]}
+// CHECK-NOT:       internal.flag
+func.func @test_tosa_matmul_user_attrs(%arg0: !torch.vtensor<[1,22],f32>, %arg1: !torch.vtensor<[22,10],f32>) -> !torch.vtensor<[1,10],f32> {
+  %0 = torch.aten.mm %arg0, %arg1 {mlir.user = [{tag = "attn_proj"}], internal.flag = 1 : i64} : !torch.vtensor<[1,22],f32>, !torch.vtensor<[22,10],f32> -> !torch.vtensor<[1,10],f32>
+  return %0 : !torch.vtensor<[1,10],f32>
+}
+
+// -----
 // CHECK-LABEL: func.func @torch.aten.addmm$zero_k_bf16
 // CHECK-NOT: tosa.matmul
 // CHECK: %[[ZERO:.*]] = tosa.const
@@ -7934,6 +7943,17 @@ func.func @torch.aten.linalg_vector_norm$zero_int(%arg0: !torch.vtensor<[5],f32>
   return %0 : !torch.vtensor<[],f32>
 }
 
+// -----
+
+// CHECK-LABEL:   func.func @test_unsqueeze_user_attrs(
+// CHECK:           tosa.reshape
+// CHECK-SAME:        {mlir.user = [{tag = "unsqueeze_tag"}]}
+func.func @test_unsqueeze_user_attrs(%arg0: !torch.vtensor<[4,3],si32>) -> !torch.vtensor<[4,3,1],si32> {
+  %int2 = torch.constant.int 2
+  %0 = torch.aten.unsqueeze %arg0, %int2 {mlir.user = [{tag = "unsqueeze_tag"}]} : !torch.vtensor<[4,3],si32>, !torch.int -> !torch.vtensor<[4,3,1],si32>
+  return %0 : !torch.vtensor<[4,3,1],si32>
+}
+
 
 // -----
 
@@ -8040,4 +8060,20 @@ func.func @torch.aten.to.dtype$float_to_uint8(%arg0: !torch.vtensor<[4],f32>) ->
   %none = torch.constant.none
   %0 = torch.aten.to.dtype %arg0, %int0, %false, %false, %none : !torch.vtensor<[4],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[4],ui8>
   return %0 : !torch.vtensor<[4],ui8>
+}
+
+// -----
+
+// An annotated op whose result only feeds another converted op (here
+// `add -> relu`) must keep its annotation; only the annotated value's
+// producer is tagged, not the downstream relu.
+// CHECK-LABEL:   func.func @intermediate_user_attrs(
+// CHECK:           tosa.add {{.*}} {mlir.user = [{domain_lower = -1.000000e+00 : f64}]}
+// CHECK-NOT:       mlir.user
+// CHECK:           return
+func.func @intermediate_user_attrs(%arg0: !torch.vtensor<[1,4],f32>, %arg1: !torch.vtensor<[1,4],f32>) -> !torch.vtensor<[1,4],f32> {
+  %int1 = torch.constant.int 1
+  %0 = torch.aten.add.Tensor %arg0, %arg1, %int1 {mlir.user = [{domain_lower = -1.0 : f64}]} : !torch.vtensor<[1,4],f32>, !torch.vtensor<[1,4],f32>, !torch.int -> !torch.vtensor<[1,4],f32>
+  %1 = torch.aten.relu %0 : !torch.vtensor<[1,4],f32> -> !torch.vtensor<[1,4],f32>
+  return %1 : !torch.vtensor<[1,4],f32>
 }
