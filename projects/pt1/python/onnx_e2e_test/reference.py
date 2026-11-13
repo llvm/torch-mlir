@@ -7,6 +7,7 @@
 import numpy as np
 from onnx.reference import ReferenceEvaluator
 from onnx.reference.ops.op_conv_integer import ConvInteger as _OnnxConvInteger
+from onnx.reference.ops.op_qlinear_conv import QLinearConv as _OnnxQLinearConv
 
 
 # ReferenceEvaluator keys `new_ops` by class name, so this must be named after
@@ -31,7 +32,25 @@ class ConvInteger(_OnnxConvInteger):
         return super()._run(X, W, x_zero_point, w_zero_point, **kwargs)
 
 
-_NEW_OPS = [ConvInteger]
+class QLinearConv(_OnnxQLinearConv):
+    """QLinearConv with per-channel ``w_scale`` support.
+
+    The onnx 1.17 reference multiplies the convolution result by a 1-D
+    ``w_scale`` without reshaping it to the output-channel axis, which fails
+    to broadcast. This mirrors the upstream fix in onnx/onnx
+    (https://github.com/onnx/onnx/pull/6460, first released in onnx 1.18.0)
+    and can be dropped once the pinned onnx version is >= 1.18.0.
+    """
+
+    op_domain = ""
+
+    def _run(self, x, x_scale, x_zero_point, w, w_scale, *args, **kwargs):
+        if np.ndim(w_scale) == 1 and np.size(w_scale) > 1:
+            w_scale = np.expand_dims(w_scale, (0, *range(2, w.ndim)))
+        return super()._run(x, x_scale, x_zero_point, w, w_scale, *args, **kwargs)
+
+
+_NEW_OPS = [ConvInteger, QLinearConv]
 
 
 def create_reference_evaluator(model):

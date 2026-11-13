@@ -401,6 +401,11 @@ TORCHDYNAMO_CRASHING_SET = {
 }
 
 FX_IMPORTER_XFAIL_SET = {
+    # Torch-to-Linalg nearest2d rounds explicit scales up to integers and
+    # uses integer floor division, producing incorrect source indices.
+    "UpSampleNearest2dFloat32Scale_basic",
+    "UpSampleNearest2dFractionalScales_basic",
+    "UpSampleNearest2dSizeCompatibility_basic",
     "TimeOutModule_basic",  # this test is expected to time out
     "AddFloatIntModule_basic",
     "AllBoolFalseModule_basic",
@@ -908,6 +913,9 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "IscloseStaticModule_basic",
     "UpSampleNearest2dDynamicFactor_basic",
     "UpSampleNearest2dDynamicSize_basic",
+    "UpSampleNearest2dFloat32Scale_basic",
+    "UpSampleNearest2dFractionalScales_basic",
+    "UpSampleNearest2dSizeCompatibility_basic",
     "UpSampleNearest2dStaticFactor_basic",
     "UpSampleNearest2dStaticSize_basic",
     "UpSampleNearest2d_basic",
@@ -2802,8 +2810,6 @@ ONNX_XFAIL_SET = {
     "AtenAsStridedAfterNumpyTModule_basic",
     # ONNX transpose materializes permute before gather, so indexing uses new storage.
     "AtenAsStridedAfterPermuteModule_basic",
-    # ONNX _reshape_alias path creates an invalid 24-to-1 reshape/collapse.
-    "AtenAsStridedAfterReshapeAliasModule_basic",
     # ONNX export lowers channels-last as_strided to flatten/gather over the
     # logical NCHW tensor, losing channels-last storage order.
     "AtenAsStridedAfterToChannelsLastModule_basic",
@@ -2815,8 +2821,6 @@ ONNX_XFAIL_SET = {
     "AtenAsStridedAfterTModule_basic",
     # ONNX transpose materializes transpose before gather, so indexing uses new storage.
     "AtenAsStridedAfterTransposeModule_basic",
-    # ONNX unflatten path creates an invalid 24-to-1 reshape/collapse.
-    "AtenAsStridedAfterUnflattenModule_basic",
     # ONNX unfold export materializes windows before gather, losing view storage.
     "AtenAsStridedAfterUnfoldModule_basic",
     # ONNX _unsafe_view path creates an invalid reshape/collapse after slice.
@@ -2825,6 +2829,9 @@ ONNX_XFAIL_SET = {
     # This test is expected to time out
     "TimeOutModule_basic",
     # Failure - incorrect numerics
+    # ONNX export preserves explicit Resize scales, losing PyTorch's
+    # same-size/exact-2x nearest-neighbor compatibility sampling.
+    "UpSampleNearest2dSizeCompatibility_basic",
     "AvgPool2dDivisorOverrideModule_basic",
     "ElementwiseAtanTensorBFloat16SpecialValuesModule_basic",
     "ElementwiseFminModule_basic",
@@ -2946,9 +2953,6 @@ ONNX_XFAIL_SET = {
     "AvgPool3dDiffKernelsStridesNoPadCeilPadNotIncluded_basic",
     "AvgPool3dDiffKernelsStridesPadCeilPadNotIncluded_basic",
     "BatchMlpLayerModule_basic",
-    "BincountMinlengthModule_basic",
-    "BincountModule_basic",
-    "BincountStaticSizeModule_basic",
     "BoolFloatConstantModule_basic",
     "BoolFloatFalseModule_basic",
     "BoolFloatTrueModule_basic",
@@ -3292,27 +3296,12 @@ ONNX_XFAIL_SET = {
     "ElementwiseReluModule_bfloat16",
     # Regressed by the switch to the dynamo ONNX exporter, see https://github.com/llvm/torch-mlir/issues/4690
     "ArgmaxKeepdimModule_basic",
-    "AtenAsStridedAfterBroadcastToModule_basic",
-    "AtenAsStridedAfterChainedViewsModule_basic",
-    "AtenAsStridedAfterContiguousModule_basic",
-    "AtenAsStridedAfterExpandAsModule_basic",
-    "AtenAsStridedAfterExpandModule_basic",
-    "AtenAsStridedAfterReshapeFlattenModule_basic",
-    "AtenAsStridedAfterSliceModule_basic",
-    "AtenAsStridedAfterSqueezeUnsqueezeModule_basic",
-    "AtenAsStridedAfterViewModule_basic",
-    "AtenAsStridedModule_basic",
-    "AtenAsStridedNoStorageOffsetModule_basic",
-    "AtenAsStridedUnknownSizeModule_basic",
-    "AtenLinear1D_basic",
-    "AtenLinearMatVec_basic",
     "BucketizeTensorFloatModule_basic",
     "CopyWithDifferentSizesModule_basic",
     "CrossEntropyLossNoReductionModule_basic",
     "CumsumModule_basic",
     "ElementwiseBitwiseLeftShiftInt32Module_basic",
     "ElementwiseBitwiseLeftShiftInt64Module_basic",
-    "ElementwiseMulScalarModule_basic",
     "ElementwiseRreluEvalModule_basic",
     "ElementwiseRreluEvalStaticModule_basic",
     "ElementwiseRreluTrainModule_basic",
@@ -3320,14 +3309,12 @@ ONNX_XFAIL_SET = {
     "IndexTensorHackedTwinMultiInputNonContiguousMultipleStaticDims_basic",
     "IndexTensorMultiInputNonContiguousMultipleStaticDims_basic",
     "MeanDimNoneDimModule_basic",
-    "MeanDtypeModule_basic",
     "PowIntFloatModule_basic",
     "QuantizedBatchedInputSingleLayer_basic",
     "QuantizedNoLayer_basic",
     "QuantizedSingleLayer_basic",
     "ReduceAmaxEmptyDim_basic",
     "ReduceAminmaxAllDims_basic",
-    "RepeatInterleaveSelfIntNoDimModule_basic",
     "RsubIntModule_noalpha_basic",
     "ScaledDotProductAttentionBoolMaskModule_basic",
     "ScaledDotProductAttentionSameCausalModule_basic",
