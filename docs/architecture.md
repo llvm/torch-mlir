@@ -132,6 +132,11 @@ See the extensive comments in the function `satisfiesBackendContract` (and its
 callees) in the `LowerToBackendContract` pass for an extended rationale for
 these decisions, and a precise definition of the backend contract.
 
+User annotations attached to values via `AnnotateAndPassThrough` are carried
+through lowering to the backend IR as `mlir.user` attributes. See
+[User annotations](user_annotations.md) for their structure and how passes
+propagate them.
+
 ## The Frontends
 
 Torch-MLIR provides 2 main frontends:
