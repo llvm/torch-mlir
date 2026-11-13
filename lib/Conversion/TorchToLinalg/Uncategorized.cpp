@@ -18,6 +18,7 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/Dialect/Utils/StaticValueUtils.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
@@ -3137,6 +3138,274 @@ public:
   }
 };
 
+class ConvertTorchaoChooseQparamsAffineOp
+    : public OpConversionPattern<TorchaoChooseQparamsAffineOp> {
+public:
+  ConvertTorchaoChooseQparamsAffineOp(TypeConverter &typeConverter,
+                                      MLIRContext *context,
+                                      bool allowNonFinites)
+      : OpConversionPattern(typeConverter, context),
+        allowNonFinites(allowNonFinites) {}
+
+private:
+  bool allowNonFinites;
+  LogicalResult
+  matchAndRewrite(TorchaoChooseQparamsAffineOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    if (LogicalResult result = verifyLinalgCompatibleTypes(op, rewriter);
+        failed(result))
+      return result;
+    Value input = adaptor.getInput();
+    auto inputType = cast<RankedTensorType>(input.getType());
+    auto scaleType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op.getScale().getType()));
+    auto zeroPointType = cast<RankedTensorType>(
+        getTypeConverter()->convertType(op.getZeroPoint().getType()));
+    auto inputElemType = cast<mlir::FloatType>(inputType.getElementType());
+
+    std::string mappingName;
+    if (!matchPattern(op.getMappingType(), m_TorchConstantStr(mappingName)))
+      return rewriter.notifyMatchFailure(op,
+                                         "expected a constant mapping_type");
+    std::optional<TorchaoMappingType> mappingType =
+        getTorchaoMappingType(mappingName);
+    if (!mappingType)
+      return rewriter.notifyMatchFailure(
+          op, "expected an ASYMMETRIC, SYMMETRIC or SYMMETRIC_NO_CLIPPING_ERR "
+              "mapping_type");
+
+    FailureOr<std::pair<double, double>> bounds = getTorchaoQuantBounds(
+        op.getQuantMin(), op.getQuantMax(), op.getTargetDtype());
+    if (failed(bounds))
+      return rewriter.notifyMatchFailure(
+          op, "expected an integer target_dtype and constant or None "
+              "quant_min/max");
+    double qmin = bounds->first, qmax = bounds->second;
+
+    double eps;
+    if (isa<Torch::NoneType>(op.getEps().getType()))
+      eps = APFloat::getSmallestNormalized(inputElemType.getFloatSemantics())
+                .convertToDouble();
+    else if (!matchPattern(op.getEps(), m_TorchConstantFloat(&eps)))
+      return rewriter.notifyMatchFailure(op, "expected a constant or None eps");
+
+    bool keepdim;
+    if (!matchPattern(op.getKeepdim(), m_TorchConstantBool(&keepdim)))
+      return rewriter.notifyMatchFailure(op, "expected a constant keepdim");
+
+    ArrayRef<int64_t> inputShape = inputType.getShape();
+    int64_t rank = inputType.getRank();
+    SmallVector<int64_t> torchInputShape = makeShapeTorchCompatible(inputShape);
+    FailureOr<SmallVector<int64_t>> blockSize =
+        getTorchaoBlockSize(op.getBlockSize(), torchInputShape);
+    if (failed(blockSize))
+      return rewriter.notifyMatchFailure(op, "expected a block_size list");
+    SmallVector<bool> reduced, spans;
+    if (!getTorchaoReducedDims(torchInputShape, *blockSize, reduced, spans) &&
+        keepdim)
+      return rewriter.notifyMatchFailure(
+          op, "expected a block_size entry larger than 1 with keepdim");
+    SmallVector<int64_t> expectedShape = makeShapeLLVMCompatible(
+        getTorchaoQparamsShape(torchInputShape, *blockSize, spans, keepdim));
+    if (failed(verifyCompatibleShape(scaleType.getShape(), expectedShape)) ||
+        failed(verifyCompatibleShape(zeroPointType.getShape(), expectedShape)))
+      return rewriter.notifyMatchFailure(
+          op, "expected results of the shape given by block_size and keepdim");
+    int64_t resultRank = expectedShape.size();
+
+    // Expands each reduced dimension to [size / block, block].
+    Location loc = op.getLoc();
+    SmallVector<OpFoldResult> inputSizes =
+        tensor::getMixedSizes(rewriter, loc, input);
+    SmallVector<ReassociationIndices> reassociation;
+    SmallVector<OpFoldResult> expandedSizes, blockSizes;
+    SmallVector<AffineExpr> blockExprs;
+    SmallVector<utils::IteratorType> reductionIterators;
+    for (int64_t dim = 0; dim < rank; ++dim) {
+      int64_t expandedDim = expandedSizes.size();
+      if (!reduced[dim]) {
+        reassociation.push_back({expandedDim});
+        expandedSizes.push_back(inputSizes[dim]);
+        blockSizes.push_back(expandedSizes.back());
+        blockExprs.push_back(rewriter.getAffineDimExpr(expandedDim));
+        reductionIterators.push_back(utils::IteratorType::parallel);
+        continue;
+      }
+      reassociation.push_back({expandedDim, expandedDim + 1});
+      if (spans[dim]) {
+        expandedSizes.push_back(rewriter.getIndexAttr(1));
+        expandedSizes.push_back(inputSizes[dim]);
+      } else {
+        int64_t block = (*blockSize)[dim];
+        if (ShapedType::isDynamic(inputShape[dim]))
+          expandedSizes.push_back(getAsOpFoldResult(arith::DivUIOp::create(
+              rewriter, loc, cast<Value>(inputSizes[dim]),
+              arith::ConstantIndexOp::create(rewriter, loc, block))));
+        else
+          expandedSizes.push_back(
+              rewriter.getIndexAttr(inputShape[dim] / block));
+        expandedSizes.push_back(rewriter.getIndexAttr(block));
+      }
+      blockSizes.push_back(expandedSizes[expandedDim]);
+      blockExprs.push_back(rewriter.getAffineDimExpr(expandedDim));
+      reductionIterators.push_back(utils::IteratorType::parallel);
+      reductionIterators.push_back(utils::IteratorType::reduction);
+    }
+    Value expanded = input;
+    if (rank > 0)
+      expanded = tensor::ExpandShapeOp::create(
+          rewriter, loc,
+          RankedTensorType::get(decomposeMixedValues(expandedSizes).first,
+                                inputElemType),
+          input, reassociation, expandedSizes);
+
+    // Computes the minimum and maximum of each block, in the input dtype.
+    auto createFilled = [&](bool negative) {
+      Value init =
+          tensor::EmptyOp::create(rewriter, loc, blockSizes, inputElemType);
+      Value fill = arith::ConstantOp::create(
+          rewriter, loc,
+          rewriter.getFloatAttr(
+              inputElemType,
+              getFloatInf(inputElemType, negative, allowNonFinites)));
+      return linalg::FillOp::create(rewriter, loc, fill, init).getResult(0);
+    };
+    Value minInit = createFilled(/*negative=*/false);
+    Value maxInit = createFilled(/*negative=*/true);
+    AffineMap expandedMap =
+        rewriter.getMultiDimIdentityMap(expandedSizes.size());
+    AffineMap blockMap = AffineMap::get(expandedSizes.size(), 0, blockExprs,
+                                        rewriter.getContext());
+    auto minMax = linalg::GenericOp::create(
+        rewriter, loc, TypeRange{minInit.getType(), maxInit.getType()},
+        expanded, ValueRange{minInit, maxInit},
+        SmallVector<AffineMap>{expandedMap, blockMap, blockMap},
+        reductionIterators,
+        [&](OpBuilder &b, Location bodyLoc, ValueRange args) {
+          Value min = arith::MinimumFOp::create(b, bodyLoc, args[0], args[1]);
+          Value max = arith::MaximumFOp::create(b, bodyLoc, args[0], args[2]);
+          linalg::YieldOp::create(b, bodyLoc, ValueRange{min, max});
+        });
+
+    // Computes the quantization parameters in the result shape. Dropped
+    // dimensions have size 1 in the block shape.
+    SmallVector<AffineExpr> qparamsExprs;
+    SmallVector<OpFoldResult> resultSizes;
+    for (int64_t dim = 0; dim < rank; ++dim) {
+      if (!keepdim && spans[dim]) {
+        qparamsExprs.push_back(rewriter.getAffineConstantExpr(0));
+        continue;
+      }
+      qparamsExprs.push_back(rewriter.getAffineDimExpr(resultSizes.size()));
+      resultSizes.push_back(blockSizes[dim]);
+    }
+    AffineMap qparamsMap =
+        AffineMap::get(resultRank, 0, qparamsExprs, rewriter.getContext());
+    AffineMap resultMap = rewriter.getMultiDimIdentityMap(resultRank);
+    Type scaleElemType = scaleType.getElementType();
+    Type zeroPointElemType = zeroPointType.getElementType();
+    Value scaleInit =
+        tensor::EmptyOp::create(rewriter, loc, resultSizes, scaleElemType);
+    Value zeroPointInit =
+        tensor::EmptyOp::create(rewriter, loc, resultSizes, zeroPointElemType);
+    bool zeroPointIsUnsigned = torch_to_linalg::isUnsignedTorchType(
+        cast<BaseTensorType>(op.getZeroPoint().getType()).getDtype());
+
+    auto qparams = linalg::GenericOp::create(
+        rewriter, loc, TypeRange{scaleInit.getType(), zeroPointInit.getType()},
+        minMax.getResults(), ValueRange{scaleInit, zeroPointInit},
+        SmallVector<AffineMap>{qparamsMap, qparamsMap, resultMap, resultMap},
+        SmallVector<utils::IteratorType>(resultRank,
+                                         utils::IteratorType::parallel),
+        [&](OpBuilder &b, Location bodyLoc, ValueRange args) {
+          Type computeType = b.getF32Type();
+          auto constant = [&](double value) -> Value {
+            return arith::ConstantOp::create(
+                b, bodyLoc, b.getFloatAttr(computeType, value));
+          };
+          // Rounds an f32 result to the input dtype, as eager PyTorch does.
+          auto round = [&](Value value) -> Value {
+            if (inputElemType == computeType)
+              return value;
+            Value narrow =
+                arith::TruncFOp::create(b, bodyLoc, inputElemType, value);
+            return arith::ExtFOp::create(b, bodyLoc, computeType, narrow, {});
+          };
+          Value min = convertScalarToDtype(b, bodyLoc, args[0], computeType);
+          Value max = convertScalarToDtype(b, bodyLoc, args[1], computeType);
+          Value zero = constant(0.0);
+          Value minNeg = arith::MinimumFOp::create(b, bodyLoc, min, zero);
+          Value maxPos = arith::MaximumFOp::create(b, bodyLoc, max, zero);
+
+          Value scale, zeroPoint;
+          if (*mappingType == TorchaoMappingType::Symmetric) {
+            // scale = max(-min_neg, max_pos) / ((qmax - qmin) / 2)
+            Value absMax = arith::MaximumFOp::create(
+                b, bodyLoc, arith::NegFOp::create(b, bodyLoc, minNeg), maxPos);
+            scale = round(arith::DivFOp::create(b, bodyLoc, absMax,
+                                                constant((qmax - qmin) / 2)));
+          } else if (*mappingType ==
+                     TorchaoMappingType::SymmetricNoClippingErr) {
+            // scale = smin > smax ? smin : smax, with smin = min_neg / qmin
+            // and smax = max_pos / qmax
+            Value smin = round(
+                arith::DivFOp::create(b, bodyLoc, minNeg, constant(qmin)));
+            Value smax = round(
+                arith::DivFOp::create(b, bodyLoc, maxPos, constant(qmax)));
+            Value isSminLarger = arith::CmpFOp::create(
+                b, bodyLoc, arith::CmpFPredicate::OGT, smin, smax);
+            scale =
+                arith::SelectOp::create(b, bodyLoc, isSminLarger, smin, smax);
+          } else {
+            // scale = (max_pos - min_neg) / (qmax - qmin)
+            Value range =
+                round(arith::SubFOp::create(b, bodyLoc, maxPos, minNeg));
+            scale = round(arith::DivFOp::create(b, bodyLoc, range,
+                                                constant(qmax - qmin)));
+          }
+          scale = round(
+              arith::MaximumFOp::create(b, bodyLoc, scale, constant(eps)));
+
+          if (*mappingType == TorchaoMappingType::Asymmetric) {
+            // zero_point = clamp(qmin - round(min_neg / scale), qmin, qmax)
+            Value descaledMin =
+                round(arith::DivFOp::create(b, bodyLoc, minNeg, scale));
+            descaledMin = math::RoundEvenOp::create(b, bodyLoc, descaledMin);
+            zeroPoint = round(
+                arith::SubFOp::create(b, bodyLoc, constant(qmin), descaledMin));
+            zeroPoint = arith::MaximumFOp::create(b, bodyLoc, zeroPoint,
+                                                  constant(qmin));
+            zeroPoint = round(arith::MinimumFOp::create(b, bodyLoc, zeroPoint,
+                                                        constant(qmax)));
+          } else {
+            // Python's int() truncates the midpoint of the range, which
+            // torch.full_like stores in the input dtype.
+            zeroPoint = round(constant(std::trunc((qmax + qmin + 1) / 2)));
+          }
+
+          scale = convertScalarToDtype(b, bodyLoc, scale, scaleElemType);
+          if (isa<mlir::FloatType>(zeroPointElemType))
+            zeroPoint =
+                convertScalarToDtype(b, bodyLoc, zeroPoint, zeroPointElemType);
+          else if (zeroPointIsUnsigned)
+            zeroPoint = arith::FPToUIOp::create(b, bodyLoc, zeroPointElemType,
+                                                zeroPoint);
+          else
+            zeroPoint = arith::FPToSIOp::create(b, bodyLoc, zeroPointElemType,
+                                                zeroPoint);
+          linalg::YieldOp::create(b, bodyLoc, ValueRange{scale, zeroPoint});
+        });
+
+    // Casts dynamic result sizes to the static sizes of the result types.
+    Value scale =
+        tensor::CastOp::create(rewriter, loc, scaleType, qparams.getResult(0));
+    Value zeroPoint = tensor::CastOp::create(rewriter, loc, zeroPointType,
+                                             qparams.getResult(1));
+    rewriter.replaceOp(op, {scale, zeroPoint});
+    return success();
+  }
+};
+
 // Converts an elementwise op.
 // This specifically includes:
 // - converting elementwise ops of any tensor arity
@@ -5528,6 +5797,9 @@ void mlir::torch::torch_to_linalg::populateUncategorizedPatternsAndLegality(
   patterns
       .add<ConvertTorchaoQuantizeAffineOp, ConvertTorchaoDequantizeAffineOp>(
           typeConverter, context);
+  target.addIllegalOp<TorchaoChooseQparamsAffineOp>();
+  patterns.add<ConvertTorchaoChooseQparamsAffineOp>(typeConverter, context,
+                                                    allowNonFinites);
   target.addIllegalOp<QuantizedDecomposedChooseQparamsTensorOp,
                       QuantizedDecomposedChooseQparamsSymmetricTensorOp>();
   patterns.add<ConvertQuantizedDecomposedChooseQparamsTensorOp<

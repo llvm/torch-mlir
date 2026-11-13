@@ -12,6 +12,7 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
+#include "llvm/ADT/StringSwitch.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -264,6 +265,15 @@ Torch::getTorchaoDtypeBounds(int64_t dtypeInt) {
   }
 }
 
+std::optional<TorchaoMappingType> Torch::getTorchaoMappingType(StringRef name) {
+  return llvm::StringSwitch<std::optional<TorchaoMappingType>>(name)
+      .Case("ASYMMETRIC", TorchaoMappingType::Asymmetric)
+      .Case("SYMMETRIC", TorchaoMappingType::Symmetric)
+      .Case("SYMMETRIC_NO_CLIPPING_ERR",
+            TorchaoMappingType::SymmetricNoClippingErr)
+      .Default(std::nullopt);
+}
+
 FailureOr<std::pair<double, double>>
 Torch::getTorchaoQuantBounds(Value quantMin, Value quantMax, Value dtype) {
   int64_t dtypeInt;
@@ -301,6 +311,38 @@ Torch::getTorchaoBlockSize(Value blockSize, ArrayRef<int64_t> inputSizes) {
       blocks.push_back(size);
   }
   return blocks;
+}
+
+bool Torch::getTorchaoReducedDims(ArrayRef<int64_t> inputSizes,
+                                  ArrayRef<int64_t> blocks,
+                                  SmallVectorImpl<bool> &reduced,
+                                  SmallVectorImpl<bool> &spans) {
+  for (auto [size, block] : llvm::zip_equal(inputSizes, blocks)) {
+    spans.push_back(block == size && size != 1);
+    reduced.push_back(block > 1 || spans.back());
+  }
+  if (llvm::is_contained(reduced, true))
+    return true;
+  spans.assign(inputSizes.size(), true);
+  reduced.assign(inputSizes.size(), true);
+  return false;
+}
+
+SmallVector<int64_t> Torch::getTorchaoQparamsShape(ArrayRef<int64_t> inputSizes,
+                                                   ArrayRef<int64_t> blocks,
+                                                   ArrayRef<bool> spans,
+                                                   bool keepdim) {
+  SmallVector<int64_t> shape;
+  for (auto [size, block, spanned] :
+       llvm::zip_equal(inputSizes, blocks, spans)) {
+    if (spanned) {
+      if (keepdim)
+        shape.push_back(1);
+      continue;
+    }
+    shape.push_back(size == kUnknownSize ? kUnknownSize : size / block);
+  }
+  return shape;
 }
 
 // Checks whether the inputs are broadcast compatible or not. If

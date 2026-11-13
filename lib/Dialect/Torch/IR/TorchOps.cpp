@@ -8022,9 +8022,9 @@ LogicalResult QuantizedDecomposedDequantizePerTokenOp::verify() {
 // TorchaoQuantizeAffineOp
 //===----------------------------------------------------------------------===//
 
-static LogicalResult verifyPerBlockQuantShapes(Operation *op, Value input,
-                                               Value blockSize, Value scale,
-                                               Value zeroPoint) {
+// Checks the dtypes of the quantization parameters `scale` and `zeroPoint`.
+static LogicalResult verifyPerBlockQparamDtypes(Operation *op, Value scale,
+                                                Value zeroPoint) {
   auto scaleType = cast<BaseTensorType>(scale.getType());
   if (scaleType.hasDtype() &&
       !isa<mlir::Float16Type, mlir::BFloat16Type, mlir::Float32Type,
@@ -8036,18 +8036,15 @@ static LogicalResult verifyPerBlockQuantShapes(Operation *op, Value input,
            mlir::Float32Type, mlir::Float64Type>(zeroPointType.getDtype()))
     return op->emitOpError(
         "zero_point must have an integer, f16, bf16, f32 or f64 dtype");
+  return success();
+}
 
-  // torchao reshapes `scale` and `zero_point` to the blocks, so only their
-  // element counts are checked.
-  int64_t scaleNumel =
-      scaleType.hasSizes() ? getNumel(scaleType.getSizes()) : kUnknownSize;
-  if (zeroPointType && zeroPointType.hasSizes()) {
-    int64_t zeroPointNumel = getNumel(zeroPointType.getSizes());
-    if (scaleNumel != kUnknownSize && zeroPointNumel != kUnknownSize &&
-        zeroPointNumel != scaleNumel)
-      return op->emitOpError("zero_point must have as many elements as scale");
-  }
-
+// Checks `block_size` against the shape of `input`. On success, `blocks` holds
+// one entry per input dimension, with kUnknownSize for non-constant entries,
+// or is empty if `block_size` or the shape of `input` is unknown.
+static LogicalResult verifyPerBlockBlockSize(Operation *op, Value input,
+                                             Value blockSize,
+                                             SmallVectorImpl<int64_t> &blocks) {
   SmallVector<Value> entries;
   auto inputType = cast<BaseTensorType>(input.getType());
   if (!getListConstructElements(blockSize, entries) || !inputType.hasSizes())
@@ -8058,11 +8055,10 @@ static LogicalResult verifyPerBlockQuantShapes(Operation *op, Value input,
     return op->emitOpError(
         "block_size must have one entry per input dimension");
 
-  SmallVector<int64_t> numBlocksPerDim;
   for (auto [entry, size] : llvm::zip_equal(entries, inputShape)) {
     int64_t block;
     if (!matchPattern(entry, m_TorchConstantInt(&block))) {
-      numBlocksPerDim.push_back(kUnknownSize);
+      blocks.push_back(kUnknownSize);
       continue;
     }
     // Entries below 1, which torchao's quantize_ API never produces, are
@@ -8070,9 +8066,42 @@ static LogicalResult verifyPerBlockQuantShapes(Operation *op, Value input,
     if (block < 1 || (size != kUnknownSize && size % block != 0))
       return op->emitOpError(
           "block_size entries must be positive divisors of the input sizes");
-    numBlocksPerDim.push_back(size == kUnknownSize ? kUnknownSize
-                                                   : size / block);
+    blocks.push_back(block);
   }
+  return success();
+}
+
+static LogicalResult verifyPerBlockQuantShapes(Operation *op, Value input,
+                                               Value blockSize, Value scale,
+                                               Value zeroPoint) {
+  if (failed(verifyPerBlockQparamDtypes(op, scale, zeroPoint)))
+    return failure();
+
+  // torchao reshapes `scale` and `zero_point` to the blocks, so only their
+  // element counts are checked.
+  auto scaleType = cast<BaseTensorType>(scale.getType());
+  auto zeroPointType = dyn_cast<BaseTensorType>(zeroPoint.getType());
+  int64_t scaleNumel =
+      scaleType.hasSizes() ? getNumel(scaleType.getSizes()) : kUnknownSize;
+  if (zeroPointType && zeroPointType.hasSizes()) {
+    int64_t zeroPointNumel = getNumel(zeroPointType.getSizes());
+    if (scaleNumel != kUnknownSize && zeroPointNumel != kUnknownSize &&
+        zeroPointNumel != scaleNumel)
+      return op->emitOpError("zero_point must have as many elements as scale");
+  }
+
+  SmallVector<int64_t> blocks;
+  if (failed(verifyPerBlockBlockSize(op, input, blockSize, blocks)))
+    return failure();
+  if (blocks.empty())
+    return success();
+
+  SmallVector<int64_t> numBlocksPerDim;
+  for (auto [block, size] : llvm::zip_equal(
+           blocks, cast<BaseTensorType>(input.getType()).getSizes()))
+    numBlocksPerDim.push_back(block == kUnknownSize || size == kUnknownSize
+                                  ? kUnknownSize
+                                  : size / block);
 
   int64_t numBlocks = getNumel(numBlocksPerDim);
   if (scaleNumel != kUnknownSize && numBlocks != kUnknownSize &&
@@ -8092,8 +8121,8 @@ static LogicalResult verifyPerBlockRealDtype(Operation *op, StringRef name,
   return success();
 }
 
-// Checks that `dtype` is a torchao storage dtype, is the dtype of `quantized`,
-// and bounds `quant_min` and `quant_max`.
+// Checks that `dtype` is a torchao storage dtype, is the dtype of `quantized`
+// if given, and bounds `quant_min` and `quant_max`.
 static LogicalResult verifyPerBlockQuantDtype(Operation *op, StringRef name,
                                               Value dtype, Value quantized,
                                               Value quantMin, Value quantMax) {
@@ -8111,12 +8140,14 @@ static LogicalResult verifyPerBlockQuantDtype(Operation *op, StringRef name,
                           scalarType))
     return op->emitOpError()
            << name << " must be uint8, int8, int16, int32 or a float8 dtype";
-  auto quantizedType = cast<BaseTensorType>(quantized.getType());
-  if (quantizedType.hasDtype() &&
-      quantizedType.getDtype() !=
-          *getTypeForScalarType(op->getContext(), scalarType))
-    return op->emitOpError()
-           << name << " must be the dtype of the quantized tensor";
+  if (quantized) {
+    auto quantizedType = cast<BaseTensorType>(quantized.getType());
+    if (quantizedType.hasDtype() &&
+        quantizedType.getDtype() !=
+            *getTypeForScalarType(op->getContext(), scalarType))
+      return op->emitOpError()
+             << name << " must be the dtype of the quantized tensor";
+  }
   FailureOr<std::pair<double, double>> bounds =
       getTorchaoQuantBounds(quantMin, quantMax, dtype);
   if (succeeded(bounds) && (bounds->first < dtypeBounds->first ||
@@ -8146,4 +8177,104 @@ LogicalResult TorchaoDequantizeAffineOp::verify() {
     return failure();
   return verifyPerBlockQuantDtype(*this, "input_dtype", getInputDtype(),
                                   getInput(), getQuantMin(), getQuantMax());
+}
+
+//===----------------------------------------------------------------------===//
+// TorchaoChooseQparamsAffineOp
+//===----------------------------------------------------------------------===//
+
+// Returns the dtype that the optional `dtype` resolves to, `defaultDtype` if
+// it is None, or a null type if it is unknown or not a uint8, int8, int16,
+// int32, int64, f16, bf16, f32 or f64 dtype.
+static Type getTorchaoOptionalDtype(MLIRContext *context, Value dtype,
+                                    Type defaultDtype) {
+  if (isa<Torch::NoneType>(dtype.getType()))
+    return defaultDtype;
+  int64_t dtypeInt;
+  if (!matchPattern(dtype, m_TorchConstantInt(&dtypeInt)))
+    return Type();
+  using torch_upstream::ScalarType;
+  auto scalarType = static_cast<ScalarType>(dtypeInt);
+  if (!llvm::is_contained({ScalarType::Byte, ScalarType::Char,
+                           ScalarType::Short, ScalarType::Int, ScalarType::Long,
+                           ScalarType::Half, ScalarType::BFloat16,
+                           ScalarType::Float, ScalarType::Double},
+                          scalarType))
+    return Type();
+  return *getTypeForScalarType(context, scalarType);
+}
+
+LogicalResult TorchaoChooseQparamsAffineOp::verify() {
+  if (failed(verifyPerBlockRealDtype(*this, "input", getInput())) ||
+      failed(verifyPerBlockQparamDtypes(*this, getScale(), getZeroPoint())) ||
+      failed(verifyPerBlockQuantDtype(*this, "target_dtype", getTargetDtype(),
+                                      /*quantized=*/nullptr, getQuantMin(),
+                                      getQuantMax())))
+    return failure();
+
+  auto inputType = cast<BaseTensorType>(getInput().getType());
+  auto scaleType = cast<BaseTensorType>(getScale().getType());
+  auto zeroPointType = cast<BaseTensorType>(getZeroPoint().getType());
+  Type inputDtype = inputType.hasDtype() ? inputType.getDtype() : Type();
+
+  std::string mappingType;
+  Type defaultZeroPointDtype;
+  if (matchPattern(getMappingType(), m_TorchConstantStr(mappingType))) {
+    std::optional<TorchaoMappingType> mapping =
+        getTorchaoMappingType(mappingType);
+    if (!mapping)
+      return emitOpError("mapping_type must be ASYMMETRIC, SYMMETRIC or "
+                         "SYMMETRIC_NO_CLIPPING_ERR");
+    defaultZeroPointDtype =
+        *mapping == TorchaoMappingType::Asymmetric
+            ? IntegerType::get(getContext(), 32, IntegerType::Signed)
+            : inputDtype;
+  }
+
+  Type scaleDtype =
+      getTorchaoOptionalDtype(getContext(), getScaleDtype(), inputDtype);
+  if (scaleDtype && scaleType.hasDtype() && scaleType.getDtype() != scaleDtype)
+    return emitOpError("scale must have the dtype given by scale_dtype");
+  Type zeroPointDtype = getTorchaoOptionalDtype(
+      getContext(), getZeroPointDtype(), defaultZeroPointDtype);
+  if (zeroPointDtype && zeroPointType.hasDtype() &&
+      zeroPointType.getDtype() != zeroPointDtype)
+    return emitOpError(
+        "zero_point must have the dtype given by zero_point_dtype");
+
+  if (scaleType.hasSizes() && zeroPointType.hasSizes() &&
+      failed(verifyCompatibleShape(
+          makeShapeLLVMCompatible(scaleType.getSizes()),
+          makeShapeLLVMCompatible(zeroPointType.getSizes()))))
+    return emitOpError("scale and zero_point must have the same shape");
+
+  SmallVector<int64_t> blocks;
+  if (failed(
+          verifyPerBlockBlockSize(*this, getInput(), getBlockSize(), blocks)))
+    return failure();
+  bool keepdim;
+  if (blocks.empty() || llvm::is_contained(blocks, kUnknownSize) ||
+      !matchPattern(getKeepdim(), m_TorchConstantBool(&keepdim)) ||
+      !scaleType.hasSizes())
+    return success();
+
+  ArrayRef<int64_t> inputShape = inputType.getSizes();
+  SmallVector<bool> reduced, spans;
+  if (!getTorchaoReducedDims(inputShape, blocks, reduced, spans) && keepdim)
+    return success();
+  // Without `keepdim`, a block may span a dynamic dimension and drop it.
+  if (!keepdim &&
+      llvm::any_of(llvm::zip_equal(blocks, inputShape), [](auto blockAndSize) {
+        auto [block, size] = blockAndSize;
+        return size == kUnknownSize && block > 1;
+      }))
+    return success();
+  SmallVector<int64_t> expectedShape =
+      getTorchaoQparamsShape(inputShape, blocks, spans, keepdim);
+  if (failed(
+          verifyCompatibleShape(makeShapeLLVMCompatible(scaleType.getSizes()),
+                                makeShapeLLVMCompatible(expectedShape))))
+    return emitOpError("scale and zero_point must have one element per block, "
+                       "in the shape given by block_size and keepdim");
+  return success();
 }
