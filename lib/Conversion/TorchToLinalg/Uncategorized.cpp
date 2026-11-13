@@ -1571,20 +1571,15 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type dtype =
         cast<RankedTensorType>(converter->convertType(atenToDtype.getType()))
             .getElementType();
-    Type resultElementType;
     int64_t dtypeInt;
     if (!matchPattern(atenToDtype.getDtype(), m_TorchConstantInt(&dtypeInt))) {
       atenToDtype.emitError("unimplemented: dtype must be a constant integer");
       return nullptr;
     }
-    FailureOr<Type> maybeResultElementType =
-        torch_to_linalg::getBackendTypeForScalarType(
-            atenToDtype->getContext(), (torch_upstream::ScalarType)dtypeInt);
-    if (failed(maybeResultElementType)) {
-      atenToDtype.emitError("unable to convert `dtypeInt` to builtin type");
-      return nullptr;
-    }
-    resultElementType = *maybeResultElementType;
+    // The torch dtype of the result keeps the signedness that the signless
+    // builtin type drops.
+    Type resultElementType =
+        cast<BaseTensorType>(atenToDtype.getType()).getDtype();
     Value result = convertScalarToDtype(b, loc, input, dtype,
                                         /*srcOriginalDtype=*/inputElementType,
                                         /*dstOriginalDtype=*/resultElementType);

@@ -7981,3 +7981,63 @@ func.func @i32_gather_coefficient_overflow(%input: !torch.vtensor<[2,65536,65536
   %result = torch.aten.gather %input, %dim, %index, %false : !torch.vtensor<[2,65536,65536],f32>, !torch.int, !torch.vtensor<[1,1,1],si32>, !torch.bool -> !torch.vtensor<[1,1,1],f32>
   return %result : !torch.vtensor<[1,1,1],f32>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.to.dtype$uint8_to_int64(
+// CHECK:           %[[IN:.*]] = torch_c.to_builtin_tensor %{{.*}} : !torch.vtensor<[4],ui8> -> tensor<4xi8>
+// CHECK:           %[[OUT:.*]] = tosa.cast %[[IN]] input_unsigned(true) : (tensor<4xi8>) -> tensor<4xi64>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[OUT]] : tensor<4xi64> -> !torch.vtensor<[4],si64>
+// CHECK:           return %[[RESULT]]
+func.func @torch.aten.to.dtype$uint8_to_int64(%arg0: !torch.vtensor<[4],ui8>) -> !torch.vtensor<[4],si64> {
+  %int4 = torch.constant.int 4
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %0 = torch.aten.to.dtype %arg0, %int4, %false, %false, %none : !torch.vtensor<[4],ui8>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[4],si64>
+  return %0 : !torch.vtensor<[4],si64>
+}
+
+// -----
+
+// tosa.cast from float saturates to the signed range of the destination, so a
+// float to uint32 cast is not lowered.
+func.func @torch.aten.to.dtype$float_to_uint32(%arg0: !torch.vtensor<[4],f32>) -> !torch.vtensor<[4],ui32> {
+  %int28 = torch.constant.int 28
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.to.dtype' that was explicitly marked illegal}}
+  %0 = torch.aten.to.dtype %arg0, %int28, %false, %false, %none : !torch.vtensor<[4],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[4],ui32>
+  return %0 : !torch.vtensor<[4],ui32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.to.dtype$uint32_to_float(
+// CHECK:           %[[IN:.*]] = torch_c.to_builtin_tensor %{{.*}} : !torch.vtensor<[4],ui32> -> tensor<4xi32>
+// CHECK:           %[[OUT:.*]] = tosa.cast %[[IN]] input_unsigned(true) : (tensor<4xi32>) -> tensor<4xf32>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[OUT]] : tensor<4xf32> -> !torch.vtensor<[4],f32>
+// CHECK:           return %[[RESULT]]
+func.func @torch.aten.to.dtype$uint32_to_float(%arg0: !torch.vtensor<[4],ui32>) -> !torch.vtensor<[4],f32> {
+  %int6 = torch.constant.int 6
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %0 = torch.aten.to.dtype %arg0, %int6, %false, %false, %none : !torch.vtensor<[4],ui32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[4],f32>
+  return %0 : !torch.vtensor<[4],f32>
+}
+
+// -----
+
+// A float to uint8 cast goes through i32, since tosa.cast from float saturates
+// to the signed range of the destination.
+// CHECK-LABEL:   func.func @torch.aten.to.dtype$float_to_uint8(
+// CHECK:           %[[WIDE:.*]] = tosa.cast %{{.*}} input_unsigned(false) : (tensor<4xf32>) -> tensor<4xi32>
+// CHECK:           %[[OUT:.*]] = tosa.cast %[[WIDE]] input_unsigned(false) : (tensor<4xi32>) -> tensor<4xi8>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[OUT]] : tensor<4xi8> -> !torch.vtensor<[4],ui8>
+// CHECK:           return %[[RESULT]]
+func.func @torch.aten.to.dtype$float_to_uint8(%arg0: !torch.vtensor<[4],f32>) -> !torch.vtensor<[4],ui8> {
+  %int0 = torch.constant.int 0
+  %false = torch.constant.bool false
+  %none = torch.constant.none
+  %0 = torch.aten.to.dtype %arg0, %int0, %false, %false, %none : !torch.vtensor<[4],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[4],ui8>
+  return %0 : !torch.vtensor<[4],ui8>
+}
