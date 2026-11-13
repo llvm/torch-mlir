@@ -12,6 +12,7 @@ from torch_mlir.passmanager import *
 from torch_mlir.execution_engine import *
 from torch_mlir.runtime import *
 import torch_mlir.dialects.torch
+from torch_mlir.dialects import sparse_tensor
 from torch_mlir.compiler_utils import run_pipeline_with_repro_report
 
 from .abc import LinalgOnTensorsBackend
@@ -155,7 +156,49 @@ class RefBackendInvoker:
         return invoke
 
 
-def lowering_pipeline(generate_runtime_verification: bool):
+def _is_sparse_tensor_type(ty) -> bool:
+    if not isinstance(ty, RankedTensorType) or ty.encoding is None:
+        return False
+    try:
+        sparse_tensor.EncodingAttr(ty.encoding)
+    except ValueError:
+        return False
+    return True
+
+
+def module_contains_sparse_tensor(module: Module) -> bool:
+    """Returns whether `module` has a sparse_tensor dialect op, or a sparse
+    tensor type in any op operand or result, block argument, or function
+    signature."""
+    found = False
+
+    def visit(op):
+        nonlocal found
+        if op.name.startswith("sparse_tensor."):
+            found = True
+            return WalkResult.INTERRUPT
+        types = [v.type for v in op.operands]
+        types += [v.type for v in op.results]
+        for region in op.regions:
+            for block in region.blocks:
+                types += [arg.type for arg in block.arguments]
+        # External functions have no entry block, so check the signature too.
+        if "function_type" in op.attributes:
+            fn_type = op.attributes["function_type"]
+            if isinstance(fn_type, TypeAttr) and isinstance(
+                fn_type.value, FunctionType
+            ):
+                types += list(fn_type.value.inputs) + list(fn_type.value.results)
+        if any(_is_sparse_tensor_type(t) for t in types):
+            found = True
+            return WalkResult.INTERRUPT
+        return WalkResult.ADVANCE
+
+    module.operation.walk(visit, WalkOrder.PRE_ORDER)
+    return found
+
+
+def lowering_pipeline(generate_runtime_verification: bool, sparse: bool):
     passes = [
         # Apply some optimizations. It would be great if MLIR had more useful
         # optimizations that worked out of the box here.
@@ -167,11 +210,27 @@ def lowering_pipeline(generate_runtime_verification: bool):
         "func.func(linalg-generalize-named-ops)",
         "func.func(linalg-fuse-elementwise-ops)",
         "convert-shape-to-std",
-        # MLIR Sparsifier mini-pipeline. Note that this is the bare minimum
-        # to ensure operations on sparse tensors are lowered to loops.
-        "sparse-assembler{direct-out}",
-        "sparsification-and-bufferization",
-        "sparse-storage-specifier-to-llvm",
+    ]
+    if sparse:
+        passes += [
+            # MLIR Sparsifier mini-pipeline. Note that this is the bare minimum
+            # to ensure operations on sparse tensors are lowered to loops.
+            # It bufferizes the whole module and does not support loops that
+            # yield a new tensor for a loop-carried value, so it runs only for
+            # modules that use the sparse tensor dialect.
+            "sparse-assembler{direct-out}",
+            "sparsification-and-bufferization",
+            "sparse-storage-specifier-to-llvm",
+        ]
+        # The sparsifier has already bufferized and analyzed the module, so
+        # copy-before-write only has the remaining ops left to bufferize.
+        one_shot_options = "copy-before-write"
+    else:
+        # In-place analysis lets loop-carried buffers be updated in place, and
+        # allow-return-allocs-from-loops lets a loop yield a newly allocated
+        # tensor for a loop-carried value.
+        one_shot_options = "allow-return-allocs-from-loops"
+    passes += [
         # Buffer deallocation pass does not know how to handle realloc.
         "func.func(expand-realloc)",
         # Generalize pad and concat after sparse compiler, as they are handled
@@ -180,10 +239,12 @@ def lowering_pipeline(generate_runtime_verification: bool):
         "func.func(refback-generalize-tensor-concat)",
         # Bufferize.
         "func.func(tm-tensor-bufferize)",
-        "one-shot-bufferize{copy-before-write bufferize-function-boundaries function-boundary-type-conversion=identity-layout-map}",
+        f"one-shot-bufferize{{{one_shot_options} bufferize-function-boundaries function-boundary-type-conversion=identity-layout-map}}",
         "refback-mlprogram-bufferize",
         # "func.func(finalizing-bufferize)",
-        "func.func(buffer-deallocation-pipeline)",
+        # Module level, so that lowering a dealloc of several buffers can add
+        # the helper function it needs.
+        "buffer-deallocation-pipeline",
         # Buffer-deallocation does not work with the inlined code generated
         # by sparse tensor dialect.
         "inline",  # inline sparse helper methods where useful
@@ -250,7 +311,10 @@ class RefBackendLinalgOnTensorsBackend(LinalgOnTensorsBackend):
         """
         run_pipeline_with_repro_report(
             imported_module,
-            lowering_pipeline(self.generate_runtime_verification),
+            lowering_pipeline(
+                self.generate_runtime_verification,
+                sparse=module_contains_sparse_tensor(imported_module),
+            ),
             "Lowering Linalg-on-Tensors IR to LLVM with RefBackend",
             enable_ir_printing=False,
         )
