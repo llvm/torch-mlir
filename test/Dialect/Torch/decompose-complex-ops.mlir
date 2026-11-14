@@ -2399,3 +2399,35 @@ func.func @dequantize_per_tensor_tensor2_ui8(
         -> !torch.vtensor<[2,4],f32>
   return %out : !torch.vtensor<[2,4],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @to_dtype_layout_non_cpu
+// CHECK-DAG: %[[DTYPE:.*]] = torch.constant.int 6
+// CHECK-DAG: %[[TRUE:.*]] = torch.constant.bool true
+// CHECK-DAG: %[[NONE:.*]] = torch.constant.none
+// CHECK: %[[CAST:.*]] = torch.aten.to.dtype %arg0, %[[DTYPE]], %[[TRUE]], %[[TRUE]], %[[NONE]]
+// CHECK: return %[[CAST]] : !torch.vtensor<[2],f32>
+func.func @to_dtype_layout_non_cpu(%arg0: !torch.vtensor<[2],si64>) -> !torch.vtensor<[2],f32> {
+  %dtype = torch.constant.int 6
+  %none = torch.constant.none
+  %device = torch.constant.device "cuda:0"
+  %true = torch.constant.bool true
+  %0 = torch.aten.to.dtype_layout %arg0, %dtype, %none, %device, %none, %true, %true, %none : !torch.vtensor<[2],si64>, !torch.int, !torch.none, !torch.Device, !torch.none, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[2],f32>
+  return %0 : !torch.vtensor<[2],f32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @scalar_tensor_non_cpu
+// CHECK-NOT: torch.aten.to.dtype_layout
+// CHECK-NOT: torch.aten.to.device
+// CHECK: return {{.*}} : !torch.vtensor<[],f32>
+func.func @scalar_tensor_non_cpu() -> !torch.vtensor<[],f32> {
+  %zero = torch.constant.int 0
+  %dtype = torch.constant.int 6
+  %none = torch.constant.none
+  %device = torch.constant.device "cuda:0"
+  %0 = torch.aten.scalar_tensor %zero, %dtype, %none, %device, %none : !torch.int, !torch.int, !torch.none, !torch.Device, !torch.none -> !torch.vtensor<[],f32>
+  return %0 : !torch.vtensor<[],f32>
+}
