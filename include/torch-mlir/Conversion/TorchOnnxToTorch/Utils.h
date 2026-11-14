@@ -33,8 +33,66 @@ private:
 
 namespace mlir::torch::onnx_c {
 
-Value createActivationByName(ImplicitLocOpBuilder &b, StringRef name,
-                             Value input);
+// Builders for ONNX activations, shared by the standalone ONNX operators and
+// the gate activations of LSTM, GRU and RNN. Each returns `input` activated,
+// with type `resultType`.
+Value createLeakyRelu(OpBuilder &b, Location loc, Type resultType, Value input,
+                      float alpha);
+Value createElu(OpBuilder &b, Location loc, Type resultType, Value input,
+                float alpha);
+Value createThresholdedRelu(OpBuilder &b, Location loc, Type resultType,
+                            Value input, float alpha);
+Value createHardSigmoid(OpBuilder &b, Location loc, Type resultType,
+                        Value input, float alpha, float beta);
+Value createSoftsign(OpBuilder &b, Location loc, Type resultType, Value input);
+Value createSoftplus(OpBuilder &b, Location loc, Type resultType, Value input);
+
+// A gate activation of an ONNX LSTM, GRU or RNN, with its alpha and beta
+// resolved from the op's activation_alpha and activation_beta attributes.
+struct RecurrentActivation {
+  enum class Kind {
+    Relu,
+    Tanh,
+    Sigmoid,
+    Affine,
+    LeakyRelu,
+    ThresholdedRelu,
+    ScaledTanh,
+    HardSigmoid,
+    Elu,
+    Softsign,
+    Softplus,
+  };
+  Kind kind;
+  float alpha = 0.0f;
+  float beta = 0.0f;
+};
+
+// Pairs each activation in `names` with its alpha and beta, taken from the
+// recurrent op's activation_alpha and activation_beta attributes.
+//
+// Each list is read front to back, and a value goes only to an activation that
+// uses that parameter. For example, with names [HardSigmoid, Tanh, LeakyRelu]
+// and activation_alpha [a0, a1], HardSigmoid gets a0, Tanh gets none and
+// LeakyRelu gets a1.
+//
+// Once a list runs out, an activation uses the default of the ONNX operator of
+// the same name, e.g. alpha 0.01 for LeakyRelu. Affine and ScaledTanh have no
+// such operator, so a missing alpha or beta is 0, as in onnxruntime.
+//
+// Reports a match failure on the op through `rewriter`, and returns failure,
+// if:
+// - a name is not one of the activations in RecurrentActivation::Kind, or
+// - activation_alpha or activation_beta is not a list of f32 values.
+FailureOr<SmallVector<RecurrentActivation>>
+resolveRecurrentActivations(OpBinder binder,
+                            ConversionPatternRewriter &rewriter,
+                            ArrayRef<std::string> names);
+
+// Builds `activation` applied to `input`.
+Value createRecurrentActivation(ImplicitLocOpBuilder &b,
+                                const RecurrentActivation &activation,
+                                Value input);
 
 Value createConstantIntList(OpBinder binder,
                             ConversionPatternRewriter &rewriter,

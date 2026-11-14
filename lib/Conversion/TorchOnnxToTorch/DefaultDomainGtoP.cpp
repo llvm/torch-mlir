@@ -30,53 +30,23 @@ using namespace mlir::torch::onnx_c;
 // thing here, so we simplify.
 void mlir::torch::onnx_c::populateDefaultDomainGtoP(
     OnnxCustomOpConversionPattern &patterns) {
-  patterns.onOp(
-      "HardSigmoid", 6,
-      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Torch::ValueTensorType resultType;
-        Value tensorOperand;
-        float alpha, beta;
-        if (binder.tensorOperand(tensorOperand) ||
-            binder.f32FloatAttr(alpha, "alpha", 0.2f) ||
-            binder.f32FloatAttr(beta, "beta", 0.5f) ||
-            binder.tensorResultType(resultType))
-          return failure();
+  patterns.onOp("HardSigmoid", 6,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value tensorOperand;
+                  float alpha, beta;
+                  if (binder.tensorOperand(tensorOperand) ||
+                      binder.f32FloatAttr(alpha, "alpha", 0.2f) ||
+                      binder.f32FloatAttr(beta, "beta", 0.5f) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
 
-        // HardSigmoid computes the following expression:
-        //   max(0, min(1, alpha * x + beta))
-        Value constAlpha = Torch::ConstantFloatOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
-            rewriter.getF64FloatAttr(alpha));
-        Value constBeta = Torch::ConstantFloatOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
-            rewriter.getF64FloatAttr(beta));
-
-        // Expression: alpha * x + beta
-        Value alphaMulX = Torch::AtenMulScalarOp::create(
-            rewriter, binder.getLoc(), resultType, tensorOperand, constAlpha);
-        Value constOne = Torch::ConstantFloatOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
-            rewriter.getF64FloatAttr(1.0));
-        Value alphaMulXPlusBeta = Torch::AtenAddScalarOp::create(
-            rewriter, binder.getLoc(), resultType, alphaMulX, constBeta,
-            /*alpha=*/constOne);
-
-        // Expression: min(1, alpha * x + beta)
-        Value oneTensor =
-            createRank0Tensor(rewriter, binder.getLoc(), resultType, constOne);
-        Value minExpression =
-            Torch::AtenMinimumOp::create(rewriter, binder.getLoc(), resultType,
-                                         oneTensor, alphaMulXPlusBeta);
-
-        // Expression: max(0, min(1, alpha * x + beta))
-        Value constZero = Torch::ConstantFloatOp::create(
-            rewriter, binder.getLoc(), rewriter.getF64FloatAttr(0.0));
-        Value zeroTensor =
-            createRank0Tensor(rewriter, binder.getLoc(), resultType, constZero);
-        rewriter.replaceOpWithNewOp<Torch::AtenMaximumOp>(
-            binder.op, resultType, zeroTensor, minExpression);
-        return success();
-      });
+                  rewriter.replaceOp(
+                      binder.op,
+                      createHardSigmoid(rewriter, binder.getLoc(), resultType,
+                                        tensorOperand, alpha, beta));
+                  return success();
+                });
   patterns.onOp(
       "Gelu", 20, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Value operand;
@@ -2774,22 +2744,20 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         return success();
       });
-  patterns.onOp(
-      "LeakyRelu", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Torch::ValueTensorType resultType;
-        Value operand;
-        float alpha;
-        if (binder.tensorOperand(operand) ||
-            binder.tensorResultType(resultType) ||
-            binder.f32FloatAttr(alpha, "alpha", 0.01f))
-          return failure();
-        Value constAlpha = Torch::ConstantFloatOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
-            rewriter.getF64FloatAttr(alpha));
-        rewriter.replaceOpWithNewOp<Torch::AtenLeakyReluOp>(
-            binder.op, resultType, operand, constAlpha);
-        return success();
-      });
+  patterns.onOp("LeakyRelu", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  float alpha;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType) ||
+                      binder.f32FloatAttr(alpha, "alpha", 0.01f))
+                    return failure();
+                  rewriter.replaceOp(
+                      binder.op, createLeakyRelu(rewriter, binder.getLoc(),
+                                                 resultType, operand, alpha));
+                  return success();
+                });
   patterns.onOp(
       "LRN", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;

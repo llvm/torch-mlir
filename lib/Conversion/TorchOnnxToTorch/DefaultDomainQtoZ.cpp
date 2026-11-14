@@ -2563,27 +2563,18 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                       binder.op, resultType, operand);
                   return success();
                 });
-  patterns.onOp("Softplus", 1,
-                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-                  Torch::ValueTensorType resultType;
-                  Value input;
-                  if (binder.tensorOperand(input) ||
-                      binder.tensorResultType(resultType)) {
-                    return failure();
-                  }
-                  Location loc = binder.getLoc();
-                  // beta = 1 matches the ONNX spec; threshold = 20 is
-                  // PyTorch's default and its tail correction (exp(-20) ~=
-                  // 2e-9) is below the fp32 ulp at 20 (~1.9e-6), so the
-                  // threshold shortcut stays spec-exact.
-                  Value beta = Torch::ConstantIntOp::create(
-                      rewriter, loc, rewriter.getI64IntegerAttr(1));
-                  Value threshold = Torch::ConstantIntOp::create(
-                      rewriter, loc, rewriter.getI64IntegerAttr(20));
-                  rewriter.replaceOpWithNewOp<Torch::AtenSoftplusOp>(
-                      binder.op, resultType, input, beta, threshold);
-                  return success();
-                });
+  patterns.onOp(
+      "Softplus", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value input;
+        if (binder.tensorOperand(input) ||
+            binder.tensorResultType(resultType)) {
+          return failure();
+        }
+        rewriter.replaceOp(binder.op, createSoftplus(rewriter, binder.getLoc(),
+                                                     resultType, input));
+        return success();
+      });
   patterns.onOp(
       "Softsign", 22, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
@@ -2593,17 +2584,8 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
           return failure();
         }
 
-        Value absX = Torch::AtenAbsOp::create(rewriter, binder.getLoc(),
-                                              resultType, input);
-
-        Value constOne = Torch::ConstantIntOp::create(
-            rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(1));
-
-        Value absXPlusOne = Torch::AtenAddScalarOp::create(
-            rewriter, binder.getLoc(), resultType, absX, constOne, constOne);
-
-        rewriter.replaceOpWithNewOp<Torch::AtenDivTensorOp>(
-            binder.op, resultType, input, absXPlusOne);
+        rewriter.replaceOp(binder.op, createSoftsign(rewriter, binder.getLoc(),
+                                                     resultType, input));
         return success();
       });
   patterns.onOp(
@@ -2636,27 +2618,21 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                                                        input, diagonal);
         return success();
       });
-  patterns.onOp(
-      "ThresholdedRelu", 10,
-      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Torch::ValueTensorType resultType;
-        Value input;
-        float alpha;
-        if (binder.tensorOperand(input) ||
-            binder.f32FloatAttr(alpha, "alpha", 1.0) ||
-            binder.tensorResultType(resultType)) {
-          return failure();
-        }
-        Value cstAlpha = Torch::ConstantFloatOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
-            rewriter.getFloatAttr(rewriter.getF64Type(), alpha));
-        Value value = Torch::ConstantFloatOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
-            rewriter.getFloatAttr(rewriter.getF64Type(), 0.0));
-        rewriter.replaceOpWithNewOp<Torch::AtenThresholdOp>(
-            binder.op, resultType, input, cstAlpha, value);
-        return success();
-      });
+  patterns.onOp("ThresholdedRelu", 10,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value input;
+                  float alpha;
+                  if (binder.tensorOperand(input) ||
+                      binder.f32FloatAttr(alpha, "alpha", 1.0) ||
+                      binder.tensorResultType(resultType)) {
+                    return failure();
+                  }
+                  rewriter.replaceOp(binder.op, createThresholdedRelu(
+                                                    rewriter, binder.getLoc(),
+                                                    resultType, input, alpha));
+                  return success();
+                });
   patterns.onOp(
       "RandomNormal", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {

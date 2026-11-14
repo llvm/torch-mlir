@@ -51,8 +51,28 @@ ONNX_E2E_TOSA_XFAIL_SET = {
     "OnnxMatMulNBits_floatZeroPoint",
     "OnnxMatMulNBits_accuracyLevel4",
     "OnnxMatMulNBits_runtimeWeights",
-    # OnnxLSTM_forward_basic: LSTM has no torch -> tosa lowering.
+    # Recurrent ops: LSTM, GRU and RNN lower to torch.prim.Loop, which has no
+    # torch -> tosa lowering.
     "OnnxLSTM_forward_basic",
+    "OnnxLSTM_hardsigmoid_gates",
+    "OnnxGRU_hardsigmoid_gates",
+    "OnnxRNN_relu",
+    "OnnxRNN_sigmoid",
+    "OnnxRNN_affine",
+    "OnnxRNN_leakyrelu",
+    "OnnxRNN_thresholdedrelu",
+    "OnnxRNN_scaledtanh",
+    "OnnxRNN_hardsigmoid",
+    "OnnxRNN_elu",
+    "OnnxRNN_softsign",
+    "OnnxRNN_softplus",
+    "OnnxRNN_affine_alpha_only",
+    "OnnxRNN_affine_beta_only",
+    "OnnxRNN_affine_no_parameters",
+    "OnnxRNN_scaledtanh_no_parameters",
+    "OnnxLSTM_alpha_order",
+    "OnnxLSTM_bidirectional_reverse_alpha",
+    "OnnxRNN_thresholdedrelu_at_alpha",
     # OnnxSTFT_onesided_basic: STFT has no torch -> tosa lowering.
     "OnnxSTFT_onesided_basic",
     # OnnxAveragePool2d_countIncludePad_asymmetricPadsDilated: tosa.avg_pool2d

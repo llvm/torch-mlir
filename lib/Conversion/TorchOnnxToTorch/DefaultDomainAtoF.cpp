@@ -3015,25 +3015,20 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
                       binder.op, resultType, lhs, rhs);
                   return success();
                 });
-  patterns.onOp("Elu", 6,
-                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-                  Location loc = binder.getLoc();
-                  Torch::ValueTensorType resultType;
-                  Value input;
-                  float alpha;
-                  if (binder.tensorOperand(input) ||
-                      binder.f32FloatAttr(alpha, "alpha", 1.0) ||
-                      binder.tensorResultType(resultType))
-                    return failure();
-                  Value cstAlpha = Torch::ConstantFloatOp::create(
-                      rewriter, loc, rewriter.getF64FloatAttr(alpha));
-                  Value cstOne = Torch::ConstantFloatOp::create(
-                      rewriter, loc, rewriter.getF64FloatAttr(1.0));
-                  rewriter.replaceOpWithNewOp<Torch::AtenEluOp>(
-                      binder.op, resultType, input, cstAlpha, /*scale=*/cstOne,
-                      /*input_scale=*/cstOne);
-                  return success();
-                });
+  patterns.onOp(
+      "Elu", 6, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Location loc = binder.getLoc();
+        Torch::ValueTensorType resultType;
+        Value input;
+        float alpha;
+        if (binder.tensorOperand(input) ||
+            binder.f32FloatAttr(alpha, "alpha", 1.0) ||
+            binder.tensorResultType(resultType))
+          return failure();
+        rewriter.replaceOp(binder.op,
+                           createElu(rewriter, loc, resultType, input, alpha));
+        return success();
+      });
   patterns.onOp("Erf", 13,
                 [](OpBinder binder, ConversionPatternRewriter &rewriter) {
                   Torch::ValueTensorType resultType;
