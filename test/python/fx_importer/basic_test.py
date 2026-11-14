@@ -29,6 +29,38 @@ def run(f):
 
 
 @run
+# CHECK-LABEL: test_prims_device_put_default
+# CHECK-DAG: %[[DEVICE:.*]] = torch.constant.device "cpu"
+# CHECK-DAG: %[[DTYPE:.*]] = torch.constant.int 6
+# CHECK-DAG: %[[FALSE:.*]] = torch.constant.bool false
+# CHECK-DAG: %[[TRUE:.*]] = torch.constant.bool true
+# CHECK: torch.aten.to.device {{.*}}, %[[DEVICE]], %[[DTYPE]], %[[FALSE]], %[[TRUE]], {{.*}} : !torch.vtensor<[2,3],f32>
+def test_prims_device_put_default():
+    class Basic(nn.Module):
+        def forward(self, x):
+            return torch.ops.prims.device_put.default(x, torch.device("cpu"))
+
+    print(fx.export_and_import(Basic(), torch.randn(2, 3)))
+
+
+@run
+# CHECK-LABEL: test_prims_device_put_non_blocking
+# CHECK-DAG: %[[DEVICE:.*]] = torch.constant.device "cuda:1"
+# CHECK-DAG: %[[DTYPE:.*]] = torch.constant.int 4
+# CHECK-DAG: %[[NON_BLOCKING:.*]] = torch.constant.bool true
+# CHECK-DAG: %[[COPY:.*]] = torch.constant.bool true
+# CHECK: torch.aten.to.device {{.*}}, %[[DEVICE]], %[[DTYPE]], %[[NON_BLOCKING]], %[[COPY]], {{.*}} : !torch.vtensor<[2,3],si64>
+def test_prims_device_put_non_blocking():
+    class Basic(nn.Module):
+        def forward(self, x):
+            return torch.ops.prims.device_put.default(
+                x, torch.device("cuda:1"), non_blocking=True
+            )
+
+    print(fx.export_and_import(Basic(), torch.ones(2, 3, dtype=torch.int64)))
+
+
+@run
 # CHECK-LABEL: test_import_frozen_exported_program
 # CHECK:     func.func @main(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32>
 # CHECK-DAG: %[[a:.+]] = torch.aten.randn
