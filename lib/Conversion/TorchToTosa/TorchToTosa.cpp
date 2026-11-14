@@ -10608,7 +10608,7 @@ ConvertAtenOp<Aten__InterpolateSizeListScaleListOp>::matchAndRewriteImpl(
     outputWidth = inputShape[3] * scaleFactor[1];
 
   } else {
-    if (!isa<Torch::NoneType>(op.getSize().getType()))
+    if (isa<Torch::NoneType>(op.getSize().getType()))
       return rewriter.notifyMatchFailure(
           op, "Scale factor and size are both absent!");
 
