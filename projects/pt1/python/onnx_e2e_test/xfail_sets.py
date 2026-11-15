@@ -73,6 +73,17 @@ ONNX_E2E_TOSA_XFAIL_SET = {
     "OnnxLSTM_alpha_order",
     "OnnxLSTM_bidirectional_reverse_alpha",
     "OnnxRNN_thresholdedrelu_at_alpha",
+    # Onnx{LSTM,GRU,RNN}_dynamic*: no torch -> tosa lowering of the recurrent
+    # loop (torch.prim.Loop) or of the dynamic sizes (torch.aten.size.int).
+    "OnnxLSTM_dynamicSeq",
+    "OnnxLSTM_dynamicBatch",
+    "OnnxLSTM_dynamicAllDims",
+    "OnnxGRU_dynamicSeq",
+    "OnnxGRU_dynamicBatch",
+    "OnnxGRU_dynamicAllDims",
+    "OnnxRNN_dynamicSeq",
+    "OnnxRNN_dynamicBatch",
+    "OnnxRNN_dynamicAllDims",
     # OnnxSTFT_onesided_basic: STFT has no torch -> tosa lowering.
     "OnnxSTFT_onesided_basic",
     # OnnxAveragePool2d_countIncludePad_asymmetricPadsDilated: tosa.avg_pool2d
