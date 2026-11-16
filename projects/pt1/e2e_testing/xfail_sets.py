@@ -412,6 +412,9 @@ FX_IMPORTER_XFAIL_SET = {
     "AllBoolTrueModule_basic",
     "AnyBoolFalseModule_basic",
     "AnyBoolTrueModule_basic",
+    # Torch-to-Linalg lowers the uint8 reduction with an i1 accumulator but
+    # retains the uint8 result type, producing an invalid mixed-type arith.ori.
+    "ReduceAnyDimsUint8Module_basic",
     "ArangeStartOutViewModule_basic",
     "AtenFloatScalarModule_basic",
     # TODO: The values are extremely close to the golden values, but the test fails because of strict rtol/atol.
