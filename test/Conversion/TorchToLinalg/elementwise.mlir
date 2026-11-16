@@ -212,6 +212,164 @@ func.func @elementwise_bitwise_right_shift_tensor_unsigned(%arg0: !torch.vtensor
 
 // -----
 
+// CHECK-LABEL:   func.func @elementwise_div_tensor_unsigned(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: i8, %[[RHS:.*]]: i8, %{{.*}}: i8):
+// CHECK-NEXT:        %[[DIV:.*]] = arith.divui %[[LHS]], %[[RHS]] : i8
+// CHECK-NEXT:        linalg.yield %[[DIV]] : i8
+func.func @elementwise_div_tensor_unsigned(%arg0: !torch.vtensor<[?],ui8>, %arg1: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],ui8> {
+  %0 = torch.aten.div.Tensor %arg0, %arg1 : !torch.vtensor<[?],ui8>, !torch.vtensor<[?],ui8> -> !torch.vtensor<[?],ui8>
+  return %0 : !torch.vtensor<[?],ui8>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_div_tensor_mode_trunc_unsigned(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: i8, %[[RHS:.*]]: i8, %{{.*}}: i8):
+// CHECK-NEXT:        %[[DIV:.*]] = arith.divui %[[LHS]], %[[RHS]] : i8
+// CHECK-NEXT:        linalg.yield %[[DIV]] : i8
+func.func @elementwise_div_tensor_mode_trunc_unsigned(%arg0: !torch.vtensor<[?],ui8>, %arg1: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],ui8> {
+  %str = torch.constant.str "trunc"
+  %0 = torch.aten.div.Tensor_mode %arg0, %arg1, %str : !torch.vtensor<[?],ui8>, !torch.vtensor<[?],ui8>, !torch.str -> !torch.vtensor<[?],ui8>
+  return %0 : !torch.vtensor<[?],ui8>
+}
+
+// -----
+
+// Floor division of unsigned integers is the same as truncating division.
+// CHECK-LABEL:   func.func @elementwise_div_tensor_mode_floor_unsigned(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: i8, %[[RHS:.*]]: i8, %{{.*}}: i8):
+// CHECK-NEXT:        %[[DIV:.*]] = arith.divui %[[LHS]], %[[RHS]] : i8
+// CHECK-NEXT:        linalg.yield %[[DIV]] : i8
+func.func @elementwise_div_tensor_mode_floor_unsigned(%arg0: !torch.vtensor<[?],ui8>, %arg1: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],ui8> {
+  %str = torch.constant.str "floor"
+  %0 = torch.aten.div.Tensor_mode %arg0, %arg1, %str : !torch.vtensor<[?],ui8>, !torch.vtensor<[?],ui8>, !torch.str -> !torch.vtensor<[?],ui8>
+  return %0 : !torch.vtensor<[?],ui8>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_div_tensor_unsigned_to_float(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: i8, %[[RHS:.*]]: i8, %{{.*}}: f32):
+// CHECK-NEXT:        %[[LHS_F:.*]] = arith.uitofp %[[LHS]] : i8 to f32
+// CHECK-NEXT:        %[[RHS_F:.*]] = arith.uitofp %[[RHS]] : i8 to f32
+// CHECK-NEXT:        %[[DIV:.*]] = arith.divf %[[LHS_F]], %[[RHS_F]] : f32
+// CHECK-NEXT:        linalg.yield %[[DIV]] : f32
+func.func @elementwise_div_tensor_unsigned_to_float(%arg0: !torch.vtensor<[?],ui8>, %arg1: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],f32> {
+  %0 = torch.aten.div.Tensor %arg0, %arg1 : !torch.vtensor<[?],ui8>, !torch.vtensor<[?],ui8> -> !torch.vtensor<[?],f32>
+  return %0 : !torch.vtensor<[?],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_div_scalar_unsigned(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[IN:.*]]: i8, %{{.*}}: f32):
+// CHECK-NEXT:        %[[IN_F:.*]] = arith.uitofp %[[IN]] : i8 to f32
+// CHECK:             %[[DIV:.*]] = arith.divf %[[IN_F]], %{{.*}} : f32
+// CHECK-NEXT:        linalg.yield %[[DIV]] : f32
+func.func @elementwise_div_scalar_unsigned(%arg0: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],f32> {
+  %float = torch.constant.float 2.550000e+02
+  %0 = torch.aten.div.Scalar %arg0, %float : !torch.vtensor<[?],ui8>, !torch.float -> !torch.vtensor<[?],f32>
+  return %0 : !torch.vtensor<[?],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_div_tensor_mode_trunc_mixed_sign(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: i8, %[[RHS:.*]]: i8, %{{.*}}: i16):
+// CHECK-NEXT:        %[[LHS_I16:.*]] = arith.extui %[[LHS]] : i8 to i16
+// CHECK-NEXT:        %[[RHS_I16:.*]] = arith.extsi %[[RHS]] : i8 to i16
+// CHECK-NEXT:        %[[DIV:.*]] = arith.divsi %[[LHS_I16]], %[[RHS_I16]] : i16
+// CHECK-NEXT:        linalg.yield %[[DIV]] : i16
+func.func @elementwise_div_tensor_mode_trunc_mixed_sign(%arg0: !torch.vtensor<[?],ui8>, %arg1: !torch.vtensor<[?],si8>) -> !torch.vtensor<[?],si16> {
+  %str = torch.constant.str "trunc"
+  %0 = torch.aten.div.Tensor_mode %arg0, %arg1, %str : !torch.vtensor<[?],ui8>, !torch.vtensor<[?],si8>, !torch.str -> !torch.vtensor<[?],si16>
+  return %0 : !torch.vtensor<[?],si16>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_div_scalar_mode_floor_unsigned(
+// CHECK:           %[[SCALAR:.*]] = arith.constant 3 : i64
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[IN:.*]]: i8, %{{.*}}: i8):
+// CHECK-NEXT:        %[[RHS:.*]] = arith.trunci %[[SCALAR]] : i64 to i8
+// CHECK-NEXT:        %[[DIV:.*]] = arith.divui %[[IN]], %[[RHS]] : i8
+// CHECK-NEXT:        linalg.yield %[[DIV]] : i8
+func.func @elementwise_div_scalar_mode_floor_unsigned(%arg0: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],ui8> {
+  %int3 = torch.constant.int 3
+  %str = torch.constant.str "floor"
+  %0 = torch.aten.div.Scalar_mode %arg0, %int3, %str : !torch.vtensor<[?],ui8>, !torch.int, !torch.str -> !torch.vtensor<[?],ui8>
+  return %0 : !torch.vtensor<[?],ui8>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_div_scalar_mode_trunc_signed_i8(
+// CHECK:           %[[SCALAR:.*]] = arith.constant -3 : i64
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[IN:.*]]: i8, %{{.*}}: i8):
+// CHECK-NEXT:        %[[RHS:.*]] = arith.trunci %[[SCALAR]] : i64 to i8
+// CHECK-NEXT:        %[[DIV:.*]] = arith.divsi %[[IN]], %[[RHS]] : i8
+// CHECK-NEXT:        linalg.yield %[[DIV]] : i8
+func.func @elementwise_div_scalar_mode_trunc_signed_i8(%arg0: !torch.vtensor<[?],si8>) -> !torch.vtensor<[?],si8> {
+  %int-3 = torch.constant.int -3
+  %str = torch.constant.str "trunc"
+  %0 = torch.aten.div.Scalar_mode %arg0, %int-3, %str : !torch.vtensor<[?],si8>, !torch.int, !torch.str -> !torch.vtensor<[?],si8>
+  return %0 : !torch.vtensor<[?],si8>
+}
+
+// -----
+
+// The FX importer turns the scalar divisor of torch.div into a 0-d tensor.
+// CHECK-LABEL:   func.func @elementwise_div_tensor_mode_floor_unsigned_by_0d_si64(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: i8, %[[RHS:.*]]: i64, %{{.*}}: i8):
+// CHECK-NEXT:        %[[RHS_I8:.*]] = arith.trunci %[[RHS]] : i64 to i8
+// CHECK-NEXT:        %[[DIV:.*]] = arith.divui %[[LHS]], %[[RHS_I8]] : i8
+// CHECK-NEXT:        linalg.yield %[[DIV]] : i8
+func.func @elementwise_div_tensor_mode_floor_unsigned_by_0d_si64(%arg0: !torch.vtensor<[?],ui8>, %arg1: !torch.vtensor<[],si64>) -> !torch.vtensor<[?],ui8> {
+  %str = torch.constant.str "floor"
+  %0 = torch.aten.div.Tensor_mode %arg0, %arg1, %str : !torch.vtensor<[?],ui8>, !torch.vtensor<[],si64>, !torch.str -> !torch.vtensor<[?],ui8>
+  return %0 : !torch.vtensor<[?],ui8>
+}
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_div_tensor_unsigned_by_0d_si64(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:[^:]*]]: i8, %[[RHS:[^:]*]]: i64, %{{.*}}: i8):
+// CHECK-NEXT:        %[[RHS_I8:.*]] = arith.trunci %[[RHS]] : i64 to i8
+// CHECK-NEXT:        %[[DIV:.*]] = arith.divui %[[LHS]], %[[RHS_I8]] : i8
+// CHECK-NEXT:        linalg.yield %[[DIV]] : i8
+func.func @elementwise_div_tensor_unsigned_by_0d_si64(%arg0: !torch.vtensor<[?],ui8>, %arg1: !torch.vtensor<[],si64>) -> !torch.vtensor<[?],ui8> {
+  %0 = torch.aten.div.Tensor %arg0, %arg1 : !torch.vtensor<[?],ui8>, !torch.vtensor<[],si64> -> !torch.vtensor<[?],ui8>
+  return %0 : !torch.vtensor<[?],ui8>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_div_tensor_mode_floor_signed_i8(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:[^:]*]]: i8, %[[RHS:[^:]*]]: i8, %{{.*}}: i8):
+// CHECK:             %[[LHS_F:.*]] = arith.sitofp %[[LHS]] : i8 to f64
+// CHECK-NEXT:        %[[RHS_F:.*]] = arith.sitofp %[[RHS]] : i8 to f64
+// CHECK-NEXT:        %[[DIV:.*]] = arith.divf %[[LHS_F]], %[[RHS_F]] : f64
+// CHECK-NEXT:        %[[FLOOR:.*]] = math.floor %[[DIV]] : f64
+// CHECK-NEXT:        %[[OUT:.*]] = arith.fptosi %[[FLOOR]] : f64 to i8
+// CHECK-NEXT:        linalg.yield %[[OUT]] : i8
+func.func @elementwise_div_tensor_mode_floor_signed_i8(%arg0: !torch.vtensor<[?],si8>, %arg1: !torch.vtensor<[?],si8>) -> !torch.vtensor<[?],si8> {
+  %str = torch.constant.str "floor"
+  %0 = torch.aten.div.Tensor_mode %arg0, %arg1, %str : !torch.vtensor<[?],si8>, !torch.vtensor<[?],si8>, !torch.str -> !torch.vtensor<[?],si8>
+  return %0 : !torch.vtensor<[?],si8>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @elementwise_to_dtype_f32_to_ui8(
 // CHECK:           linalg.generic
 // CHECK:           ^bb0(%[[IN:.*]]: f32, %{{.*}}: i8):

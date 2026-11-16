@@ -120,6 +120,26 @@ class OnnxAdd_i32_customRange(OnnxTestCase):
 
 
 @register_onnx_test
+class OnnxDiv_ui8_basic(OnnxTestCase):
+    # Integer Div on uint8. The dividends and some of the divisors are above 127,
+    # where signed division gives different results. The RefBackend returns
+    # integer results as signed, so the quotient is cast to int64.
+    @annotate_inputs(
+        [
+            ("x", torch.uint8, [4, 4], (128, 256)),
+            ("y", torch.uint8, [4, 4], (1, 256)),
+        ]
+    )
+    def graph(self):
+        div = onnx.helper.make_node("Div", ["x", "y"], ["q"])
+        cast = onnx.helper.make_node("Cast", ["q"], ["z"], to=onnx.TensorProto.INT64)
+        return [div, cast], ["z"]
+
+
+# ==============================================================================
+
+
+@register_onnx_test
 class OnnxAdd_f32_dynamicInput(OnnxTestCase):
     # A -1 dim marks a dynamic INPUT: it imports as `?` and materialize_inputs
     # substitutes a concrete size at runtime for both golden and SUT.  The

@@ -2605,6 +2605,223 @@ func.func @torch.aten.div.Tensor_mode$int_floor(%arg0: !torch.vtensor<[?, ?],si6
 
 // -----
 
+// Unsigned operands are zero-extended to the i32 compute type.
+// CHECK-LABEL:   func.func @torch.aten.div.Tensor_mode$uint8_trunc(
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[?,?],ui8>, %[[ARG1:.*]]: !torch.vtensor<[?,?],ui8>)
+// CHECK:           %[[RHS:.*]] = torch_c.to_builtin_tensor %[[ARG1]] : !torch.vtensor<[?,?],ui8> -> tensor<?x?xi8>
+// CHECK:           %[[LHS:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[?,?],ui8> -> tensor<?x?xi8>
+// CHECK:           %[[LHS_I32:.*]] = tosa.cast %[[LHS]] input_unsigned(true) : (tensor<?x?xi8>) -> tensor<?x?xi32>
+// CHECK:           %[[RHS_I32:.*]] = tosa.cast %[[RHS]] input_unsigned(true) : (tensor<?x?xi8>) -> tensor<?x?xi32>
+// CHECK:           %[[DIV:.*]] = tosa.intdiv %[[LHS_I32]], %[[RHS_I32]] : (tensor<?x?xi32>, tensor<?x?xi32>) -> tensor<?x?xi32>
+// CHECK:           %[[OUT:.*]] = tosa.cast %[[DIV]] input_unsigned(false) : (tensor<?x?xi32>) -> tensor<?x?xi8>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[OUT]] : tensor<?x?xi8> -> !torch.vtensor<[?,?],ui8>
+// CHECK:           return %[[RESULT]]
+func.func @torch.aten.div.Tensor_mode$uint8_trunc(%arg0: !torch.vtensor<[?, ?],ui8>, %arg1: !torch.vtensor<[?, ?],ui8>) -> !torch.vtensor<[?, ?],ui8> {
+  %str = torch.constant.str "trunc"
+  %0 = torch.aten.div.Tensor_mode %arg0, %arg1, %str : !torch.vtensor<[?, ?],ui8>, !torch.vtensor<[?, ?],ui8>, !torch.str -> !torch.vtensor<[?, ?],ui8>
+  return %0 : !torch.vtensor<[?, ?],ui8>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.div.Tensor_mode$uint8_floor(
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[?,?],ui8>, %[[ARG1:.*]]: !torch.vtensor<[?,?],ui8>)
+// CHECK:           %[[RHS:.*]] = torch_c.to_builtin_tensor %[[ARG1]] : !torch.vtensor<[?,?],ui8> -> tensor<?x?xi8>
+// CHECK:           %[[LHS:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[?,?],ui8> -> tensor<?x?xi8>
+// CHECK:           %[[LHS_I32:.*]] = tosa.cast %[[LHS]] input_unsigned(true) : (tensor<?x?xi8>) -> tensor<?x?xi32>
+// CHECK:           %[[RHS_I32:.*]] = tosa.cast %[[RHS]] input_unsigned(true) : (tensor<?x?xi8>) -> tensor<?x?xi32>
+// CHECK:           %[[DIV:.*]] = tosa.intdiv %[[LHS_I32]], %[[RHS_I32]] : (tensor<?x?xi32>, tensor<?x?xi32>) -> tensor<?x?xi32>
+// CHECK-NOT:       tosa.select
+// CHECK:           %[[OUT:.*]] = tosa.cast %[[DIV]] input_unsigned(false) : (tensor<?x?xi32>) -> tensor<?x?xi8>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[OUT]] : tensor<?x?xi8> -> !torch.vtensor<[?,?],ui8>
+// CHECK:           return %[[RESULT]]
+func.func @torch.aten.div.Tensor_mode$uint8_floor(%arg0: !torch.vtensor<[?, ?],ui8>, %arg1: !torch.vtensor<[?, ?],ui8>) -> !torch.vtensor<[?, ?],ui8> {
+  %str = torch.constant.str "floor"
+  %0 = torch.aten.div.Tensor_mode %arg0, %arg1, %str : !torch.vtensor<[?, ?],ui8>, !torch.vtensor<[?, ?],ui8>, !torch.str -> !torch.vtensor<[?, ?],ui8>
+  return %0 : !torch.vtensor<[?, ?],ui8>
+}
+
+// -----
+
+// tosa.intdiv divides as signed, so a uint32 division is not lowered.
+func.func @torch.aten.div.Tensor_mode$uint32_trunc(%arg0: !torch.vtensor<[4],ui32>, %arg1: !torch.vtensor<[4],ui32>) -> !torch.vtensor<[4],ui32> {
+  %str = torch.constant.str "trunc"
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.div.Tensor_mode' that was explicitly marked illegal}}
+  %0 = torch.aten.div.Tensor_mode %arg0, %arg1, %str : !torch.vtensor<[4],ui32>, !torch.vtensor<[4],ui32>, !torch.str -> !torch.vtensor<[4],ui32>
+  return %0 : !torch.vtensor<[4],ui32>
+}
+
+// -----
+
+// With an int64 result the compute type is i64, so uint32 is zero-extended.
+// CHECK-LABEL:   func.func @torch.aten.div.Tensor_mode$uint32_by_int64_trunc(
+// CHECK:           %[[RHS:.*]] = torch_c.to_builtin_tensor %{{.*}} : !torch.vtensor<[4],si64> -> tensor<4xi64>
+// CHECK:           %[[LHS:.*]] = torch_c.to_builtin_tensor %{{.*}} : !torch.vtensor<[4],ui32> -> tensor<4xi32>
+// CHECK:           %[[LHS_I64:.*]] = tosa.cast %[[LHS]] input_unsigned(true) : (tensor<4xi32>) -> tensor<4xi64>
+// CHECK:           %[[DIV:.*]] = tosa.intdiv %[[LHS_I64]], %[[RHS]] : (tensor<4xi64>, tensor<4xi64>) -> tensor<4xi64>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[DIV]] : tensor<4xi64> -> !torch.vtensor<[4],si64>
+// CHECK:           return %[[RESULT]]
+func.func @torch.aten.div.Tensor_mode$uint32_by_int64_trunc(%arg0: !torch.vtensor<[4],ui32>, %arg1: !torch.vtensor<[4],si64>) -> !torch.vtensor<[4],si64> {
+  %str = torch.constant.str "trunc"
+  %0 = torch.aten.div.Tensor_mode %arg0, %arg1, %str : !torch.vtensor<[4],ui32>, !torch.vtensor<[4],si64>, !torch.str -> !torch.vtensor<[4],si64>
+  return %0 : !torch.vtensor<[4],si64>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.div.Tensor$uint32_to_float(
+// CHECK:           %[[RHS:.*]] = torch_c.to_builtin_tensor %{{.*}} : !torch.vtensor<[4],ui32> -> tensor<4xi32>
+// CHECK:           %[[LHS:.*]] = torch_c.to_builtin_tensor %{{.*}} : !torch.vtensor<[4],ui32> -> tensor<4xi32>
+// CHECK:           %[[LHS_F:.*]] = tosa.cast %[[LHS]] input_unsigned(true) : (tensor<4xi32>) -> tensor<4xf32>
+// CHECK:           %[[RHS_F:.*]] = tosa.cast %[[RHS]] input_unsigned(true) : (tensor<4xi32>) -> tensor<4xf32>
+// CHECK:           %[[RCP:.*]] = tosa.reciprocal %[[RHS_F]] : (tensor<4xf32>) -> tensor<4xf32>
+// CHECK:           %[[DIV:.*]] = tosa.mul %[[LHS_F]], %[[RCP]], %{{.*}} : (tensor<4xf32>, tensor<4xf32>, tensor<1xi8>) -> tensor<4xf32>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[DIV]]
+// CHECK:           return %[[RESULT]]
+func.func @torch.aten.div.Tensor$uint32_to_float(%arg0: !torch.vtensor<[4],ui32>, %arg1: !torch.vtensor<[4],ui32>) -> !torch.vtensor<[4],f32> {
+  %0 = torch.aten.div.Tensor %arg0, %arg1 : !torch.vtensor<[4],ui32>, !torch.vtensor<[4],ui32> -> !torch.vtensor<[4],f32>
+  return %0 : !torch.vtensor<[4],f32>
+}
+
+// -----
+
+// Unsigned operands of a division with a float result are converted as
+// unsigned.
+// CHECK-LABEL:   func.func @torch.aten.div.Tensor$uint8_to_float(
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[4],ui8>, %[[ARG1:.*]]: !torch.vtensor<[4],ui8>)
+// CHECK:           %[[RHS:.*]] = torch_c.to_builtin_tensor %[[ARG1]] : !torch.vtensor<[4],ui8> -> tensor<4xi8>
+// CHECK:           %[[LHS:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[4],ui8> -> tensor<4xi8>
+// CHECK:           %[[LHS_F:.*]] = tosa.cast %[[LHS]] input_unsigned(true) : (tensor<4xi8>) -> tensor<4xf32>
+// CHECK:           %[[RHS_F:.*]] = tosa.cast %[[RHS]] input_unsigned(true) : (tensor<4xi8>) -> tensor<4xf32>
+// CHECK:           %[[RCP:.*]] = tosa.reciprocal %[[RHS_F]] : (tensor<4xf32>) -> tensor<4xf32>
+// CHECK:           %[[DIV:.*]] = tosa.mul %[[LHS_F]], %[[RCP]], %{{.*}} : (tensor<4xf32>, tensor<4xf32>, tensor<1xi8>) -> tensor<4xf32>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[DIV]]
+// CHECK:           return %[[RESULT]]
+func.func @torch.aten.div.Tensor$uint8_to_float(%arg0: !torch.vtensor<[4],ui8>, %arg1: !torch.vtensor<[4],ui8>) -> !torch.vtensor<[4],f32> {
+  %0 = torch.aten.div.Tensor %arg0, %arg1 : !torch.vtensor<[4],ui8>, !torch.vtensor<[4],ui8> -> !torch.vtensor<[4],f32>
+  return %0 : !torch.vtensor<[4],f32>
+}
+
+// -----
+
+// The scalar divisor is materialized in the float result type, so a negative
+// divisor keeps its sign.
+// CHECK-LABEL:   func.func @torch.aten.div.Scalar$uint8_by_negative_int(
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[4],ui8>)
+// CHECK:           %[[LHS:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[4],ui8> -> tensor<4xi8>
+// CHECK:           %[[SCALAR:.*]] = tosa.const values(dense<-3.000000e+00> : tensor<f32>) : () -> tensor<f32>
+// CHECK:           %[[RHS:.*]] = tosa.reshape %[[SCALAR]], %{{.*}} : (tensor<f32>, !tosa.shape<1>) -> tensor<1xf32>
+// CHECK:           %[[LHS_F:.*]] = tosa.cast %[[LHS]] input_unsigned(true) : (tensor<4xi8>) -> tensor<4xf32>
+// CHECK:           %[[RCP:.*]] = tosa.reciprocal %[[RHS]] : (tensor<1xf32>) -> tensor<1xf32>
+// CHECK:           %[[DIV:.*]] = tosa.mul %[[LHS_F]], %[[RCP]], %{{.*}} : (tensor<4xf32>, tensor<1xf32>, tensor<1xi8>) -> tensor<4xf32>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[DIV]]
+// CHECK:           return %[[RESULT]]
+func.func @torch.aten.div.Scalar$uint8_by_negative_int(%arg0: !torch.vtensor<[4],ui8>) -> !torch.vtensor<[4],f32> {
+  %int-3 = torch.constant.int -3
+  %0 = torch.aten.div.Scalar %arg0, %int-3 : !torch.vtensor<[4],ui8>, !torch.int -> !torch.vtensor<[4],f32>
+  return %0 : !torch.vtensor<[4],f32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.div.Scalar$uint8_by_float(
+// CHECK:           %[[SCALAR:.*]] = tosa.const values(dense<2.500000e+00> : tensor<f32>) : () -> tensor<f32>
+// CHECK:           %[[RHS:.*]] = tosa.reshape %[[SCALAR]], %{{.*}} : (tensor<f32>, !tosa.shape<1>) -> tensor<1xf32>
+// CHECK:           tosa.reciprocal %[[RHS]] : (tensor<1xf32>) -> tensor<1xf32>
+func.func @torch.aten.div.Scalar$uint8_by_float(%arg0: !torch.vtensor<[4],ui8>) -> !torch.vtensor<[4],f32> {
+  %float = torch.constant.float 2.500000e+00
+  %0 = torch.aten.div.Scalar %arg0, %float : !torch.vtensor<[4],ui8>, !torch.float -> !torch.vtensor<[4],f32>
+  return %0 : !torch.vtensor<[4],f32>
+}
+
+// -----
+
+// An integer scalar divisor is materialized in i64 and wraps to the result
+// dtype, so 300 divides a uint8 tensor as 44.
+// CHECK-LABEL:   func.func @torch.aten.div.Scalar_mode$uint8_by_out_of_range_int_floor(
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[4],ui8>)
+// CHECK:           %[[LHS:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[4],ui8> -> tensor<4xi8>
+// CHECK:           %[[SCALAR:.*]] = tosa.const values(dense<300> : tensor<i64>) : () -> tensor<i64>
+// CHECK:           %[[RHS:.*]] = tosa.reshape %[[SCALAR]], %{{.*}} : (tensor<i64>, !tosa.shape<1>) -> tensor<1xi64>
+// CHECK:           %[[LHS_I32:.*]] = tosa.cast %[[LHS]] input_unsigned(true) : (tensor<4xi8>) -> tensor<4xi32>
+// CHECK:           %[[RHS_I32_WRAP:.*]] = tosa.cast %[[RHS]] input_unsigned(false) : (tensor<1xi64>) -> tensor<1xi32>
+// CHECK:           %[[RHS_I8:.*]] = tosa.cast %[[RHS_I32_WRAP]] input_unsigned(false) : (tensor<1xi32>) -> tensor<1xi8>
+// CHECK:           %[[RHS_I32:.*]] = tosa.cast %[[RHS_I8]] input_unsigned(true) : (tensor<1xi8>) -> tensor<1xi32>
+// CHECK:           %[[DIV:.*]] = tosa.intdiv %[[LHS_I32]], %[[RHS_I32]] : (tensor<4xi32>, tensor<1xi32>) -> tensor<4xi32>
+// CHECK:           %[[OUT:.*]] = tosa.cast %[[DIV]] input_unsigned(false) : (tensor<4xi32>) -> tensor<4xi8>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[OUT]] : tensor<4xi8> -> !torch.vtensor<[4],ui8>
+// CHECK:           return %[[RESULT]]
+func.func @torch.aten.div.Scalar_mode$uint8_by_out_of_range_int_floor(%arg0: !torch.vtensor<[4],ui8>) -> !torch.vtensor<[4],ui8> {
+  %int300 = torch.constant.int 300
+  %str = torch.constant.str "floor"
+  %0 = torch.aten.div.Scalar_mode %arg0, %int300, %str : !torch.vtensor<[4],ui8>, !torch.int, !torch.str -> !torch.vtensor<[4],ui8>
+  return %0 : !torch.vtensor<[4],ui8>
+}
+
+// -----
+
+// The FX importer turns the scalar divisor of torch.div into a 0-d tensor. It
+// wraps to the result dtype before it is widened, so -3 divides as 253.
+// CHECK-LABEL:   func.func @torch.aten.div.Tensor_mode$uint8_by_0d_int64_floor(
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[4],ui8>, %[[ARG1:.*]]: !torch.vtensor<[],si64>)
+// CHECK:           %[[RHS:.*]] = torch_c.to_builtin_tensor %[[ARG1]] : !torch.vtensor<[],si64> -> tensor<i64>
+// CHECK:           %[[LHS:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[4],ui8> -> tensor<4xi8>
+// CHECK:           %[[RHS_1D:.*]] = tosa.reshape %[[RHS]], %{{.*}} : (tensor<i64>, !tosa.shape<1>) -> tensor<1xi64>
+// CHECK:           %[[LHS_I32:.*]] = tosa.cast %[[LHS]] input_unsigned(true) : (tensor<4xi8>) -> tensor<4xi32>
+// CHECK:           %[[RHS_I32_WRAP:.*]] = tosa.cast %[[RHS_1D]] input_unsigned(false) : (tensor<1xi64>) -> tensor<1xi32>
+// CHECK:           %[[RHS_I8:.*]] = tosa.cast %[[RHS_I32_WRAP]] input_unsigned(false) : (tensor<1xi32>) -> tensor<1xi8>
+// CHECK:           %[[RHS_I32:.*]] = tosa.cast %[[RHS_I8]] input_unsigned(true) : (tensor<1xi8>) -> tensor<1xi32>
+// CHECK:           %[[DIV:.*]] = tosa.intdiv %[[LHS_I32]], %[[RHS_I32]] : (tensor<4xi32>, tensor<1xi32>) -> tensor<4xi32>
+// CHECK:           %[[OUT:.*]] = tosa.cast %[[DIV]] input_unsigned(false) : (tensor<4xi32>) -> tensor<4xi8>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[OUT]] : tensor<4xi8> -> !torch.vtensor<[4],ui8>
+// CHECK:           return %[[RESULT]]
+func.func @torch.aten.div.Tensor_mode$uint8_by_0d_int64_floor(%arg0: !torch.vtensor<[4],ui8>, %arg1: !torch.vtensor<[],si64>) -> !torch.vtensor<[4],ui8> {
+  %str = torch.constant.str "floor"
+  %0 = torch.aten.div.Tensor_mode %arg0, %arg1, %str : !torch.vtensor<[4],ui8>, !torch.vtensor<[],si64>, !torch.str -> !torch.vtensor<[4],ui8>
+  return %0 : !torch.vtensor<[4],ui8>
+}
+
+// -----
+
+// A 0-d uint8 divisor of an int8 tensor gives an int8 result, so the divisor
+// is widened as signed: 200 divides as -56.
+// CHECK-LABEL:   func.func @torch.aten.div.Tensor_mode$int8_by_0d_uint8_trunc(
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[4],si8>, %[[ARG1:.*]]: !torch.vtensor<[],ui8>)
+// CHECK:           %[[RHS:.*]] = torch_c.to_builtin_tensor %[[ARG1]] : !torch.vtensor<[],ui8> -> tensor<i8>
+// CHECK:           %[[LHS:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[4],si8> -> tensor<4xi8>
+// CHECK:           %[[RHS_1D:.*]] = tosa.reshape %[[RHS]], %{{.*}} : (tensor<i8>, !tosa.shape<1>) -> tensor<1xi8>
+// CHECK:           %[[LHS_I32:.*]] = tosa.cast %[[LHS]] input_unsigned(false) : (tensor<4xi8>) -> tensor<4xi32>
+// CHECK:           %[[RHS_I32:.*]] = tosa.cast %[[RHS_1D]] input_unsigned(false) : (tensor<1xi8>) -> tensor<1xi32>
+// CHECK:           %[[DIV:.*]] = tosa.intdiv %[[LHS_I32]], %[[RHS_I32]] : (tensor<4xi32>, tensor<1xi32>) -> tensor<4xi32>
+// CHECK:           %[[OUT:.*]] = tosa.cast %[[DIV]] input_unsigned(false) : (tensor<4xi32>) -> tensor<4xi8>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[OUT]] : tensor<4xi8> -> !torch.vtensor<[4],si8>
+// CHECK:           return %[[RESULT]]
+func.func @torch.aten.div.Tensor_mode$int8_by_0d_uint8_trunc(%arg0: !torch.vtensor<[4],si8>, %arg1: !torch.vtensor<[],ui8>) -> !torch.vtensor<[4],si8> {
+  %str = torch.constant.str "trunc"
+  %0 = torch.aten.div.Tensor_mode %arg0, %arg1, %str : !torch.vtensor<[4],si8>, !torch.vtensor<[],ui8>, !torch.str -> !torch.vtensor<[4],si8>
+  return %0 : !torch.vtensor<[4],si8>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @torch.aten.div.Tensor_mode$mixed_sign_trunc(
+// CHECK-SAME:      %[[ARG0:.*]]: !torch.vtensor<[4],ui8>, %[[ARG1:.*]]: !torch.vtensor<[4],si8>)
+// CHECK:           %[[RHS:.*]] = torch_c.to_builtin_tensor %[[ARG1]] : !torch.vtensor<[4],si8> -> tensor<4xi8>
+// CHECK:           %[[LHS:.*]] = torch_c.to_builtin_tensor %[[ARG0]] : !torch.vtensor<[4],ui8> -> tensor<4xi8>
+// CHECK:           %[[LHS_I32:.*]] = tosa.cast %[[LHS]] input_unsigned(true) : (tensor<4xi8>) -> tensor<4xi32>
+// CHECK:           %[[RHS_I32:.*]] = tosa.cast %[[RHS]] input_unsigned(false) : (tensor<4xi8>) -> tensor<4xi32>
+// CHECK:           %[[DIV:.*]] = tosa.intdiv %[[LHS_I32]], %[[RHS_I32]] : (tensor<4xi32>, tensor<4xi32>) -> tensor<4xi32>
+// CHECK:           %[[OUT:.*]] = tosa.cast %[[DIV]] input_unsigned(false) : (tensor<4xi32>) -> tensor<4xi16>
+// CHECK:           %[[RESULT:.*]] = torch_c.from_builtin_tensor %[[OUT]] : tensor<4xi16> -> !torch.vtensor<[4],si16>
+// CHECK:           return %[[RESULT]]
+func.func @torch.aten.div.Tensor_mode$mixed_sign_trunc(%arg0: !torch.vtensor<[4],ui8>, %arg1: !torch.vtensor<[4],si8>) -> !torch.vtensor<[4],si16> {
+  %str = torch.constant.str "trunc"
+  %0 = torch.aten.div.Tensor_mode %arg0, %arg1, %str : !torch.vtensor<[4],ui8>, !torch.vtensor<[4],si8>, !torch.str -> !torch.vtensor<[4],si16>
+  return %0 : !torch.vtensor<[4],si16>
+}
+
+// -----
+
 // An i32 floor div stays in i32: tosa.intdiv only legalizes i32/i64, so narrower
 // types widen to i32 while i32/i64 keep their own width. This guards against the
 // i64-overflow fix accidentally widening i32 work: no tosa.cast is emitted and
