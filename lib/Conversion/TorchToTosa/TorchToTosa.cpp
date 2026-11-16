@@ -10547,11 +10547,13 @@ LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewriteImpl(
         op, "Pad value needs to be a scalar constant for conversion to "
             "TOSA pad operation");
 
-  if (needsCrop)
-    self = tosa::SliceOp::create(
-        rewriter, loc, RankedTensorType::get(sliceSize, selfElemTy), self,
-        tosa::getTosaConstShape(rewriter, loc, sliceStart),
-        tosa::getTosaConstShape(rewriter, loc, sliceSize));
+  if (needsCrop) {
+    Value start = tosa::getTosaConstShape(rewriter, loc, sliceStart);
+    Value size = tosa::getTosaConstShape(rewriter, loc, sliceSize);
+    self = tosa::SliceOp::create(rewriter, loc,
+                                 RankedTensorType::get(sliceSize, selfElemTy),
+                                 self, start, size);
+  }
 
   llvm::SmallVector<int64_t> translatePadsList;
 
