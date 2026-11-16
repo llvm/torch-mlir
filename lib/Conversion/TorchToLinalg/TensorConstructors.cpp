@@ -12,6 +12,7 @@
 #include "PopulatePatterns.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Arith/Utils/Utils.h"
+#include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/IR/Matchers.h"
@@ -19,6 +20,7 @@
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Utils/TorchUpstream.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -139,8 +141,8 @@ public:
     if (padRank > (uint64_t)rank)
       return rewriter.notifyMatchFailure(op, "padding exceeds tensor rank");
 
-    // Initialize low/high paddings and croppings with the dims that should
-    // not be padded.
+    // Start with zero pad and crop amounts for the leading dims that the pad
+    // list does not cover.
     int64_t noPad = rank - padRank;
     Attribute zero = rewriter.getIndexAttr(0);
     SmallVector<OpFoldResult> lowPad(noPad, zero);
@@ -148,8 +150,8 @@ public:
     SmallVector<OpFoldResult> lowCrop(noPad, zero);
     SmallVector<OpFoldResult> highCrop(noPad, zero);
 
-    // Add the requested padding - note op.pad() is highest dim first ordered
-    // pairs of low,high. A negative amount crops instead of padding.
+    // The pad list holds (low, high) pairs starting from the last dim. A
+    // negative amount crops instead of padding.
     for (uint64_t i = padRank; i > 0; --i) {
       auto [lowPadAmount, lowCropAmount] =
           splitPadAmount(rewriter, loc, getTypeConverter(), padVals[i * 2 - 2]);
@@ -164,17 +166,17 @@ public:
     // Crop the dims with a negative amount.
     if (!areAllConstantIntValue(lowCrop, 0) ||
         !areAllConstantIntValue(highCrop, 0)) {
-      SmallVector<OpFoldResult> offsets(lowCrop);
       SmallVector<OpFoldResult> sizes;
       for (int64_t dim = 0; dim < rank; ++dim) {
-        Value size = getValueOrCreateConstantIndexOp(
-            rewriter, loc, tensor::getMixedSize(rewriter, loc, self, dim));
-        size = rewriter.createOrFold<arith::SubIOp>(
-            loc, size,
+        OpFoldResult dimSize = tensor::getMixedSize(rewriter, loc, self, dim);
+        if (isConstantIntValue(lowCrop[dim], 0) &&
+            isConstantIntValue(highCrop[dim], 0)) {
+          sizes.push_back(dimSize);
+          continue;
+        }
+        Value size = rewriter.createOrFold<arith::SubIOp>(
+            loc, getValueOrCreateConstantIndexOp(rewriter, loc, dimSize),
             getValueOrCreateConstantIndexOp(rewriter, loc, lowCrop[dim]));
-        // A slice emptied by the low crop starts at 0 to stay in bounds.
-        if (isConstantIntValue(size, 0))
-          offsets[dim] = zero;
         size = rewriter.createOrFold<arith::SubIOp>(
             loc, size,
             getValueOrCreateConstantIndexOp(rewriter, loc, highCrop[dim]));
@@ -182,11 +184,29 @@ public:
         if (staticSize && *staticSize < 0)
           return rewriter.notifyMatchFailure(op,
                                              "expected crops that fit the dim");
+        // Check at runtime that the crops fit the dim, unless the cropped size
+        // is static or the shapes are strict.
+        if (!staticSize && !isAssumingStrictSymbolicShapes(rewriter)) {
+          Value fits = arith::CmpIOp::create(
+              rewriter, loc, arith::CmpIPredicate::sge, size,
+              arith::ConstantIndexOp::create(rewriter, loc, 0));
+          cf::AssertOp::create(
+              rewriter, loc, fits,
+              rewriter.getStringAttr("expected crops that fit the dim"));
+        }
         sizes.push_back(getAsOpFoldResult(size));
       }
-      SmallVector<OpFoldResult> strides(rank, rewriter.getIndexAttr(1));
-      self = tensor::ExtractSliceOp::create(rewriter, loc, self, offsets, sizes,
-                                            strides);
+      // A static zero size makes the cropped tensor a new empty tensor.
+      if (llvm::any_of(sizes, [](OpFoldResult size) {
+            return isConstantIntValue(size, 0);
+          })) {
+        self = tensor::EmptyOp::create(rewriter, loc, sizes,
+                                       type.getElementType());
+      } else {
+        SmallVector<OpFoldResult> strides(rank, rewriter.getIndexAttr(1));
+        self = tensor::ExtractSliceOp::create(rewriter, loc, self, lowCrop,
+                                              sizes, strides);
+      }
     }
 
     Type newResultType = getTypeConverter()->convertType(op.getType());

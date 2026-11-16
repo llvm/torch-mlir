@@ -13,7 +13,6 @@
 #include "mlir/Dialect/Tensor/IR/Tensor.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/Dialect/Tosa/Utils/ConversionUtils.h"
-#include "mlir/IR/DialectResourceBlobManager.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -10440,11 +10439,7 @@ LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewriteImpl(
   auto selfElemTy = selfTy.getElementType();
   int64_t rank = selfTy.getRank();
 
-  // START the code snippet from
-  // lib/Conversion/TorchToLinalg/TensorConstructors.cpp (see:
-  // ConvertAtenConstantPadNdOp) Pattern match against the op's original
-  // operands, because otherwise we will get the lowered version of the operands
-  // which is harder to pattern match.
+  // Read the constant pad amounts from the original torch operand.
   SmallVector<int64_t> padInts;
   if (!matchPattern(op.getPad(), m_TorchListOfConstantInts(padInts)))
     return rewriter.notifyMatchFailure(op,
@@ -10458,15 +10453,11 @@ LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewriteImpl(
   // Initialize low/high paddings with 0 for all the dims.
   SmallVector<int64_t> lowPadding(/*Size=*/rank, /*Value=*/0);
   SmallVector<int64_t> highPadding(/*Size=*/rank, /*Value=*/0);
-  // Add the requested padding - note op.pad() is highest dim first ordered
-  // pairs of low,high.
+  // The pad list holds (low, high) pairs starting from the last dim.
   for (uint64_t i = 0; i < padRank; ++i) {
     lowPadding[rank - i - 1] = padInts[i * 2];
     highPadding[rank - i - 1] = padInts[i * 2 + 1];
   }
-  // END the code snippet from
-  // lib/Conversion/TorchToLinalg/TensorConstructors.cpp (see:
-  // ConvertAtenConstantPadNdOp)
 
   // A negative amount crops instead of padding.
   SmallVector<int64_t> sliceStart(rank, 0);
@@ -10477,9 +10468,8 @@ LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewriteImpl(
     int64_t highCrop = std::max<int64_t>(-highPadding[i], 0);
     if (lowCrop == 0 && highCrop == 0)
       continue;
-    if (!selfTy.hasStaticShape())
-      return rewriter.notifyMatchFailure(op,
-                                         "cropping requires a static shape");
+    if (selfTy.isDynamicDim(i))
+      return rewriter.notifyMatchFailure(op, "cropping requires a static dim");
     sliceStart[i] = lowCrop;
     sliceSize[i] -= lowCrop + highCrop;
     if (sliceSize[i] <= 0)
@@ -10489,6 +10479,18 @@ LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewriteImpl(
     lowPadding[i] += lowCrop;
     highPadding[i] += highCrop;
   }
+
+  Value padValue = adaptor.getValue();
+  Operation *padOp = padValue.getDefiningOp();
+  padValue = padOp->getOperand(0);
+
+  Value padTensor;
+  if (failed(torchScalarToTosaTensor(rewriter, op.getOperation(), padValue,
+                                     padTensor, selfElemTy, {})))
+    return rewriter.notifyMatchFailure(
+        op, "Pad value needs to be a scalar constant for conversion to "
+            "TOSA pad operation");
+
   if (needsCrop)
     self = tosa::SliceOp::create(
         rewriter, loc, RankedTensorType::get(sliceSize, selfElemTy), self,
@@ -10503,17 +10505,6 @@ LogicalResult ConvertAtenOp<AtenConstantPadNdOp>::matchAndRewriteImpl(
   }
 
   Value padsList1 = tosa::getTosaConstShape(rewriter, loc, translatePadsList);
-
-  Value padValue = adaptor.getValue();
-  Operation *padOp = padValue.getDefiningOp();
-  padValue = padOp->getOperand(0);
-
-  Value padTensor;
-  if (failed(torchScalarToTosaTensor(rewriter, op.getOperation(), padValue,
-                                     padTensor, selfElemTy, {})))
-    return rewriter.notifyMatchFailure(
-        op, "Pad value needs to be a scalar constant for conversion to "
-            "TOSA pad operation");
 
   padTensor = tosa::ReshapeOp::create(
       rewriter, op->getLoc(), RankedTensorType::get({1}, selfElemTy), padTensor,

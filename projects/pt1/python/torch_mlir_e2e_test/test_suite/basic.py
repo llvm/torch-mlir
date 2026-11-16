@@ -3,7 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
 
-import functorch
 import torch
 
 from torch_mlir_e2e_test.framework import TestUtils
@@ -641,6 +640,11 @@ class ConstantPadNdNegativeModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ConstantPadNdNegativeModule())
 def ConstantPadNdNegativeModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 12))
+
+
+@register_test_case(module_factory=lambda: ConstantPadNdNegativeModule())
+def ConstantPadNdNegativeModule_positiveAmount(module, tu: TestUtils):
+    module.forward(tu.rand(4, 5))
 
 
 # ==============================================================================
