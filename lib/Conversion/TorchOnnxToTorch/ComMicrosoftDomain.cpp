@@ -1572,17 +1572,29 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
               rewriter, loc, positionIdsType, positionIds, pastSeqLens,
               /*alpha=*/cstIntOne);
 
+          // GQA rotates the first 2 * cos_cache.dim(1) values of each head, so
+          // a cache narrower than head_size / 2 gives a partial rotation.
+          int64_t rotaryEmbeddingDim = 0;
+          auto cosCacheType = cast<Torch::ValueTensorType>(cosCache.getType());
+          if (cosCacheType.hasSizes() && cosCacheType.getSizes().size() == 2 &&
+              cosCacheType.getSizes()[1] != Torch::kUnknownSize)
+            rotaryEmbeddingDim = 2 * cosCacheType.getSizes()[1];
+          Value cstRotaryEmbeddingDim = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(rotaryEmbeddingDim));
+
           // Performing RotaryEmbedding over Query and Key.
           qRotary = Torch::OnnxVariantRotaryEmbeddingOp::create(
               rewriter, loc, qInput.getType(), qInput, positionIds, cosCache,
               sinCache, cstInterleaved, /*is_packed_batching=*/cstIntZero,
-              /*num_heads=*/cstIntZero, /*rotary_embedding_dim=*/cstIntZero,
+              /*num_heads=*/cstNumHeads,
+              /*rotary_embedding_dim=*/cstRotaryEmbeddingDim,
               /*scale=*/cstFloatOne);
 
           kRotary = Torch::OnnxVariantRotaryEmbeddingOp::create(
               rewriter, loc, kInput.getType(), kInput, positionIds, cosCache,
               sinCache, cstInterleaved, /*is_packed_batching=*/cstIntZero,
-              /*num_heads=*/cstIntZero, /*rotary_embedding_dim=*/cstIntZero,
+              /*num_heads=*/cstKVNumHeads,
+              /*rotary_embedding_dim=*/cstRotaryEmbeddingDim,
               /*scale=*/cstFloatOne);
         }
 

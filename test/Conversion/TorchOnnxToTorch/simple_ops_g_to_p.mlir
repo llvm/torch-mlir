@@ -2864,12 +2864,16 @@ func.func @test_group_query_attention_packed_qkv_no_rotary(%packed_qkv: !torch.v
 
 // Test GQA with num_heads != kv_num_heads and rotary embedding
 // CHECK-LABEL: func.func @test_group_query_attention_gqa_rotary
-func.func @test_group_query_attention_gqa_rotary(%query: !torch.vtensor<[1,1,32],f32>, %key: !torch.vtensor<[1,1,16],f32>, %value: !torch.vtensor<[1,1,16],f32>, %cos_cache: !torch.vtensor<[2,4],f32>, %sin_cache: !torch.vtensor<[2,4],f32>) -> (!torch.vtensor<[1,1,32],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>) attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 22 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {
+func.func @test_group_query_attention_gqa_rotary(%query: !torch.vtensor<[1,1,32],f32>, %key: !torch.vtensor<[1,1,16],f32>, %value: !torch.vtensor<[1,1,16],f32>, %cos_cache: !torch.vtensor<[2,3],f32>, %sin_cache: !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[1,1,32],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>) attributes {torch.onnx_meta.ir_version = 10 : si64, torch.onnx_meta.opset_version = 22 : si64, torch.onnx_meta.producer_name = "", torch.onnx_meta.producer_version = ""} {
+  // cos/sin [2,3] rotate only the first 6 of the 8 values of each head.
+  // CHECK: %[[NUM_HEADS:.+]] = torch.constant.int 4
+  // CHECK: %[[KV_NUM_HEADS:.+]] = torch.constant.int 2
   // CHECK: %[[Q_TRANSPOSE:.+]] = torch.aten.transpose.int {{.*}} -> !torch.vtensor<[1,4,1,8],f32>
   // CHECK: %[[K_TRANSPOSE:.+]] = torch.aten.transpose.int {{.*}} -> !torch.vtensor<[1,2,1,8],f32>
   // CHECK: %[[V_TRANSPOSE:.+]] = torch.aten.transpose.int {{.*}} -> !torch.vtensor<[1,2,1,8],f32>
-  // CHECK: %[[Q_ROTARY:.+]] = torch.onnx.rotary_embedding %[[Q_TRANSPOSE]], {{.*}} -> !torch.vtensor<[1,4,1,8],f32>
-  // CHECK: %[[K_ROTARY:.+]] = torch.onnx.rotary_embedding %[[K_TRANSPOSE]], {{.*}} -> !torch.vtensor<[1,2,1,8],f32>
+  // CHECK: %[[ROT_DIM:.+]] = torch.constant.int 6
+  // CHECK: %[[Q_ROTARY:.+]] = torch.onnx.rotary_embedding %[[Q_TRANSPOSE]], %{{.*}}, %arg3, %arg4, %{{.*}}, %{{.*}}, %[[NUM_HEADS]], %[[ROT_DIM]], %{{.*}} : {{.*}} -> !torch.vtensor<[1,4,1,8],f32>
+  // CHECK: %[[K_ROTARY:.+]] = torch.onnx.rotary_embedding %[[K_TRANSPOSE]], %{{.*}}, %arg3, %arg4, %{{.*}}, %{{.*}}, %[[KV_NUM_HEADS]], %[[ROT_DIM]], %{{.*}} : {{.*}} -> !torch.vtensor<[1,2,1,8],f32>
   // CHECK: %[[K_PAD:.+]] = torch.aten.constant_pad_nd {{.*}} -> !torch.vtensor<[1,2,1,8],f32>
   // CHECK: %[[V_PAD:.+]] = torch.aten.constant_pad_nd {{.*}} -> !torch.vtensor<[1,2,1,8],f32>
   // CHECK: %[[K_SCATTER:.+]] = torch.aten.scatter.src %[[K_PAD]], {{.*}}, %[[K_ROTARY]] : {{.*}} -> !torch.vtensor<[1,2,1,8],f32>
@@ -2881,7 +2885,7 @@ func.func @test_group_query_attention_gqa_rotary(%query: !torch.vtensor<[1,1,32]
   %1 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<> : tensor<1x2x0x8xf32>} : () -> !torch.vtensor<[1,2,0,8],f32>
   %2 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<0> : tensor<1xsi32>} : () -> !torch.vtensor<[1],si32>
   %3 = torch.operator "onnx.Constant"() {torch.onnx.value = dense<1> : tensor<1xsi32>} : () -> !torch.vtensor<[1],si32>
-  %4:3 = torch.operator "onnx.GroupQueryAttention"(%query, %key, %value, %0, %1, %2, %3, %cos_cache, %sin_cache) {torch.onnx.kv_num_heads = 2 : si64, torch.onnx.num_heads = 4 : si64, torch.onnx.do_rotary = 1 : si64} : (!torch.vtensor<[1,1,32],f32>, !torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1],si32>, !torch.vtensor<[1],si32>, !torch.vtensor<[2,4],f32>, !torch.vtensor<[2,4],f32>) -> (!torch.vtensor<[1,1,32],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>)
+  %4:3 = torch.operator "onnx.GroupQueryAttention"(%query, %key, %value, %0, %1, %2, %3, %cos_cache, %sin_cache) {torch.onnx.kv_num_heads = 2 : si64, torch.onnx.num_heads = 4 : si64, torch.onnx.do_rotary = 1 : si64} : (!torch.vtensor<[1,1,32],f32>, !torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1],si32>, !torch.vtensor<[1],si32>, !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[1,1,32],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>)
   return %4#0, %4#1, %4#2 : !torch.vtensor<[1,1,32],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>
 }
 
