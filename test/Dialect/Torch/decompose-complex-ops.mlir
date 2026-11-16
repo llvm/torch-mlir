@@ -2402,45 +2402,41 @@ func.func @dequantize_per_tensor_tensor2_ui8(
 
 // -----
 
-// masked_scatter with dynamic shapes: the source is padded by one element
-// before the gather.
+// masked_scatter with a dynamic source and a self that broadcasts against mask:
+// the source may be empty at runtime, so it is padded by one element to keep
+// the gather in bounds, and the gathered values take the broadcast shape of
+// self and mask.
 // CHECK-LABEL:  func.func @masked_scatter_dynamic(
-// CHECK-SAME:      %[[SELF:.*]]: !torch.vtensor<[?,?],f32>, %[[MASK:.*]]: !torch.vtensor<[?,?],i1>, %[[SOURCE:.*]]: !torch.vtensor<[?],f32>)
+// CHECK-SAME:      %[[SELF:.*]]: !torch.vtensor<[1,3],f32>, %[[MASK:.*]]: !torch.vtensor<[?,3],i1>, %[[SOURCE:.*]]: !torch.vtensor<[?],f32>)
 // CHECK-DAG:      %[[C0:.*]] = torch.constant.int 0
 // CHECK-DAG:      %[[C1:.*]] = torch.constant.int 1
-// CHECK:          %[[INDEX:.*]] = torch.aten.clamp
+// CHECK-DAG:      %[[C3:.*]] = torch.constant.int 3
+// CHECK:          %[[MASK_INT:.*]] = torch.aten.add.Tensor %[[MASK]], {{.*}} -> !torch.vtensor<[?,3],si64>
+// CHECK:          %[[DIM0:.*]] = torch.aten.size.int %[[MASK_INT]], %[[C0]] :
+// CHECK:          %[[SIZES:.*]] = torch.prim.ListConstruct %[[DIM0]], %[[C3]] :
+// CHECK:          %[[CUMSUM:.*]] = torch.aten.cumsum %{{.*}}, %[[C0]]
+// CHECK:          %[[SUB:.*]] = torch.aten.sub.Scalar %[[CUMSUM]], %[[C1]], %[[C1]]
+// CHECK:          %[[INDEX:.*]] = torch.aten.clamp %[[SUB]], %[[C0]]
 // CHECK:          %[[PAD:.*]] = torch.prim.ListConstruct %[[C0]], %[[C1]] :
 // CHECK:          %[[PADDED:.*]] = torch.aten.constant_pad_nd %[[SOURCE]], %[[PAD]], %[[C0]] : {{.*}} -> !torch.vtensor<[?],f32>
 // CHECK:          %[[GATHER:.*]] = torch.aten.index_select %[[PADDED]], %[[C0]], %[[INDEX]] :
-// CHECK:          %[[VIEW:.*]] = torch.aten.view %[[GATHER]],
+// CHECK:          %[[VIEW:.*]] = torch.aten.view %[[GATHER]], %[[SIZES]] : {{.*}} -> !torch.vtensor<[?,3],f32>
 // CHECK:          torch.aten.where.self %[[MASK]], %[[VIEW]], %[[SELF]] :
-func.func @masked_scatter_dynamic(%self: !torch.vtensor<[?,?],f32>, %mask: !torch.vtensor<[?,?],i1>, %source: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,?],f32> {
-  %0 = torch.aten.masked_scatter %self, %mask, %source : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],i1>, !torch.vtensor<[?],f32> -> !torch.vtensor<[?,?],f32>
-  return %0 : !torch.vtensor<[?,?],f32>
+func.func @masked_scatter_dynamic(%self: !torch.vtensor<[1,3],f32>, %mask: !torch.vtensor<[?,3],i1>, %source: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,3],f32> {
+  %0 = torch.aten.masked_scatter %self, %mask, %source : !torch.vtensor<[1,3],f32>, !torch.vtensor<[?,3],i1>, !torch.vtensor<[?],f32> -> !torch.vtensor<[?,3],f32>
+  return %0 : !torch.vtensor<[?,3],f32>
 }
 
 // -----
 
-// masked_scatter with a static, non-empty source gathers from it directly.
+// A static, non-empty source needs no padding, so masked_scatter gathers from
+// it directly.
 // CHECK-LABEL:  func.func @masked_scatter_static_source(
-// CHECK-SAME:      %{{.*}}: !torch.vtensor<[2,3],f32>, %{{.*}}: !torch.vtensor<[2,3],i1>, %[[SOURCE:.*]]: !torch.vtensor<[4],f32>)
-// CHECK-NOT:      torch.aten.constant_pad_nd
-// CHECK:          torch.aten.index_select %[[SOURCE]],
+// CHECK-SAME:      %[[SELF:.*]]: !torch.vtensor<[2,3],f32>, %[[MASK:.*]]: !torch.vtensor<[2,3],i1>, %[[SOURCE:.*]]: !torch.vtensor<[4],f32>)
+// CHECK:          %[[GATHER:.*]] = torch.aten.index_select %[[SOURCE]],
+// CHECK:          %[[VIEW:.*]] = torch.aten.view %[[GATHER]],
+// CHECK:          torch.aten.where.self %[[MASK]], %[[VIEW]], %[[SELF]] :
 func.func @masked_scatter_static_source(%self: !torch.vtensor<[2,3],f32>, %mask: !torch.vtensor<[2,3],i1>, %source: !torch.vtensor<[4],f32>) -> !torch.vtensor<[2,3],f32> {
   %0 = torch.aten.masked_scatter %self, %mask, %source : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],i1>, !torch.vtensor<[4],f32> -> !torch.vtensor<[2,3],f32>
   return %0 : !torch.vtensor<[2,3],f32>
-}
-
-// -----
-
-// masked_scatter that broadcasts self gathers in the broadcast shape of self
-// and mask.
-// CHECK-LABEL:  func.func @masked_scatter_broadcast_self(
-// CHECK-SAME:      %[[SELF:.*]]: !torch.vtensor<[1,3],f32>, %[[MASK:.*]]: !torch.vtensor<[?,3],i1>, %{{.*}}: !torch.vtensor<[?],f32>)
-// CHECK:          torch.aten.add.Tensor %[[MASK]], {{.*}} -> !torch.vtensor<[?,3],si64>
-// CHECK:          %[[VIEW:.*]] = torch.aten.view {{.*}} -> !torch.vtensor<[?,3],f32>
-// CHECK:          torch.aten.where.self %[[MASK]], %[[VIEW]], %[[SELF]] :
-func.func @masked_scatter_broadcast_self(%self: !torch.vtensor<[1,3],f32>, %mask: !torch.vtensor<[?,3],i1>, %source: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,3],f32> {
-  %0 = torch.aten.masked_scatter %self, %mask, %source : !torch.vtensor<[1,3],f32>, !torch.vtensor<[?,3],i1>, !torch.vtensor<[?],f32> -> !torch.vtensor<[?,3],f32>
-  return %0 : !torch.vtensor<[?,3],f32>
 }

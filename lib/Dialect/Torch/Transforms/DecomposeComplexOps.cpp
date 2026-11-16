@@ -5948,7 +5948,6 @@ public:
     Value broadcastSizes =
         AtenSizeOp::create(rewriter, loc, intListType, maskInt);
 
-    // An empty source yields self broadcast to the shape of self and mask.
     if (sourceNumel == 0) {
       rewriter.replaceOpWithNewOp<AtenBroadcastToOp>(op, resTy, self,
                                                      broadcastSizes);
@@ -5981,14 +5980,14 @@ public:
     Value sourceFlatten = AtenFlattenUsingIntsOp::create(
         rewriter, loc, sourceFlattenType, source, constZero, sourceLastDim);
 
-    // Pad a source of unknown size by one element.
+    // A source of unknown size may be empty at runtime, where even the clamped
+    // index 0 is out of bounds. Pad it by one element, which `where` never
+    // selects, so that the gather stays in bounds.
     if (sourceNumel == kUnknownSize) {
-      Type paddedType = sourceTy.getWithSizesAndDtype(
-          /*optionalSizes=*/{kUnknownSize}, sourceTy.getDtype());
       Value padding = PrimListConstructOp::create(
           rewriter, loc, intListType, ValueRange{constZero, constOne});
       sourceFlatten = AtenConstantPadNdOp::create(
-          rewriter, loc, paddedType, sourceFlatten, padding, constZero);
+          rewriter, loc, sourceFlattenType, sourceFlatten, padding, constZero);
     }
 
     Type selectSourceType = sourceTy.getWithSizesAndDtype(
@@ -5996,7 +5995,6 @@ public:
     Value selectSource = AtenIndexSelectOp::create(
         rewriter, loc, selectSourceType, sourceFlatten, constZero, maskPrefix);
 
-    // Reshape the gathered values to the broadcast shape of self and mask.
     Value sourceReshape = AtenViewOp::create(rewriter, loc, broadcastTy,
                                              selectSource, broadcastSizes);
     rewriter.replaceOpWithNewOp<AtenWhereSelfOp>(op, resTy, mask, sourceReshape,

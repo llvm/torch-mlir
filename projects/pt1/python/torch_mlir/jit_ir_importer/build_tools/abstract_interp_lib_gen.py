@@ -2231,6 +2231,9 @@ def aten〇narrow〇Tensor〡shape(self: List[int], dim: int, start: List[int], 
 def aten〇slice_scatter〡shape(self: List[int], src: List[int], dim: int = 0, start: Optional[int] = None, end: Optional[int] = None, step: int = 1) -> List[int]:
     return self
 
+@check_shape_function([
+    Invocation(TensorOfShape(1, 4), TensorOfShape(3, 4, dtype=torch.bool), TensorOfShape(12)),
+])
 def aten〇masked_scatter〡shape(self: List[int], mask: List[int], source: List[int]) -> List[int]:
     return upstream_shape_functions.broadcast(self, mask)
 
