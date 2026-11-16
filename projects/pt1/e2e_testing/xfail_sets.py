@@ -3335,6 +3335,14 @@ if torch_version_for_comparison() >= version.parse("2.13.0"):
         "AddbmmWithAlphaBetaModule_basic",
     }
 
+if torch_version_for_comparison() >= version.parse("2.16.0.dev"):
+    # PyTorch 2.16 and newer export these through the ONNX exporter.
+    ONNX_XFAIL_SET = ONNX_XFAIL_SET - {
+        "QuantizedDecomposedQuantizePerChannelUnsignedZeroPoint_basic",
+        "QuantizedDecomposedQuantizePerTensorTensor_basic",
+        "QuantizedDecomposedQuantizePerTensorTensor2_basic",
+    }
+
 if torch_version_for_comparison() > version.parse("2.4.0.dev"):
     STABLEHLO_PASS_SET = STABLEHLO_PASS_SET - {
         "ElementwiseCreateComplexModule_basic",

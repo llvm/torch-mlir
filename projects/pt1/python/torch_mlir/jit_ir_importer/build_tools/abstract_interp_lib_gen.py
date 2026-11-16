@@ -3290,17 +3290,17 @@ def aten〇instance_norm〡dtype(input_rank_dtype: Tuple[int, int], weight_rank_
     input_rank, input_dtype = input_rank_dtype
     return input_dtype
 
-@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=2, error_types={*all_integer_dtypes()}))
+@check_dtype_function(_check_tensors_with_the_same_dtype(tensor_shapes=[(2, 3), (2, 1)], error_types={*all_integer_dtypes()}))
 def aten〇_weight_norm_interface〡dtype(v_rank_dtype: Tuple[int, int], g_rank_dtype: Tuple[int, int], dim: int = 0) -> Tuple[int, int]:
     v_rank, v_dtype = v_rank_dtype
     g_rank, g_dtype = g_rank_dtype
     assert v_dtype == g_dtype
     assert not is_integer_dtype(g_dtype)
+    if g_dtype in [torch.bfloat16, torch.float16]:
+        return v_dtype, torch.float32
     if g_dtype == torch.complex128:
         return v_dtype, torch.float64
     elif g_dtype == torch.complex64:
-        return v_dtype, torch.float32
-    elif g_dtype == torch.bfloat16:
         return v_dtype, torch.float32
     return v_dtype, g_dtype
 
@@ -3483,9 +3483,10 @@ def aten〇cumsum〡dtype(self_rank_dtype: Tuple[int, int], dim: int, dtype: Opt
     return self_dtype
 
 @check_dtype_function(
-    _check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0))
+    _check_tensors_with_the_same_dtype(num_of_tensors=1, dim=0, error_types={*all_integer_dtypes()}))
 def aten〇logcumsumexp〡dtype(self_rank_dtype: Tuple[int, int], dim: int) -> int:
     self_rank, self_dtype = self_rank_dtype
+    assert not is_integer_dtype(self_dtype)
     return self_dtype
 
 @check_dtype_function(
@@ -3647,7 +3648,7 @@ _index_put_invocations = [
     Invocation(TensorOfShape(3, dtype=dtype), [TensorOfShape(3, dtype=torch.int64)], TensorOfShape(3, dtype=torch.float32)) for dtype in _SORTED_TORCH_TYPES
 ] + [
     # index dtype
-    Invocation(TensorOfShape(3, dtype=torch.float32), [TensorOfShape(3, dtype=dtype)], TensorOfShape(3, dtype=torch.float32)) for dtype in _SORTED_TORCH_TYPES
+    Invocation(TensorOfShape(3, dtype=torch.float32), [TensorOfShape(3, dtype=dtype)], TensorOfShape(3, dtype=torch.float32)) for dtype in [torch.int64, torch.int32, torch.uint8, torch.bool]
 ]
 @check_dtype_function(_index_put_invocations)
 def aten〇index_put〇hacked_twin〡dtype(self_rank_dtype: Tuple[int, int], indices_rank_dtype: List[Tuple[int, int]], values_rank_dtype: Tuple[int, int], accumulate: bool = False) -> int:
@@ -4139,9 +4140,10 @@ def aten〇diagonal〡dtype(self_rank_dtype: Tuple[int, int], offset: int = 0, d
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
-@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1))
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types={*all_integer_dtypes()}))
 def aten〇uniform〡dtype(self_rank_dtype: Tuple[int, int], from_: float = 0., to: float = 1., generator: Any = None) -> int:
     self_rank, self_dtype = self_rank_dtype
+    assert not is_integer_dtype(self_dtype)
     return self_dtype
 
 def aten〇exponential〡dtype(self_rank_dtype: Tuple[int, int], lambd: float = 1., generator: Any = None) -> int:
@@ -4150,9 +4152,13 @@ def aten〇exponential〡dtype(self_rank_dtype: Tuple[int, int], lambd: float = 
 
 @check_dtype_function([Invocation([1]),
                        Invocation([1], dtype=torch.float16),
+                       ErrorInvocation([1], dtype=torch.int32),
                        Invocation([1], dtype=torch.complex64)])
 def aten〇rand〡dtype(size: List[int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
-    return torch.float32 if dtype is None else dtype
+    if dtype is None:
+        return torch.float32
+    assert not is_integer_dtype(dtype)
+    return dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, size=[1]))
 def aten〇_unsafe_view〡dtype(self_rank_dtype: Tuple[int, int], size: List[int]) -> int:
@@ -5547,12 +5553,11 @@ def aten〇native_batch_norm〡dtype(input_rank_dtype: Tuple[int, int], weight_r
 
 @check_dtype_function([Invocation(end=0, dtype=None), # No floats
                        Invocation(end=0.0, dtype=None), # One float
-                       ErrorInvocation(end=0, dtype=torch.complex64), # Dtype specified
+                       Invocation(end=0, dtype=torch.complex64), # Dtype specified
                        Invocation(end=0, dtype=torch.float16), # Dtype specified
                        Invocation(end=0, dtype=torch.int16)]) # Dtype specified
 def aten〇arange〡dtype(end: Union[int, float, complex], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
     if dtype is not None:
-        assert not is_complex_dtype(dtype)
         return dtype
     if is_float_dtype(get_dtype_of_scalar(end)):
         return torch.float32
@@ -5561,12 +5566,11 @@ def aten〇arange〡dtype(end: Union[int, float, complex], dtype: Optional[int] 
 @check_dtype_function([Invocation(start=0, end=10, dtype=None), # No floats
                        Invocation(start=0.0, end=10, dtype=None), # One float
                        Invocation(start=0, end=10.0, dtype=None), # One float
-                       ErrorInvocation(start=0, end=10, dtype=torch.complex64), # Dtype specified
+                       Invocation(start=0, end=10, dtype=torch.complex64), # Dtype specified
                        Invocation(start=0, end=10, dtype=torch.float16), # Dtype specified
                        Invocation(start=0, end=10, dtype=torch.int16)]) # Dtype specified
 def aten〇arange〇start〡dtype(start: Union[int, float, complex], end: Union[int, float, complex], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
     if dtype is not None:
-        assert not is_complex_dtype(dtype)
         return dtype
     if is_float_dtype(get_dtype_of_scalar(start)) or \
        is_float_dtype(get_dtype_of_scalar(end)):
@@ -5577,12 +5581,11 @@ def aten〇arange〇start〡dtype(start: Union[int, float, complex], end: Union[
                        Invocation(start=0.0, end=10, step=1, dtype=None), # One float
                        Invocation(start=0, end=10.0, step=1, dtype=None), # One float
                        Invocation(start=0, end=10, step=1.0, dtype=None), # One float
-                       ErrorInvocation(start=0, end=10, step=1, dtype=torch.complex64), # Dtype specified
+                       Invocation(start=0, end=10, step=1, dtype=torch.complex64), # Dtype specified
                        Invocation(start=0, end=10, step=1, dtype=torch.float16), # Dtype specified
                        Invocation(start=0, end=10, step=1, dtype=torch.int16)]) # Dtype specified
 def aten〇arange〇start_step〡dtype(start: Union[int, float, complex], end: Union[int, float, complex], step: Union[int, float, complex] = 1, dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None) -> int:
     if dtype is not None:
-        assert not is_complex_dtype(dtype)
         return dtype
     if is_float_dtype(get_dtype_of_scalar(start)) or \
        is_float_dtype(get_dtype_of_scalar(end)) or \
@@ -6013,13 +6016,15 @@ def aten〇rot90〡dtype(self_rank_dtype: Tuple[int, int], k: int = 1, dims: Lis
     self_rank, self_dtype = self_rank_dtype
     return self_dtype
 
-@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1) +
+@check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types=all_integer_dtypes()) +
                       _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.float16) +
-                      _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.int32) +
+                      _check_tensors_with_the_same_dtype(num_of_tensors=1, error_types=all_integer_dtypes() + all_float_dtypes() + all_complex_dtypes(), dtype=torch.int32) +
                       _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.complex64))
 def aten〇rand_like〡dtype(self_rank_dtype: Tuple[int, int], dtype: Optional[int] = None, layout: Optional[int] = None, device: Optional[device] = None, pin_memory: Optional[bool] = None, memory_format: Optional[int] = None) -> int:
     self_rank, self_dtype = self_rank_dtype
-    return self_dtype if dtype is None else dtype
+    result_dtype = self_dtype if dtype is None else dtype
+    assert not is_integer_dtype(result_dtype)
+    return result_dtype
 
 @check_dtype_function(_check_tensors_with_the_same_dtype(num_of_tensors=1, error_types=all_integer_dtypes()) +
                       _check_tensors_with_the_same_dtype(num_of_tensors=1, dtype=torch.float16) +
