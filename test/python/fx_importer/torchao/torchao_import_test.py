@@ -17,7 +17,11 @@ import torchao  # noqa: F401
 
 from torch_mlir import fx
 
-LEGAL_OPS = ["torchao.quantize_affine", "torchao.dequantize_affine"]
+LEGAL_OPS = [
+    "torchao.choose_qparams_affine",
+    "torchao.quantize_affine",
+    "torchao.dequantize_affine",
+]
 
 
 def run(f):
@@ -70,5 +74,37 @@ def test_decomposed_by_default():
         torch.tensor([0.1]),
         torch.tensor([0], dtype=torch.int32),
         func_name="test_decomposed_by_default",
+    )
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_choose_qparams_affine
+# CHECK: %[[SCALE:.*]], %[[ZP:.*]] = torch.torchao.choose_qparams_affine %{{.*}} -> !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,16],si8>
+# CHECK: torch.torchao.quantize_affine %{{.*}}, %{{.*}}, %[[SCALE]], %[[ZP]]
+# CHECK-NOT: torch.operator
+def test_choose_qparams_affine():
+    class DynamicQuantize(nn.Module):
+        def forward(self, x):
+            scale, zero_point = torch.ops.torchao.choose_qparams_affine.default(
+                x,
+                "ASYMMETRIC",
+                [1, 1, 64],
+                torch.int8,
+                -128,
+                127,
+                None,
+                None,
+                torch.int8,
+            )
+            return torch.ops.torchao.quantize_affine.default(
+                x, [1, 1, 64], scale, zero_point, torch.int8, -128, 127
+            )
+
+    m = fx.export_and_import(
+        DynamicQuantize(),
+        torch.randn(4, 16, 64),
+        func_name="test_choose_qparams_affine",
+        backend_legal_ops=LEGAL_OPS,
     )
     print(m)

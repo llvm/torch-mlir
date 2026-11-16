@@ -2010,6 +2010,329 @@ func.func @dequantize_affine_per_tensor(
 
 // -----
 
+// Without keepdim, the dimension covered by the block gets dropped.
+// CHECK: #[[EXPANDED:.*]] = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>
+// CHECK: #[[BLOCKS:.*]] = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2)>
+// CHECK: #[[DROPPED:.*]] = affine_map<(d0, d1) -> (d0, d1, 0)>
+// CHECK: #[[RESULT:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK-LABEL: func.func @choose_qparams_affine_asymmetric_per_token(
+// CHECK: %[[INPUT:.*]] = torch_c.to_builtin_tensor
+// CHECK: %[[EXPANDED_INPUT:.*]] = tensor.expand_shape %[[INPUT]] {{\[\[}}0], [1], [2, 3]] output_shape [2, 4, 1, 8] : tensor<2x4x8xf32> into tensor<2x4x1x8xf32>
+// CHECK: %[[MINMAX:.*]]:2 = linalg.generic
+// CHECK-SAME: indexing_maps = [#[[EXPANDED]], #[[BLOCKS]], #[[BLOCKS]]]
+// CHECK-SAME: iterator_types = ["parallel", "parallel", "parallel", "reduction"]
+// CHECK-SAME: ins(%[[EXPANDED_INPUT]] : tensor<2x4x1x8xf32>)
+// CHECK: arith.minimumf
+// CHECK: arith.maximumf
+// CHECK: linalg.generic
+// CHECK-SAME: indexing_maps = [#[[DROPPED]], #[[DROPPED]], #[[RESULT]], #[[RESULT]]]
+// CHECK-SAME: ins(%[[MINMAX]]#0, %[[MINMAX]]#1 : tensor<2x4x1xf32>, tensor<2x4x1xf32>)
+// CHECK-SAME: outs(%{{.*}}, %{{.*}} : tensor<2x4xf32>, tensor<2x4xi8>)
+// CHECK: ^bb0(%[[MIN:.*]]: f32, %[[MAX:.*]]: f32, %{{.*}}: f32, %{{.*}}: i8):
+// CHECK:   %[[ZERO:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK:   %[[MIN_NEG:.*]] = arith.minimumf %[[MIN]], %[[ZERO]] : f32
+// CHECK:   %[[MAX_POS:.*]] = arith.maximumf %[[MAX]], %[[ZERO]] : f32
+// CHECK:   %[[RANGE:.*]] = arith.subf %[[MAX_POS]], %[[MIN_NEG]] : f32
+// CHECK:   %[[QRANGE:.*]] = arith.constant 2.550000e+02 : f32
+// CHECK:   %[[RAW_SCALE:.*]] = arith.divf %[[RANGE]], %[[QRANGE]] : f32
+// CHECK:   %[[EPS:.*]] = arith.constant 1.17549435E-38 : f32
+// CHECK:   %[[SCALE:.*]] = arith.maximumf %[[RAW_SCALE]], %[[EPS]] : f32
+// CHECK:   %[[DESCALED:.*]] = arith.divf %[[MIN_NEG]], %[[SCALE]] : f32
+// CHECK:   %[[ROUND:.*]] = math.roundeven %[[DESCALED]] : f32
+// CHECK:   %[[QMIN:.*]] = arith.constant -1.280000e+02 : f32
+// CHECK:   %[[ZP:.*]] = arith.subf %[[QMIN]], %[[ROUND]] : f32
+// CHECK:   %[[LOW:.*]] = arith.maximumf %[[ZP]], %{{.*}} : f32
+// CHECK:   %[[HIGH:.*]] = arith.minimumf %[[LOW]], %{{.*}} : f32
+// CHECK:   %[[ZP_INT:.*]] = arith.fptosi %[[HIGH]] : f32 to i8
+// CHECK:   linalg.yield %[[SCALE]], %[[ZP_INT]] : f32, i8
+func.func @choose_qparams_affine_asymmetric_per_token(
+    %input: !torch.vtensor<[2,4,8],f32>)
+    -> (!torch.vtensor<[2,4],f32>, !torch.vtensor<[2,4],si8>) {
+  %int1 = torch.constant.int 1
+  %int8 = torch.constant.int 8
+  %dtype = torch.constant.int 1
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %mapping = torch.constant.str "ASYMMETRIC"
+  %block_size = torch.prim.ListConstruct %int1, %int1, %int8
+      : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %scale, %zero_point = torch.torchao.choose_qparams_affine
+      %input, %mapping, %block_size, %dtype, %qmin, %qmax, %none, %none,
+      %dtype, %false
+      : !torch.vtensor<[2,4,8],f32>, !torch.str, !torch.list<int>, !torch.int,
+        !torch.int, !torch.int, !torch.none, !torch.none, !torch.int,
+        !torch.bool -> !torch.vtensor<[2,4],f32>, !torch.vtensor<[2,4],si8>
+  return %scale, %zero_point
+      : !torch.vtensor<[2,4],f32>, !torch.vtensor<[2,4],si8>
+}
+
+// -----
+
+// A bf16 input gets bf16 scales and zero points. The reduction runs in bf16
+// and each step of the scale is rounded to bf16, as in eager PyTorch.
+// CHECK: #[[EXPANDED:.*]] = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
+// CHECK: #[[BLOCKS:.*]] = affine_map<(d0, d1, d2) -> (d0, d1)>
+// CHECK: #[[RESULT:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK-LABEL: func.func @choose_qparams_affine_symmetric_per_group_keepdim(
+// CHECK: %[[EXPANDED_INPUT:.*]] = tensor.expand_shape %{{.*}} {{\[\[}}0], [1, 2]] output_shape [4, 4, 8] : tensor<4x32xbf16> into tensor<4x4x8xbf16>
+// CHECK: %[[MINMAX:.*]]:2 = linalg.generic
+// CHECK-SAME: indexing_maps = [#[[EXPANDED]], #[[BLOCKS]], #[[BLOCKS]]]
+// CHECK-SAME: iterator_types = ["parallel", "parallel", "reduction"]
+// CHECK: ^bb0(%{{.*}}: bf16, %{{.*}}: bf16, %{{.*}}: bf16):
+// CHECK: linalg.generic
+// CHECK-SAME: indexing_maps = [#[[RESULT]], #[[RESULT]], #[[RESULT]], #[[RESULT]]]
+// CHECK-SAME: outs(%{{.*}}, %{{.*}} : tensor<4x4xbf16>, tensor<4x4xbf16>)
+// CHECK: ^bb0(%[[MIN:.*]]: bf16, %[[MAX:.*]]: bf16, %{{.*}}: bf16, %{{.*}}: bf16):
+// CHECK:   %[[MIN_EXT:.*]] = arith.extf %[[MIN]] : bf16 to f32
+// CHECK:   %[[MAX_EXT:.*]] = arith.extf %[[MAX]] : bf16 to f32
+// CHECK:   %[[ZERO:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK:   %[[MIN_NEG:.*]] = arith.minimumf %[[MIN_EXT]], %[[ZERO]] : f32
+// CHECK:   %[[MAX_POS:.*]] = arith.maximumf %[[MAX_EXT]], %[[ZERO]] : f32
+// CHECK:   %[[NEG:.*]] = arith.negf %[[MIN_NEG]] : f32
+// CHECK:   %[[ABS_MAX:.*]] = arith.maximumf %[[NEG]], %[[MAX_POS]] : f32
+// CHECK:   %[[HALF_RANGE:.*]] = arith.constant 7.500000e+00 : f32
+// CHECK:   %[[RAW_SCALE:.*]] = arith.divf %[[ABS_MAX]], %[[HALF_RANGE]] : f32
+// CHECK:   %[[RAW_SCALE_BF16:.*]] = arith.truncf %[[RAW_SCALE]] : f32 to bf16
+// CHECK:   %[[RAW_SCALE_EXT:.*]] = arith.extf %[[RAW_SCALE_BF16]] : bf16 to f32
+// CHECK:   %[[EPS:.*]] = arith.constant 1.17549435E-38 : f32
+// CHECK:   %[[SCALE:.*]] = arith.maximumf %[[RAW_SCALE_EXT]], %[[EPS]] : f32
+// CHECK:   %[[ZP:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK:   %[[ZP_ROUNDED:.*]] = arith.truncf %[[ZP]] : f32 to bf16
+// CHECK:   %[[ZP_EXT:.*]] = arith.extf %[[ZP_ROUNDED]] : bf16 to f32
+// CHECK:   %[[SCALE_BF16:.*]] = arith.truncf %{{.*}} : f32 to bf16
+// CHECK:   %[[ZP_BF16:.*]] = arith.truncf %[[ZP_EXT]] : f32 to bf16
+// CHECK:   linalg.yield %[[SCALE_BF16]], %[[ZP_BF16]] : bf16, bf16
+func.func @choose_qparams_affine_symmetric_per_group_keepdim(
+    %input: !torch.vtensor<[4,32],bf16>)
+    -> (!torch.vtensor<[4,4],bf16>, !torch.vtensor<[4,4],bf16>) {
+  %int1 = torch.constant.int 1
+  %int8 = torch.constant.int 8
+  %dtype = torch.constant.int 1
+  %qmin = torch.constant.int -8
+  %qmax = torch.constant.int 7
+  %none = torch.constant.none
+  %true = torch.constant.bool true
+  %mapping = torch.constant.str "SYMMETRIC"
+  %block_size = torch.prim.ListConstruct %int1, %int8
+      : (!torch.int, !torch.int) -> !torch.list<int>
+  %scale, %zero_point = torch.torchao.choose_qparams_affine
+      %input, %mapping, %block_size, %dtype, %qmin, %qmax, %none, %none,
+      %none, %true
+      : !torch.vtensor<[4,32],bf16>, !torch.str, !torch.list<int>, !torch.int,
+        !torch.int, !torch.int, !torch.none, !torch.none, !torch.none,
+        !torch.bool -> !torch.vtensor<[4,4],bf16>, !torch.vtensor<[4,4],bf16>
+  return %scale, %zero_point
+      : !torch.vtensor<[4,4],bf16>, !torch.vtensor<[4,4],bf16>
+}
+
+// -----
+
+// A non-constant block_size entry, such as a symbolic size from torch.export,
+// spans its dimension, so a block_size of the whole input gives 0-d results.
+// CHECK: #[[EXPANDED:.*]] = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>
+// CHECK: #[[BLOCKS:.*]] = affine_map<(d0, d1, d2, d3) -> (d0, d2)>
+// CHECK: #[[DROPPED:.*]] = affine_map<() -> (0, 0)>
+// CHECK: #[[RESULT:.*]] = affine_map<() -> ()>
+// CHECK-LABEL: func.func @choose_qparams_affine_no_clipping_err_per_tensor_dynamic(
+// CHECK: %[[EXPANDED_INPUT:.*]] = tensor.expand_shape %{{.*}} {{\[\[}}0, 1], [2, 3]] output_shape [1, %{{.*}}, 1, 16] : tensor<?x16xf32> into tensor<1x?x1x16xf32>
+// CHECK: %[[MINMAX:.*]]:2 = linalg.generic
+// CHECK-SAME: indexing_maps = [#[[EXPANDED]], #[[BLOCKS]], #[[BLOCKS]]]
+// CHECK-SAME: iterator_types = ["parallel", "reduction", "parallel", "reduction"]
+// CHECK: linalg.generic
+// CHECK-SAME: indexing_maps = [#[[DROPPED]], #[[DROPPED]], #[[RESULT]], #[[RESULT]]]
+// CHECK-SAME: outs(%{{.*}}, %{{.*}} : tensor<f32>, tensor<i32>)
+// CHECK: ^bb0(%[[MIN:.*]]: f32, %[[MAX:.*]]: f32, %{{.*}}: f32, %{{.*}}: i32):
+// CHECK:   %[[MIN_NEG:.*]] = arith.minimumf %[[MIN]], %{{.*}} : f32
+// CHECK:   %[[MAX_POS:.*]] = arith.maximumf %[[MAX]], %{{.*}} : f32
+// CHECK:   %[[QMIN:.*]] = arith.constant -1.280000e+02 : f32
+// CHECK:   %[[SMIN:.*]] = arith.divf %[[MIN_NEG]], %[[QMIN]] : f32
+// CHECK:   %[[QMAX:.*]] = arith.constant 1.270000e+02 : f32
+// CHECK:   %[[SMAX:.*]] = arith.divf %[[MAX_POS]], %[[QMAX]] : f32
+// CHECK:   %[[CMP:.*]] = arith.cmpf ogt, %[[SMIN]], %[[SMAX]] : f32
+// CHECK:   %[[RAW_SCALE:.*]] = arith.select %[[CMP]], %[[SMIN]], %[[SMAX]] : f32
+// CHECK:   %[[EPS:.*]] = arith.constant 9.99999997E-7 : f32
+// CHECK:   %[[SCALE:.*]] = arith.maximumf %[[RAW_SCALE]], %[[EPS]] : f32
+// CHECK:   %[[ZP:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK:   %[[ZP_INT:.*]] = arith.fptosi %[[ZP]] : f32 to i32
+// CHECK:   linalg.yield %[[SCALE]], %[[ZP_INT]] : f32, i32
+func.func @choose_qparams_affine_no_clipping_err_per_tensor_dynamic(
+    %input: !torch.vtensor<[?,16],f32>)
+    -> (!torch.vtensor<[],f32>, !torch.vtensor<[],si32>) {
+  %int0 = torch.constant.int 0
+  %int16 = torch.constant.int 16
+  %dtype = torch.constant.int 1
+  %zp_dtype = torch.constant.int 3
+  %eps = torch.constant.float 1.000000e-06
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %mapping = torch.constant.str "SYMMETRIC_NO_CLIPPING_ERR"
+  %size = torch.aten.size.int %input, %int0
+      : !torch.vtensor<[?,16],f32>, !torch.int -> !torch.int
+  %block_size = torch.prim.ListConstruct %size, %int16
+      : (!torch.int, !torch.int) -> !torch.list<int>
+  %scale, %zero_point = torch.torchao.choose_qparams_affine
+      %input, %mapping, %block_size, %dtype, %none, %none, %eps, %none,
+      %zp_dtype, %false
+      : !torch.vtensor<[?,16],f32>, !torch.str, !torch.list<int>, !torch.int,
+        !torch.none, !torch.none, !torch.float, !torch.none, !torch.int,
+        !torch.bool -> !torch.vtensor<[],f32>, !torch.vtensor<[],si32>
+  return %scale, %zero_point : !torch.vtensor<[],f32>, !torch.vtensor<[],si32>
+}
+
+// -----
+
+func.func @choose_qparams_affine_non_constant_mapping_type(
+    %input: !torch.vtensor<[4,16],f32>, %mapping: !torch.str)
+    -> (!torch.vtensor<[4],f32>, !torch.vtensor<[4],f32>) {
+  %int1 = torch.constant.int 1
+  %int16 = torch.constant.int 16
+  %dtype = torch.constant.int 1
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %block_size = torch.prim.ListConstruct %int1, %int16
+      : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.torchao.choose_qparams_affine' that was explicitly marked illegal}}
+  %scale, %zero_point = torch.torchao.choose_qparams_affine
+      %input, %mapping, %block_size, %dtype, %none, %none, %none, %none,
+      %none, %false
+      : !torch.vtensor<[4,16],f32>, !torch.str, !torch.list<int>, !torch.int,
+        !torch.none, !torch.none, !torch.none, !torch.none, !torch.none,
+        !torch.bool -> !torch.vtensor<[4],f32>, !torch.vtensor<[4],f32>
+  return %scale, %zero_point : !torch.vtensor<[4],f32>, !torch.vtensor<[4],f32>
+}
+
+// -----
+
+func.func @choose_qparams_affine_keepdim_without_reduction(
+    %input: !torch.vtensor<[4,16],f32>)
+    -> (!torch.vtensor<[4,16],f32>, !torch.vtensor<[4,16],f32>) {
+  %int1 = torch.constant.int 1
+  %dtype = torch.constant.int 1
+  %none = torch.constant.none
+  %true = torch.constant.bool true
+  %mapping = torch.constant.str "SYMMETRIC"
+  %block_size = torch.prim.ListConstruct %int1, %int1
+      : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.torchao.choose_qparams_affine' that was explicitly marked illegal}}
+  %scale, %zero_point = torch.torchao.choose_qparams_affine
+      %input, %mapping, %block_size, %dtype, %none, %none, %none, %none,
+      %none, %true
+      : !torch.vtensor<[4,16],f32>, !torch.str, !torch.list<int>, !torch.int,
+        !torch.none, !torch.none, !torch.none, !torch.none, !torch.none,
+        !torch.bool -> !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,16],f32>
+  return %scale, %zero_point : !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,16],f32>
+}
+
+// -----
+
+func.func @choose_qparams_affine_wrong_result_shape(
+    %input: !torch.vtensor<[?,16],f32>)
+    -> (!torch.vtensor<[3,7],f32>, !torch.vtensor<[3,7],f32>) {
+  %int0 = torch.constant.int 0
+  %int8 = torch.constant.int 8
+  %dtype = torch.constant.int 1
+  %none = torch.constant.none
+  %true = torch.constant.bool true
+  %mapping = torch.constant.str "SYMMETRIC"
+  %size = torch.aten.size.int %input, %int0
+      : !torch.vtensor<[?,16],f32>, !torch.int -> !torch.int
+  %block_size = torch.prim.ListConstruct %size, %int8
+      : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.torchao.choose_qparams_affine' that was explicitly marked illegal}}
+  %scale, %zero_point = torch.torchao.choose_qparams_affine
+      %input, %mapping, %block_size, %dtype, %none, %none, %none, %none,
+      %none, %true
+      : !torch.vtensor<[?,16],f32>, !torch.str, !torch.list<int>, !torch.int,
+        !torch.none, !torch.none, !torch.none, !torch.none, !torch.none,
+        !torch.bool -> !torch.vtensor<[3,7],f32>, !torch.vtensor<[3,7],f32>
+  return %scale, %zero_point : !torch.vtensor<[3,7],f32>, !torch.vtensor<[3,7],f32>
+}
+
+// -----
+
+func.func @choose_qparams_affine_wrong_result_rank(
+    %input: !torch.vtensor<[?,16],f32>)
+    -> (!torch.vtensor<[1],f32>, !torch.vtensor<[1],f32>) {
+  %int0 = torch.constant.int 0
+  %int8 = torch.constant.int 8
+  %dtype = torch.constant.int 1
+  %none = torch.constant.none
+  %true = torch.constant.bool true
+  %mapping = torch.constant.str "SYMMETRIC"
+  %size = torch.aten.size.int %input, %int0
+      : !torch.vtensor<[?,16],f32>, !torch.int -> !torch.int
+  %block_size = torch.prim.ListConstruct %size, %int8
+      : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.torchao.choose_qparams_affine' that was explicitly marked illegal}}
+  %scale, %zero_point = torch.torchao.choose_qparams_affine
+      %input, %mapping, %block_size, %dtype, %none, %none, %none, %none,
+      %none, %true
+      : !torch.vtensor<[?,16],f32>, !torch.str, !torch.list<int>, !torch.int,
+        !torch.none, !torch.none, !torch.none, !torch.none, !torch.none,
+        !torch.bool -> !torch.vtensor<[1],f32>, !torch.vtensor<[1],f32>
+  return %scale, %zero_point : !torch.vtensor<[1],f32>, !torch.vtensor<[1],f32>
+}
+
+// -----
+
+// The qparams from choose_qparams_affine feed quantize_affine and
+// dequantize_affine directly, one block per group of 8, with dynamic sizes.
+// CHECK: #[[GROUP:.*]] = affine_map<(d0, d1) -> (d0, d1 floordiv 8)>
+// CHECK-LABEL: func.func @choose_qparams_affine_round_trip(
+// CHECK: %[[INPUT:.*]] = torch_c.to_builtin_tensor
+// CHECK: %[[ROWS:.*]] = tensor.dim %[[INPUT]], %{{.*}} : tensor<?x?xf32>
+// CHECK: %[[COLS:.*]] = tensor.dim %[[INPUT]], %{{.*}} : tensor<?x?xf32>
+// CHECK: %[[EIGHT:.*]] = arith.constant 8 : index
+// CHECK: %[[GROUPS:.*]] = arith.divui %[[COLS]], %[[EIGHT]] : index
+// CHECK: tensor.expand_shape %[[INPUT]] {{\[\[}}0], [1, 2]] output_shape [%[[ROWS]], %[[GROUPS]], 8] : tensor<?x?xf32> into tensor<?x?x8xf32>
+// CHECK: %[[QPARAMS:.*]]:2 = linalg.generic {{.*}} outs(%{{.*}}, %{{.*}} : tensor<?x?xf32>, tensor<?x?xi8>)
+// CHECK: %[[SCALE:.*]] = tensor.cast %[[QPARAMS]]#0 : tensor<?x?xf32> to tensor<?x?xf32>
+// CHECK: %[[ZERO_POINT:.*]] = tensor.cast %[[QPARAMS]]#1 : tensor<?x?xi8> to tensor<?x?xi8>
+// CHECK: %[[QUANTIZED:.*]] = linalg.generic
+// CHECK-SAME: indexing_maps = [#{{.*}}, #[[GROUP]], #[[GROUP]], #{{.*}}]
+// CHECK-SAME: ins(%[[INPUT]], %[[SCALE]], %[[ZERO_POINT]] : tensor<?x?xf32>, tensor<?x?xf32>, tensor<?x?xi8>)
+// CHECK-SAME: outs(%{{.*}} : tensor<?x?xi8>)
+// CHECK: linalg.generic
+// CHECK-SAME: indexing_maps = [#{{.*}}, #[[GROUP]], #[[GROUP]], #{{.*}}]
+// CHECK-SAME: ins(%[[QUANTIZED]], %[[SCALE]], %[[ZERO_POINT]] : tensor<?x?xi8>, tensor<?x?xf32>, tensor<?x?xi8>)
+// CHECK-SAME: outs(%{{.*}} : tensor<?x?xf32>)
+func.func @choose_qparams_affine_round_trip(
+    %input: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+  %int1 = torch.constant.int 1
+  %int8 = torch.constant.int 8
+  %float32 = torch.constant.int 6
+  %int8_dtype = torch.constant.int 1
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %mapping = torch.constant.str "ASYMMETRIC"
+  %block_size = torch.prim.ListConstruct %int1, %int8
+      : (!torch.int, !torch.int) -> !torch.list<int>
+  %scale, %zero_point = torch.torchao.choose_qparams_affine
+      %input, %mapping, %block_size, %int8_dtype, %qmin, %qmax, %none, %none,
+      %int8_dtype, %false
+      : !torch.vtensor<[?,?],f32>, !torch.str, !torch.list<int>, !torch.int,
+        !torch.int, !torch.int, !torch.none, !torch.none, !torch.int,
+        !torch.bool -> !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],si8>
+  %quantized = torch.torchao.quantize_affine
+      %input, %block_size, %scale, %zero_point, %int8_dtype, %qmin, %qmax
+      : !torch.vtensor<[?,?],f32>, !torch.list<int>, !torch.vtensor<[?,?],f32>,
+        !torch.vtensor<[?,?],si8>, !torch.int, !torch.int, !torch.int
+        -> !torch.vtensor<[?,?],si8>
+  %out = torch.torchao.dequantize_affine
+      %quantized, %block_size, %scale, %zero_point, %int8_dtype, %qmin, %qmax,
+      %float32
+      : !torch.vtensor<[?,?],si8>, !torch.list<int>, !torch.vtensor<[?,?],f32>,
+        !torch.vtensor<[?,?],si8>, !torch.int, !torch.int, !torch.int,
+        !torch.int -> !torch.vtensor<[?,?],f32>
+  return %out : !torch.vtensor<[?,?],f32>
+}
+
+// -----
+
 // choose_qparams_per_token, f16 input: the reference upcasts f16 scales to f32
 // (scales.float()), so the lowering computes in f32 and extends to f64.
 // CHECK-LABEL: func.func @choose_qparams_per_token_f16_input(
