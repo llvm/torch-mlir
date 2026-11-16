@@ -127,6 +127,22 @@ func.func @torch.aten.constant_pad_nd$crop_zero_size_dim(%arg0: !torch.vtensor<[
 
 // -----
 
+// A runtime amount on an empty dim can only pad, so the crop leaves an empty
+// tensor instead of slicing it.
+// CHECK-LABEL: func.func @torch.aten.constant_pad_nd$runtime_amount_empty_dim(
+// CHECK:         cf.assert
+// CHECK:         %[[EMPTY:.*]] = tensor.empty() : tensor<3x0xf32>
+// CHECK:         tensor.pad %[[EMPTY]] low[0, 0] high[0, %{{.*}}]
+func.func @torch.aten.constant_pad_nd$runtime_amount_empty_dim(%arg0: !torch.vtensor<[3,0],f32>, %arg1: !torch.int) -> !torch.vtensor<[3,?],f32> {
+  %int0 = torch.constant.int 0
+  %float = torch.constant.float 0.000000e+00
+  %pad = torch.prim.ListConstruct %int0, %arg1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %0 = torch.aten.constant_pad_nd %arg0, %pad, %float : !torch.vtensor<[3,0],f32>, !torch.list<int>, !torch.float -> !torch.vtensor<[3,?],f32>
+  return %0 : !torch.vtensor<[3,?],f32>
+}
+
+// -----
+
 // A crop larger than the dim is rejected.
 func.func @torch.aten.constant_pad_nd$no_convert$crop_exceeds_dim(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,?],f32> {
   %int-5 = torch.constant.int -5

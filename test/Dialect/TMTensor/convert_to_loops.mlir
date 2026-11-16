@@ -366,3 +366,16 @@ func.func @scatter_partial_slices(%arg0: memref<2x64x12xf32>, %arg1: memref<2x3x
 // CHECK-NEXT:           %[[ADD2:.+]] = arith.addi %[[CAST2]], %[[ARG5]] : index
 // CHECK-NEXT:           %[[LOAD3:.+]] = memref.load %[[ARG0]][%[[CAST0]], %[[ADD1]], %[[ADD2]]] : memref<2x64x12xf32>
 // CHECK-NEXT:           memref.store %[[LOAD3]], %[[ARG0]][%[[CAST0]], %[[ADD1]], %[[ADD2]]] : memref<2x64x12xf32>
+
+// -----
+
+// A scale attribute replaces the default 1 / sqrt(head_dim).
+func.func @attention_scale(%query: memref<1x2x4xf32>, %key: memref<1x3x4xf32>, %value: memref<1x3x4xf32>, %output: memref<1x2x4xf32>) {
+  tm_tensor.attention <{scale = 3.000000e-01 : f64}> ins(%query, %key, %value : memref<1x2x4xf32>, memref<1x3x4xf32>, memref<1x3x4xf32>) outs(%output : memref<1x2x4xf32>)
+  return
+}
+// CHECK-LABEL: func.func @attention_scale
+// CHECK-NOT:     math.sqrt
+// CHECK:         %[[SCALE:.+]] = arith.constant 3.000000e-01 : f32
+// CHECK-NOT:     math.sqrt
+// CHECK:         arith.mulf %{{.+}}, %[[SCALE]] : f32

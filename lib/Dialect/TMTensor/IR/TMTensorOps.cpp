@@ -258,14 +258,24 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
 
   // weight = softmax(weight)
   Value dim = weightDynSizes[weightRank - 1];
-  Value scaleFactor = math::SqrtOp::create(
-      b, loc,
-      arith::UIToFPOp::create(
-          b, loc, elementType,
-          arith::IndexCastUIOp::create(b, loc, b.getI32Type(),
-                                       queryDynSizes[queryRank - 1])));
+  // weight = weight * scale, by default 1 / math.sqrt(querySizes[-1])
+  Value scaleFactor;
+  if (std::optional<APFloat> scale = getScale()) {
+    scaleFactor = arith::ConstantOp::create(
+        b, loc, elementType,
+        b.getFloatAttr(elementType, scale->convertToDouble()));
+  } else {
+    Value headDim = arith::UIToFPOp::create(
+        b, loc, elementType,
+        arith::IndexCastUIOp::create(b, loc, b.getI32Type(),
+                                     queryDynSizes[queryRank - 1]));
+    scaleFactor = arith::DivFOp::create(
+        b, loc,
+        arith::ConstantOp::create(b, loc, elementType,
+                                  b.getFloatAttr(elementType, 1.0)),
+        math::SqrtOp::create(b, loc, headDim));
+  }
 
-  // weight = (weight - max(weight)) / math.sqrt(querySizes[-1])
   Value one = arith::ConstantIndexOp::create(b, loc, 1);
   Value zero = arith::ConstantIndexOp::create(b, loc, 0);
   scf::ParallelOp::create(
@@ -273,7 +283,7 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
       SmallVector<Value>(weightRank, one),
       [&](OpBuilder &b, Location loc, ValueRange localIVs) {
         Value x = memref::LoadOp::create(b, loc, weight, localIVs);
-        x = arith::DivFOp::create(b, loc, x, scaleFactor);
+        x = arith::MulFOp::create(b, loc, x, scaleFactor);
         memref::StoreOp::create(b, loc, x, weight, localIVs);
       });
 
@@ -315,7 +325,7 @@ LogicalResult AttentionOp::generateScalarImplementation(OpBuilder &b,
             scf::ReduceReturnOp::create(bodyBuilder, loc, max);
           })
           .getResult(0);
-  // weight = (weight - max(weight)) / math.sqrt(querySizes[-1])
+  // weight = weight - max(weight)
   scf::ParallelOp::create(
       b, loc, SmallVector<Value>(weightRank, zero), weightDynSizes,
       SmallVector<Value>(weightRank, one),

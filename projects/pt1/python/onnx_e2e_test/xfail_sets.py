@@ -37,13 +37,24 @@ ONNX_E2E_LINALG_CRASHING_SET = set()
 # torch -> tosa path go here.
 ONNX_E2E_TOSA_XFAIL_SET = {
     # GroupQueryAttention: torch -> tosa cannot legalize the zero-sized
-    # torch.vtensor.literal used for an empty past KV cache, nor
-    # aten.scaled_dot_product_attention with a boolean mask.
+    # torch.vtensor.literal used for an empty past KV cache, the
+    # aten.unflatten.int that views its si64 index ranges,
+    # torch.onnx.rotary_embedding, nor aten.scaled_dot_product_attention with a
+    # mask.
     "OnnxGroupQueryAttention_packedQkvRotary",
     "OnnxGroupQueryAttention_packedQkvTrailingNone",
     "OnnxGroupQueryAttention_packedQkvNoRotary",
     "OnnxGroupQueryAttention_packedQkvPastKv",
     "OnnxGroupQueryAttention_separateQkvRotary",
+    "OnnxGroupQueryAttention_fixedCapacityDecode",
+    "OnnxGroupQueryAttention_rightPaddedPrompt",
+    "OnnxGroupQueryAttention_slidingWindowCache",
+    "OnnxGroupQueryAttention_int8KvCache",
+    "OnnxGroupQueryAttention_int4KvCache",
+    "OnnxGroupQueryAttention_scoreFeatures",
+    "OnnxGroupQueryAttention_bidirectionalPositionIds",
+    "OnnxGroupQueryAttention_noPastOutputOnly",
+    "OnnxGroupQueryAttention_sharedKvDecode",
     # TOSA per-tensor DQ gives incorrect numerical results for uint8 inputs
     # above 127. Keep the full unsigned range in these tests to expose it.
     "OnnxMatMulIntegerToFloat_aZeroPoint",
