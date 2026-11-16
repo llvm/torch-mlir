@@ -4622,18 +4622,8 @@ OpFoldResult AtenSliceTensorOp::fold(FoldAdaptor adaptor) {
       int64_t _stride = (currDim == dimInt) ? stride : 1;
       int64_t _begin = (currDim == dimInt) ? begin : 0;
       int64_t _limit = (currDim == dimInt) ? limit : inType.getSizes()[currDim];
-      // ensure that the limit is reached exactly (even with negative strides)
-      // E.g., with begin = 0, limit = 10, stride = 3, we modify limit to be 11
-      // = 10 + (10-0) % 3 .
-      // E.g., with begin = 8, limit = -1, stride = -2, limit becomes -2 = -1 +
-      // (-1-8) % (-2) - stride = -1 + 1 - 2 = -2 .
-      // Note: cpp uses true math remainder "n % d = least positive int, x, such
-      // that d divides (n - x)"
-      int64_t limit_rem = (_limit - _begin) % _stride;
-      limit_rem =
-          (_stride > 0 || limit_rem == 0) ? limit_rem : limit_rem - _stride;
-      _limit += limit_rem;
-      for (int64_t i = _begin; std::abs(_limit - i) > 0; i += _stride) {
+      for (int64_t i = _begin; _stride > 0 ? i < _limit : i > _limit;
+           i += _stride) {
         if (currDim == inputRank - 1) {
           values.push_back(input.getValues<Attribute>()[currOffset + i]);
         }
