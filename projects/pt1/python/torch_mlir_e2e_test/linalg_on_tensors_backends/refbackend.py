@@ -168,8 +168,8 @@ def _is_sparse_tensor_type(ty) -> bool:
 
 def module_contains_sparse_tensor(module: Module) -> bool:
     """Returns whether `module` has a sparse_tensor dialect op, or a sparse
-    tensor type in any op operand or result, block argument, or function
-    signature."""
+    tensor type in any op operand or result, block argument, or type
+    attribute."""
     found = False
 
     def visit(op):
@@ -182,13 +182,17 @@ def module_contains_sparse_tensor(module: Module) -> bool:
         for region in op.regions:
             for block in region.blocks:
                 types += [arg.type for arg in block.arguments]
-        # External functions have no entry block, so check the signature too.
-        if "function_type" in op.attributes:
-            fn_type = op.attributes["function_type"]
-            if isinstance(fn_type, TypeAttr) and isinstance(
-                fn_type.value, FunctionType
-            ):
-                types += list(fn_type.value.inputs) + list(fn_type.value.results)
+        # Types held in attributes, such as the signature of an external
+        # function or the type of a global, have no SSA value to visit.
+        for name in op.attributes:
+            attr = op.attributes[name]
+            if not isinstance(attr, TypeAttr):
+                continue
+            ty = attr.value
+            if isinstance(ty, FunctionType):
+                types += list(ty.inputs) + list(ty.results)
+            else:
+                types.append(ty)
         if any(_is_sparse_tensor_type(t) for t in types):
             found = True
             return WalkResult.INTERRUPT

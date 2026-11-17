@@ -8,7 +8,8 @@
 # The RefBackend runs the sparsifier mini-pipeline only for modules that
 # contain a sparse_tensor dialect op or a sparse tensor type. These checks
 # cover each place the classifier looks: op operands and results, block
-# arguments, function signatures, and sparse_tensor ops on dense types.
+# arguments, function signatures, type attributes, and sparse_tensor ops on
+# dense types.
 
 from torch_mlir.ir import Context, Module
 from torch_mlir_e2e_test.linalg_on_tensors_backends.refbackend import (
@@ -89,6 +90,17 @@ run(
     "sparse_private_function",
     """
 func.func private @external(tensor<4x4xf32, #CSR>)
+func.func @main(%a: tensor<4x4xf32>) -> tensor<4x4xf32> {
+  return %a : tensor<4x4xf32>
+}
+""",
+)
+
+# CHECK: sparse_type_attribute: True
+run(
+    "sparse_type_attribute",
+    """
+ml_program.global private mutable @g(dense<0.0> : tensor<4x4xf32>) : tensor<4x4xf32, #CSR>
 func.func @main(%a: tensor<4x4xf32>) -> tensor<4x4xf32> {
   return %a : tensor<4x4xf32>
 }
