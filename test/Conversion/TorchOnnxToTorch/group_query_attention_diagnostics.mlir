@@ -159,3 +159,32 @@ func.func @group_query_attention_head_sink_non_none(%qkv: !torch.vtensor<[1,1,64
   %0:3 = torch.operator "onnx.GroupQueryAttention"(%qkv, %none, %none, %pk, %pv, %sk, %tsl, %none, %none, %none, %none, %extra) {torch.onnx.kv_num_heads = 2 : si64, torch.onnx.num_heads = 4 : si64} : (!torch.vtensor<[1,1,64],f32>, !torch.none, !torch.none, !torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1],si32>, !torch.vtensor<[1],si32>, !torch.none, !torch.none, !torch.none, !torch.none, !torch.vtensor<[1,4,1,1],f32>) -> (!torch.vtensor<[1,1,32],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>)
   return %0#0, %0#1, %0#2 : !torch.vtensor<[1,1,32],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>
 }
+
+// -----
+
+// Too few operands: only query is given. Only the operand-count check rejects
+// this before key/value are indexed.
+func.func @group_query_attention_one_operand(%qkv: !torch.vtensor<[1,1,64],f32>) -> (!torch.vtensor<[1,1,32],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>) attributes {torch.onnx_meta.opset_version = 22 : si64} {
+  // expected-error @below {{failed to legalize operation 'torch.operator' that was explicitly marked illegal}}
+  %0:3 = torch.operator "onnx.GroupQueryAttention"(%qkv) {torch.onnx.kv_num_heads = 2 : si64, torch.onnx.num_heads = 4 : si64} : (!torch.vtensor<[1,1,64],f32>) -> (!torch.vtensor<[1,1,32],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>)
+  return %0#0, %0#1, %0#2 : !torch.vtensor<[1,1,32],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>
+}
+
+// -----
+
+// Too few operands: query and key only (2 operands, no value).
+func.func @group_query_attention_two_operands(%q: !torch.vtensor<[1,1,16],f32>, %k: !torch.vtensor<[1,1,16],f32>) -> (!torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>) attributes {torch.onnx_meta.opset_version = 22 : si64} {
+  // expected-error @below {{failed to legalize operation 'torch.operator' that was explicitly marked illegal}}
+  %0:3 = torch.operator "onnx.GroupQueryAttention"(%q, %k) {torch.onnx.kv_num_heads = 2 : si64, torch.onnx.num_heads = 2 : si64} : (!torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,1,16],f32>) -> (!torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>)
+  return %0#0, %0#1, %0#2 : !torch.vtensor<[1,1,16],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>
+}
+
+// -----
+
+// do_rotary=1 with the 7 non-rotary operands but no cos/sin cache operands.
+func.func @group_query_attention_rotary_missing_cache_operands(%qkv: !torch.vtensor<[1,1,64],f32>, %pk: !torch.vtensor<[1,2,0,8],f32>, %pv: !torch.vtensor<[1,2,0,8],f32>, %sk: !torch.vtensor<[1],si32>, %tsl: !torch.vtensor<[1],si32>) -> (!torch.vtensor<[1,1,32],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>) attributes {torch.onnx_meta.opset_version = 22 : si64} {
+  %none = torch.constant.none
+  // expected-error @below {{failed to legalize operation 'torch.operator' that was explicitly marked illegal}}
+  %0:3 = torch.operator "onnx.GroupQueryAttention"(%qkv, %none, %none, %pk, %pv, %sk, %tsl) {torch.onnx.kv_num_heads = 2 : si64, torch.onnx.num_heads = 4 : si64, torch.onnx.do_rotary = 1 : si64} : (!torch.vtensor<[1,1,64],f32>, !torch.none, !torch.none, !torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1,2,0,8],f32>, !torch.vtensor<[1],si32>, !torch.vtensor<[1],si32>) -> (!torch.vtensor<[1,1,32],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>)
+  return %0#0, %0#1, %0#2 : !torch.vtensor<[1,1,32],f32>, !torch.vtensor<[1,2,1,8],f32>, !torch.vtensor<[1,2,1,8],f32>
+}
