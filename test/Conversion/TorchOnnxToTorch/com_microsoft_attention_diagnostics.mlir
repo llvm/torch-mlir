@@ -253,3 +253,78 @@ func.func @test_attention_input_unknown_dtype(%input: !torch.vtensor<[1,4,8],unk
   %0 = torch.operator "onnx.Attention"(%input, %weights, %bias) {torch.onnx.num_heads = 2 : si64} : (!torch.vtensor<[1,4,8],unk>, !torch.vtensor<[8,24],f32>, !torch.vtensor<[24],f32>) -> !torch.vtensor<[1,4,8],f32>
   return %0 : !torch.vtensor<[1,4,8],f32>
 }
+
+// -----
+
+// A negative num_heads must be rejected.
+func.func @test_attention_num_heads_negative(%input: !torch.vtensor<[1,4,8],f32>, %weights: !torch.vtensor<[8,24],f32>, %bias: !torch.vtensor<[24],f32>) -> !torch.vtensor<[1,4,8],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.opset_versions = {ai.onnx = 17 : si64, com.microsoft = 1 : si64}} {
+  // expected-error @+1 {{failed to legalize operation 'torch.operator'}}
+  %0 = torch.operator "onnx.Attention"(%input, %weights, %bias) {torch.onnx.num_heads = -2 : si64} : (!torch.vtensor<[1,4,8],f32>, !torch.vtensor<[8,24],f32>, !torch.vtensor<[24],f32>) -> !torch.vtensor<[1,4,8],f32>
+  return %0 : !torch.vtensor<[1,4,8],f32>
+}
+
+// -----
+
+// A negative rotary_embedding_dim must be rejected.
+func.func @test_attention_rotary_dim_negative(%input: !torch.vtensor<[1,4,8],f32>, %weights: !torch.vtensor<[8,24],f32>, %bias: !torch.vtensor<[24],f32>) -> !torch.vtensor<[1,4,8],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.opset_versions = {ai.onnx = 17 : si64, com.microsoft = 1 : si64}} {
+  // expected-error @+1 {{failed to legalize operation 'torch.operator'}}
+  %0 = torch.operator "onnx.Attention"(%input, %weights, %bias) {torch.onnx.do_rotary = 1 : si64, torch.onnx.num_heads = 2 : si64, torch.onnx.rotary_embedding_dim = -2 : si64} : (!torch.vtensor<[1,4,8],f32>, !torch.vtensor<[8,24],f32>, !torch.vtensor<[24],f32>) -> !torch.vtensor<[1,4,8],f32>
+  return %0 : !torch.vtensor<[1,4,8],f32>
+}
+
+// -----
+
+// A rotary_embedding_dim larger than the head size (4) must be rejected.
+func.func @test_attention_rotary_dim_too_large(%input: !torch.vtensor<[1,4,8],f32>, %weights: !torch.vtensor<[8,24],f32>, %bias: !torch.vtensor<[24],f32>) -> !torch.vtensor<[1,4,8],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.opset_versions = {ai.onnx = 17 : si64, com.microsoft = 1 : si64}} {
+  // expected-error @+1 {{failed to legalize operation 'torch.operator'}}
+  %0 = torch.operator "onnx.Attention"(%input, %weights, %bias) {torch.onnx.do_rotary = 1 : si64, torch.onnx.num_heads = 2 : si64, torch.onnx.rotary_embedding_dim = 8 : si64} : (!torch.vtensor<[1,4,8],f32>, !torch.vtensor<[8,24],f32>, !torch.vtensor<[24],f32>) -> !torch.vtensor<[1,4,8],f32>
+  return %0 : !torch.vtensor<[1,4,8],f32>
+}
+
+// -----
+
+// An odd rotary_embedding_dim must be rejected: elements are rotated in
+// pairs.
+func.func @test_attention_rotary_dim_odd(%input: !torch.vtensor<[1,4,8],f32>, %weights: !torch.vtensor<[8,24],f32>, %bias: !torch.vtensor<[24],f32>) -> !torch.vtensor<[1,4,8],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.opset_versions = {ai.onnx = 17 : si64, com.microsoft = 1 : si64}} {
+  // expected-error @+1 {{failed to legalize operation 'torch.operator'}}
+  %0 = torch.operator "onnx.Attention"(%input, %weights, %bias) {torch.onnx.do_rotary = 1 : si64, torch.onnx.num_heads = 2 : si64, torch.onnx.rotary_embedding_dim = 3 : si64} : (!torch.vtensor<[1,4,8],f32>, !torch.vtensor<[8,24],f32>, !torch.vtensor<[24],f32>) -> !torch.vtensor<[1,4,8],f32>
+  return %0 : !torch.vtensor<[1,4,8],f32>
+}
+
+// -----
+
+// do_rotary with a V head size (8) different from the Q/K head size (4) must
+// be rejected, as in ORT.
+func.func @test_attention_rotary_v_head_size_mismatch(%input: !torch.vtensor<[1,4,8],f32>, %weights: !torch.vtensor<[8,32],f32>, %bias: !torch.vtensor<[32],f32>) -> !torch.vtensor<[1,4,16],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.opset_versions = {ai.onnx = 17 : si64, com.microsoft = 1 : si64}} {
+  // expected-error @+1 {{failed to legalize operation 'torch.operator'}}
+  %0 = torch.operator "onnx.Attention"(%input, %weights, %bias) {torch.onnx.do_rotary = 1 : si64, torch.onnx.num_heads = 2 : si64, torch.onnx.qkv_hidden_sizes = [8 : si64, 8 : si64, 16 : si64]} : (!torch.vtensor<[1,4,8],f32>, !torch.vtensor<[8,32],f32>, !torch.vtensor<[32],f32>) -> !torch.vtensor<[1,4,16],f32>
+  return %0 : !torch.vtensor<[1,4,16],f32>
+}
+
+// -----
+
+// `past` together with `attention_bias` must be rejected, as in ORT.
+func.func @test_attention_past_with_attention_bias(%input: !torch.vtensor<[1,4,8],f32>, %weights: !torch.vtensor<[8,24],f32>, %bias: !torch.vtensor<[24],f32>, %past: !torch.vtensor<[2,1,2,3,4],f32>, %attn_bias: !torch.vtensor<[1,2,4,7],f32>) -> (!torch.vtensor<[1,4,8],f32>, !torch.vtensor<[2,1,2,7,4],f32>) attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.opset_versions = {ai.onnx = 17 : si64, com.microsoft = 1 : si64}} {
+  %none = torch.constant.none
+  // expected-error @+1 {{failed to legalize operation 'torch.operator'}}
+  %0:2 = torch.operator "onnx.Attention"(%input, %weights, %bias, %none, %past, %attn_bias) {torch.onnx.num_heads = 2 : si64} : (!torch.vtensor<[1,4,8],f32>, !torch.vtensor<[8,24],f32>, !torch.vtensor<[24],f32>, !torch.none, !torch.vtensor<[2,1,2,3,4],f32>, !torch.vtensor<[1,2,4,7],f32>) -> (!torch.vtensor<[1,4,8],f32>, !torch.vtensor<[2,1,2,7,4],f32>)
+  return %0#0, %0#1 : !torch.vtensor<[1,4,8],f32>, !torch.vtensor<[2,1,2,7,4],f32>
+}
+
+// -----
+
+// A mask_index that is not a value tensor must be rejected cleanly.
+func.func @test_attention_mask_index_not_vtensor(%input: !torch.vtensor<[1,4,8],f32>, %weights: !torch.vtensor<[8,24],f32>, %bias: !torch.vtensor<[24],f32>, %mask: !torch.tensor<[1,4],si32>) -> !torch.vtensor<[1,4,8],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.opset_versions = {ai.onnx = 17 : si64, com.microsoft = 1 : si64}} {
+  // expected-error @+1 {{failed to legalize operation 'torch.operator'}}
+  %0 = torch.operator "onnx.Attention"(%input, %weights, %bias, %mask) {torch.onnx.num_heads = 2 : si64} : (!torch.vtensor<[1,4,8],f32>, !torch.vtensor<[8,24],f32>, !torch.vtensor<[24],f32>, !torch.tensor<[1,4],si32>) -> !torch.vtensor<[1,4,8],f32>
+  return %0 : !torch.vtensor<[1,4,8],f32>
+}
+
+// -----
+
+// An integer input must be rejected: the masks and scores are floating-point.
+func.func @test_attention_input_integer(%input: !torch.vtensor<[1,4,8],si32>, %weights: !torch.vtensor<[8,24],si32>, %bias: !torch.vtensor<[24],si32>) -> !torch.vtensor<[1,4,8],si32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.opset_versions = {ai.onnx = 17 : si64, com.microsoft = 1 : si64}} {
+  // expected-error @+1 {{failed to legalize operation 'torch.operator'}}
+  %0 = torch.operator "onnx.Attention"(%input, %weights, %bias) {torch.onnx.num_heads = 2 : si64} : (!torch.vtensor<[1,4,8],si32>, !torch.vtensor<[8,24],si32>, !torch.vtensor<[24],si32>) -> !torch.vtensor<[1,4,8],si32>
+  return %0 : !torch.vtensor<[1,4,8],si32>
+}

@@ -94,9 +94,9 @@ func.func @test_com_microsoft_attention_no_bias(%input: !torch.vtensor<[1,4,8],f
 
 // -----
 
-// Attention with unidirectional (causal) masking enabled. The causal mask is
-// built from a strictly-upper-triangular ones tensor scaled by
-// mask_filter_value and added to the scores before softmax.
+// Attention with unidirectional (causal) masking enabled. As in ORT, the future
+// positions (the strictly-upper triangle) get the lowest f32 value, the others
+// 0, and the mask is added to the scores before softmax.
 
 // CHECK-LABEL: func.func @test_com_microsoft_attention_unidirectional(
 // CHECK-SAME: %[[INPUT:[a-z0-9]+]]: !torch.vtensor<[1,4,8],f32>
@@ -139,9 +139,11 @@ func.func @test_com_microsoft_attention_unidirectional(%input: !torch.vtensor<[1
   // CHECK: %[[FULL:.*]] = torch.aten.full %[[LIST_3]], %[[FLOAT1]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.list<int>, !torch.float, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[4,4],f32>
   // CHECK: %[[INT1_1:[^ ]+]] = torch.constant.int 1
   // CHECK: %[[TRIU:.*]] = torch.aten.triu %[[FULL]], %[[INT1_1]] : !torch.vtensor<[4,4],f32>, !torch.int -> !torch.vtensor<[4,4],f32>
-  // CHECK: %[[FLOATM10000:[^ ]+]] = torch.constant.float -1.000000e+04
-  // CHECK: %[[MUL_1:.*]] = torch.aten.mul.Scalar %[[TRIU]], %[[FLOATM10000]] : !torch.vtensor<[4,4],f32>, !torch.float -> !torch.vtensor<[4,4],f32>
-  // CHECK: %[[ADD_1:.*]] = torch.aten.add.Tensor %[[MUL]], %[[MUL_1]], %[[INT1]] : !torch.vtensor<[1,2,4,4],f32>, !torch.vtensor<[4,4],f32>, !torch.int -> !torch.vtensor<[1,2,4,4],f32>
+  // CHECK: %[[GT:.*]] = torch.aten.gt.Scalar %[[TRIU]], %[[INT0]] : !torch.vtensor<[4,4],f32>, !torch.int -> !torch.vtensor<[4,4],i1>
+  // CHECK: %[[FLOATM3_40282e38:[^ ]+]] = torch.constant.float -3.4028234663852886E+38
+  // CHECK: %[[FLOAT0:[^ ]+]] = torch.constant.float 0.000000e+00
+  // CHECK: %[[WHERE:.*]] = torch.aten.where.Scalar %[[GT]], %[[FLOATM3_40282e38]], %[[FLOAT0]] : !torch.vtensor<[4,4],i1>, !torch.float, !torch.float -> !torch.vtensor<[4,4],f32>
+  // CHECK: %[[ADD_1:.*]] = torch.aten.add.Tensor %[[MUL]], %[[WHERE]], %[[INT1]] : !torch.vtensor<[1,2,4,4],f32>, !torch.vtensor<[4,4],f32>, !torch.int -> !torch.vtensor<[1,2,4,4],f32>
   // CHECK: %[[SOFTMAX:.*]] = torch.aten.softmax.int %[[ADD_1]], %[[INT3]], %[[NONE]] : !torch.vtensor<[1,2,4,4],f32>, !torch.int, !torch.none -> !torch.vtensor<[1,2,4,4],f32>
   // CHECK: %[[MATMUL_2:.*]] = torch.aten.matmul %[[SOFTMAX]], %[[TRANSPOSE_2]] : !torch.vtensor<[1,2,4,4],f32>, !torch.vtensor<[1,2,4,4],f32> -> !torch.vtensor<[1,2,4,4],f32>
   // CHECK: %[[TRANSPOSE_4:.*]] = torch.aten.transpose.int %[[MATMUL_2]], %[[INT1]], %[[INT2]] : !torch.vtensor<[1,2,4,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[1,4,2,4],f32>
@@ -154,7 +156,7 @@ func.func @test_com_microsoft_attention_unidirectional(%input: !torch.vtensor<[1
 // -----
 
 // Attention with a 2D raw mask_index (batch, total_seq). The mask is converted
-// to an additive bias (keep -> 0, mask -> mask_filter_value), reshaped to
+// to an additive mask (keep -> 0, mask -> mask_filter_value), reshaped to
 // [batch, 1, 1, total_seq] and added to the scores.
 
 // CHECK-LABEL: func.func @test_com_microsoft_attention_mask_index_2d(
@@ -170,7 +172,6 @@ func.func @test_com_microsoft_attention_mask_index_2d(%input: !torch.vtensor<[1,
   // CHECK: %[[INT2_1:[^ ]+]] = torch.constant.int 2
   // CHECK: %[[INT4:[^ ]+]] = torch.constant.int 4
   // CHECK: %[[NONE:[^ ]+]] = torch.constant.none
-  // CHECK: %[[FALSE:[^ ]+]] = torch.constant.bool false
   // CHECK: %[[MATMUL:.*]] = torch.aten.matmul %[[INPUT]], %[[WEIGHTS]] : !torch.vtensor<[1,4,8],f32>, !torch.vtensor<[8,24],f32> -> !torch.vtensor<[1,4,24],f32>
   // CHECK: %[[ADD:.*]] = torch.aten.add.Tensor %[[MATMUL]], %[[BIAS]], %[[INT1]] : !torch.vtensor<[1,4,24],f32>, !torch.vtensor<[24],f32>, !torch.int -> !torch.vtensor<[1,4,24],f32>
   // CHECK: %[[INT8:[^ ]+]] = torch.constant.int 8
@@ -192,18 +193,14 @@ func.func @test_com_microsoft_attention_mask_index_2d(%input: !torch.vtensor<[1,
   // CHECK: %[[MATMUL_1:.*]] = torch.aten.matmul %[[TRANSPOSE]], %[[TRANSPOSE_3]] : !torch.vtensor<[1,2,4,4],f32>, !torch.vtensor<[1,2,4,4],f32> -> !torch.vtensor<[1,2,4,4],f32>
   // CHECK: %[[FLOAT0_5:[^ ]+]] = torch.constant.float 5.000000e-01
   // CHECK: %[[MUL:.*]] = torch.aten.mul.Scalar %[[MATMUL_1]], %[[FLOAT0_5]] : !torch.vtensor<[1,2,4,4],f32>, !torch.float -> !torch.vtensor<[1,2,4,4],f32>
-  // CHECK: %[[INT6:[^ ]+]] = torch.constant.int 6
-  // CHECK: %[[FALSE_1:[^ ]+]] = torch.constant.bool false
-  // CHECK: %[[NONE_1:[^ ]+]] = torch.constant.none
-  // CHECK: %[[TO:.*]] = torch.aten.to.dtype %[[MASK]], %[[INT6]], %[[FALSE_1]], %[[FALSE_1]], %[[NONE_1]] : !torch.vtensor<[1,4],si32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,4],f32>
-  // CHECK: %[[FLOAT10000:[^ ]+]] = torch.constant.float 1.000000e+04
+  // CHECK: %[[GT:.*]] = torch.aten.gt.Scalar %[[MASK]], %[[INT0]] : !torch.vtensor<[1,4],si32>, !torch.int -> !torch.vtensor<[1,4],i1>
+  // CHECK: %[[FLOAT0:[^ ]+]] = torch.constant.float 0.000000e+00
   // CHECK: %[[FLOATM10000:[^ ]+]] = torch.constant.float -1.000000e+04
-  // CHECK: %[[MUL_1:.*]] = torch.aten.mul.Scalar %[[TO]], %[[FLOAT10000]] : !torch.vtensor<[1,4],f32>, !torch.float -> !torch.vtensor<[1,4],f32>
-  // CHECK: %[[ADD_1:.*]] = torch.aten.add.Scalar %[[MUL_1]], %[[FLOATM10000]], %[[INT1]] : !torch.vtensor<[1,4],f32>, !torch.float, !torch.int -> !torch.vtensor<[1,4],f32>
-  // CHECK: %[[UNSQUEEZE:.*]] = torch.aten.unsqueeze %[[ADD_1]], %[[INT1]] : !torch.vtensor<[1,4],f32>, !torch.int -> !torch.vtensor<[1,1,4],f32>
+  // CHECK: %[[WHERE:.*]] = torch.aten.where.Scalar %[[GT]], %[[FLOAT0]], %[[FLOATM10000]] : !torch.vtensor<[1,4],i1>, !torch.float, !torch.float -> !torch.vtensor<[1,4],f32>
+  // CHECK: %[[UNSQUEEZE:.*]] = torch.aten.unsqueeze %[[WHERE]], %[[INT1]] : !torch.vtensor<[1,4],f32>, !torch.int -> !torch.vtensor<[1,1,4],f32>
   // CHECK: %[[UNSQUEEZE_1:.*]] = torch.aten.unsqueeze %[[UNSQUEEZE]], %[[INT1]] : !torch.vtensor<[1,1,4],f32>, !torch.int -> !torch.vtensor<[1,1,1,4],f32>
-  // CHECK: %[[ADD_2:.*]] = torch.aten.add.Tensor %[[MUL]], %[[UNSQUEEZE_1]], %[[INT1]] : !torch.vtensor<[1,2,4,4],f32>, !torch.vtensor<[1,1,1,4],f32>, !torch.int -> !torch.vtensor<[1,2,4,4],f32>
-  // CHECK: %[[SOFTMAX:.*]] = torch.aten.softmax.int %[[ADD_2]], %[[INT3]], %[[NONE]] : !torch.vtensor<[1,2,4,4],f32>, !torch.int, !torch.none -> !torch.vtensor<[1,2,4,4],f32>
+  // CHECK: %[[ADD_1:.*]] = torch.aten.add.Tensor %[[MUL]], %[[UNSQUEEZE_1]], %[[INT1]] : !torch.vtensor<[1,2,4,4],f32>, !torch.vtensor<[1,1,1,4],f32>, !torch.int -> !torch.vtensor<[1,2,4,4],f32>
+  // CHECK: %[[SOFTMAX:.*]] = torch.aten.softmax.int %[[ADD_1]], %[[INT3]], %[[NONE]] : !torch.vtensor<[1,2,4,4],f32>, !torch.int, !torch.none -> !torch.vtensor<[1,2,4,4],f32>
   // CHECK: %[[MATMUL_2:.*]] = torch.aten.matmul %[[SOFTMAX]], %[[TRANSPOSE_2]] : !torch.vtensor<[1,2,4,4],f32>, !torch.vtensor<[1,2,4,4],f32> -> !torch.vtensor<[1,2,4,4],f32>
   // CHECK: %[[TRANSPOSE_4:.*]] = torch.aten.transpose.int %[[MATMUL_2]], %[[INT1]], %[[INT2]] : !torch.vtensor<[1,2,4,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[1,4,2,4],f32>
   // CHECK: %[[FLATTEN:.*]] = torch.aten.flatten.using_ints %[[TRANSPOSE_4]], %[[INT2]], %[[INT3]] : !torch.vtensor<[1,4,2,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[1,4,8],f32>
@@ -313,11 +310,9 @@ func.func @test_com_microsoft_attention_f16(%input: !torch.vtensor<[1,4,8],f16>,
 
 // -----
 
-// Attention with an explicit scale = 0.0. The com.microsoft spec allows a
-// user-provided scale of 0.0, so 0.0 must NOT be treated as "unset". This test
-// pins that behavior: with num_heads = 1 the head_size is 8, so an "unset"
-// scale would produce 1/sqrt(8) = 0.353..., whereas an explicit scale = 0.0
-// must be honored and emit a mul by exactly 0.0.
+// Attention with an explicit scale = 0.0. As in ORT, 0.0 means the default
+// 1/sqrt(head_size): with num_heads = 1 the head_size is 8, so the scores are
+// scaled by 1/sqrt(8) = 0.353...
 
 // CHECK-LABEL: func.func @test_com_microsoft_attention_scale_zero(
 // CHECK-SAME: %[[INPUT:[a-z0-9]+]]: !torch.vtensor<[1,4,8],f32>
@@ -351,8 +346,8 @@ func.func @test_com_microsoft_attention_scale_zero(%input: !torch.vtensor<[1,4,8
   // CHECK: %[[TRANSPOSE_2:.*]] = torch.aten.transpose.int %[[UNFLATTEN_2]], %[[INT1]], %[[INT2]] : !torch.vtensor<[1,4,1,8],f32>, !torch.int, !torch.int -> !torch.vtensor<[1,1,4,8],f32>
   // CHECK: %[[TRANSPOSE_3:.*]] = torch.aten.transpose.int %[[TRANSPOSE_1]], %[[INT2]], %[[INT3]] : !torch.vtensor<[1,1,4,8],f32>, !torch.int, !torch.int -> !torch.vtensor<[1,1,8,4],f32>
   // CHECK: %[[MATMUL_1:.*]] = torch.aten.matmul %[[TRANSPOSE]], %[[TRANSPOSE_3]] : !torch.vtensor<[1,1,4,8],f32>, !torch.vtensor<[1,1,8,4],f32> -> !torch.vtensor<[1,1,4,4],f32>
-  // CHECK: %[[FLOAT0:[^ ]+]] = torch.constant.float 0.000000e+00
-  // CHECK: %[[MUL:.*]] = torch.aten.mul.Scalar %[[MATMUL_1]], %[[FLOAT0]] : !torch.vtensor<[1,1,4,4],f32>, !torch.float -> !torch.vtensor<[1,1,4,4],f32>
+  // CHECK: %[[FLOAT0_353553:[^ ]+]] = torch.constant.float 0.35355339059327373
+  // CHECK: %[[MUL:.*]] = torch.aten.mul.Scalar %[[MATMUL_1]], %[[FLOAT0_353553]] : !torch.vtensor<[1,1,4,4],f32>, !torch.float -> !torch.vtensor<[1,1,4,4],f32>
   // CHECK: %[[SOFTMAX:.*]] = torch.aten.softmax.int %[[MUL]], %[[INT3]], %[[NONE]] : !torch.vtensor<[1,1,4,4],f32>, !torch.int, !torch.none -> !torch.vtensor<[1,1,4,4],f32>
   // CHECK: %[[MATMUL_2:.*]] = torch.aten.matmul %[[SOFTMAX]], %[[TRANSPOSE_2]] : !torch.vtensor<[1,1,4,4],f32>, !torch.vtensor<[1,1,4,8],f32> -> !torch.vtensor<[1,1,4,8],f32>
   // CHECK: %[[TRANSPOSE_4:.*]] = torch.aten.transpose.int %[[MATMUL_2]], %[[INT1]], %[[INT2]] : !torch.vtensor<[1,1,4,8],f32>, !torch.int, !torch.int -> !torch.vtensor<[1,4,1,8],f32>
@@ -721,7 +716,7 @@ func.func @test_com_microsoft_attention_rotary_with_past(%input: !torch.vtensor<
 // causal mask with a non-zero pastSeq so that the mask shape is
 // [seq, totalSeqLen] = [2, 5] and the triu diagonal = pastSeq+1 = 4.
 //   - batch=1, seq=2, num_heads=2, head_size=4, past_seq=3, total_seq=5
-//   - full([2,5]) -> triu(diagonal=4) -> scale by filter_value
+//   - full([2,5]) -> triu(diagonal=4) -> where(future, lowest f32, 0)
 //   - scores [1,2,2,5] + causal mask [2,5] broadcast
 
 // CHECK-LABEL: func.func @test_com_microsoft_attention_unidirectional_with_past(
@@ -773,9 +768,11 @@ func.func @test_com_microsoft_attention_unidirectional_with_past(%input: !torch.
   // CHECK: %[[FULL:.*]] = torch.aten.full %[[LIST_5]], %[[FLOAT1]], %[[NONE_1]], %[[NONE_1]], %[[NONE_1]], %[[NONE_1]] : !torch.list<int>, !torch.float, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[2,5],f32>
   // CHECK: %[[INT4_2:[^ ]+]] = torch.constant.int 4
   // CHECK: %[[TRIU:.*]] = torch.aten.triu %[[FULL]], %[[INT4_2]] : !torch.vtensor<[2,5],f32>, !torch.int -> !torch.vtensor<[2,5],f32>
-  // CHECK: %[[FLOATM10000:[^ ]+]] = torch.constant.float -1.000000e+04
-  // CHECK: %[[MUL_1:.*]] = torch.aten.mul.Scalar %[[TRIU]], %[[FLOATM10000]] : !torch.vtensor<[2,5],f32>, !torch.float -> !torch.vtensor<[2,5],f32>
-  // CHECK: %[[ADD_1:.*]] = torch.aten.add.Tensor %[[MUL]], %[[MUL_1]], %[[INT1]] : !torch.vtensor<[1,2,2,5],f32>, !torch.vtensor<[2,5],f32>, !torch.int -> !torch.vtensor<[1,2,2,5],f32>
+  // CHECK: %[[GT:.*]] = torch.aten.gt.Scalar %[[TRIU]], %[[INT0]] : !torch.vtensor<[2,5],f32>, !torch.int -> !torch.vtensor<[2,5],i1>
+  // CHECK: %[[FLOATM3_40282e38:[^ ]+]] = torch.constant.float -3.4028234663852886E+38
+  // CHECK: %[[FLOAT0:[^ ]+]] = torch.constant.float 0.000000e+00
+  // CHECK: %[[WHERE:.*]] = torch.aten.where.Scalar %[[GT]], %[[FLOATM3_40282e38]], %[[FLOAT0]] : !torch.vtensor<[2,5],i1>, !torch.float, !torch.float -> !torch.vtensor<[2,5],f32>
+  // CHECK: %[[ADD_1:.*]] = torch.aten.add.Tensor %[[MUL]], %[[WHERE]], %[[INT1]] : !torch.vtensor<[1,2,2,5],f32>, !torch.vtensor<[2,5],f32>, !torch.int -> !torch.vtensor<[1,2,2,5],f32>
   // CHECK: %[[SOFTMAX:.*]] = torch.aten.softmax.int %[[ADD_1]], %[[INT3]], %[[NONE_1]] : !torch.vtensor<[1,2,2,5],f32>, !torch.int, !torch.none -> !torch.vtensor<[1,2,2,5],f32>
   // CHECK: %[[MATMUL_2:.*]] = torch.aten.matmul %[[SOFTMAX]], %[[CAT_1]] : !torch.vtensor<[1,2,2,5],f32>, !torch.vtensor<[1,2,5,4],f32> -> !torch.vtensor<[1,2,2,4],f32>
   // CHECK: %[[TRANSPOSE_4:.*]] = torch.aten.transpose.int %[[MATMUL_2]], %[[INT1]], %[[INT2]] : !torch.vtensor<[1,2,2,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[1,2,2,4],f32>
@@ -892,7 +889,7 @@ func.func @test_com_microsoft_attention_default_split(%input: !torch.vtensor<[1,
 // -----
 
 // Attention with a 3D mask_index [batch, seq, total_seq]. The mask is converted
-// to an additive bias (keep -> 0, mask -> mask_filter_value) and unsqueezed on
+// to an additive mask (keep -> 0, mask -> mask_filter_value) and unsqueezed on
 // the head dim to [batch, 1, seq, total_seq] before being added to the scores.
 
 // CHECK-LABEL: func.func @test_com_microsoft_attention_mask_index_3d(
@@ -908,7 +905,6 @@ func.func @test_com_microsoft_attention_mask_index_3d(%input: !torch.vtensor<[1,
   // CHECK: %[[INT2_1:[^ ]+]] = torch.constant.int 2
   // CHECK: %[[INT4:[^ ]+]] = torch.constant.int 4
   // CHECK: %[[NONE:[^ ]+]] = torch.constant.none
-  // CHECK: %[[FALSE:[^ ]+]] = torch.constant.bool false
   // CHECK: %[[MATMUL:.*]] = torch.aten.matmul %[[INPUT]], %[[WEIGHTS]] : !torch.vtensor<[1,4,8],f32>, !torch.vtensor<[8,24],f32> -> !torch.vtensor<[1,4,24],f32>
   // CHECK: %[[ADD:.*]] = torch.aten.add.Tensor %[[MATMUL]], %[[BIAS]], %[[INT1]] : !torch.vtensor<[1,4,24],f32>, !torch.vtensor<[24],f32>, !torch.int -> !torch.vtensor<[1,4,24],f32>
   // CHECK: %[[INT8:[^ ]+]] = torch.constant.int 8
@@ -930,17 +926,13 @@ func.func @test_com_microsoft_attention_mask_index_3d(%input: !torch.vtensor<[1,
   // CHECK: %[[MATMUL_1:.*]] = torch.aten.matmul %[[TRANSPOSE]], %[[TRANSPOSE_3]] : !torch.vtensor<[1,2,4,4],f32>, !torch.vtensor<[1,2,4,4],f32> -> !torch.vtensor<[1,2,4,4],f32>
   // CHECK: %[[FLOAT0_5:[^ ]+]] = torch.constant.float 5.000000e-01
   // CHECK: %[[MUL:.*]] = torch.aten.mul.Scalar %[[MATMUL_1]], %[[FLOAT0_5]] : !torch.vtensor<[1,2,4,4],f32>, !torch.float -> !torch.vtensor<[1,2,4,4],f32>
-  // CHECK: %[[INT6:[^ ]+]] = torch.constant.int 6
-  // CHECK: %[[FALSE_1:[^ ]+]] = torch.constant.bool false
-  // CHECK: %[[NONE_1:[^ ]+]] = torch.constant.none
-  // CHECK: %[[TO:.*]] = torch.aten.to.dtype %[[MASK]], %[[INT6]], %[[FALSE_1]], %[[FALSE_1]], %[[NONE_1]] : !torch.vtensor<[1,4,4],si32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[1,4,4],f32>
-  // CHECK: %[[FLOAT10000:[^ ]+]] = torch.constant.float 1.000000e+04
+  // CHECK: %[[GT:.*]] = torch.aten.gt.Scalar %[[MASK]], %[[INT0]] : !torch.vtensor<[1,4,4],si32>, !torch.int -> !torch.vtensor<[1,4,4],i1>
+  // CHECK: %[[FLOAT0:[^ ]+]] = torch.constant.float 0.000000e+00
   // CHECK: %[[FLOATM10000:[^ ]+]] = torch.constant.float -1.000000e+04
-  // CHECK: %[[MUL_1:.*]] = torch.aten.mul.Scalar %[[TO]], %[[FLOAT10000]] : !torch.vtensor<[1,4,4],f32>, !torch.float -> !torch.vtensor<[1,4,4],f32>
-  // CHECK: %[[ADD_1:.*]] = torch.aten.add.Scalar %[[MUL_1]], %[[FLOATM10000]], %[[INT1]] : !torch.vtensor<[1,4,4],f32>, !torch.float, !torch.int -> !torch.vtensor<[1,4,4],f32>
-  // CHECK: %[[UNSQUEEZE:.*]] = torch.aten.unsqueeze %[[ADD_1]], %[[INT1]] : !torch.vtensor<[1,4,4],f32>, !torch.int -> !torch.vtensor<[1,1,4,4],f32>
-  // CHECK: %[[ADD_2:.*]] = torch.aten.add.Tensor %[[MUL]], %[[UNSQUEEZE]], %[[INT1]] : !torch.vtensor<[1,2,4,4],f32>, !torch.vtensor<[1,1,4,4],f32>, !torch.int -> !torch.vtensor<[1,2,4,4],f32>
-  // CHECK: %[[SOFTMAX:.*]] = torch.aten.softmax.int %[[ADD_2]], %[[INT3]], %[[NONE]] : !torch.vtensor<[1,2,4,4],f32>, !torch.int, !torch.none -> !torch.vtensor<[1,2,4,4],f32>
+  // CHECK: %[[WHERE:.*]] = torch.aten.where.Scalar %[[GT]], %[[FLOAT0]], %[[FLOATM10000]] : !torch.vtensor<[1,4,4],i1>, !torch.float, !torch.float -> !torch.vtensor<[1,4,4],f32>
+  // CHECK: %[[UNSQUEEZE:.*]] = torch.aten.unsqueeze %[[WHERE]], %[[INT1]] : !torch.vtensor<[1,4,4],f32>, !torch.int -> !torch.vtensor<[1,1,4,4],f32>
+  // CHECK: %[[ADD_1:.*]] = torch.aten.add.Tensor %[[MUL]], %[[UNSQUEEZE]], %[[INT1]] : !torch.vtensor<[1,2,4,4],f32>, !torch.vtensor<[1,1,4,4],f32>, !torch.int -> !torch.vtensor<[1,2,4,4],f32>
+  // CHECK: %[[SOFTMAX:.*]] = torch.aten.softmax.int %[[ADD_1]], %[[INT3]], %[[NONE]] : !torch.vtensor<[1,2,4,4],f32>, !torch.int, !torch.none -> !torch.vtensor<[1,2,4,4],f32>
   // CHECK: %[[MATMUL_2:.*]] = torch.aten.matmul %[[SOFTMAX]], %[[TRANSPOSE_2]] : !torch.vtensor<[1,2,4,4],f32>, !torch.vtensor<[1,2,4,4],f32> -> !torch.vtensor<[1,2,4,4],f32>
   // CHECK: %[[TRANSPOSE_4:.*]] = torch.aten.transpose.int %[[MATMUL_2]], %[[INT1]], %[[INT2]] : !torch.vtensor<[1,2,4,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[1,4,2,4],f32>
   // CHECK: %[[FLATTEN:.*]] = torch.aten.flatten.using_ints %[[TRANSPOSE_4]], %[[INT2]], %[[INT3]] : !torch.vtensor<[1,4,2,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[1,4,8],f32>
@@ -1215,9 +1207,11 @@ func.func @test_com_microsoft_attention_unidirectional_dynamic_seq(%input: !torc
   // CHECK: %[[FULL:.*]] = torch.aten.full %[[LIST_3]], %[[FLOAT1]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.list<int>, !torch.float, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[?,?],f32>
   // CHECK: %[[INT1_1:[^ ]+]] = torch.constant.int 1
   // CHECK: %[[TRIU:.*]] = torch.aten.triu %[[FULL]], %[[INT1_1]] : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.vtensor<[?,?],f32>
-  // CHECK: %[[FLOATM10000:[^ ]+]] = torch.constant.float -1.000000e+04
-  // CHECK: %[[MUL_1:.*]] = torch.aten.mul.Scalar %[[TRIU]], %[[FLOATM10000]] : !torch.vtensor<[?,?],f32>, !torch.float -> !torch.vtensor<[?,?],f32>
-  // CHECK: %[[ADD_2:.*]] = torch.aten.add.Tensor %[[MUL]], %[[MUL_1]], %[[INT1]] : !torch.vtensor<[1,2,?,?],f32>, !torch.vtensor<[?,?],f32>, !torch.int -> !torch.vtensor<[1,2,?,?],f32>
+  // CHECK: %[[GT:.*]] = torch.aten.gt.Scalar %[[TRIU]], %[[INT0]] : !torch.vtensor<[?,?],f32>, !torch.int -> !torch.vtensor<[?,?],i1>
+  // CHECK: %[[FLOATM3_40282e38:[^ ]+]] = torch.constant.float -3.4028234663852886E+38
+  // CHECK: %[[FLOAT0:[^ ]+]] = torch.constant.float 0.000000e+00
+  // CHECK: %[[WHERE:.*]] = torch.aten.where.Scalar %[[GT]], %[[FLOATM3_40282e38]], %[[FLOAT0]] : !torch.vtensor<[?,?],i1>, !torch.float, !torch.float -> !torch.vtensor<[?,?],f32>
+  // CHECK: %[[ADD_2:.*]] = torch.aten.add.Tensor %[[MUL]], %[[WHERE]], %[[INT1]] : !torch.vtensor<[1,2,?,?],f32>, !torch.vtensor<[?,?],f32>, !torch.int -> !torch.vtensor<[1,2,?,?],f32>
   // CHECK: %[[SOFTMAX:.*]] = torch.aten.softmax.int %[[ADD_2]], %[[INT3]], %[[NONE]] : !torch.vtensor<[1,2,?,?],f32>, !torch.int, !torch.none -> !torch.vtensor<[1,2,?,?],f32>
   // CHECK: %[[MATMUL_2:.*]] = torch.aten.matmul %[[SOFTMAX]], %[[TRANSPOSE_2]] : !torch.vtensor<[1,2,?,?],f32>, !torch.vtensor<[1,2,?,4],f32> -> !torch.vtensor<[1,2,?,4],f32>
   // CHECK: %[[TRANSPOSE_4:.*]] = torch.aten.transpose.int %[[MATMUL_2]], %[[INT1]], %[[INT2]] : !torch.vtensor<[1,2,?,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[1,?,2,4],f32>
@@ -1225,4 +1219,138 @@ func.func @test_com_microsoft_attention_unidirectional_dynamic_seq(%input: !torc
   // CHECK: return %[[FLATTEN]] : !torch.vtensor<[1,?,8],f32>
   %0 = torch.operator "onnx.Attention"(%input, %weights, %bias) {torch.onnx.num_heads = 2 : si64, torch.onnx.unidirectional = 1 : si64} : (!torch.vtensor<[1,?,8],f32>, !torch.vtensor<[8,24],f32>, !torch.vtensor<[24],f32>) -> !torch.vtensor<[1,?,8],f32>
   return %0 : !torch.vtensor<[1,?,8],f32>
+}
+
+// -----
+
+// Attention with a 2D mask_index and unidirectional = 1. As in ORT, positions
+// that mask_index masks get mask_filter_value, and the causal mask then
+// overwrites the future positions with the lowest f32 value, so they are never
+// attended even when every visible key is masked (left padding).
+
+// CHECK-LABEL: func.func @test_com_microsoft_attention_mask_index_unidirectional(
+// CHECK-SAME: %[[INPUT:[a-z0-9]+]]: !torch.vtensor<[2,3,8],f32>
+// CHECK-SAME: %[[WEIGHTS:[a-z0-9]+]]: !torch.vtensor<[8,24],f32>
+// CHECK-SAME: %[[BIAS:[a-z0-9]+]]: !torch.vtensor<[24],f32>
+// CHECK-SAME: %[[MASK:[a-z0-9]+]]: !torch.vtensor<[2,3],si32>
+func.func @test_com_microsoft_attention_mask_index_unidirectional(%input: !torch.vtensor<[2,3,8],f32>, %weights: !torch.vtensor<[8,24],f32>, %bias: !torch.vtensor<[24],f32>, %mask: !torch.vtensor<[2,3],si32>) -> !torch.vtensor<[2,3,8],f32> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.opset_versions = {ai.onnx = 17 : si64, com.microsoft = 1 : si64}} {
+  // CHECK: %[[INT1:[^ ]+]] = torch.constant.int 1
+  // CHECK: %[[INT0:[^ ]+]] = torch.constant.int 0
+  // CHECK: %[[INT2:[^ ]+]] = torch.constant.int 2
+  // CHECK: %[[INT3:[^ ]+]] = torch.constant.int 3
+  // CHECK: %[[INT2_1:[^ ]+]] = torch.constant.int 2
+  // CHECK: %[[INT4:[^ ]+]] = torch.constant.int 4
+  // CHECK: %[[NONE:[^ ]+]] = torch.constant.none
+  // CHECK: %[[MATMUL:.*]] = torch.aten.matmul %[[INPUT]], %[[WEIGHTS]] : !torch.vtensor<[2,3,8],f32>, !torch.vtensor<[8,24],f32> -> !torch.vtensor<[2,3,24],f32>
+  // CHECK: %[[ADD:.*]] = torch.aten.add.Tensor %[[MATMUL]], %[[BIAS]], %[[INT1]] : !torch.vtensor<[2,3,24],f32>, !torch.vtensor<[24],f32>, !torch.int -> !torch.vtensor<[2,3,24],f32>
+  // CHECK: %[[INT8:[^ ]+]] = torch.constant.int 8
+  // CHECK: %[[INT16:[^ ]+]] = torch.constant.int 16
+  // CHECK: %[[INT24:[^ ]+]] = torch.constant.int 24
+  // CHECK: %[[SLICE:.*]] = torch.aten.slice.Tensor %[[ADD]], %[[INT2]], %[[INT0]], %[[INT8]], %[[INT1]] : !torch.vtensor<[2,3,24],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,3,8],f32>
+  // CHECK: %[[SLICE_1:.*]] = torch.aten.slice.Tensor %[[ADD]], %[[INT2]], %[[INT8]], %[[INT16]], %[[INT1]] : !torch.vtensor<[2,3,24],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,3,8],f32>
+  // CHECK: %[[SLICE_2:.*]] = torch.aten.slice.Tensor %[[ADD]], %[[INT2]], %[[INT16]], %[[INT24]], %[[INT1]] : !torch.vtensor<[2,3,24],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,3,8],f32>
+  // CHECK: %[[LIST:[^ ]+]] = torch.prim.ListConstruct %[[INT2_1]], %[[INT4]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[UNFLATTEN:.*]] = torch.aten.unflatten.int %[[SLICE]], %[[INT2]], %[[LIST]] : !torch.vtensor<[2,3,8],f32>, !torch.int, !torch.list<int> -> !torch.vtensor<[2,3,2,4],f32>
+  // CHECK: %[[TRANSPOSE:.*]] = torch.aten.transpose.int %[[UNFLATTEN]], %[[INT1]], %[[INT2]] : !torch.vtensor<[2,3,2,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[2,2,3,4],f32>
+  // CHECK: %[[LIST_1:[^ ]+]] = torch.prim.ListConstruct %[[INT2_1]], %[[INT4]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[UNFLATTEN_1:.*]] = torch.aten.unflatten.int %[[SLICE_1]], %[[INT2]], %[[LIST_1]] : !torch.vtensor<[2,3,8],f32>, !torch.int, !torch.list<int> -> !torch.vtensor<[2,3,2,4],f32>
+  // CHECK: %[[TRANSPOSE_1:.*]] = torch.aten.transpose.int %[[UNFLATTEN_1]], %[[INT1]], %[[INT2]] : !torch.vtensor<[2,3,2,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[2,2,3,4],f32>
+  // CHECK: %[[LIST_2:[^ ]+]] = torch.prim.ListConstruct %[[INT2_1]], %[[INT4]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[UNFLATTEN_2:.*]] = torch.aten.unflatten.int %[[SLICE_2]], %[[INT2]], %[[LIST_2]] : !torch.vtensor<[2,3,8],f32>, !torch.int, !torch.list<int> -> !torch.vtensor<[2,3,2,4],f32>
+  // CHECK: %[[TRANSPOSE_2:.*]] = torch.aten.transpose.int %[[UNFLATTEN_2]], %[[INT1]], %[[INT2]] : !torch.vtensor<[2,3,2,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[2,2,3,4],f32>
+  // CHECK: %[[INT3_1:[^ ]+]] = torch.constant.int 3
+  // CHECK: %[[INT3_2:[^ ]+]] = torch.constant.int 3
+  // CHECK: %[[TRANSPOSE_3:.*]] = torch.aten.transpose.int %[[TRANSPOSE_1]], %[[INT2]], %[[INT3]] : !torch.vtensor<[2,2,3,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[2,2,4,3],f32>
+  // CHECK: %[[MATMUL_1:.*]] = torch.aten.matmul %[[TRANSPOSE]], %[[TRANSPOSE_3]] : !torch.vtensor<[2,2,3,4],f32>, !torch.vtensor<[2,2,4,3],f32> -> !torch.vtensor<[2,2,3,3],f32>
+  // CHECK: %[[FLOAT0_5:[^ ]+]] = torch.constant.float 5.000000e-01
+  // CHECK: %[[MUL:.*]] = torch.aten.mul.Scalar %[[MATMUL_1]], %[[FLOAT0_5]] : !torch.vtensor<[2,2,3,3],f32>, !torch.float -> !torch.vtensor<[2,2,3,3],f32>
+  // CHECK: %[[GT:.*]] = torch.aten.gt.Scalar %[[MASK]], %[[INT0]] : !torch.vtensor<[2,3],si32>, !torch.int -> !torch.vtensor<[2,3],i1>
+  // CHECK: %[[FLOAT0:[^ ]+]] = torch.constant.float 0.000000e+00
+  // CHECK: %[[FLOATM10000:[^ ]+]] = torch.constant.float -1.000000e+04
+  // CHECK: %[[WHERE:.*]] = torch.aten.where.Scalar %[[GT]], %[[FLOAT0]], %[[FLOATM10000]] : !torch.vtensor<[2,3],i1>, !torch.float, !torch.float -> !torch.vtensor<[2,3],f32>
+  // CHECK: %[[UNSQUEEZE:.*]] = torch.aten.unsqueeze %[[WHERE]], %[[INT1]] : !torch.vtensor<[2,3],f32>, !torch.int -> !torch.vtensor<[2,1,3],f32>
+  // CHECK: %[[UNSQUEEZE_1:.*]] = torch.aten.unsqueeze %[[UNSQUEEZE]], %[[INT1]] : !torch.vtensor<[2,1,3],f32>, !torch.int -> !torch.vtensor<[2,1,1,3],f32>
+  // CHECK: %[[LIST_3:[^ ]+]] = torch.prim.ListConstruct %[[INT3_1]], %[[INT3_2]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[FLOAT1:[^ ]+]] = torch.constant.float 1.000000e+00
+  // CHECK: %[[FULL:.*]] = torch.aten.full %[[LIST_3]], %[[FLOAT1]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.list<int>, !torch.float, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[3,3],f32>
+  // CHECK: %[[INT1_1:[^ ]+]] = torch.constant.int 1
+  // CHECK: %[[TRIU:.*]] = torch.aten.triu %[[FULL]], %[[INT1_1]] : !torch.vtensor<[3,3],f32>, !torch.int -> !torch.vtensor<[3,3],f32>
+  // CHECK: %[[GT_1:.*]] = torch.aten.gt.Scalar %[[TRIU]], %[[INT0]] : !torch.vtensor<[3,3],f32>, !torch.int -> !torch.vtensor<[3,3],i1>
+  // CHECK: %[[FLOATM3_40282e38:[^ ]+]] = torch.constant.float -3.4028234663852886E+38
+  // CHECK: %[[WHERE_1:.*]] = torch.aten.where.ScalarSelf %[[GT_1]], %[[FLOATM3_40282e38]], %[[UNSQUEEZE_1]] : !torch.vtensor<[3,3],i1>, !torch.float, !torch.vtensor<[2,1,1,3],f32> -> !torch.vtensor<[2,1,3,3],f32>
+  // CHECK: %[[ADD_1:.*]] = torch.aten.add.Tensor %[[MUL]], %[[WHERE_1]], %[[INT1]] : !torch.vtensor<[2,2,3,3],f32>, !torch.vtensor<[2,1,3,3],f32>, !torch.int -> !torch.vtensor<[2,2,3,3],f32>
+  // CHECK: %[[SOFTMAX:.*]] = torch.aten.softmax.int %[[ADD_1]], %[[INT3]], %[[NONE]] : !torch.vtensor<[2,2,3,3],f32>, !torch.int, !torch.none -> !torch.vtensor<[2,2,3,3],f32>
+  // CHECK: %[[MATMUL_2:.*]] = torch.aten.matmul %[[SOFTMAX]], %[[TRANSPOSE_2]] : !torch.vtensor<[2,2,3,3],f32>, !torch.vtensor<[2,2,3,4],f32> -> !torch.vtensor<[2,2,3,4],f32>
+  // CHECK: %[[TRANSPOSE_4:.*]] = torch.aten.transpose.int %[[MATMUL_2]], %[[INT1]], %[[INT2]] : !torch.vtensor<[2,2,3,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[2,3,2,4],f32>
+  // CHECK: %[[FLATTEN:.*]] = torch.aten.flatten.using_ints %[[TRANSPOSE_4]], %[[INT2]], %[[INT3]] : !torch.vtensor<[2,3,2,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[2,3,8],f32>
+  // CHECK: return %[[FLATTEN]] : !torch.vtensor<[2,3,8],f32>
+  %0 = torch.operator "onnx.Attention"(%input, %weights, %bias, %mask) {torch.onnx.num_heads = 2 : si64, torch.onnx.unidirectional = 1 : si64} : (!torch.vtensor<[2,3,8],f32>, !torch.vtensor<[8,24],f32>, !torch.vtensor<[24],f32>, !torch.vtensor<[2,3],si32>) -> !torch.vtensor<[2,3,8],f32>
+  return %0 : !torch.vtensor<[2,3,8],f32>
+}
+
+// -----
+
+// Attention with mask_filter_value = -inf on f16. The masks are selected with
+// aten.where rather than built by scaling 0/1 masks by mask_filter_value, so no
+// 0 * -inf or inf - inf (NaN) is computed. The causal mask uses the lowest f16
+// value, -65504.
+
+// CHECK-LABEL: func.func @test_com_microsoft_attention_mask_filter_value_neg_inf(
+// CHECK-SAME: %[[INPUT:[a-z0-9]+]]: !torch.vtensor<[1,3,8],f16>
+// CHECK-SAME: %[[WEIGHTS:[a-z0-9]+]]: !torch.vtensor<[8,24],f16>
+// CHECK-SAME: %[[BIAS:[a-z0-9]+]]: !torch.vtensor<[24],f16>
+// CHECK-SAME: %[[MASK:[a-z0-9]+]]: !torch.vtensor<[1,3],si32>
+func.func @test_com_microsoft_attention_mask_filter_value_neg_inf(%input: !torch.vtensor<[1,3,8],f16>, %weights: !torch.vtensor<[8,24],f16>, %bias: !torch.vtensor<[24],f16>, %mask: !torch.vtensor<[1,3],si32>) -> !torch.vtensor<[1,3,8],f16> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 17 : si64, torch.onnx_meta.opset_versions = {ai.onnx = 17 : si64, com.microsoft = 1 : si64}} {
+  // CHECK: %[[INT1:[^ ]+]] = torch.constant.int 1
+  // CHECK: %[[INT0:[^ ]+]] = torch.constant.int 0
+  // CHECK: %[[INT2:[^ ]+]] = torch.constant.int 2
+  // CHECK: %[[INT3:[^ ]+]] = torch.constant.int 3
+  // CHECK: %[[INT2_1:[^ ]+]] = torch.constant.int 2
+  // CHECK: %[[INT4:[^ ]+]] = torch.constant.int 4
+  // CHECK: %[[NONE:[^ ]+]] = torch.constant.none
+  // CHECK: %[[MATMUL:.*]] = torch.aten.matmul %[[INPUT]], %[[WEIGHTS]] : !torch.vtensor<[1,3,8],f16>, !torch.vtensor<[8,24],f16> -> !torch.vtensor<[1,3,24],f16>
+  // CHECK: %[[ADD:.*]] = torch.aten.add.Tensor %[[MATMUL]], %[[BIAS]], %[[INT1]] : !torch.vtensor<[1,3,24],f16>, !torch.vtensor<[24],f16>, !torch.int -> !torch.vtensor<[1,3,24],f16>
+  // CHECK: %[[INT8:[^ ]+]] = torch.constant.int 8
+  // CHECK: %[[INT16:[^ ]+]] = torch.constant.int 16
+  // CHECK: %[[INT24:[^ ]+]] = torch.constant.int 24
+  // CHECK: %[[SLICE:.*]] = torch.aten.slice.Tensor %[[ADD]], %[[INT2]], %[[INT0]], %[[INT8]], %[[INT1]] : !torch.vtensor<[1,3,24],f16>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[1,3,8],f16>
+  // CHECK: %[[SLICE_1:.*]] = torch.aten.slice.Tensor %[[ADD]], %[[INT2]], %[[INT8]], %[[INT16]], %[[INT1]] : !torch.vtensor<[1,3,24],f16>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[1,3,8],f16>
+  // CHECK: %[[SLICE_2:.*]] = torch.aten.slice.Tensor %[[ADD]], %[[INT2]], %[[INT16]], %[[INT24]], %[[INT1]] : !torch.vtensor<[1,3,24],f16>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[1,3,8],f16>
+  // CHECK: %[[LIST:[^ ]+]] = torch.prim.ListConstruct %[[INT2_1]], %[[INT4]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[UNFLATTEN:.*]] = torch.aten.unflatten.int %[[SLICE]], %[[INT2]], %[[LIST]] : !torch.vtensor<[1,3,8],f16>, !torch.int, !torch.list<int> -> !torch.vtensor<[1,3,2,4],f16>
+  // CHECK: %[[TRANSPOSE:.*]] = torch.aten.transpose.int %[[UNFLATTEN]], %[[INT1]], %[[INT2]] : !torch.vtensor<[1,3,2,4],f16>, !torch.int, !torch.int -> !torch.vtensor<[1,2,3,4],f16>
+  // CHECK: %[[LIST_1:[^ ]+]] = torch.prim.ListConstruct %[[INT2_1]], %[[INT4]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[UNFLATTEN_1:.*]] = torch.aten.unflatten.int %[[SLICE_1]], %[[INT2]], %[[LIST_1]] : !torch.vtensor<[1,3,8],f16>, !torch.int, !torch.list<int> -> !torch.vtensor<[1,3,2,4],f16>
+  // CHECK: %[[TRANSPOSE_1:.*]] = torch.aten.transpose.int %[[UNFLATTEN_1]], %[[INT1]], %[[INT2]] : !torch.vtensor<[1,3,2,4],f16>, !torch.int, !torch.int -> !torch.vtensor<[1,2,3,4],f16>
+  // CHECK: %[[LIST_2:[^ ]+]] = torch.prim.ListConstruct %[[INT2_1]], %[[INT4]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[UNFLATTEN_2:.*]] = torch.aten.unflatten.int %[[SLICE_2]], %[[INT2]], %[[LIST_2]] : !torch.vtensor<[1,3,8],f16>, !torch.int, !torch.list<int> -> !torch.vtensor<[1,3,2,4],f16>
+  // CHECK: %[[TRANSPOSE_2:.*]] = torch.aten.transpose.int %[[UNFLATTEN_2]], %[[INT1]], %[[INT2]] : !torch.vtensor<[1,3,2,4],f16>, !torch.int, !torch.int -> !torch.vtensor<[1,2,3,4],f16>
+  // CHECK: %[[INT3_1:[^ ]+]] = torch.constant.int 3
+  // CHECK: %[[INT3_2:[^ ]+]] = torch.constant.int 3
+  // CHECK: %[[TRANSPOSE_3:.*]] = torch.aten.transpose.int %[[TRANSPOSE_1]], %[[INT2]], %[[INT3]] : !torch.vtensor<[1,2,3,4],f16>, !torch.int, !torch.int -> !torch.vtensor<[1,2,4,3],f16>
+  // CHECK: %[[MATMUL_1:.*]] = torch.aten.matmul %[[TRANSPOSE]], %[[TRANSPOSE_3]] : !torch.vtensor<[1,2,3,4],f16>, !torch.vtensor<[1,2,4,3],f16> -> !torch.vtensor<[1,2,3,3],f16>
+  // CHECK: %[[FLOAT0_5:[^ ]+]] = torch.constant.float 5.000000e-01
+  // CHECK: %[[MUL:.*]] = torch.aten.mul.Scalar %[[MATMUL_1]], %[[FLOAT0_5]] : !torch.vtensor<[1,2,3,3],f16>, !torch.float -> !torch.vtensor<[1,2,3,3],f16>
+  // CHECK: %[[GT:.*]] = torch.aten.gt.Scalar %[[MASK]], %[[INT0]] : !torch.vtensor<[1,3],si32>, !torch.int -> !torch.vtensor<[1,3],i1>
+  // CHECK: %[[FLOAT0:[^ ]+]] = torch.constant.float 0.000000e+00
+  // CHECK: %[[FLOATMINF:[^ ]+]] = torch.constant.float 0xFFF0000000000000
+  // CHECK: %[[WHERE:.*]] = torch.aten.where.Scalar %[[GT]], %[[FLOAT0]], %[[FLOATMINF]] : !torch.vtensor<[1,3],i1>, !torch.float, !torch.float -> !torch.vtensor<[1,3],f16>
+  // CHECK: %[[UNSQUEEZE:.*]] = torch.aten.unsqueeze %[[WHERE]], %[[INT1]] : !torch.vtensor<[1,3],f16>, !torch.int -> !torch.vtensor<[1,1,3],f16>
+  // CHECK: %[[UNSQUEEZE_1:.*]] = torch.aten.unsqueeze %[[UNSQUEEZE]], %[[INT1]] : !torch.vtensor<[1,1,3],f16>, !torch.int -> !torch.vtensor<[1,1,1,3],f16>
+  // CHECK: %[[LIST_3:[^ ]+]] = torch.prim.ListConstruct %[[INT3_1]], %[[INT3_2]] : (!torch.int, !torch.int) -> !torch.list<int>
+  // CHECK: %[[FLOAT1:[^ ]+]] = torch.constant.float 1.000000e+00
+  // CHECK: %[[FULL:.*]] = torch.aten.full %[[LIST_3]], %[[FLOAT1]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.list<int>, !torch.float, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[3,3],f16>
+  // CHECK: %[[INT1_1:[^ ]+]] = torch.constant.int 1
+  // CHECK: %[[TRIU:.*]] = torch.aten.triu %[[FULL]], %[[INT1_1]] : !torch.vtensor<[3,3],f16>, !torch.int -> !torch.vtensor<[3,3],f16>
+  // CHECK: %[[GT_1:.*]] = torch.aten.gt.Scalar %[[TRIU]], %[[INT0]] : !torch.vtensor<[3,3],f16>, !torch.int -> !torch.vtensor<[3,3],i1>
+  // CHECK: %[[FLOATM65504:[^ ]+]] = torch.constant.float -6.550400e+04
+  // CHECK: %[[WHERE_1:.*]] = torch.aten.where.ScalarSelf %[[GT_1]], %[[FLOATM65504]], %[[UNSQUEEZE_1]] : !torch.vtensor<[3,3],i1>, !torch.float, !torch.vtensor<[1,1,1,3],f16> -> !torch.vtensor<[1,1,3,3],f16>
+  // CHECK: %[[ADD_1:.*]] = torch.aten.add.Tensor %[[MUL]], %[[WHERE_1]], %[[INT1]] : !torch.vtensor<[1,2,3,3],f16>, !torch.vtensor<[1,1,3,3],f16>, !torch.int -> !torch.vtensor<[1,2,3,3],f16>
+  // CHECK: %[[SOFTMAX:.*]] = torch.aten.softmax.int %[[ADD_1]], %[[INT3]], %[[NONE]] : !torch.vtensor<[1,2,3,3],f16>, !torch.int, !torch.none -> !torch.vtensor<[1,2,3,3],f16>
+  // CHECK: %[[MATMUL_2:.*]] = torch.aten.matmul %[[SOFTMAX]], %[[TRANSPOSE_2]] : !torch.vtensor<[1,2,3,3],f16>, !torch.vtensor<[1,2,3,4],f16> -> !torch.vtensor<[1,2,3,4],f16>
+  // CHECK: %[[TRANSPOSE_4:.*]] = torch.aten.transpose.int %[[MATMUL_2]], %[[INT1]], %[[INT2]] : !torch.vtensor<[1,2,3,4],f16>, !torch.int, !torch.int -> !torch.vtensor<[1,3,2,4],f16>
+  // CHECK: %[[FLATTEN:.*]] = torch.aten.flatten.using_ints %[[TRANSPOSE_4]], %[[INT2]], %[[INT3]] : !torch.vtensor<[1,3,2,4],f16>, !torch.int, !torch.int -> !torch.vtensor<[1,3,8],f16>
+  // CHECK: return %[[FLATTEN]] : !torch.vtensor<[1,3,8],f16>
+  %0 = torch.operator "onnx.Attention"(%input, %weights, %bias, %mask) {torch.onnx.mask_filter_value = 0xFF800000 : f32, torch.onnx.num_heads = 2 : si64, torch.onnx.unidirectional = 1 : si64} : (!torch.vtensor<[1,3,8],f16>, !torch.vtensor<[8,24],f16>, !torch.vtensor<[24],f16>, !torch.vtensor<[1,3],si32>) -> !torch.vtensor<[1,3,8],f16>
+  return %0 : !torch.vtensor<[1,3,8],f16>
 }
