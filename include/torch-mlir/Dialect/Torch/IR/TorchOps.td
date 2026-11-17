@@ -1424,11 +1424,10 @@ def Torch_OnnxVariantRotaryEmbeddingOp: Torch_Op<"onnx.rotary_embedding", [
   ]> {
   let summary = "`rotary_embedding op : (Tensor, Tensor, Tensor, Tensor, int, int, int, int, float) -> (Tensor)`";
   let description = [{
-    The `torch.onnx.rotary_embedding` operation is an op which is used
-    specifically for supporting the Onnx's Rotary Embedding op. The
-    reason for this is that the Onnx ops can't be directly lowered to
-    Linalg and we have to map them to a legal Torch Dialect op, hence
-    this op is used for that purpose.
+    Rotates the heads of `input` by the angles in `cos_cache` and `sin_cache`
+    at `position_ids`, like ONNX Runtime's `com.microsoft.RotaryEmbedding`.
+    A rank-3 `input` is (batch, seq, num_heads * head_size) and a rank-4
+    `input` is (batch, num_heads, seq, head_size).
   }];
   let arguments = (ins
     AnyTorchTensorType:$input,
@@ -1445,6 +1444,15 @@ def Torch_OnnxVariantRotaryEmbeddingOp: Torch_Op<"onnx.rotary_embedding", [
     AnyTorchTensorType:$result
   );
   let hasCustomAssemblyFormat = 1;
+  let extraClassDefinition = [{
+    ParseResult OnnxVariantRotaryEmbeddingOp::parse(OpAsmParser &parser,
+                                                    OperationState &result) {
+      return parseDefaultTorchOp(parser, result, 9, 1);
+    }
+    void OnnxVariantRotaryEmbeddingOp::print(OpAsmPrinter &printer) {
+      printDefaultTorchOp(printer, *this, 9, 1);
+    }
+  }];
 }
 
 //===----------------------------------------------------------------------===//

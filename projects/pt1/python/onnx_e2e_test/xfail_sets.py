@@ -36,6 +36,25 @@ ONNX_E2E_LINALG_CRASHING_SET = set()
 # TOSA has different op coverage than linalg; tests unsupported on the
 # torch -> tosa path go here.
 ONNX_E2E_TOSA_XFAIL_SET = {
+    # GroupQueryAttention: torch -> tosa cannot legalize the zero-sized
+    # torch.vtensor.literal used for an empty past KV cache, the
+    # aten.unflatten.int that views its si64 index ranges,
+    # torch.onnx.rotary_embedding, nor aten.scaled_dot_product_attention with a
+    # mask.
+    "OnnxGroupQueryAttention_packedQkvRotary",
+    "OnnxGroupQueryAttention_packedQkvTrailingNone",
+    "OnnxGroupQueryAttention_packedQkvNoRotary",
+    "OnnxGroupQueryAttention_packedQkvPastKv",
+    "OnnxGroupQueryAttention_separateQkvRotary",
+    "OnnxGroupQueryAttention_fixedCapacityDecode",
+    "OnnxGroupQueryAttention_rightPaddedPrompt",
+    "OnnxGroupQueryAttention_slidingWindowCache",
+    "OnnxGroupQueryAttention_int8KvCache",
+    "OnnxGroupQueryAttention_int4KvCache",
+    "OnnxGroupQueryAttention_scoreFeatures",
+    "OnnxGroupQueryAttention_bidirectionalPositionIds",
+    "OnnxGroupQueryAttention_noPastOutputOnly",
+    "OnnxGroupQueryAttention_sharedKvDecode",
     # TOSA per-tensor DQ gives incorrect numerical results for uint8 inputs
     # above 127. Keep the full unsigned range in these tests to expose it.
     "OnnxMatMulIntegerToFloat_aZeroPoint",
@@ -59,6 +78,13 @@ ONNX_E2E_TOSA_XFAIL_SET = {
     "OnnxLSTM_forward_basic",
     # OnnxSTFT_onesided_basic: STFT has no torch -> tosa lowering.
     "OnnxSTFT_onesided_basic",
+    # OnnxRotaryEmbedding_*: RotaryEmbedding has no torch -> tosa lowering.
+    "OnnxRotaryEmbedding_3d_dynamic",
+    "OnnxRotaryEmbedding_4d",
+    "OnnxRotaryEmbedding_interleaved",
+    "OnnxRotaryEmbedding_partialRotaryDim",
+    "OnnxRotaryEmbedding_positionOffset",
+    "OnnxRotaryEmbedding_scale",
     # OnnxAdd_f32_dynamicInput: TOSA -> linalg -> RefBackend fails to bufferize
     # a dynamic-shaped tensor ("bufferization.dealloc ... marked illegal").
     "OnnxAdd_f32_dynamicInput",

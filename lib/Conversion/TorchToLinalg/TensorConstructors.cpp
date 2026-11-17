@@ -194,6 +194,11 @@ public:
               rewriter, loc, fits,
               rewriter.getStringAttr("expected crops that fit the dim"));
         }
+        // An empty dim fits no crop but zero, which leaves it empty.
+        if (type.getDimSize(dim) == 0) {
+          sizes.push_back(rewriter.getIndexAttr(0));
+          continue;
+        }
         sizes.push_back(getAsOpFoldResult(size));
       }
       // A static zero size makes the cropped tensor a new empty tensor.
