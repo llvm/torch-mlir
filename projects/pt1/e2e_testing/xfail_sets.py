@@ -494,7 +494,6 @@ FX_IMPORTER_XFAIL_SET = {
     "TensorToBoolZeroRank_basic",
     "TensorToBool_basic",
     "ThresholdBackward2dMixedModule_basic",
-    "TorchPrimLoopWhileLikeHOPModule_basic",  # Compilation error: failed to legalize operation 'func.call'
     "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
     "UpSampleNearest2dDynamicFactor_basic",
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
@@ -526,6 +525,9 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
     "Aten_TrilinearModuleSumdims_basic",
     "SliceOutOfLowerBoundEndIndexModule_basic",
     "RollModule_basic",
+    # The while-like torch.prim.Loop is lowered to an scf.for with an upper
+    # bound of INT64_MAX and no exit, so the compiled test never finishes.
+    "TorchPrimLoopWhileLikeHOPModule_basic",
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {

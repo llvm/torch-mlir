@@ -17,10 +17,6 @@ set when filing a bug, and remove it when the bug is fixed.
 
 # Tests expected to fail.  Add names here when a bug is filed.
 ONNX_E2E_LINALG_XFAIL_SET = {
-    # OnnxLSTM_forward_basic: RefBackend bufferization fails with
-    # "Yield operand #1 is not equivalent to the corresponding iter bbArg"
-    # during linalg-on-tensors -> LLVM lowering.
-    "OnnxLSTM_forward_basic",
     # QLinearAveragePool_*: off by one quantized step in a few elements
     # versus the onnxruntime golden (ORT's integer QLinearAveragePool kernel
     # rounds differently from the dequantize/avg_pool/quantize lowering).
@@ -59,9 +55,6 @@ ONNX_E2E_TOSA_XFAIL_SET = {
     "OnnxLSTM_forward_basic",
     # OnnxSTFT_onesided_basic: STFT has no torch -> tosa lowering.
     "OnnxSTFT_onesided_basic",
-    # OnnxAdd_f32_dynamicInput: TOSA -> linalg -> RefBackend fails to bufferize
-    # a dynamic-shaped tensor ("bufferization.dealloc ... marked illegal").
-    "OnnxAdd_f32_dynamicInput",
     # OnnxAveragePool2d_countIncludePad_asymmetricPadsDilated: tosa.avg_pool2d
     # has no dilation, so the torch -> tosa pooling lowering rejects it.
     "OnnxAveragePool2d_countIncludePad_asymmetricPadsDilated",
