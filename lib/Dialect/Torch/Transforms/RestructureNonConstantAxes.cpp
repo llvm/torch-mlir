@@ -109,8 +109,58 @@ public:
           rewriter, loc, dimListIsLengthOne,
           rewriter.getStringAttr("RestructureNonConstantAxes does not support "
                                  "dim lists with more than one element"));
-      dim =
-          Torch::Aten__Getitem__TOp::create(rewriter, loc, intType, dim, zero);
+      // Upstream ONNX->Torch decomposition extracts a single-element axes
+      // tensor via `item(select.int(axesTensor, 0, 0))`. The `select.int`
+      // operates on a real tensor (potential side effects), so canonicalize
+      // and DCE will not remove it, and the `constant.int 0` it consumes is
+      // left as an orphan that fails to legalize at the end of the linalg
+      // pipeline ('failed to legalize torch.constant.int'). Detect this
+      // pattern and extract the scalar directly from the original axes
+      // tensor via `item(x)`, erasing the now-dead select.int chain. This is
+      // independent of which upstream pattern produced the IR.
+      Value shortCircuitDim;
+      if (auto listCtor = dim.getDefiningOp<Torch::PrimListConstructOp>()) {
+        if (listCtor.getElements().size() == 1) {
+          Value elem = listCtor.getElements()[0];
+          if (auto itemOp = elem.getDefiningOp<Torch::AtenItemOp>()) {
+            if (auto selOp =
+                    itemOp.getSelf().getDefiningOp<Torch::AtenSelectIntOp>()) {
+              // Verify a genuine single-element extraction:
+              // select.int(x, dim=0, index=0).
+              int64_t selDim, selIdx;
+              bool dimIsZero =
+                  matchPattern(selOp.getDim(), m_TorchConstantInt(&selDim)) &&
+                  selDim == 0;
+              bool idxIsZero =
+                  matchPattern(selOp.getIndex(), m_TorchConstantInt(&selIdx)) &&
+                  selIdx == 0;
+              if (dimIsZero && idxIsZero) {
+                // Extract the scalar directly from the original axes tensor
+                // and short-circuit the redundant
+                // select.int -> item -> list -> __getitem__ chain.
+                Value axesVal = selOp.getSelf();
+                shortCircuitDim =
+                    Torch::AtenItemOp::create(rewriter, loc, intType, axesVal);
+                // Erase the now-dead ops. Their constant.int operands lose
+                // their last user and fold/legalize away cleanly.
+                rewriter.replaceAllUsesWith(itemOp.getResult(),
+                                            shortCircuitDim);
+                rewriter.eraseOp(itemOp);
+                if (selOp.use_empty())
+                  rewriter.eraseOp(selOp);
+              }
+            }
+          }
+        }
+      }
+
+      if (shortCircuitDim) {
+        // Use the directly-extracted scalar; skip the list round-trip.
+        dim = shortCircuitDim;
+      } else {
+        dim = Torch::Aten__Getitem__TOp::create(rewriter, loc, intType, dim,
+                                                zero);
+      }
     }
 
     // Normalize negative dim
