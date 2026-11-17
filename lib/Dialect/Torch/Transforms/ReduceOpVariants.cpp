@@ -13,6 +13,7 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "llvm/ADT/StringExtras.h"
 
 using namespace mlir;
@@ -262,6 +263,54 @@ void TorchMatchSpecializedBackendOp::populateSpecializedConversions(
           return success();
         }
         return failure();
+      });
+  matcher.populate(
+      "torch.transformers.grouped_mm_fallback",
+      [](Torch::OperatorOp op,
+         ConversionPatternRewriter &rewriter) -> LogicalResult {
+        if (op->getNumOperands() != 3 || op->getNumResults() != 1) {
+          return rewriter.notifyMatchFailure(
+              op, "expected three operands and one result");
+        }
+
+        Value input = op->getOperand(0);
+        Value weight = op->getOperand(1);
+        Value offsets = op->getOperand(2);
+        auto inputType = dyn_cast<BaseTensorType>(input.getType());
+        auto weightType = dyn_cast<BaseTensorType>(weight.getType());
+        auto offsetsType = dyn_cast<BaseTensorType>(offsets.getType());
+        auto resultType = dyn_cast<BaseTensorType>(op->getResult(0).getType());
+        if (!inputType || !weightType || !offsetsType || !resultType) {
+          return rewriter.notifyMatchFailure(
+              op, "expected tensor operands and result");
+        }
+        if (!inputType.hasSizes() || inputType.getSizes().size() != 2 ||
+            !weightType.hasSizes() || weightType.getSizes().size() != 3 ||
+            !offsetsType.hasSizes() || offsetsType.getSizes().size() != 1 ||
+            !resultType.hasSizes() || resultType.getSizes().size() != 2) {
+          return rewriter.notifyMatchFailure(
+              op, "expected input, weight, offsets, and result ranks 2, 3, 1, "
+                  "and 2");
+        }
+        if (!offsetsType.hasDtype() ||
+            !(offsetsType.getDtype().isSignedInteger(32) ||
+              offsetsType.getDtype().isSignedInteger(64))) {
+          return rewriter.notifyMatchFailure(
+              op, "expected offsets to have signed 32-bit or 64-bit integer "
+                  "dtype");
+        }
+
+        if (offsetsType.getDtype().isSignedInteger(64)) {
+          offsets = Torch::convertTensorToDtype(
+              rewriter, op.getLoc(), offsets,
+              rewriter.getIntegerType(/*width=*/32, /*isSigned=*/true));
+        }
+        Value none = Torch::ConstantNoneOp::create(rewriter, op.getLoc());
+        auto groupedMm = Torch::Aten_GroupedMmOp::create(
+            rewriter, op.getLoc(), op->getResult(0).getType(), input, weight,
+            offsets, /*bias=*/none, /*outDtype=*/none);
+        rewriter.replaceOp(op, groupedMm.getResult());
+        return success();
       });
 }
 
