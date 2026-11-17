@@ -33,6 +33,14 @@ private:
 
 namespace mlir::torch::onnx_c {
 
+// Default alpha and beta attributes of the ONNX activation operators, also
+// used for the gate activations of LSTM, GRU and RNN of the same name.
+constexpr float kLeakyReluAlpha = 0.01f;
+constexpr float kEluAlpha = 1.0f;
+constexpr float kThresholdedReluAlpha = 1.0f;
+constexpr float kHardSigmoidAlpha = 0.2f;
+constexpr float kHardSigmoidBeta = 0.5f;
+
 // Builders for ONNX activations, shared by the standalone ONNX operators and
 // the gate activations of LSTM, GRU and RNN. Each returns `input` activated,
 // with type `resultType`.
@@ -82,7 +90,8 @@ struct RecurrentActivation {
 //
 // Reports a match failure on the op through `rewriter`, and returns failure,
 // if:
-// - a name is not one of the activations in RecurrentActivation::Kind, or
+// - a name is not one of the activations in RecurrentActivation::Kind,
+//   compared case-insensitively as in onnxruntime, or
 // - activation_alpha or activation_beta is not a list of f32 values.
 FailureOr<SmallVector<RecurrentActivation>>
 resolveRecurrentActivations(OpBinder binder,

@@ -3022,7 +3022,7 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         Value input;
         float alpha;
         if (binder.tensorOperand(input) ||
-            binder.f32FloatAttr(alpha, "alpha", 1.0) ||
+            binder.f32FloatAttr(alpha, "alpha", kEluAlpha) ||
             binder.tensorResultType(resultType))
           return failure();
         rewriter.replaceOp(binder.op,

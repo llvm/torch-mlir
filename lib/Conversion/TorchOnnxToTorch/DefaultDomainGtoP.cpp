@@ -36,8 +36,8 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                   Value tensorOperand;
                   float alpha, beta;
                   if (binder.tensorOperand(tensorOperand) ||
-                      binder.f32FloatAttr(alpha, "alpha", 0.2f) ||
-                      binder.f32FloatAttr(beta, "beta", 0.5f) ||
+                      binder.f32FloatAttr(alpha, "alpha", kHardSigmoidAlpha) ||
+                      binder.f32FloatAttr(beta, "beta", kHardSigmoidBeta) ||
                       binder.tensorResultType(resultType))
                     return failure();
 
@@ -2751,7 +2751,7 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
                   float alpha;
                   if (binder.tensorOperand(operand) ||
                       binder.tensorResultType(resultType) ||
-                      binder.f32FloatAttr(alpha, "alpha", 0.01f))
+                      binder.f32FloatAttr(alpha, "alpha", kLeakyReluAlpha))
                     return failure();
                   rewriter.replaceOp(
                       binder.op, createLeakyRelu(rewriter, binder.getLoc(),

@@ -209,16 +209,11 @@ mlir::torch::onnx_c::resolveRecurrentActivations(
       binder.f32FloatArrayAttr(betas, "activation_beta", {}))
     return rewriter.notifyMatchFailure(
         binder.op, "activation_alpha and activation_beta must be f32 lists");
-  // The next unused value of each list, or std::nullopt once it runs out.
+  // The next unused value of `list`, or std::nullopt once it runs out.
   size_t alphaIndex = 0, betaIndex = 0;
-  auto nextAlpha = [&]() -> std::optional<float> {
-    if (alphaIndex < alphas.size())
-      return alphas[alphaIndex++];
-    return std::nullopt;
-  };
-  auto nextBeta = [&]() -> std::optional<float> {
-    if (betaIndex < betas.size())
-      return betas[betaIndex++];
+  auto next = [](ArrayRef<float> list, size_t &index) -> std::optional<float> {
+    if (index < list.size())
+      return list[index++];
     return std::nullopt;
   };
 
@@ -227,17 +222,17 @@ mlir::torch::onnx_c::resolveRecurrentActivations(
   for (const std::string &name : names) {
     std::optional<Kind> kind =
         llvm::StringSwitch<std::optional<Kind>>(name)
-            .Case("Relu", Kind::Relu)
-            .Case("Tanh", Kind::Tanh)
-            .Case("Sigmoid", Kind::Sigmoid)
-            .Case("Affine", Kind::Affine)
-            .Case("LeakyRelu", Kind::LeakyRelu)
-            .Case("ThresholdedRelu", Kind::ThresholdedRelu)
-            .Case("ScaledTanh", Kind::ScaledTanh)
-            .Case("HardSigmoid", Kind::HardSigmoid)
-            .Case("Elu", Kind::Elu)
-            .Case("Softsign", Kind::Softsign)
-            .Case("Softplus", Kind::Softplus)
+            .CaseLower("Relu", Kind::Relu)
+            .CaseLower("Tanh", Kind::Tanh)
+            .CaseLower("Sigmoid", Kind::Sigmoid)
+            .CaseLower("Affine", Kind::Affine)
+            .CaseLower("LeakyRelu", Kind::LeakyRelu)
+            .CaseLower("ThresholdedRelu", Kind::ThresholdedRelu)
+            .CaseLower("ScaledTanh", Kind::ScaledTanh)
+            .CaseLower("HardSigmoid", Kind::HardSigmoid)
+            .CaseLower("Elu", Kind::Elu)
+            .CaseLower("Softsign", Kind::Softsign)
+            .CaseLower("Softplus", Kind::Softplus)
             .Default(std::nullopt);
     if (!kind)
       return rewriter.notifyMatchFailure(
@@ -253,21 +248,24 @@ mlir::torch::onnx_c::resolveRecurrentActivations(
     case Kind::Softplus:
       break;
     case Kind::LeakyRelu:
-      activation.alpha = nextAlpha().value_or(0.01f);
+      activation.alpha = next(alphas, alphaIndex).value_or(kLeakyReluAlpha);
       break;
     case Kind::ThresholdedRelu:
+      activation.alpha =
+          next(alphas, alphaIndex).value_or(kThresholdedReluAlpha);
+      break;
     case Kind::Elu:
-      activation.alpha = nextAlpha().value_or(1.0f);
+      activation.alpha = next(alphas, alphaIndex).value_or(kEluAlpha);
       break;
     case Kind::HardSigmoid:
-      activation.alpha = nextAlpha().value_or(0.2f);
-      activation.beta = nextBeta().value_or(0.5f);
+      activation.alpha = next(alphas, alphaIndex).value_or(kHardSigmoidAlpha);
+      activation.beta = next(betas, betaIndex).value_or(kHardSigmoidBeta);
       break;
     case Kind::Affine:
     case Kind::ScaledTanh:
       // No ONNX operator, so no spec default; 0 as in onnxruntime.
-      activation.alpha = nextAlpha().value_or(0.0f);
-      activation.beta = nextBeta().value_or(0.0f);
+      activation.alpha = next(alphas, alphaIndex).value_or(0.0f);
+      activation.beta = next(betas, betaIndex).value_or(0.0f);
       break;
     }
     activations.push_back(activation);

@@ -2618,21 +2618,22 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
                                                        input, diagonal);
         return success();
       });
-  patterns.onOp("ThresholdedRelu", 10,
-                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-                  Torch::ValueTensorType resultType;
-                  Value input;
-                  float alpha;
-                  if (binder.tensorOperand(input) ||
-                      binder.f32FloatAttr(alpha, "alpha", 1.0) ||
-                      binder.tensorResultType(resultType)) {
-                    return failure();
-                  }
-                  rewriter.replaceOp(binder.op, createThresholdedRelu(
-                                                    rewriter, binder.getLoc(),
-                                                    resultType, input, alpha));
-                  return success();
-                });
+  patterns.onOp(
+      "ThresholdedRelu", 10,
+      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Torch::ValueTensorType resultType;
+        Value input;
+        float alpha;
+        if (binder.tensorOperand(input) ||
+            binder.f32FloatAttr(alpha, "alpha", kThresholdedReluAlpha) ||
+            binder.tensorResultType(resultType)) {
+          return failure();
+        }
+        rewriter.replaceOp(binder.op,
+                           createThresholdedRelu(rewriter, binder.getLoc(),
+                                                 resultType, input, alpha));
+        return success();
+      });
   patterns.onOp(
       "RandomNormal", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {

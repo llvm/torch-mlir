@@ -33,6 +33,16 @@ func.func @test_rnn_hardsigmoid_defaults(%arg0: !torch.vtensor<[3,2,4],f32>, %ar
 
 // -----
 
+// CHECK-LABEL: func.func @test_rnn_activation_name_case
+// CHECK:         %[[ALPHA:.*]] = torch.constant.float 0.0099999997764825821
+// CHECK:         torch.aten.leaky_relu %{{.*}}, %[[ALPHA]]
+func.func @test_rnn_activation_name_case(%arg0: !torch.vtensor<[3,2,4],f32>, %arg1: !torch.vtensor<[1,3,4],f32>, %arg2: !torch.vtensor<[1,3,3],f32>) -> (!torch.vtensor<[3,1,2,3],f32>, !torch.vtensor<[1,2,3],f32>) attributes {torch.onnx_meta.opset_version = 22 : si64} {
+  %0:2 = torch.operator "onnx.RNN"(%arg0, %arg1, %arg2) {torch.onnx.hidden_size = 3 : si64, torch.onnx.activations = ["leakyRELU"]} : (!torch.vtensor<[3,2,4],f32>, !torch.vtensor<[1,3,4],f32>, !torch.vtensor<[1,3,3],f32>) -> (!torch.vtensor<[3,1,2,3],f32>, !torch.vtensor<[1,2,3],f32>)
+  return %0#0, %0#1 : !torch.vtensor<[3,1,2,3],f32>, !torch.vtensor<[1,2,3],f32>
+}
+
+// -----
+
 // CHECK-LABEL: func.func @test_rnn_leakyrelu_default
 // CHECK:         %[[ALPHA:.*]] = torch.constant.float 0.0099999997764825821
 // CHECK:         torch.aten.leaky_relu %{{.*}}, %[[ALPHA]]
