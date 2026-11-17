@@ -1087,6 +1087,149 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewrite(
   return success();
 }
 
+// AtenBincountOp Lowering to Stablehlo
+
+template <>
+LogicalResult ConvertAtenOp<AtenBincountOp>::matchAndRewrite(
+    AtenBincountOp op, OpAdaptor adaptor,
+    ConversionPatternRewriter &rewriter) const {
+  Location loc = op->getLoc();
+  Value input = adaptor.getSelf();
+  Value minlength = adaptor.getMinlength(); // scalar i64
+
+  // Check whether the input is a 1-d tensor of integer type or not.
+  auto inputTy = cast<RankedTensorType>(input.getType());
+  if (inputTy.getRank() != 1)
+    return rewriter.notifyMatchFailure(op, "only rank-1 input is supported");
+
+  // Check whether the input tensor element type is i64 or not.
+  auto inputElemTy = dyn_cast<mlir::IntegerType>(inputTy.getElementType());
+  if (!inputElemTy || inputElemTy.getWidth() != 64)
+    return rewriter.notifyMatchFailure(
+        op, "unimplemented: only i64 input is supported");
+
+  bool hasWeights = !isa<Torch::NoneType>(op.getWeights().getType());
+  Value weights;
+  if (hasWeights) {
+    weights = adaptor.getWeights();
+    auto weightsTy = cast<RankedTensorType>(weights.getType());
+    if (weightsTy.getRank() != 1)
+      return rewriter.notifyMatchFailure(op,
+                                         "only rank-1 weights is supported");
+  }
+
+  auto outType =
+      cast<RankedTensorType>(getTypeConverter()->convertType(op.getType()));
+  Type resultElemTy = outType.getElementType();
+
+  // Step 1: maxInput = reduce_max(input) -> scalar i64.
+  Value initMax = stablehlo::ConstantOp::create(
+      rewriter, loc, rewriter.getIntegerAttr(inputElemTy, -1));
+  auto reduceMaxOp = stablehlo::ReduceOp::create(
+      rewriter, loc, RankedTensorType::get({}, inputElemTy), input, initMax,
+      rewriter.getDenseI64ArrayAttr({0}));
+  {
+    Block &block = reduceMaxOp.getBody().emplaceBlock();
+    auto blockArgTy = RankedTensorType::get({}, inputElemTy);
+    block.addArgument(blockArgTy, loc);
+    block.addArgument(blockArgTy, loc);
+    OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.setInsertionPointToStart(&block);
+    Value maxVal = stablehlo::MaxOp::create(
+        rewriter, loc, blockArgTy, block.getArgument(0), block.getArgument(1));
+    stablehlo::ReturnOp::create(rewriter, loc, maxVal);
+  }
+  Value maxScalar =
+      tensor::ExtractOp::create(rewriter, loc, reduceMaxOp.getResult(0));
+
+  // Step 2: numBins = max(maxScalar + 1, minlength), as an index-typed scalar.
+  Value one =
+      arith::ConstantIntOp::create(rewriter, loc, 1, inputElemTy.getWidth());
+  Value maxPlusOne = arith::AddIOp::create(rewriter, loc, maxScalar, one);
+  Value numBinsI64 =
+      arith::MaxSIOp::create(rewriter, loc, maxPlusOne, minlength);
+  Value numBinsIdx = arith::IndexCastOp::create(
+      rewriter, loc, rewriter.getIndexType(), numBinsI64);
+
+  // Step 3: build the [N, numBins] one-hot matrix: onehot[n, b] = (input[n]
+  // == b).
+  Value inputLen = tensor::DimOp::create(rewriter, loc, input, 0);
+  Value matrixShape = tensor::FromElementsOp::create(
+      rewriter, loc, ValueRange{inputLen, numBinsIdx});
+
+  auto idxMatrixTy = RankedTensorType::get(
+      {ShapedType::kDynamic, ShapedType::kDynamic}, inputElemTy);
+  Value inputBroadcast = stablehlo::DynamicBroadcastInDimOp::create(
+      rewriter, loc, idxMatrixTy, input, matrixShape,
+      rewriter.getDenseI64ArrayAttr({0}), /*known_expanding_dimensions=*/
+      DenseI64ArrayAttr(),                /*known_nonexpanding_dimensions=*/
+      rewriter.getDenseI64ArrayAttr({0}));
+  auto binsIdxTy = RankedTensorType::get({ShapedType::kDynamic}, inputElemTy);
+  Value binsShape =
+      tensor::FromElementsOp::create(rewriter, loc, ValueRange{numBinsIdx});
+  Value bins = stablehlo::DynamicIotaOp::create(
+      rewriter, loc, binsIdxTy, binsShape, rewriter.getI64IntegerAttr(0));
+  Value binsBroadcast = stablehlo::DynamicBroadcastInDimOp::create(
+      rewriter, loc, idxMatrixTy, bins, matrixShape,
+      rewriter.getDenseI64ArrayAttr({1}), /*known_expanding_dimensions=*/
+      DenseI64ArrayAttr(),                /*known_nonexpanding_dimensions=*/
+      rewriter.getDenseI64ArrayAttr({0}));
+
+  auto boolMatrixTy = RankedTensorType::get(
+      {ShapedType::kDynamic, ShapedType::kDynamic}, rewriter.getI1Type());
+  auto compareTypeAttr = stablehlo::ComparisonTypeAttr::get(
+      rewriter.getContext(), stablehlo::ComparisonType::SIGNED);
+  auto compareEqAttr = stablehlo::ComparisonDirectionAttr::get(
+      rewriter.getContext(), stablehlo::ComparisonDirection::EQ);
+  Value oneHotBool = stablehlo::CompareOp::create(
+      rewriter, loc, boolMatrixTy, inputBroadcast, binsBroadcast, compareEqAttr,
+      compareTypeAttr);
+
+  // Step 4: contributions[n, b] = onehot[n, b] * weight[n] (weight defaults
+  // to 1), then result[b] = sum_n contributions[n, b].
+  auto matrixTy = RankedTensorType::get(
+      {ShapedType::kDynamic, ShapedType::kDynamic}, resultElemTy);
+  Value contributions =
+      stablehlo::ConvertOp::create(rewriter, loc, matrixTy, oneHotBool);
+  if (hasWeights) {
+    Value weightsPromoted =
+        hlo::promoteType(rewriter, loc, weights, resultElemTy);
+    Value weightsBroadcast = stablehlo::DynamicBroadcastInDimOp::create(
+        rewriter, loc, matrixTy, weightsPromoted, matrixShape,
+        rewriter.getDenseI64ArrayAttr({0}), /*known_expanding_dimensions=*/
+        DenseI64ArrayAttr(),                /*known_nonexpanding_dimensions=*/
+        rewriter.getDenseI64ArrayAttr({0}));
+    contributions = stablehlo::MulOp::create(rewriter, loc, matrixTy,
+                                             contributions, weightsBroadcast);
+  }
+
+  Value initSum;
+  if (isa<mlir::FloatType>(resultElemTy))
+    initSum = stablehlo::ConstantOp::create(
+        rewriter, loc, rewriter.getFloatAttr(resultElemTy, 0.0));
+  else
+    initSum = stablehlo::ConstantOp::create(
+        rewriter, loc, rewriter.getIntegerAttr(resultElemTy, 0));
+
+  auto reduceSumOp =
+      stablehlo::ReduceOp::create(rewriter, loc, outType, contributions,
+                                  initSum, rewriter.getDenseI64ArrayAttr({0}));
+  {
+    Block &block = reduceSumOp.getBody().emplaceBlock();
+    auto blockArgTy = RankedTensorType::get({}, resultElemTy);
+    block.addArgument(blockArgTy, loc);
+    block.addArgument(blockArgTy, loc);
+    OpBuilder::InsertionGuard guard(rewriter);
+    rewriter.setInsertionPointToStart(&block);
+    Value sum = stablehlo::AddOp::create(
+        rewriter, loc, blockArgTy, block.getArgument(0), block.getArgument(1));
+    stablehlo::ReturnOp::create(rewriter, loc, sum);
+  }
+
+  rewriter.replaceOp(op, reduceSumOp.getResults());
+  return success();
+}
+
 // AtenGridSamplerOp
 // See
 // https://github.com/pytorch/pytorch/blob/ec58f1f74ebcec744d2ab90ad34abd09c1018e92/torch/_decomp/decompositions.py#L3923-L4086
@@ -1524,6 +1667,7 @@ void mlir::torch::torch_to_stablehlo::
   INSERT_ATENOP_PATTERN(AtenIndexTensorHackedTwinOp);
   INSERT_ATENOP_PATTERN(AtenIndexPutHackedTwinOp);
   INSERT_ATENOP_PATTERN(AtenGridSamplerOp);
+  INSERT_ATENOP_PATTERN(AtenBincountOp);
 #undef INSERT_ATENOP_PATTERN
 
 #define INSERT_ATEN_SCATTER_PATTERN(AtenOp, reduceType)                        \
