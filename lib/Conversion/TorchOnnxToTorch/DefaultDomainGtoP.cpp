@@ -3300,24 +3300,25 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             binder.tensorResultType(resultType)) {
           return failure();
         }
-        if (neg == 0) {
-          // replace all negative infs with 0
-          tensor = Torch::AtenReluOp::create(
-              rewriter, binder.getLoc(),
-              dyn_cast<Torch::ValueTensorType>(tensor.getType()), tensor);
+        if (neg != 0 && pos != 0) {
+          rewriter.replaceOpWithNewOp<Torch::AtenIsinfOp>(binder.op, resultType,
+                                                          tensor);
+        } else if (pos != 0) {
+          rewriter.replaceOpWithNewOp<Torch::AtenIsposinfOp>(
+              binder.op, resultType, tensor);
+        } else if (neg != 0) {
+          rewriter.replaceOpWithNewOp<Torch::AtenIsneginfOp>(
+              binder.op, resultType, tensor);
+        } else {
+          // Neither infinity is detected, so every element is false.
+          Location loc = binder.getLoc();
+          Value dtype = Torch::getDtypeIntValueForType(rewriter, loc,
+                                                       resultType.getDtype());
+          Value none = Torch::ConstantNoneOp::create(rewriter, loc);
+          rewriter.replaceOpWithNewOp<Torch::AtenZerosLikeOp>(
+              binder.op, resultType, tensor, dtype, /*layout=*/none,
+              /*device=*/none, /*pin_memory=*/none, /*memory_format=*/none);
         }
-        if (pos == 0) {
-          // first use neg op to flip positive inf to negative inf. Then relu to
-          // replace all positive infs with 0.
-          Value flip = Torch::AtenNegOp::create(
-              rewriter, binder.getLoc(),
-              dyn_cast<Torch::ValueTensorType>(tensor.getType()), tensor);
-          tensor = Torch::AtenReluOp::create(
-              rewriter, binder.getLoc(),
-              dyn_cast<Torch::ValueTensorType>(flip.getType()), flip);
-        }
-        rewriter.replaceOpWithNewOp<Torch::AtenIsinfOp>(binder.op, resultType,
-                                                        tensor);
         return success();
       });
   patterns.onOp("IsNaN", 9,
