@@ -541,5 +541,5 @@ torch_mlir::createOperationFromSchema(MlirBlock appendToBlock, MlirLocation loc,
   return createMlirOperationAtEnd(
       appendToBlock, "torch.operator", loc, resultTypes, operands,
       toMlirNamedAttribute(
-          "name", mlirStringAttrGet(context, toMlirStringRef(opNameSuffix))));
+          "name", mlirStringAttrGet(context, toMlirStringRef(opName))));
 }
