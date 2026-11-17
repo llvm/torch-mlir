@@ -161,6 +161,40 @@ func.func @matmul_integer_to_float_optional_bias(
 
 // -----
 
+// An f16 result is computed in f32 and rounded once at the end, so the f16
+// scales and bias are converted to f32 first.
+// CHECK-LABEL: @matmul_integer_to_float_f16(
+func.func @matmul_integer_to_float_f16(
+    %a: !torch.vtensor<[4,3],ui8>,
+    %b: !torch.vtensor<[3,5],si8>,
+    %a_scale: !torch.vtensor<[],f16>,
+    %b_scale: !torch.vtensor<[5],f16>,
+    %bias: !torch.vtensor<[5],f16>
+    ) -> !torch.vtensor<[4,5],f16>
+    attributes {torch.onnx_meta.opset_version = 17 : si64,
+                torch.onnx_meta.opset_versions = {"com.microsoft" = 1 : si64}} {
+  %none = torch.constant.none
+  // CHECK: %[[A_SCALE_F32:.+]] = torch.aten.to.dtype %arg2, {{.*}} -> !torch.vtensor<[],f32>
+  // CHECK: %[[A_SCALE:.+]] = torch.aten.item %[[A_SCALE_F32]] : !torch.vtensor<[],f32> -> !torch.float
+  // CHECK: %[[A_DQ:.+]] = torch.quantized_decomposed.dequantize_per_tensor %arg0, %[[A_SCALE]],
+  // CHECK-SAME: -> !torch.vtensor<[4,3],f32>
+  // CHECK: %[[B_SCALE:.+]] = torch.aten.to.dtype %arg3, {{.*}} -> !torch.vtensor<[5],f32>
+  // CHECK: %[[B_DQ:.+]] = torch.quantized_decomposed.dequantize_per_channel %arg1, %[[B_SCALE]],
+  // CHECK-SAME: -> !torch.vtensor<[3,5],f32>
+  // CHECK: %[[MM:.+]] = torch.aten.matmul %[[A_DQ]], %[[B_DQ]]
+  // CHECK-SAME: -> !torch.vtensor<[4,5],f32>
+  // CHECK: %[[BIAS:.+]] = torch.aten.to.dtype %arg4, {{.*}} -> !torch.vtensor<[5],f32>
+  // CHECK: %[[ADD:.+]] = torch.aten.add.Tensor %[[MM]], %[[BIAS]],
+  // CHECK-SAME: -> !torch.vtensor<[4,5],f32>
+  // CHECK: %[[Y:.+]] = torch.aten.to.dtype %[[ADD]], {{.*}} -> !torch.vtensor<[4,5],f16>
+  // CHECK-NEXT: return %[[Y]]
+  %0 = torch.operator "onnx.MatMulIntegerToFloat"(%a, %b, %a_scale, %b_scale, %none, %none, %bias)
+      : (!torch.vtensor<[4,3],ui8>, !torch.vtensor<[3,5],si8>, !torch.vtensor<[],f16>, !torch.vtensor<[5],f16>, !torch.none, !torch.none, !torch.vtensor<[5],f16>) -> !torch.vtensor<[4,5],f16>
+  return %0 : !torch.vtensor<[4,5],f16>
+}
+
+// -----
+
 // CHECK-LABEL: @matmul_integer_to_float_singleton_qparams(
 func.func @matmul_integer_to_float_singleton_qparams(
     %a: !torch.vtensor<[4,3],si8>,

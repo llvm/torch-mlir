@@ -64,11 +64,12 @@ static FailureOr<int64_t> matchQParam(OpBinder binder,
   return length;
 }
 
-/// Matches an 8-bit MatMulIntegerToFloat input with its scale and optional
-/// zero point.
+/// Matches an 8-bit MatMulIntegerToFloat input with its scale of `scaleDtype`
+/// and optional zero point.
 static FailureOr<QuantizedTensorInfo>
 matchQuantizedTensor(OpBinder binder, ConversionPatternRewriter &rewriter,
-                     Value input, Value scale, Value zeroPoint) {
+                     Value input, Value scale, Value zeroPoint,
+                     Type scaleDtype) {
   auto inputType = cast<Torch::ValueTensorType>(input.getType());
   if (inputType.getSizes().empty() || !inputType.hasDtype() ||
       !(inputType.getDtype().isSignedInteger(8) ||
@@ -78,7 +79,7 @@ matchQuantizedTensor(OpBinder binder, ConversionPatternRewriter &rewriter,
 
   int64_t columns = inputType.getSizes().back();
   FailureOr<int64_t> scaleLength =
-      matchQParam(binder, rewriter, scale, rewriter.getF32Type(), columns);
+      matchQParam(binder, rewriter, scale, scaleDtype, columns);
   if (failed(scaleLength))
     return failure();
   int64_t zeroPointLength = 1;
@@ -162,7 +163,12 @@ createMatMulIntegerToFloatDequantize(ConversionPatternRewriter &rewriter,
       Torch::getDtypeIntValueForType(rewriter, loc, info.storageDtype);
   Value outDtype =
       Torch::getDtypeIntValueForType(rewriter, loc, info.floatType.getDtype());
+  // f16 scales dequantize to f32 as well, so that the matmul runs in f32.
   Value scale = info.scale;
+  if (cast<Torch::ValueTensorType>(scale.getType()).getDtype() !=
+      info.floatType.getDtype())
+    scale = Torch::convertTensorToDtype(rewriter, loc, scale,
+                                        info.floatType.getDtype());
   Value zeroPoint = info.zeroPoint;
 
   if (info.isPerTensor()) {
@@ -699,21 +705,24 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
             return rewriter.notifyMatchFailure(
                 binder.op, "expected tensor or None optional inputs");
         }
-        if (!resultType.hasDtype() || !resultType.getDtype().isF32())
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "expected float32 result");
-        FailureOr<QuantizedTensorInfo> aInfo =
-            matchQuantizedTensor(binder, rewriter, a, aScale, aZeroPoint);
-        FailureOr<QuantizedTensorInfo> bInfo =
-            matchQuantizedTensor(binder, rewriter, b, bScale, bZeroPoint);
+        // The scales, the bias and the result share one float dtype.
+        if (!resultType.hasDtype() ||
+            !isa<Float32Type, Float16Type>(resultType.getDtype()))
+          return rewriter.notifyMatchFailure(
+              binder.op, "expected float32 or float16 result");
+        Type resultDtype = resultType.getDtype();
+        FailureOr<QuantizedTensorInfo> aInfo = matchQuantizedTensor(
+            binder, rewriter, a, aScale, aZeroPoint, resultDtype);
+        FailureOr<QuantizedTensorInfo> bInfo = matchQuantizedTensor(
+            binder, rewriter, b, bScale, bZeroPoint, resultDtype);
         if (failed(aInfo) || failed(bInfo))
           return failure();
         if (bias) {
           auto biasType = cast<Torch::ValueTensorType>(bias.getType());
-          if (!biasType.hasDtype() || !biasType.getDtype().isF32() ||
+          if (!biasType.hasDtype() || biasType.getDtype() != resultDtype ||
               biasType.getSizes().size() != 1)
-            return rewriter.notifyMatchFailure(binder.op,
-                                               "expected rank-1 float32 bias");
+            return rewriter.notifyMatchFailure(
+                binder.op, "expected rank-1 bias of the result dtype");
           int64_t biasLength = biasType.getSizes()[0];
           if (biasLength != Torch::kUnknownSize &&
               bInfo->columns != Torch::kUnknownSize &&
@@ -729,14 +738,24 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
             createMatMulIntegerToFloatDequantize(rewriter, loc, *bInfo);
         // A_f = DQ(A); B_f = DQ(B); Y = matmul(A_f, B_f) [+ bias].
         // The inputs are already quantized and the result is float, so there
-        // is no output quantization boundary to create.
-        Value result = Torch::AtenMatmulOp::create(rewriter, loc, resultType,
+        // is no output quantization boundary to create. An f16 result is
+        // computed in f32 and rounded once at the end, as onnxruntime does by
+        // running its f32 CPU kernel between casts.
+        Type f32 = rewriter.getF32Type();
+        Type computeType =
+            resultType.getWithSizesAndDtype(resultType.getOptionalSizes(), f32);
+        Value result = Torch::AtenMatmulOp::create(rewriter, loc, computeType,
                                                    aFloat, bFloat);
         if (bias) {
+          if (resultDtype != f32)
+            bias = Torch::convertTensorToDtype(rewriter, loc, bias, f32);
           Value one = Torch::ConstantIntOp::create(rewriter, loc, 1);
-          result = Torch::AtenAddTensorOp::create(rewriter, loc, resultType,
+          result = Torch::AtenAddTensorOp::create(rewriter, loc, computeType,
                                                   result, bias, one);
         }
+        if (resultDtype != f32)
+          result =
+              Torch::convertTensorToDtype(rewriter, loc, result, resultDtype);
         rewriter.replaceOp(binder.op, result);
         return success();
       });
