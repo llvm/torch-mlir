@@ -257,6 +257,7 @@ def Torch_GlobalSlotOp : Torch_Op<"global_slot", [
 
 def Torch_GlobalSlotModuleInitializerOp : Torch_Op<"global_slot.module_initializer", [
     IsolatedFromAbove,
+    HasParent<"::mlir::ModuleOp">,
     SingleBlockImplicitTerminator<"::mlir::torch::Torch::InitializeGlobalSlotsOp">,
     AllowedInModuleInitializer,
   ]> {
@@ -279,7 +280,7 @@ def Torch_GlobalSlotModuleInitializerOp : Torch_Op<"global_slot.module_initializ
   let assemblyFormat = [{
     $initializer attr-dict
   }];
-  let hasVerifier = 1;
+  let hasRegionVerifier = 1;
 }
 
 def Torch_InitializeGlobalSlotsOp : Torch_Op<"initialize.global_slots", [
@@ -294,7 +295,7 @@ def Torch_InitializeGlobalSlotsOp : Torch_Op<"initialize.global_slots", [
   }];
 
   let arguments = (ins
-    SymbolRefArrayAttr:$slotSymNames,
+    FlatSymbolRefArrayAttr:$slotSymNames,
     Variadic<AnyTorchType>:$initialValues
   );
   let results = (outs);
