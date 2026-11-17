@@ -5,6 +5,7 @@
 """Shared reference evaluation for output-shape probing and golden values."""
 
 import numpy as np
+import onnx
 from onnx.reference import ReferenceEvaluator
 from onnx.reference.ops.op_conv_integer import ConvInteger as _OnnxConvInteger
 from onnx.reference.ops.op_qlinear_conv import QLinearConv as _OnnxQLinearConv
@@ -53,10 +54,30 @@ class QLinearConv(_OnnxQLinearConv):
 _NEW_OPS = [ConvInteger, QLinearConv]
 
 
+# Model metadata key a test sets (through
+# ``OnnxTestCase.use_onnxruntime_reference``) to be evaluated with ONNX Runtime.
+ONNXRUNTIME_REFERENCE_KEY = "onnx_e2e_test.reference"
+
+
+def mark_onnxruntime_reference(model):
+    """Mark *model* to be evaluated with ONNX Runtime instead of onnx.reference."""
+    prop = model.metadata_props.add()
+    prop.key = ONNXRUNTIME_REFERENCE_KEY
+    prop.value = "onnxruntime"
+
+
 def create_reference_evaluator(model):
     # ONNX Runtime supplies the actual Microsoft contrib kernels. Use it for
     # the entire graph so mixed standard/contrib graphs share one evaluator.
-    if any(opset.domain == "com.microsoft" for opset in model.opset_import):
+    # Tests whose ops onnx.reference does not implement correctly ask for it
+    # through the model metadata.
+    wants_onnxruntime = any(
+        prop.key == ONNXRUNTIME_REFERENCE_KEY and prop.value == "onnxruntime"
+        for prop in model.metadata_props
+    )
+    if wants_onnxruntime or any(
+        opset.domain == "com.microsoft" for opset in model.opset_import
+    ):
         import onnxruntime as ort
 
         options = ort.SessionOptions()

@@ -6,7 +6,8 @@
 Golden-vs-backend evaluation for ONNX-native end-to-end tests.
 
 Provides two functions:
-  - run_golden: evaluate an onnx.ModelProto (ONNX Runtime for Microsoft contrib ops)
+  - run_golden: evaluate an onnx.ModelProto (ONNX Runtime for Microsoft contrib
+    ops and for tests that ask for it)
   - run_backend: compile the same ModelProto through a torch-mlir backend
 
 Both return a list of torch.Tensor so the existing torch_mlir_e2e_test
@@ -102,7 +103,8 @@ def run_golden(
     model_proto: onnx.ModelProto,
     numpy_inputs: List[np.ndarray],
 ) -> List[torch.Tensor]:
-    """Evaluate *model_proto*, using ONNX Runtime for Microsoft contrib ops.
+    """Evaluate *model_proto*, using ONNX Runtime for Microsoft contrib ops and
+    for models marked by ``mark_onnxruntime_reference``.
 
     Args:
         model_proto: The ONNX model.

@@ -40,7 +40,7 @@ struct RnnWeights {
 };
 
 struct RnnActivations {
-  std::string f;
+  RecurrentActivation f;
 };
 
 Value rnn_cell(ImplicitLocOpBuilder &b, Value Xt, Value H_prev,
@@ -54,7 +54,7 @@ Value rnn_cell(ImplicitLocOpBuilder &b, Value Xt, Value H_prev,
   Value i_h = AtenLinearOp::create(b, hTy, H_prev, weights.Ri, weights.Rbi);
   Value i = AtenAddTensorOp::create(b, hTy, i_x, i_h, cstOne);
 
-  Value H_new = createActivationByName(b, activations.f, i);
+  Value H_new = createRecurrentActivation(b, activations.f, i);
   return H_new;
 }
 
@@ -182,12 +182,11 @@ LogicalResult OnnxRnnExpander(OpBinder binder,
 
   // Attributes
   llvm::SmallVector<std::string> activationsList;
-  RnnActivations activations;
-  activations.f = "Tanh";
+  llvm::SmallVector<std::string> activationNames = {"Tanh"};
   if (!binder.stringArrayAttr(activationsList, "activations") &&
       activationsList.size() > 0) {
     if (activationsList.size() == 1) {
-      activations.f = activationsList[0];
+      activationNames = activationsList;
     } else if (activationsList.size() == 2) {
       return rewriter.notifyMatchFailure(
           binder.op, "Bi-directional RNN is not yet supported, yet two "
@@ -199,6 +198,11 @@ LogicalResult OnnxRnnExpander(OpBinder binder,
                          " are provided.");
     }
   }
+  FailureOr<SmallVector<RecurrentActivation>> resolvedActivations =
+      resolveRecurrentActivations(binder, rewriter, activationNames);
+  if (failed(resolvedActivations))
+    return failure();
+  RnnActivations activations{(*resolvedActivations)[0]};
 
   std::string direction;
   if (!binder.customOpNameStringAttr(direction, "direction", "forward") &&
@@ -441,9 +445,9 @@ struct LstmWeights {
   Value Rb_i, Rb_o, Rb_f, Rb_c;
 };
 struct LstmActivations {
-  std::string f;
-  std::string g;
-  std::string h;
+  RecurrentActivation f;
+  RecurrentActivation g;
+  RecurrentActivation h;
 };
 
 struct LstmCellState {
@@ -476,29 +480,29 @@ LstmCellState lstm_cell(ImplicitLocOpBuilder &b, Value Xt, Value H_prev,
   Value i_x = AtenLinearOp::create(b, hTy, Xt, weights.W_i, weights.Wb_i);
   Value i_h = AtenLinearOp::create(b, hTy, H_prev, weights.R_i, weights.Rb_i);
   Value i = AtenAddTensorOp::create(b, hTy, i_x, i_h, cstOne);
-  Value i_act = createActivationByName(b, activations.f, i);
+  Value i_act = createRecurrentActivation(b, activations.f, i);
 
   Value o_x = AtenLinearOp::create(b, hTy, Xt, weights.W_o, weights.Wb_o);
   Value o_h = AtenLinearOp::create(b, hTy, H_prev, weights.R_o, weights.Rb_o);
   Value o = AtenAddTensorOp::create(b, hTy, o_x, o_h, cstOne);
-  Value o_act = createActivationByName(b, activations.f, o);
+  Value o_act = createRecurrentActivation(b, activations.f, o);
 
   Value f_x = AtenLinearOp::create(b, hTy, Xt, weights.W_f, weights.Wb_f);
   Value f_h = AtenLinearOp::create(b, hTy, H_prev, weights.R_f, weights.Rb_f);
   Value f = AtenAddTensorOp::create(b, hTy, f_x, f_h, cstOne);
-  Value f_act = createActivationByName(b, activations.f, f);
+  Value f_act = createRecurrentActivation(b, activations.f, f);
 
   Value ct_x = AtenLinearOp::create(b, hTy, Xt, weights.W_c, weights.Wb_c);
   Value ct_h = AtenLinearOp::create(b, hTy, H_prev, weights.R_c, weights.Rb_c);
   Value ct = AtenAddTensorOp::create(b, hTy, ct_x, ct_h, cstOne);
-  Value ct_act = createActivationByName(b, activations.g, ct);
+  Value ct_act = createRecurrentActivation(b, activations.g, ct);
 
   Value C_forget = AtenMulTensorOp::create(b, hTy, f_act, C_prev);
   Value C_input = AtenMulTensorOp::create(b, hTy, i_act, ct_act);
 
   LstmCellState newCellState;
   newCellState.C = AtenAddTensorOp::create(b, hTy, C_forget, C_input, cstOne);
-  Value C_new_act = createActivationByName(b, activations.h, newCellState.C);
+  Value C_new_act = createRecurrentActivation(b, activations.h, newCellState.C);
   newCellState.H = AtenMulTensorOp::create(b, hTy, o_act, C_new_act);
   return newCellState;
 }
@@ -695,8 +699,6 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   auto xTy = cast<ValueTensorType>(X.getType());
   auto wTy = cast<ValueTensorType>(W.getType());
 
-  // TODO: add defaults for activation_alpha acticvation_beta attributes
-
   llvm::SmallVector<std::string> activationsList;
   if (binder.stringArrayAttr(activationsList, "activations"))
     return rewriter.notifyMatchFailure(
@@ -710,9 +712,11 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
                        direction + "' is provided.");
   int64_t num_directions = 1 + (direction == "bidirectional");
   bool isBidirectional = direction == "bidirectional";
-  // There can be backward activations too
-  //  if backward -> look for 6 atcivations (what happens when only three?)
 
+  // TODO: The count is not checked against the direction. A bidirectional LSTM
+  // with 3 activations gives the reverse direction the defaults, and a forward
+  // LSTM with 6 ignores the last 3; the ONNX spec and onnxruntime require 3 for
+  // forward and 6 for bidirectional.
   int64_t num_activations = activationsList.size();
   if (num_activations != 0 && num_activations != 3 && num_activations != 6) {
     return rewriter.notifyMatchFailure(
@@ -721,6 +725,18 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
                        std::to_string(activationsList.size()) +
                        " are provided.");
   }
+
+  // Forward f, g, h then reverse f, g, h, starting from the ONNX defaults and
+  // replaced by the activations the model gives. activation_alpha and
+  // activation_beta are consumed across all six in this order.
+  llvm::SmallVector<std::string> activationNames = {"Sigmoid", "Tanh", "Tanh",
+                                                    "Sigmoid", "Tanh", "Tanh"};
+  for (int64_t i = 0; i < num_activations; ++i)
+    activationNames[i] = activationsList[i];
+  FailureOr<SmallVector<RecurrentActivation>> resolvedActivations =
+      resolveRecurrentActivations(binder, rewriter, activationNames);
+  if (failed(resolvedActivations))
+    return failure();
   // TODO : Add checks, defaults and fails for inputs - sequence_lens, P and
   // attrs- clip, input_forget, layout
 
@@ -740,28 +756,12 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
     B = AtenZerosOp::create(b, BType, zerosShapeList, none, none, none, none);
   }
 
-  LstmActivations activations, activationsRev;
-  // Default case (both forward and reverse)
-  activations.f = "Sigmoid";
-  activations.g = "Tanh";
-  activations.h = "Tanh";
-  activationsRev.f = "Sigmoid";
-  activationsRev.g = "Tanh";
-  activationsRev.h = "Tanh";
-
-  // forward only (also to be added for bidirectional case)
-  if (num_activations >= 3) {
-    activations.f = activationsList[0];
-    activations.g = activationsList[1];
-    activations.h = activationsList[2];
-  }
-
-  // bidirectional
-  if (num_activations == 6) {
-    activationsRev.f = activationsList[3];
-    activationsRev.g = activationsList[4];
-    activationsRev.h = activationsList[5];
-  }
+  LstmActivations activations{(*resolvedActivations)[0],
+                              (*resolvedActivations)[1],
+                              (*resolvedActivations)[2]};
+  LstmActivations activationsRev{(*resolvedActivations)[3],
+                                 (*resolvedActivations)[4],
+                                 (*resolvedActivations)[5]};
 
   float clip;
   if (!binder.f32FloatAttr(clip, "clip", 0.0) && clip != 0.0)
@@ -1146,8 +1146,8 @@ struct GruLayerOutput {
 };
 
 struct GruActivations {
-  std::string f;
-  std::string g;
+  RecurrentActivation f;
+  RecurrentActivation g;
 };
 
 Value gru_cell(ImplicitLocOpBuilder &b, Value Xt, Value H_prev,
@@ -1161,12 +1161,12 @@ Value gru_cell(ImplicitLocOpBuilder &b, Value Xt, Value H_prev,
   Value z_w = AtenLinearOp::create(b, hTy, Xt, weights.Wz, weights.Wbz);
   Value z_r = AtenLinearOp::create(b, hTy, H_prev, weights.Rz, weights.Rbz);
   Value z_pre = AtenAddTensorOp::create(b, hTy, z_w, z_r, cstOne);
-  Value zt = createActivationByName(b, activations.f, z_pre);
+  Value zt = createRecurrentActivation(b, activations.f, z_pre);
 
   Value r_w = AtenLinearOp::create(b, hTy, Xt, weights.Wr, weights.Wbr);
   Value r_r = AtenLinearOp::create(b, hTy, H_prev, weights.Rr, weights.Rbr);
   Value r_pre = AtenAddTensorOp::create(b, hTy, r_w, r_r, cstOne);
-  Value rt = createActivationByName(b, activations.f, r_pre);
+  Value rt = createRecurrentActivation(b, activations.f, r_pre);
 
   Value h_w = AtenLinearOp::create(b, hTy, Xt, weights.Wh, weights.Wbh);
   Value h_r;
@@ -1182,7 +1182,7 @@ Value gru_cell(ImplicitLocOpBuilder &b, Value Xt, Value H_prev,
     h_r = AtenLinearOp::create(b, hTy, h_reset, weights.Rh, weights.Rbh);
   }
   Value h_pre = AtenAddTensorOp::create(b, hTy, h_w, h_r, cstOne);
-  Value ht = createActivationByName(b, activations.g, h_pre);
+  Value ht = createRecurrentActivation(b, activations.g, h_pre);
 
   // Create a constant tensor filled with ones, matching the shape of zt
   Value cstNone = ConstantNoneOp::create(b);
@@ -1329,19 +1329,21 @@ LogicalResult OnnxGruExpander(OpBinder binder,
   auto wTy = cast<ValueTensorType>(W.getType());
 
   // Setting up activations
-  GruActivations activations;
-  activations.f = "Sigmoid";
-  activations.g = "Tanh";
-
+  llvm::SmallVector<std::string> activationNames = {"Sigmoid", "Tanh"};
   llvm::SmallVector<std::string> activationsList;
   if (!binder.stringArrayAttr(activationsList, "activations") &&
       activationsList.size() == 2) {
-    activations.f = activationsList[0];
-    activations.g = activationsList[1];
+    activationNames = activationsList;
   } else if (activationsList.size() > 0) {
     return rewriter.notifyMatchFailure(
         binder.op, "Unsupported number of activation functions");
   }
+  FailureOr<SmallVector<RecurrentActivation>> resolvedActivations =
+      resolveRecurrentActivations(binder, rewriter, activationNames);
+  if (failed(resolvedActivations))
+    return failure();
+  GruActivations activations{(*resolvedActivations)[0],
+                             (*resolvedActivations)[1]};
 
   // Other attributes
   int64_t layout;
