@@ -2519,7 +2519,8 @@ public:
               Value value = createQuantizePayload(
                   b, bodyLoc, getTypeConverter(), args[0], args[1], args[2],
                   qmin, qmax, outputType, resultIsUnsigned,
-                  /*roundBeforeAdd=*/false, getZeroPointDtype(zeroPoints));
+                  /*roundBeforeAdd=*/false,
+                  getZeroPointDtype(op.getZeroPoints()));
               linalg::YieldOp::create(b, bodyLoc, value);
             })
             .getResult(0);
@@ -2574,9 +2575,13 @@ public:
             rewriter, loc, resultType, ValueRange{input, scales, zeroPoints},
             init, indexingMaps, iteratorTypes,
             [&](OpBuilder &b, Location bodyLoc, ValueRange args) {
+              // The signedness of the zero point is only known from the
+              // original torch type, since the converted builtin type is
+              // signless.
               Value value = createDequantizePayload(
                   b, bodyLoc, getTypeConverter(), args[0], args[1], args[2],
-                  resultType.getElementType(), inputIsUnsigned);
+                  resultType.getElementType(), inputIsUnsigned,
+                  getZeroPointDtype(op.getZeroPoints()));
               linalg::YieldOp::create(b, bodyLoc, value);
             })
             .getResult(0);

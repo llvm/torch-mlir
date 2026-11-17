@@ -569,194 +569,418 @@ void mlir::torch::onnx_c::populateDefaultDomainQtoZ(
         Value cScale = operands[6];
         Value cZp = operands[7];
 
-        auto check = [](Value v) {
-          auto vTy = cast<Torch::ValueTensorType>(v.getType());
-          for (auto dim : vTy.getSizes())
-            if (dim != 1)
-              return false;
-          return true;
-        };
-        if (!check(aScale) || !check(aZp) || !check(cScale) || !check(cZp))
+        // All checks are done up front so that no IR is created before a
+        // match failure.
+        auto aTy = dyn_cast<Torch::ValueTensorType>(a.getType());
+        auto bTy = dyn_cast<Torch::ValueTensorType>(b.getType());
+        if (!aTy || !aTy.hasSizes() || !bTy || !bTy.hasSizes() ||
+            !resultType.hasSizes())
           return rewriter.notifyMatchFailure(
-              binder.op, "input `a` and output not supported for non "
-                         "per-tensor quantization");
+              binder.op, "Expected a, b and the result to have sizes");
 
-        Value emptyList = Torch::PrimListConstructOp::create(
-            rewriter, binder.getLoc(),
-            rewriter.getType<Torch::ListType>(
-                rewriter.getType<Torch::IntType>()),
-            ValueRange{});
-        auto extract = [&rewriter, &binder, &emptyList](Value v) {
+        // QLinearMatMul behaves like numpy.matmul, so any operand rank >= 1
+        // is allowed (mixed ranks, broadcast batch dims, rank 4+, 1-D).
+        int64_t aRank = aTy.getSizes().size();
+        int64_t bRank = bTy.getSizes().size();
+        if (aRank < 1 || bRank < 1)
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected a and b to have rank >= 1");
+
+        // The zero points must have the same dtype as the tensors they
+        // belong to, since qmin/qmax/dtype are derived from those tensors.
+        auto sameDtype = [](Value x, Value y) {
+          auto xTy = dyn_cast<Torch::ValueTensorType>(x.getType());
+          auto yTy = dyn_cast<Torch::ValueTensorType>(y.getType());
+          return xTy && yTy && xTy.hasDtype() && yTy.hasDtype() &&
+                 xTy.getDtype() == yTy.getDtype();
+        };
+        if (!sameDtype(a, aZp) || !sameDtype(b, bZp) ||
+            !resultType.hasDtype() || !sameDtype(binder.op->getResult(0), cZp))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Expected each zero point to have the same dtype as "
+                         "its tensor");
+
+        // Opset 21 also allows float8 types for `a`, `b` and `y`. The
+        // quantize/dequantize helpers used below only support integer types,
+        // so float8 is rejected here, before any IR is created.
+        auto hasIntDtype = [](Torch::ValueTensorType ty) {
+          return isa<IntegerType>(ty.getDtype());
+        };
+        if (!hasIntDtype(aTy) || !hasIntDtype(bTy) || !hasIntDtype(resultType))
+          return rewriter.notifyMatchFailure(
+              binder.op, "float8 (non-integer) quantized types are not "
+                         "supported for Onnx.QLinearMatMul");
+
+        // Mirrors the checks done by extractPerTensorQuantizationArguments,
+        // so that per-tensor parameters can be validated before any IR is
+        // created.
+        auto isPerTensorParam = [](Value v) {
+          auto vTy = dyn_cast<Torch::ValueTensorType>(v.getType());
+          return vTy && vTy.hasSizes() && vTy.hasDtype() &&
+                 llvm::all_of(vTy.getSizes(), [](int64_t s) { return s == 1; });
+        };
+
+        // The output `y` only supports per-tensor quantization.
+        if (!isPerTensorParam(cScale) || !isPerTensorParam(cZp))
+          return rewriter.notifyMatchFailure(
+              binder.op, "output not supported for non per-tensor "
+                         "quantization");
+
+        // The quantization parameters of `a` and `b` are classified following
+        // the ONNX QLinearMatMul specification
+        // (https://onnx.ai/onnx/operators/onnx__QLinearMatMul.html):
+        //   - scale and zero point must have the same shape;
+        //   - a scalar (all dims equal to 1) means per-tensor quantization;
+        //   - otherwise `a` is quantized per row (along dim rank-2, i.e. M)
+        //     and `b` per column (along dim rank-1, i.e. N). A 1-D parameter
+        //     of length M (for `a`) or N (for `b`) refers to that axis
+        //     directly. An N-D parameter must have shape [..., M, 1] for `a`
+        //     and [..., 1, N] for `b`, where each leading (batch) dim is 1 or
+        //     equal to the corresponding batch dim of the operand.
+        // Any other shape (e.g. per-element parameters) is rejected, since it
+        // is not allowed by the spec. The output `y` only supports per-tensor
+        // quantization.
+        enum class QuantKind { PerTensor, PerAxis, Batched };
+        struct QuantInfo {
+          QuantKind kind;
+          int64_t axis;
+          int64_t axisSize;
+        };
+        auto classify =
+            [&isPerTensorParam](Value v, Value scale, Value zp,
+                                bool perRow) -> FailureOr<QuantInfo> {
           auto vTy = cast<Torch::ValueTensorType>(v.getType());
-          if (!vTy.getSizes().empty()) {
-            vTy = rewriter.getType<Torch::ValueTensorType>(
-                ArrayRef<int64_t>({}), vTy.getOptionalDtype());
-            v = Torch::AtenReshapeOp::create(rewriter, binder.getLoc(), vTy, v,
-                                             emptyList);
+          auto scaleTy = dyn_cast<Torch::ValueTensorType>(scale.getType());
+          auto zpTy = dyn_cast<Torch::ValueTensorType>(zp.getType());
+          if (!scaleTy || !scaleTy.hasSizes() || !scaleTy.hasDtype() || !zpTy ||
+              !zpTy.hasSizes())
+            return failure();
+          ArrayRef<int64_t> shape = vTy.getSizes();
+          ArrayRef<int64_t> scaleShape = scaleTy.getSizes();
+          if (scaleShape != zpTy.getSizes())
+            return failure();
+          if (isPerTensorParam(scale) && isPerTensorParam(zp))
+            return QuantInfo{QuantKind::PerTensor, 0, 1};
+
+          // A 1-D operand has no row (for `a`) or column (for `b`) axis, so
+          // only per-tensor quantization is meaningful for it.
+          int64_t rank = shape.size();
+          if (rank < 2)
+            return failure();
+          int64_t axis = perRow ? rank - 2 : rank - 1;
+          int64_t otherAxis = perRow ? rank - 1 : rank - 2;
+          int64_t axisSize = shape[axis];
+          if (axisSize == Torch::kUnknownSize)
+            return failure();
+
+          // A 1-D parameter refers to the quantization axis directly. Note
+          // that it cannot be handled by broadcasting for `a`, since numpy
+          // broadcasting would align it with K instead of M.
+          if (scaleShape.size() == 1) {
+            if (scaleShape[0] != axisSize)
+              return failure();
+            return QuantInfo{QuantKind::PerAxis, axis, axisSize};
           }
 
-          Type extractTy = rewriter.getType<Torch::FloatType>();
-          if (isa<IntegerType>(vTy.getDtype()))
-            extractTy = rewriter.getType<Torch::IntType>();
-
-          return Torch::AtenItemOp::create(rewriter, binder.getLoc(), extractTy,
-                                           v);
+          // An N-D parameter is aligned to the trailing dims of the operand.
+          int64_t scaleRank = scaleShape.size();
+          if (scaleRank > rank)
+            return failure();
+          int64_t offset = rank - scaleRank;
+          bool batchVaries = false;
+          for (int64_t i = 0; i < scaleRank; ++i) {
+            int64_t dim = offset + i;
+            int64_t size = scaleShape[i];
+            if (dim == axis) {
+              if (size != axisSize)
+                return failure();
+            } else if (dim == otherAxis) {
+              if (size != 1)
+                return failure();
+            } else if (size != 1) {
+              if (size == Torch::kUnknownSize || size != shape[dim])
+                return failure();
+              batchVaries = true;
+            }
+          }
+          return QuantInfo{batchVaries ? QuantKind::Batched
+                                       : QuantKind::PerAxis,
+                           axis, axisSize};
         };
 
-        aZp = extract(aZp);
-        cZp = extract(cZp);
-        aScale = extract(aScale);
-        cScale = extract(cScale);
-
-        auto makePerTensor = [&rewriter, &binder](Value v, Value scale,
-                                                  Value zp) -> Value {
-          auto ty = cast<Torch::ValueTensorType>(v.getType());
-          auto newTy = getQTorchTypeFromTorchIntType(ty);
-          return Torch::Aten_MakePerTensorQuantizedTensorOp::create(
-              rewriter, binder.getLoc(), newTy, v, scale, zp);
-        };
-
-        // The onnx's QLinearMatMul op allows per-column (per-channel)
-        // quantization only for the "b" tensor.
-        bool isPerColumnQuantization = false;
-        auto bTy = dyn_cast<Torch::ValueTensorType>(b.getType());
-        auto bScaleTy = dyn_cast<Torch::ValueTensorType>(bScale.getType());
-        auto bZpTy = dyn_cast<Torch::ValueTensorType>(bZp.getType());
-        if (!bTy || !bScaleTy || !bZpTy || !bTy.hasSizes() ||
-            !bScaleTy.hasSizes() || !bZpTy.hasSizes())
+        FailureOr<QuantInfo> aInfo = classify(a, aScale, aZp, /*perRow=*/true);
+        if (failed(aInfo))
           return rewriter.notifyMatchFailure(
-              binder.op, "Expected b, b_scale, and b_zero_point "
-                         "arguments to have sizes");
-        ArrayRef<int64_t> bShape(bTy.getSizes());
-        SmallVector<int64_t> bScaleShape(bScaleTy.getSizes());
-        SmallVector<int64_t> bZpShape(bZpTy.getSizes());
-        if (bScaleShape.size() == 0 ||
-            llvm::all_of(bScaleShape, [](int64_t s) { return s == 1; })) {
-          bZp = extract(bZp);
-          bScale = extract(bScale);
-          b = makePerTensor(b, bScale, bZp);
-        } else if ((bScaleShape.size() == 1 ||
-                    bScaleShape.size() == bShape.size()) &&
-                   bScaleShape.back() != Torch::kUnknownSize &&
-                   bScaleShape.back() == bShape.back()) {
-          // Since the `QuantizedMatmulOp` in the downstream pipeline
-          // ("Linalg") does not support the per-column (per-channel)
-          // quantization for the arg `b`, hence for this particular case we
-          // perform the matmul over the dequantized inputs i.e., `a` and `b`
-          // instead of relying on the downstream pipeline to handle this. This
-          // code can be removed and made similar to the other paths in this
-          // lowering once the per-column (per-channel) quantization support is
-          // added in the downstream pipeline.
-          isPerColumnQuantization = true;
+              binder.op, "Unsupported quantization parameters for the `a` "
+                         "argument of Onnx.QLinearMatMul op (expected "
+                         "per-tensor or per-row parameters as defined by the "
+                         "ONNX spec)");
+        FailureOr<QuantInfo> bInfo = classify(b, bScale, bZp, /*perRow=*/false);
+        if (failed(bInfo))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Unsupported quantization parameters for the `b` "
+                         "argument of Onnx.QLinearMatMul op (expected "
+                         "per-tensor or per-column parameters as defined by "
+                         "the ONNX spec)");
 
-          auto aTy = dyn_cast<Torch::ValueTensorType>(a.getType());
-          if (!aTy || !aTy.hasSizes())
+        // Brings the quantization parameters into the form expected by the
+        // dequantize ops: scalars for per-tensor and rank-1 tensors for
+        // per-axis quantization. Batched parameters are brought to the rank
+        // of the operand, since dequantize_per_token requires it.
+        auto prepare = [&](const QuantInfo &info, int64_t operandRank,
+                           Value &scale, Value &zp) -> LogicalResult {
+          if (info.kind == QuantKind::PerTensor)
+            return extractPerTensorQuantizationArguments(rewriter, loc, scale,
+                                                         zp, scale, zp);
+          if (info.kind == QuantKind::Batched) {
+            // classify() accepts N-D parameters aligned to the trailing dims
+            // of the operand (e.g. [3,1,5] for a [2,3,4,5] operand). Leading
+            // 1-dims are added (e.g. [1,3,1,5]). All sizes are static here,
+            // since classify() rejects dynamic non-1 parameter dims.
+            auto toFullRank = [&](Value v) -> Value {
+              auto vTy = cast<Torch::ValueTensorType>(v.getType());
+              ArrayRef<int64_t> sizes = vTy.getSizes();
+              int64_t vRank = sizes.size();
+              if (vRank == operandRank)
+                return v;
+              SmallVector<int64_t> newShape(operandRank - vRank, 1);
+              newShape.append(sizes.begin(), sizes.end());
+              SmallVector<Value> dims;
+              for (int64_t s : newShape)
+                dims.push_back(Torch::ConstantIntOp::create(
+                    rewriter, loc, rewriter.getI64IntegerAttr(s)));
+              Value shapeList = Torch::PrimListConstructOp::create(
+                  rewriter, loc,
+                  rewriter.getType<Torch::ListType>(
+                      rewriter.getType<Torch::IntType>()),
+                  dims);
+              auto newTy = rewriter.getType<Torch::ValueTensorType>(
+                  newShape, vTy.getOptionalDtype());
+              return Torch::AtenReshapeOp::create(rewriter, loc, newTy, v,
+                                                  shapeList);
+            };
+            scale = toFullRank(scale);
+            zp = toFullRank(zp);
+            return success();
+          }
+          auto toRank1 = [&](Value v) -> Value {
+            auto vTy = cast<Torch::ValueTensorType>(v.getType());
+            if (vTy.getSizes().size() == 1)
+              return v;
+            Value cstSize = Torch::ConstantIntOp::create(
+                rewriter, loc, rewriter.getI64IntegerAttr(info.axisSize));
+            Value shapeList = Torch::PrimListConstructOp::create(
+                rewriter, loc,
+                rewriter.getType<Torch::ListType>(
+                    rewriter.getType<Torch::IntType>()),
+                ValueRange{cstSize});
+            auto newTy = rewriter.getType<Torch::ValueTensorType>(
+                ArrayRef<int64_t>{info.axisSize}, vTy.getOptionalDtype());
+            return Torch::AtenReshapeOp::create(rewriter, loc, newTy, v,
+                                                shapeList);
+          };
+          scale = toRank1(scale);
+          zp = toRank1(zp);
+          return success();
+        };
+
+        auto cstInt = [&](int64_t i) -> Value {
+          return Torch::ConstantIntOp::create(rewriter, loc,
+                                              rewriter.getI64IntegerAttr(i));
+        };
+        auto swapLastTwo = [](ArrayRef<int64_t> sizes) {
+          SmallVector<int64_t> result(sizes);
+          std::swap(result[result.size() - 2], result[result.size() - 1]);
+          return result;
+        };
+        // Transposes the last two dims of `v` (rank >= 2).
+        auto transposeLastDims = [&](Value v) -> Value {
+          auto vTy = cast<Torch::ValueTensorType>(v.getType());
+          int64_t rank = vTy.getSizes().size();
+          auto tTy = cast<Torch::ValueTensorType>(vTy.getWithSizesAndDtype(
+              swapLastTwo(vTy.getSizes()), vTy.getOptionalDtype()));
+          return Torch::AtenTransposeIntOp::create(
+              rewriter, loc, tTy, v, cstInt(rank - 2), cstInt(rank - 1));
+        };
+
+        // QLinearMatMul accumulates in int32. Dequantize to f64 and run the
+        // matmul in f64, so that every int32 accumulator value is exactly
+        // representable (f32 is only exact up to 2^24, f64 up to 2^53).
+        FloatType computeTy = rewriter.getF64Type();
+
+        // Dequantizes `v` to `computeTy` using the prepared quantization
+        // parameters. `axis` is the quantization axis of `v` for per-axis
+        // parameters. Batched parameters must already have the per-token
+        // layout [..., X, 1] (see below).
+        auto dequantize = [&](const QuantInfo &info, Value v, Value scale,
+                              Value zp, int64_t axis,
+                              Value &out) -> LogicalResult {
+          if (info.kind == QuantKind::PerTensor)
+            return createDequantizeTensor(rewriter, loc, v, scale, zp, out,
+                                          computeTy);
+          if (info.kind == QuantKind::PerAxis)
+            return createDequantizePerChannelTensor(rewriter, loc, v, scale, zp,
+                                                    axis, out, computeTy);
+          return createDequantizePerTokenTensor(rewriter, loc, v, scale, zp,
+                                                out, computeTy);
+        };
+
+        // Dequantizes `b` with batched parameters [..., 1, N] after
+        // transposing `b` and its parameters in the integer domain, so that
+        // the parameters have the per-token layout [..., N, 1]. The result is
+        // the dequantized B^T of shape [..., N, K].
+        auto dequantizeBatchedBT = [&](Value &out) -> LogicalResult {
+          Value bT = transposeLastDims(b);
+          Value scaleT = transposeLastDims(bScale);
+          Value zpT = transposeLastDims(bZp);
+          return createDequantizePerTokenTensor(rewriter, loc, bT, scaleT, zpT,
+                                                out, computeTy);
+        };
+
+        // Both operands are dequantized f64 tensors when the matmul is
+        // created, so the matmul is computed in f64. The ONNX spec accumulates
+        // the product in int32 before requantization, and every int32 value
+        // is exactly representable in f64, so the accumulation is exact. The
+        // requantization is then a single float rounding step. The f64
+        // dequantize -> matmul -> quantize form used here is the standard
+        // PT2E representation, with f64 instead of f32 as the compute type.
+        // Backends are expected to pattern-match this sequence and fuse it
+        // into an integer matmul kernel. Backends without f64 support (e.g.
+        // TOSA) cannot lower it directly.
+
+        // All match failures are detected above. The failure checks below
+        // are defensive only and are not expected to trigger, since IR has
+        // already been created at this point.
+        if (failed(prepare(*aInfo, aRank, aScale, aZp)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to extract `a` quantization arguments");
+        if (failed(extractPerTensorQuantizationArguments(rewriter, loc, cScale,
+                                                         cZp, cScale, cZp)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to extract `y` quantization arguments");
+        if (failed(prepare(*bInfo, bRank, bScale, bZp)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to extract `b` quantization arguments");
+
+        // Batched quantization parameters (e.g. (B, M, 1) for `a` or
+        // (B, 1, N) for `b` with B > 1) vary along two dims of the operand,
+        // which `dequantize_per_channel` cannot express. They are lowered to
+        // `dequantize_per_token`, whose parameters have the shape of the
+        // operand with the last dim set to 1. For `a` this is exactly the
+        // (B, M, 1) layout, so `a` is dequantized directly.
+        //
+        // The parameters of `b` vary along its last dim instead. To keep
+        // every transpose in the integer domain, and the float part a clean
+        // PT2E dq -> matmul -> q pattern, the transposed product
+        // Y^T = B^T * A^T is computed:
+        //   bT, scaleT, zpT = transpose(b, b_scale, b_zero_point)  (int)
+        //   aT = transpose(a)                                       (int)
+        //   cT = matmul(dq_per_token(bT, scaleT, zpT), dq(aT))     (f64)
+        //   y  = transpose(quantize_per_tensor(cT))                 (int)
+        // A 1-D `a` [K] is unsqueezed to a [K, 1] column instead of being
+        // transposed, and the trailing unit dim of the quantized result is
+        // squeezed instead of transposing it (both in the integer domain).
+        // This keeps the matmul N-D x 2-D: an N-D x 1-D aten.matmul is valid
+        // Torch IR, but it is not supported by the TorchToLinalg lowering.
+        // This is exact: `y` is quantized per tensor, so the quantize is
+        // elementwise and commutes with the transpose. Per-tensor `a` is not
+        // affected by the transpose, and per-row `a` (axis rank-2) becomes
+        // per-channel along axis rank-1 of aT with the same parameters. Only
+        // the last two dims are swapped, so batch broadcasting is unchanged.
+        //
+        // If both `a` and `b` have batched parameters, there is no clean
+        // PT2E form: dequantize_per_token requires K to be the last dim of
+        // both dequantized operands, while matmul contracts the last dim of
+        // the lhs with the second to last dim of the rhs. This case keeps the
+        // A * B form with a single f64 transpose after the dequantize of `b`,
+        // so it does NOT produce a clean dq -> matmul -> q pattern.
+        bool aBatched = aInfo->kind == QuantKind::Batched;
+        bool bBatched = bInfo->kind == QuantKind::Batched;
+
+        Value output;
+        if (bBatched && !aBatched) {
+          // A 1-D `a` is always per-tensor quantized (see classify above), so
+          // it is unsqueezed to [K, 1] without touching its parameters.
+          bool aIs1D = aRank == 1;
+          Value aT;
+          if (aIs1D) {
+            SmallVector<int64_t> aColSizes{aTy.getSizes()[0], 1};
+            auto aColTy = cast<Torch::ValueTensorType>(
+                aTy.getWithSizesAndDtype(aColSizes, aTy.getOptionalDtype()));
+            aT = Torch::AtenUnsqueezeOp::create(rewriter, loc, aColTy, a,
+                                                cstInt(1));
+          } else {
+            aT = transposeLastDims(a);
+          }
+          Value dqA;
+          if (failed(
+                  dequantize(*aInfo, aT, aScale, aZp, /*axis=*/aRank - 1, dqA)))
             return rewriter.notifyMatchFailure(
-                binder.op, "Expected input argument `a` to have sizes");
+                binder.op, "Failed to dequantize the `a` argument");
+          // `b` is dequantized last, so that its dequantize directly
+          // precedes the matmul.
+          Value dqB;
+          if (failed(dequantizeBatchedBT(dqB)))
+            return rewriter.notifyMatchFailure(
+                binder.op, "Failed to dequantize the `b` argument");
 
-          // Dequantizing the a
-          // a = a.to(dtype=torch.float32)
-          // a_dequant = (a - a_zero_point) * a_scale
+          // The transposed result is [..., N, M], or [..., N, 1] for 1-D `a`.
+          SmallVector<int64_t> tSizes(resultType.getSizes());
+          if (aIs1D)
+            tSizes.push_back(1);
+          else
+            tSizes = swapLastTwo(tSizes);
+          auto cTTy =
+              rewriter.getType<Torch::ValueTensorType>(tSizes, computeTy);
+          // aten.matmul has numpy.matmul semantics (any rank, broadcasting).
+          // DecomposeAtenMatmulOp later specializes it to aten.mm / aten.bmm.
+          Value cT = Torch::AtenMatmulOp::create(rewriter, loc, cTTy, dqB, dqA);
 
-          // Converting the a tensor to float32 type.
-          Value none = Torch::ConstantNoneOp::create(rewriter, loc);
-          Value cstFalse = Torch::ConstantBoolOp::create(rewriter, loc, false);
-          Value float32Type = Torch::ConstantIntOp::create(
-              rewriter, loc, rewriter.getI64IntegerAttr(/*float32Type*/ 6));
-          Type f32aType = rewriter.getType<Torch::ValueTensorType>(
-              aTy.getSizes(), rewriter.getF32Type());
-          a = Torch::AtenToDtypeOp::create(rewriter, loc, f32aType, a,
-                                           float32Type,
-                                           /*non_blocking=*/cstFalse,
-                                           /*copy=*/cstFalse,
-                                           /*memory_format=*/none);
-
-          Value cstOne = Torch::ConstantFloatOp::create(
-              rewriter, loc, rewriter.getF64FloatAttr(1.0));
-          a = Torch::AtenSubScalarOp::create(rewriter, loc, f32aType, a, aZp,
-                                             cstOne);
-          a = Torch::AtenMulScalarOp::create(rewriter, loc, f32aType, a,
-                                             aScale);
-
-          // Dequantizing the b
-          // Shapes of the inputs are as follows:
-          // b = (B, K, N) or (K, N)
-          // b_scale = (B, 1, N) or (1, N) or (N)
-          // b_zero_point = (B, 1, N) or (1, N) or (N)
-          //
-          // We compute the dequantized `b` as follows:
-          // b = b.to(dtype=torch.float32)
-          // b_dequant = (b - b_zero_point) * b_scale
-
-          // Converting the b tensor to float32 type.
-          Type f32bType = rewriter.getType<Torch::ValueTensorType>(
-              bShape, rewriter.getF32Type());
-          b = Torch::AtenToDtypeOp::create(rewriter, loc, f32bType, b,
-                                           float32Type,
-                                           /*non_blocking=*/cstFalse,
-                                           /*copy=*/cstFalse,
-                                           /*memory_format=*/none);
-
-          b = Torch::AtenSubTensorOp::create(rewriter, loc, f32bType, b, bZp,
-                                             cstOne);
-          b = Torch::AtenMulTensorOp::create(rewriter, loc, f32bType, b,
-                                             bScale);
-        } else {
-          llvm_unreachable(
-              "Unidentified case for quantization for `b` argument of"
-              "Onnx.QLinearMatMul op");
+          auto qTTy =
+              cast<Torch::ValueTensorType>(resultType.getWithSizesAndDtype(
+                  tSizes, resultType.getOptionalDtype()));
+          Value qT;
+          if (failed(createQuantizeTensor(rewriter, loc, cT, cScale, cZp, qTTy,
+                                          qT)))
+            return rewriter.notifyMatchFailure(
+                binder.op, "Failed to quantize the matmul result");
+          if (aIs1D)
+            output = Torch::AtenSqueezeDimOp::create(
+                rewriter, loc, resultType, qT,
+                cstInt(static_cast<int64_t>(tSizes.size()) - 1));
+          else
+            output = transposeLastDims(qT);
+          rewriter.replaceOp(binder.op, output);
+          return success();
         }
 
-        if (!isPerColumnQuantization)
-          a = makePerTensor(a, aScale, aZp);
-
-        Type cDtype =
-            isPerColumnQuantization
-                ? cast<Type>(rewriter.getF32Type())
-                : cast<Type>(rewriter.getIntegerType(32, /*issigned=*/true));
+        Value dqB;
+        if (bBatched) {
+          // Both `a` and `b` are batched, see above.
+          Value dqBT;
+          if (failed(dequantizeBatchedBT(dqBT)))
+            return rewriter.notifyMatchFailure(
+                binder.op, "Failed to dequantize the `b` argument");
+          dqB = transposeLastDims(dqBT);
+        } else if (failed(
+                       dequantize(*bInfo, b, bScale, bZp, bInfo->axis, dqB))) {
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to dequantize the `b` argument");
+        }
+        Value dqA;
+        if (failed(dequantize(*aInfo, a, aScale, aZp, aInfo->axis, dqA)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to dequantize the `a` argument");
 
         auto cTy = rewriter.getType<Torch::ValueTensorType>(
-            resultType.getOptionalSizes(), cDtype);
+            resultType.getOptionalSizes(), computeTy);
+        Value c = Torch::AtenMatmulOp::create(rewriter, loc, cTy, dqA, dqB);
 
-        Value c;
-        if (cTy.getSizes().size() == 2) {
-          c = Torch::AtenMmOp::create(rewriter, binder.getLoc(), cTy, a, b);
-        } else {
-          c = Torch::AtenBmmOp::create(rewriter, binder.getLoc(), cTy, a, b);
-        }
-
-        if (!isPerColumnQuantization) {
-          cTy = rewriter.getType<Torch::ValueTensorType>(
-              resultType.getOptionalSizes(),
-              rewriter.getType<Torch::QInt32Type>());
-
-          Value mmScale = Torch::AtenMulFloatOp::create(
-              rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
-              aScale, bScale);
-          Value mmZp = Torch::ConstantIntOp::create(
-              rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
-              rewriter.getIntegerAttr(rewriter.getIntegerType(64), 0));
-          c = Torch::Aten_MakePerTensorQuantizedTensorOp::create(
-              rewriter, binder.getLoc(), cTy, c, mmScale, mmZp);
-          cTy = rewriter.getType<Torch::ValueTensorType>(
-              resultType.getOptionalSizes(), rewriter.getF32Type());
-
-          c = Torch::AtenDequantizeSelfOp::create(rewriter, binder.getLoc(),
-                                                  cTy, c);
-        }
-
-        cTy = dyn_cast<Torch::ValueTensorType>(
-            getQTorchTypeFromTorchIntType(resultType));
-        Value dtyVal = Torch::ConstantIntOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::IntType>(),
-            rewriter.getIntegerAttr(
-                rewriter.getIntegerType(64),
-                static_cast<int64_t>(
-                    Torch::getScalarTypeForType(cTy.getDtype()))));
-        c = Torch::AtenQuantizePerTensorOp::create(rewriter, binder.getLoc(),
-                                                   cTy, c, cScale, cZp, dtyVal);
-        rewriter.replaceOpWithNewOp<Torch::AtenIntReprOp>(binder.op, resultType,
-                                                          c);
+        if (failed(createQuantizeTensor(rewriter, loc, c, cScale, cZp,
+                                        resultType, output)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "Failed to quantize the matmul result");
+        rewriter.replaceOp(binder.op, output);
         return success();
       });
   patterns.onOp("Reciprocal", 1,

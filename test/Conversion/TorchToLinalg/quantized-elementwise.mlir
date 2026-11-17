@@ -1508,6 +1508,56 @@ func.func @dequantize_per_token_float_zero_point(
 
 // -----
 
+// Per-token dequantization with ui8 zero points. The converted builtin types
+// are signless, so the zero point must be zero-extended (not sign-extended).
+// CHECK-LABEL: func.func @dequantize_per_token_ui8_zero_point(
+// CHECK: ^bb0(%[[IN:.*]]: i8, %[[SCALE:.*]]: f32, %[[ZP:.*]]: i8, %{{.*}}: f32):
+// CHECK-NOT: arith.extsi
+// CHECK:   arith.extui %[[ZP]] : i8 to i16
+// CHECK:   arith.extui %[[IN]] : i8 to i16
+func.func @dequantize_per_token_ui8_zero_point(
+    %input: !torch.vtensor<[4,16],ui8>,
+    %scales: !torch.vtensor<[4,1],f32>,
+    %zero_points: !torch.vtensor<[4,1],ui8>)
+    -> !torch.vtensor<[4,16],f32> {
+  %qmin = torch.constant.int 0
+  %qmax = torch.constant.int 255
+  %dtype = torch.constant.int 0
+  %out_dtype = torch.constant.int 6
+  %out = torch.quantized_decomposed.dequantize_per_token
+      %input, %scales, %zero_points, %qmin, %qmax, %dtype, %out_dtype
+      : !torch.vtensor<[4,16],ui8>, !torch.vtensor<[4,1],f32>,
+        !torch.vtensor<[4,1],ui8>, !torch.int, !torch.int, !torch.int,
+        !torch.int -> !torch.vtensor<[4,16],f32>
+  return %out : !torch.vtensor<[4,16],f32>
+}
+
+// -----
+
+// Per-token quantization with ui8 zero points converts the zero point as an
+// unsigned value.
+// CHECK-LABEL: func.func @quantize_per_token_ui8_zero_point(
+// CHECK: ^bb0(%{{.*}}: f32, %{{.*}}: f32, %[[ZP:.*]]: i8, %{{.*}}: i8):
+// CHECK-NOT: arith.sitofp %[[ZP]]
+// CHECK:   arith.uitofp %[[ZP]] : i8 to f32
+func.func @quantize_per_token_ui8_zero_point(
+    %input: !torch.vtensor<[4,16],f32>,
+    %scales: !torch.vtensor<[4,1],f32>,
+    %zero_points: !torch.vtensor<[4,1],ui8>)
+    -> !torch.vtensor<[4,16],ui8> {
+  %qmin = torch.constant.int 0
+  %qmax = torch.constant.int 255
+  %dtype = torch.constant.int 0
+  %out = torch.quantized_decomposed.quantize_per_token
+      %input, %scales, %zero_points, %qmin, %qmax, %dtype
+      : !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,1],f32>,
+        !torch.vtensor<[4,1],ui8>, !torch.int, !torch.int, !torch.int
+        -> !torch.vtensor<[4,16],ui8>
+  return %out : !torch.vtensor<[4,16],ui8>
+}
+
+// -----
+
 // Per-token quantization of an f16 input with f32 scales computes in f32
 // instead of truncating the scale to f16.
 // CHECK-LABEL: func.func @quantize_per_token_f16_input(

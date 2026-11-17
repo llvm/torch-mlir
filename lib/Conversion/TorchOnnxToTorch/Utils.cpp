@@ -29,29 +29,6 @@ Value mlir::torch::onnx_c::createConstantIntList(
       cstValue);
 }
 
-Torch::ValueTensorType
-mlir::torch::onnx_c::getQTorchTypeFromTorchIntType(Type ty) {
-  Torch::ValueTensorType tty = dyn_cast<Torch::ValueTensorType>(ty);
-  if (!tty)
-    return nullptr;
-
-  auto ctx = ty.getContext();
-  Type dty = tty.getDtype();
-
-  if (dty.isUnsignedInteger(8))
-    dty = Torch::QUInt8Type::get(ctx);
-  if (dty.isSignedInteger(8))
-    dty = Torch::QInt8Type::get(ctx);
-  if (dty.isSignedInteger(16))
-    dty = Torch::QInt16Type::get(ctx);
-  if (dty.isSignedInteger(32))
-    dty = Torch::QInt32Type::get(ctx);
-
-  if (!dty)
-    return nullptr;
-  return Torch::ValueTensorType::get(ctx, tty.getOptionalSizes(), dty);
-}
-
 bool mlir::torch::onnx_c::areAllElementsDistinct(SmallVector<int64_t> array) {
   int n = array.size();
   llvm::SetVector<int64_t> set;
@@ -148,14 +125,17 @@ LogicalResult mlir::torch::onnx_c::extractPerTensorQuantizationArguments(
     Value inZeroPoint, Value &outScale, Value &outZeroPoint) {
 
   auto check = [](Value v) {
-    auto vTy = cast<Torch::ValueTensorType>(v.getType());
+    auto vTy = dyn_cast<Torch::ValueTensorType>(v.getType());
+    if (!vTy || !vTy.hasSizes() || !vTy.hasDtype())
+      return false;
     for (auto dim : vTy.getSizes())
       if (dim != 1)
         return false;
     return true;
   };
 
-  if (!check(inScale) || !check(inZeroPoint))
+  // A null zero point is accepted and treated as a zero point of 0.
+  if (!check(inScale) || (inZeroPoint && !check(inZeroPoint)))
     return failure();
 
   Value emptyList = Torch::PrimListConstructOp::create(
@@ -178,7 +158,11 @@ LogicalResult mlir::torch::onnx_c::extractPerTensorQuantizationArguments(
   };
 
   outScale = extract(inScale);
-  outZeroPoint = extract(inZeroPoint);
+  if (inZeroPoint)
+    outZeroPoint = extract(inZeroPoint);
+  else
+    outZeroPoint = Torch::ConstantIntOp::create(rewriter, loc,
+                                                rewriter.getI64IntegerAttr(0));
 
   return success();
 }
@@ -205,10 +189,100 @@ getIntQuantParams(ConversionPatternRewriter &rewriter, Location loc,
   return IntQuantParams{dtypeConst, minInt, maxInt};
 }
 
+// `quantized_decomposed.dequantize_per_token` applies one scale and zero point
+// per "token", i.e. per index of all dims but the last one. Its parameters
+// must have the shape of the input with the last dim set to 1. Parameter
+// token dims of size 1 are expanded to the input dims first, since the op
+// does not broadcast. This checks the shapes without creating any IR. It
+// fails if the layout is invalid, otherwise it returns whether the parameters
+// must be expanded.
+static FailureOr<bool> checkPerTokenParams(Torch::ValueTensorType inputTy,
+                                           Value scale, Value zeroPoint) {
+  auto scaleTy = dyn_cast<Torch::ValueTensorType>(scale.getType());
+  auto zpTy = dyn_cast<Torch::ValueTensorType>(zeroPoint.getType());
+  if (!inputTy || !inputTy.hasSizes() || !scaleTy || !scaleTy.hasSizes() ||
+      !zpTy || !zpTy.hasSizes())
+    return failure();
+  ArrayRef<int64_t> shape = inputTy.getSizes();
+  ArrayRef<int64_t> paramShape = scaleTy.getSizes();
+  int64_t rank = shape.size();
+  if (rank < 2 || shape[rank - 2] == Torch::kUnknownSize ||
+      static_cast<int64_t>(paramShape.size()) != rank ||
+      paramShape != zpTy.getSizes() || !inputTy.hasDtype() ||
+      !isa<IntegerType>(inputTy.getDtype()))
+    return failure();
+
+  // The token dims of the parameters must be 1 (broadcast) or match those of
+  // the input, and the last dim of the parameters must be 1.
+  if (paramShape[rank - 1] != 1)
+    return failure();
+  bool needsExpand = false;
+  for (int64_t i = 0; i < rank - 1; ++i) {
+    if (paramShape[i] == shape[i])
+      continue;
+    if (paramShape[i] != 1)
+      return failure();
+    needsExpand = true;
+  }
+  return needsExpand;
+}
+
+// Expands `scale` and `zeroPoint` to the token dims of `input` followed by 1.
+// Dim rank-2 of `input` is static, so a dynamic dim is always a batch dim.
+static void expandPerTokenParams(ConversionPatternRewriter &rewriter,
+                                 Location loc, Value input, Value &scale,
+                                 Value &zeroPoint) {
+  ArrayRef<int64_t> shape =
+      cast<Torch::ValueTensorType>(input.getType()).getSizes();
+  int64_t rank = shape.size();
+  auto cstInt = [&](int64_t i) -> Value {
+    return Torch::ConstantIntOp::create(rewriter, loc,
+                                        rewriter.getI64IntegerAttr(i));
+  };
+
+  SmallVector<Value> expandSizes;
+  SmallVector<int64_t> expandedShape;
+  for (int64_t i = 0; i < rank - 1; ++i) {
+    expandedShape.push_back(shape[i]);
+    if (shape[i] != Torch::kUnknownSize)
+      expandSizes.push_back(cstInt(shape[i]));
+    else
+      expandSizes.push_back(
+          Torch::AtenSizeIntOp::create(rewriter, loc, input, cstInt(i)));
+  }
+  expandedShape.push_back(1);
+  expandSizes.push_back(cstInt(1));
+
+  auto expand = [&](Value param) -> Value {
+    auto paramTy = cast<Torch::ValueTensorType>(param.getType());
+    Value sizeList = Torch::PrimListConstructOp::create(
+        rewriter, loc,
+        rewriter.getType<Torch::ListType>(rewriter.getType<Torch::IntType>()),
+        expandSizes);
+    Value cstFalse = Torch::ConstantBoolOp::create(rewriter, loc, false);
+    return Torch::AtenExpandOp::create(
+        rewriter, loc,
+        paramTy.getWithSizesAndDtype(expandedShape, paramTy.getOptionalDtype()),
+        param, sizeList, /*implicit=*/cstFalse);
+  };
+  scale = expand(scale);
+  zeroPoint = expand(zeroPoint);
+}
+
+// Returns the result type of a dequantize op: the sizes of `inputTy` with
+// element type `outFloatTy` (f32 if null).
+static Torch::ValueTensorType
+getDequantResultType(ConversionPatternRewriter &rewriter,
+                     Torch::ValueTensorType inputTy, FloatType outFloatTy) {
+  return rewriter.getType<Torch::ValueTensorType>(
+      inputTy.getSizes(),
+      outFloatTy ? Type(outFloatTy) : rewriter.getF32Type());
+}
+
 /// Dequantizes the integer tensor `input` to a float tensor of element type
-/// `outFloatTy` (f32 if null). If `axis` is set,
-/// `quantized_decomposed.dequantize_per_channel` is emitted,
-/// otherwise `quantized_decomposed.dequantize_per_tensor` is emitted.
+/// `outFloatTy` (f32 if null). If `axis` is empty,
+/// `quantized_decomposed.dequantize_per_tensor` is emitted, otherwise
+/// `quantized_decomposed.dequantize_per_channel` along `axis`.
 static LogicalResult createDequantizeImpl(ConversionPatternRewriter &rewriter,
                                           Location loc, Value input,
                                           Value scale, Value zeroPoint,
@@ -222,9 +296,8 @@ static LogicalResult createDequantizeImpl(ConversionPatternRewriter &rewriter,
   Value outDtype =
       outFloatTy ? Torch::getDtypeIntValueForType(rewriter, loc, outFloatTy)
                  : Torch::ConstantNoneOp::create(rewriter, loc).getResult();
-  Torch::ValueTensorType resultTy = rewriter.getType<Torch::ValueTensorType>(
-      inputTy.getSizes(),
-      outFloatTy ? Type(outFloatTy) : rewriter.getF32Type());
+  Torch::ValueTensorType resultTy =
+      getDequantResultType(rewriter, inputTy, outFloatTy);
 
   if (!axis) {
     output = Torch::QuantizedDecomposedDequantizePerTensorOp::create(
@@ -254,6 +327,33 @@ LogicalResult mlir::torch::onnx_c::createDequantizePerChannelTensor(
     FloatType outFloatTy) {
   return createDequantizeImpl(rewriter, loc, input, scales, zeroPoints, axis,
                               output, outFloatTy);
+}
+
+LogicalResult mlir::torch::onnx_c::createDequantizePerTokenTensor(
+    ConversionPatternRewriter &rewriter, Location loc, Value input, Value scale,
+    Value zeroPoint, Value &output, FloatType outFloatTy) {
+  auto inputTy = dyn_cast<Torch::ValueTensorType>(input.getType());
+  // All checks are done before any IR is created.
+  FailureOr<bool> needsExpand = checkPerTokenParams(inputTy, scale, zeroPoint);
+  if (failed(needsExpand))
+    return failure();
+  FailureOr<IntQuantParams> params = getIntQuantParams(rewriter, loc, inputTy);
+  if (failed(params))
+    return failure();
+
+  if (*needsExpand)
+    expandPerTokenParams(rewriter, loc, input, scale, zeroPoint);
+
+  // Unlike the other dequantize ops, out_dtype is not optional for per-token.
+  Value outDtype = Torch::getDtypeIntValueForType(
+      rewriter, loc, outFloatTy ? outFloatTy : rewriter.getF32Type());
+  Torch::ValueTensorType resultTy =
+      getDequantResultType(rewriter, inputTy, outFloatTy);
+
+  output = Torch::QuantizedDecomposedDequantizePerTokenOp::create(
+      rewriter, loc, resultTy, input, scale, zeroPoint, params->quantMin,
+      params->quantMax, params->dtypeConst, outDtype);
+  return success();
 }
 
 LogicalResult mlir::torch::onnx_c::createQuantizeTensor(
