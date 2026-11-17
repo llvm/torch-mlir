@@ -12,6 +12,7 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchTypes.h"
+#include "llvm/ADT/StringSwitch.h"
 
 using namespace mlir;
 using namespace mlir::torch;
@@ -148,13 +149,13 @@ bool Torch::isBuiltInType(Type type) {
 }
 
 std::optional<int64_t> Torch::getTensorNumel(Value tensor) {
-  BaseTensorType tensorType = cast<BaseTensorType>(tensor.getType());
+  auto tensorType = cast<BaseTensorType>(tensor.getType());
   if (!tensorType.hasSizes())
     return std::nullopt;
   int64_t numel = 1;
-  for (auto dim : tensorType.getSizes()) {
-    if (dim == ShapedType::kDynamic)
-      return ShapedType::kDynamic;
+  for (int64_t dim : tensorType.getSizes()) {
+    if (dim == kUnknownSize)
+      return kUnknownSize;
     numel *= dim;
   }
   return numel;
@@ -245,6 +246,103 @@ Value Torch::getTensorDimSize(PatternRewriter &rewriter, Value tensor,
   // If the dimension is a constant, then the AtenSizeIntOp is folded to a
   // ContantIntOp.
   return rewriter.createOrFold<AtenSizeIntOp>(loc, tensor, dimVal);
+}
+
+std::optional<std::pair<double, double>>
+Torch::getTorchaoDtypeBounds(int64_t dtypeInt) {
+  using torch_upstream::ScalarType;
+  switch (static_cast<ScalarType>(dtypeInt)) {
+  case ScalarType::Byte:
+    return std::make_pair(0, UINT8_MAX);
+  case ScalarType::Char:
+    return std::make_pair(INT8_MIN, INT8_MAX);
+  case ScalarType::Short:
+    return std::make_pair(INT16_MIN, INT16_MAX);
+  case ScalarType::Int:
+    return std::make_pair(INT32_MIN, INT32_MAX);
+  default:
+    return std::nullopt;
+  }
+}
+
+std::optional<TorchaoMappingType> Torch::getTorchaoMappingType(StringRef name) {
+  return llvm::StringSwitch<std::optional<TorchaoMappingType>>(name)
+      .Case("ASYMMETRIC", TorchaoMappingType::Asymmetric)
+      .Case("SYMMETRIC", TorchaoMappingType::Symmetric)
+      .Case("SYMMETRIC_NO_CLIPPING_ERR",
+            TorchaoMappingType::SymmetricNoClippingErr)
+      .Default(std::nullopt);
+}
+
+FailureOr<std::pair<double, double>>
+Torch::getTorchaoQuantBounds(Value quantMin, Value quantMax, Value dtype) {
+  int64_t dtypeInt;
+  if (!matchPattern(dtype, m_TorchConstantInt(&dtypeInt)))
+    return failure();
+  std::optional<std::pair<double, double>> bounds =
+      getTorchaoDtypeBounds(dtypeInt);
+  auto matchBound = [](Value bound, double &value) {
+    int64_t intValue;
+    if (matchPattern(bound, m_TorchConstantInt(&intValue))) {
+      value = intValue;
+      return true;
+    }
+    return isa<Torch::NoneType>(bound.getType()) ||
+           matchPattern(bound, m_TorchConstantFloat(&value));
+  };
+  if (!bounds || !matchBound(quantMin, bounds->first) ||
+      !matchBound(quantMax, bounds->second))
+    return failure();
+  return *bounds;
+}
+
+FailureOr<SmallVector<int64_t>>
+Torch::getTorchaoBlockSize(Value blockSize, ArrayRef<int64_t> inputSizes) {
+  SmallVector<Value> entries;
+  if (!getListConstructElements(blockSize, entries) ||
+      entries.size() != inputSizes.size())
+    return failure();
+  SmallVector<int64_t> blocks;
+  for (auto [entry, size] : llvm::zip_equal(entries, inputSizes)) {
+    int64_t block;
+    if (matchPattern(entry, m_TorchConstantInt(&block)))
+      blocks.push_back(block);
+    else
+      blocks.push_back(size);
+  }
+  return blocks;
+}
+
+bool Torch::getTorchaoReducedDims(ArrayRef<int64_t> inputSizes,
+                                  ArrayRef<int64_t> blocks,
+                                  SmallVectorImpl<bool> &reduced,
+                                  SmallVectorImpl<bool> &spans) {
+  for (auto [size, block] : llvm::zip_equal(inputSizes, blocks)) {
+    spans.push_back(block == size && size != 1);
+    reduced.push_back(block > 1 || spans.back());
+  }
+  if (llvm::is_contained(reduced, true))
+    return true;
+  spans.assign(inputSizes.size(), true);
+  reduced.assign(inputSizes.size(), true);
+  return false;
+}
+
+SmallVector<int64_t> Torch::getTorchaoQparamsShape(ArrayRef<int64_t> inputSizes,
+                                                   ArrayRef<int64_t> blocks,
+                                                   ArrayRef<bool> spans,
+                                                   bool keepdim) {
+  SmallVector<int64_t> shape;
+  for (auto [size, block, spanned] :
+       llvm::zip_equal(inputSizes, blocks, spans)) {
+    if (spanned) {
+      if (keepdim)
+        shape.push_back(1);
+      continue;
+    }
+    shape.push_back(size == kUnknownSize ? kUnknownSize : size / block);
+  }
+  return shape;
 }
 
 // Checks whether the inputs are broadcast compatible or not. If

@@ -50,7 +50,7 @@ jobs:
         name: Install Python 3.12
         with:
           python-version: "3.12"
-      - run: pip install --upgrade pip uv
+      - run: python -m pip install --upgrade pip uv
 
       - name: Compute LLVM submodule SHA (for ccache key)
         id: llvm

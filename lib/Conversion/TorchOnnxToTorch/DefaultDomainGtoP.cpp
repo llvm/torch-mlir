@@ -30,53 +30,23 @@ using namespace mlir::torch::onnx_c;
 // thing here, so we simplify.
 void mlir::torch::onnx_c::populateDefaultDomainGtoP(
     OnnxCustomOpConversionPattern &patterns) {
-  patterns.onOp(
-      "HardSigmoid", 6,
-      [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Torch::ValueTensorType resultType;
-        Value tensorOperand;
-        float alpha, beta;
-        if (binder.tensorOperand(tensorOperand) ||
-            binder.f32FloatAttr(alpha, "alpha", 0.2f) ||
-            binder.f32FloatAttr(beta, "beta", 0.5f) ||
-            binder.tensorResultType(resultType))
-          return failure();
+  patterns.onOp("HardSigmoid", 6,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value tensorOperand;
+                  float alpha, beta;
+                  if (binder.tensorOperand(tensorOperand) ||
+                      binder.f32FloatAttr(alpha, "alpha", kHardSigmoidAlpha) ||
+                      binder.f32FloatAttr(beta, "beta", kHardSigmoidBeta) ||
+                      binder.tensorResultType(resultType))
+                    return failure();
 
-        // HardSigmoid computes the following expression:
-        //   max(0, min(1, alpha * x + beta))
-        Value constAlpha = Torch::ConstantFloatOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
-            rewriter.getF64FloatAttr(alpha));
-        Value constBeta = Torch::ConstantFloatOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
-            rewriter.getF64FloatAttr(beta));
-
-        // Expression: alpha * x + beta
-        Value alphaMulX = Torch::AtenMulScalarOp::create(
-            rewriter, binder.getLoc(), resultType, tensorOperand, constAlpha);
-        Value constOne = Torch::ConstantFloatOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
-            rewriter.getF64FloatAttr(1.0));
-        Value alphaMulXPlusBeta = Torch::AtenAddScalarOp::create(
-            rewriter, binder.getLoc(), resultType, alphaMulX, constBeta,
-            /*alpha=*/constOne);
-
-        // Expression: min(1, alpha * x + beta)
-        Value oneTensor =
-            createRank0Tensor(rewriter, binder.getLoc(), resultType, constOne);
-        Value minExpression =
-            Torch::AtenMinimumOp::create(rewriter, binder.getLoc(), resultType,
-                                         oneTensor, alphaMulXPlusBeta);
-
-        // Expression: max(0, min(1, alpha * x + beta))
-        Value constZero = Torch::ConstantFloatOp::create(
-            rewriter, binder.getLoc(), rewriter.getF64FloatAttr(0.0));
-        Value zeroTensor =
-            createRank0Tensor(rewriter, binder.getLoc(), resultType, constZero);
-        rewriter.replaceOpWithNewOp<Torch::AtenMaximumOp>(
-            binder.op, resultType, zeroTensor, minExpression);
-        return success();
-      });
+                  rewriter.replaceOp(
+                      binder.op,
+                      createHardSigmoid(rewriter, binder.getLoc(), resultType,
+                                        tensorOperand, alpha, beta));
+                  return success();
+                });
   patterns.onOp(
       "Gelu", 20, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Value operand;
@@ -2774,22 +2744,20 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
 
         return success();
       });
-  patterns.onOp(
-      "LeakyRelu", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        Torch::ValueTensorType resultType;
-        Value operand;
-        float alpha;
-        if (binder.tensorOperand(operand) ||
-            binder.tensorResultType(resultType) ||
-            binder.f32FloatAttr(alpha, "alpha", 0.01f))
-          return failure();
-        Value constAlpha = Torch::ConstantFloatOp::create(
-            rewriter, binder.getLoc(), rewriter.getType<Torch::FloatType>(),
-            rewriter.getF64FloatAttr(alpha));
-        rewriter.replaceOpWithNewOp<Torch::AtenLeakyReluOp>(
-            binder.op, resultType, operand, constAlpha);
-        return success();
-      });
+  patterns.onOp("LeakyRelu", 1,
+                [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+                  Torch::ValueTensorType resultType;
+                  Value operand;
+                  float alpha;
+                  if (binder.tensorOperand(operand) ||
+                      binder.tensorResultType(resultType) ||
+                      binder.f32FloatAttr(alpha, "alpha", kLeakyReluAlpha))
+                    return failure();
+                  rewriter.replaceOp(
+                      binder.op, createLeakyRelu(rewriter, binder.getLoc(),
+                                                 resultType, operand, alpha));
+                  return success();
+                });
   patterns.onOp(
       "LRN", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Torch::ValueTensorType resultType;
@@ -2823,7 +2791,6 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             cast<Torch::ValueTensorType>(operand.getType());
         Value sqOperand = Torch::AtenMulTensorOp::create(rewriter, loc, inTy,
                                                          operand, operand);
-        // view it as n x 1 x c x d0 x d..
         if (!inTy.hasSizes()) {
           return rewriter.notifyMatchFailure(binder.op,
                                              "Expected input to have sizes");
@@ -2838,36 +2805,70 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
               binder.op, "Unsupported: the second dimension size must be "
                          "statically known");
         }
-        SmallVector<int64_t, 5> viewShapeInt{inTyShape[0], 1, inTyShape[1],
-                                             inTyShape[2], Torch::kUnknownSize};
+        // Static dims are constants and dynamic dims are read from the input
+        // at runtime, so the view shapes below never need an inferred (-1)
+        // dimension.
+        SmallVector<Value> inputSizes;
+        for (auto [dim, dimSize] : llvm::enumerate(inTyShape)) {
+          if (dimSize != Torch::kUnknownSize) {
+            inputSizes.push_back(Torch::ConstantIntOp::create(
+                rewriter, loc, rewriter.getI64IntegerAttr(dimSize)));
+            continue;
+          }
+          Value dimVal = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(dim));
+          inputSizes.push_back(
+              Torch::AtenSizeIntOp::create(rewriter, loc, operand, dimVal));
+        }
+        // view it as n x 1 x c x (d0 * d1 * ...)
+        ArrayRef<int64_t> spatialShape = inTyShape.drop_front(2);
+        Value spatialSize;
+        int64_t spatialSizeInt = Torch::kUnknownSize;
+        if (llvm::is_contained(spatialShape, Torch::kUnknownSize)) {
+          spatialSize = inputSizes[2];
+          for (Value dimSizeVal : ArrayRef<Value>(inputSizes).drop_front(3))
+            spatialSize = Torch::AtenMulIntOp::create(rewriter, loc,
+                                                      spatialSize, dimSizeVal);
+        } else {
+          spatialSizeInt = llvm::product_of(spatialShape);
+          spatialSize = Torch::ConstantIntOp::create(
+              rewriter, loc, rewriter.getI64IntegerAttr(spatialSizeInt));
+        }
+        Value one = Torch::ConstantIntOp::create(rewriter, loc,
+                                                 rewriter.getI64IntegerAttr(1));
+        SmallVector<int64_t, 4> viewShapeInt{inTyShape[0], 1, inTyShape[1],
+                                             spatialSizeInt};
         Torch::ValueTensorType reshapeType =
             rewriter.getType<Torch::ValueTensorType>(viewShapeInt, dtype);
-        Value viewShapeListVal =
-            createConstantIntList(binder, rewriter, viewShapeInt);
+        Value viewShapeListVal = Torch::PrimListConstructOp::create(
+            rewriter, loc,
+            Torch::ListType::get(rewriter.getType<Torch::IntType>()),
+            ValueRange{inputSizes[0], one, inputSizes[1], spatialSize});
         auto view = Torch::AtenViewOp::create(rewriter, loc, reshapeType,
                                               sqOperand, viewShapeListVal);
-        // padding
-        int64_t highPad = (size - 1) / 2;
-        int64_t lowPad = (size - 1) - highPad;
-        SmallVector<int64_t> paddingInt{0, 0, 0, 0, lowPad, highPad};
+        // padding: the window covers floor((size - 1) / 2) channels before c
+        // and ceil((size - 1) / 2) channels after it.
+        int64_t lowPad = (size - 1) / 2;
+        int64_t highPad = (size - 1) - lowPad;
+        SmallVector<int64_t> paddingInt{0, 0, lowPad, highPad};
         auto constPadVal = Torch::ConstantFloatOp::create(
             rewriter, loc, rewriter.getType<Torch::FloatType>(),
             rewriter.getF64FloatAttr(0.0));
         Value paddingListVal =
             createConstantIntList(binder, rewriter, paddingInt);
-        SmallVector<int64_t, 5> paddedShapeInt = viewShapeInt;
+        SmallVector<int64_t, 4> paddedShapeInt = viewShapeInt;
         paddedShapeInt[2] += size - 1;
         Torch::ValueTensorType paddedType =
             rewriter.getType<Torch::ValueTensorType>(paddedShapeInt, dtype);
         auto padded = Torch::AtenConstantPadNdOp::create(
             rewriter, loc, paddedType, view, paddingListVal, constPadVal);
-        // avg_pool3d
-        SmallVector<int64_t, 3> kernelSize{size, 1, 1};
+        // avg_pool2d
+        SmallVector<int64_t, 2> kernelSize{size, 1};
         Value kernelSizeList =
             createConstantIntList(binder, rewriter, kernelSize);
-        SmallVector<int64_t, 3> strides{1, 1, 1};
+        SmallVector<int64_t, 2> strides{1, 1};
         Value stridesList = createConstantIntList(binder, rewriter, strides);
-        SmallVector<int64_t, 3> padding{0, 0, 0};
+        SmallVector<int64_t, 2> padding{0, 0};
         Value paddingList = createConstantIntList(binder, rewriter, padding);
         auto cstCeilMode =
             Torch::ConstantBoolOp::create(rewriter, binder.getLoc(), false);
@@ -2877,24 +2878,17 @@ void mlir::torch::onnx_c::populateDefaultDomainGtoP(
             Torch::ConstantNoneOp::create(rewriter, binder.getLoc());
         // Output of pooling is same reshape(view) type because
         // of the padding done on the dimensions being pooled.
-        auto pool = Torch::AtenAvgPool3dOp::create(
+        auto pool = Torch::AtenAvgPool2dOp::create(
             rewriter, loc, reshapeType, padded, kernelSizeList, stridesList,
             paddingList, cstCeilMode, cstCountIncludeMode,
             /*divisor_override=*/cstNone);
-        // squeeze
-        auto one = Torch::ConstantIntOp::create(rewriter, loc,
-                                                rewriter.getI64IntegerAttr(1));
-        SmallVector<int64_t, 5> squeezeShapeInt{
-            viewShapeInt[0], viewShapeInt[2], viewShapeInt[3], viewShapeInt[4]};
-        Torch::ValueTensorType squeezeType =
-            rewriter.getType<Torch::ValueTensorType>(squeezeShapeInt, dtype);
-        auto squeeze = Torch::AtenSqueezeDimOp::create(rewriter, loc,
-                                                       squeezeType, pool, one);
         // view as input Type
-        Value intTyShapeList =
-            createConstantIntList(binder, rewriter, inTyShape);
-        auto viewAsInput = Torch::AtenViewOp::create(rewriter, loc, inTy,
-                                                     squeeze, intTyShapeList);
+        Value intTyShapeList = Torch::PrimListConstructOp::create(
+            rewriter, loc,
+            Torch::ListType::get(rewriter.getType<Torch::IntType>()),
+            inputSizes);
+        auto viewAsInput = Torch::AtenViewOp::create(rewriter, loc, inTy, pool,
+                                                     intTyShapeList);
         // mul + add + pow + div
         auto mul = Torch::AtenMulScalarOp::create(rewriter, loc, resultType,
                                                   viewAsInput, constAlpha);

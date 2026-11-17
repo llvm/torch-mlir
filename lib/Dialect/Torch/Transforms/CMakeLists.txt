@@ -31,6 +31,7 @@ add_mlir_library(TorchMLIRTorchPasses
   TorchMLIRTorchPassIncGen
 
   LINK_LIBS PUBLIC
+  MLIRDialect
   MLIRIR
   MLIRParser
   MLIRPass

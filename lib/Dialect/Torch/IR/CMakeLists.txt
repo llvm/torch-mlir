@@ -1,4 +1,5 @@
 add_mlir_library(TorchMLIRTorchDialect
+  QuantizedDecomposedOps.cpp
   TorchDialect.cpp
   TorchOps.cpp
   TorchOpsODSGenerated.cpp

@@ -37,6 +37,56 @@ def MaskedScatterStaticBasic_basic(module, tu: TestUtils):
     module.forward(x, mask, y)
 
 
+class MaskedScatterBroadcastSelf(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 4], torch.float32, True),
+            ([3, 4], torch.bool, True),
+            ([12], torch.float32, True),
+        ]
+    )
+    def forward(self, x, mask, y):
+        return torch.ops.aten.masked_scatter(x, mask, y)
+
+
+@register_test_case(module_factory=lambda: MaskedScatterBroadcastSelf())
+def MaskedScatterBroadcastSelf_basic(module, tu: TestUtils):
+    x = tu.rand(1, 4)
+    mask = tu.rand(3, 4) > 0.5
+    y = tu.rand(12)
+    module.forward(x, mask, y)
+
+
+class MaskedScatterBroadcastSelfEmptySource(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 4], torch.float32, True),
+            ([3, 4], torch.bool, True),
+            ([0], torch.float32, True),
+        ]
+    )
+    def forward(self, x, mask, y):
+        return torch.ops.aten.masked_scatter(x, mask, y)
+
+
+@register_test_case(module_factory=lambda: MaskedScatterBroadcastSelfEmptySource())
+def MaskedScatterBroadcastSelfEmptySource_basic(module, tu: TestUtils):
+    x = tu.rand(1, 4)
+    mask = torch.zeros(3, 4, dtype=torch.bool)
+    y = tu.rand(0)
+    module.forward(x, mask, y)
+
+
 class IndexPutImpl1DFloatNonAccumulateModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1045,6 +1095,157 @@ def ScatterAddStaticModule_basic(module, tu: TestUtils):
 # ==============================================================================
 
 
+class ScatterAddDenseFloat16Module(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2], torch.float16, True),
+            ([2], torch.int64, True),
+            ([2], torch.float16, True),
+        ]
+    )
+    def forward(self, input, index, src):
+        return torch.ops.aten.scatter_add(input, 0, index, src)
+
+
+@register_test_case(module_factory=lambda: ScatterAddDenseFloat16Module())
+def ScatterAddDenseFloat16Module_basic(module, tu: TestUtils):
+    # The 2x2 intermediate selects the dense policy. Keep the reduction and
+    # self addition in f32: 80000 overflows f16, but the final result is 40000.
+    module.forward(
+        torch.tensor([-40000, 0], dtype=torch.float16),
+        torch.tensor([0, 0], dtype=torch.int64),
+        torch.tensor([40000, 40000], dtype=torch.float16),
+    )
+
+
+class ScatterAddSortedModule(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([65537], torch.float32, True),
+            ([17], torch.int64, True),
+            ([19], torch.float32, True),
+        ]
+    )
+    def forward(self, input, index, src):
+        return torch.ops.aten.scatter_add(input, 0, index, src)
+
+
+@register_test_case(module_factory=lambda: ScatterAddSortedModule())
+def ScatterAddSortedModule_basic(module, tu: TestUtils):
+    # The dense intermediate exceeds 1M elements. Include the highest valid
+    # key, non-power-of-two update counts, and unused source elements.
+    input = torch.arange(65537, dtype=torch.float32)
+    index = torch.tensor(
+        [65536, 0, 1, 65536, 2, 1, 0, 3, 65536, 3, 2, 1, 65536, 0, 2, 3, 65536]
+    )
+    src = torch.arange(19, dtype=torch.float32) - 9
+    module.forward(input, index, src)
+    module.forward(input, torch.full((17,), 65536, dtype=torch.int64), src)
+    module.forward(input, torch.arange(16, -1, -1), src)
+
+    # Nonfinite values must remain confined to their destination segments.
+    src[0] = float("nan")
+    src[1] = float("inf")
+    src[2] = -float("inf")
+    module.forward(input, index, src)
+
+
+class ScatterAddSortedFloat16Module(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 512], torch.float16, True),
+            ([2, 513], torch.int64, True),
+            ([2, 514], torch.float16, True),
+        ]
+    )
+    def forward(self, input, index, src):
+        return torch.ops.aten.scatter_add(input, -1, index, src)
+
+
+@register_test_case(module_factory=lambda: ScatterAddSortedFloat16Module())
+def ScatterAddSortedFloat16Module_basic(module, tu: TestUtils):
+    # Keep the segmented sum and self addition in f32: each update sum is
+    # 80000, but adding self gives the representable f16 result 40000.
+    input = torch.zeros(2, 512, dtype=torch.float16)
+    input[:, 0] = -40000
+    index = torch.zeros(2, 513, dtype=torch.int64)
+    src = torch.zeros(2, 514, dtype=torch.float16)
+    src[:, :2] = 40000
+    src[:, -1] = float("nan")
+    module.forward(input, index, src)
+
+
+# ==============================================================================
+
+
+class ScatterAddDenseSignedZeroModule(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4], torch.float32, True),
+            ([3], torch.int64, True),
+            ([3], torch.float32, True),
+        ]
+    )
+    def forward(self, input, index, src):
+        result = torch.ops.aten.scatter_add(input, 0, index, src)
+        # Division turns signed zeros into signed infinities, which the
+        # numerical comparator distinguishes even though -0.0 == +0.0.
+        return result, torch.ones_like(result) / result
+
+
+@register_test_case(module_factory=lambda: ScatterAddDenseSignedZeroModule())
+def ScatterAddDenseSignedZeroModule_basic(module, tu: TestUtils):
+    # Preserve the untouched -0.0 at 0, but update the -0.0 at 2 even when
+    # its updates sum to zero. Destination 3 preserves an untouched +0.0.
+    module.forward(
+        torch.tensor([-0.0, 1.0, -0.0, 0.0]),
+        torch.tensor([1, 2, 2]),
+        torch.tensor([1.0, 1.0, -1.0]),
+    )
+
+
+class ScatterAddSortedSignedZeroModule(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1024], torch.float32, True),
+            ([1025], torch.int64, True),
+            ([1025], torch.float32, True),
+        ]
+    )
+    def forward(self, input, index, src):
+        result = torch.ops.aten.scatter_add(input, 0, index, src)
+        return result, torch.ones_like(result) / result
+
+
+@register_test_case(module_factory=lambda: ScatterAddSortedSignedZeroModule())
+def ScatterAddSortedSignedZeroModule_basic(module, tu: TestUtils):
+    # The 1025x1024 product selects sorting. Include repeated destinations,
+    # a touched -0.0 with a zero update sum, and untouched zeros of both signs.
+    input = torch.ones(1024)
+    input[0] = -0.0
+    input[2] = -0.0
+    input[3] = 0.0
+    index = torch.ones(1025, dtype=torch.int64)
+    index[-2:] = 2
+    src = torch.zeros(1025)
+    src[0] = 1.0
+    src[-2:] = torch.tensor([1.0, -1.0])
+    module.forward(input, index, src)
+
+
+# ==============================================================================
+
+
 class ScatterAddDynamicModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1351,6 +1552,34 @@ def IndexPutWithNoneAndBroadcastModule_basic(module, tu: TestUtils):
         tu.randint(6, 1, high=4),
         tu.randint(7, high=5),
         tu.rand(1, 6, 7),  # broadcasted to (2, 3, 6, 7)
+    )
+
+
+# Assigning through two index tensors that hold negative indices.
+class IndexPutNegativeIndexModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 5], torch.float32, True),
+            ([2], torch.int64, True),
+            ([2], torch.int64, True),
+            ([2], torch.float32, True),
+        ]
+    )
+    def forward(self, input, rows, cols, values):
+        output = input.clone()
+        output[rows, cols] = values
+        return output
+
+
+@register_test_case(module_factory=lambda: IndexPutNegativeIndexModule())
+def IndexPutNegativeIndexModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(4, 5), torch.tensor([-1, 0]), torch.tensor([-2, 1]), tu.rand(2)
     )
 
 

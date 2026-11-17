@@ -62,6 +62,7 @@ def build_model(
     ir_version: int = _DEFAULT_IR_VERSION,
     validate: bool = True,
     extra_opsets: Optional[dict[str, int]] = None,
+    value_infos: Optional[list] = None,
 ) -> onnx.ModelProto:
     """Build an ``onnx.ModelProto`` with the graph name hard-coded to
     ``"main_graph"``.
@@ -83,6 +84,8 @@ def build_model(
             for the pass-1 probe model, whose outputs are intentionally
             shapeless (the checker requires a shape).
         extra_opsets: Additional operator domains and their versions.
+        value_infos: Optional list of ``onnx.ValueInfoProto`` objects typing
+            intermediate (non-input, non-output) tensors.
 
     Returns:
         An ``onnx.ModelProto`` (validated unless ``validate`` is False).
@@ -93,6 +96,7 @@ def build_model(
         inputs=inputs,
         outputs=outputs,
         initializer=initializers or [],
+        value_info=value_infos or [],
     )
     model = onnx.helper.make_model(
         graph,
@@ -187,6 +191,9 @@ class OnnxTestCase:
     # ONNX opset the model imports; the probe and final models share it.
     opset: int = _DEFAULT_OPSET
     extra_opsets: Optional[dict[str, int]] = None
+    # Evaluate the reference with ONNX Runtime instead of onnx.reference, for
+    # ops that onnx.reference does not implement correctly.
+    use_onnxruntime_reference: bool = False
 
     def graph(self):
         raise NotImplementedError
@@ -216,7 +223,7 @@ class OnnxTestCase:
         # Local imports so that the pure descriptor path (registration) does not
         # pull in the reference evaluator / numpy input machinery.
         from .config import materialize_inputs
-        from .reference import create_reference_evaluator
+        from .reference import mark_onnxruntime_reference, run_reference
 
         annotations = cls._input_annotations()
         # A -1 in an annotation shape marks a dynamic dim: TensorPlaceholder /
@@ -243,8 +250,18 @@ class OnnxTestCase:
         # Pass 1: run a model with shapeless outputs through the reference
         # evaluator to learn each output's concrete shape and dtype. This model
         # is not validated (check_model requires a shape); it exists only to run.
+        # Intermediate node outputs are also exposed on the probe so their
+        # types can also be recorded as value_info.
+        graph_names = set(output_names)
+        graph_names.update(name for (name, *_rest) in annotations)
+        intermediate_names = []
+        for node in nodes:
+            for out in node.output:
+                if out and out not in graph_names and out not in intermediate_names:
+                    intermediate_names.append(out)
+        probe_names = list(output_names) + intermediate_names
         probe_outputs = [
-            onnx.helper.make_empty_tensor_value_info(name) for name in output_names
+            onnx.helper.make_empty_tensor_value_info(name) for name in probe_names
         ]
         probe_model = build_model(
             nodes,
@@ -255,27 +272,34 @@ class OnnxTestCase:
             validate=False,
             extra_opsets=cls.extra_opsets,
         )
+        if cls.use_onnxruntime_reference:
+            mark_onnxruntime_reference(probe_model)
         numpy_inputs = materialize_inputs(cls.input_placeholders(), seed=0)
         feed = {
             annotation[0]: arr for (annotation, arr) in zip(annotations, numpy_inputs)
         }
-        golden = create_reference_evaluator(probe_model).run(None, feed)
+        golden = run_reference(probe_model, feed)
 
         # Pass 2: rebuild with concrete, inferred output value_infos so the
         # importer sees correct result types (and check_model passes).
-        output_infos = [
+        inferred_infos = [
             onnx.helper.make_tensor_value_info(
                 name,
                 onnx.helper.np_dtype_to_tensor_dtype(arr.dtype),
                 list(arr.shape),
             )
-            for name, arr in zip(output_names, golden)
+            for name, arr in zip(probe_names, golden)
         ]
-        return build_model(
+        num_outputs = len(output_names)
+        model = build_model(
             nodes,
             input_infos,
-            output_infos,
+            inferred_infos[:num_outputs],
             initializers=initializers,
             opset=cls.opset,
             extra_opsets=cls.extra_opsets,
+            value_infos=inferred_infos[num_outputs:],
         )
+        if cls.use_onnxruntime_reference:
+            mark_onnxruntime_reference(model)
+        return model
