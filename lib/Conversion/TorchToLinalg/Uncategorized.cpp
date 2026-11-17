@@ -5339,11 +5339,10 @@ struct RotaryParameters {
 
 /// Returns the sizes of the rotation of `op`, or failure if its operands are
 /// not supported.
-static FailureOr<RotaryParameters>
-getRotaryParameters(OnnxVariantRotaryEmbeddingOp op, Value input,
-                    Value positionIds, Value cosCache, Value sinCache,
-                    int64_t numHeads, int64_t rotaryEmbeddingDim,
-                    ConversionPatternRewriter &rewriter) {
+static FailureOr<RotaryParameters> getRotaryParameters(
+    OnnxVariantRotaryEmbeddingOp op, Value input, Value positionIds,
+    Value cosCache, Value sinCache, bool interleaved, int64_t numHeads,
+    int64_t rotaryEmbeddingDim, ConversionPatternRewriter &rewriter) {
   // input        : (batch, seq, hidden) or (batch, num_heads, seq, head_size)
   // position_ids : (batch, seq), (1) or ()
   // cos_cache    : (max_seq, head_size / 2) or
@@ -5409,6 +5408,13 @@ getRotaryParameters(OnnxVariantRotaryEmbeddingOp op, Value input,
     return rewriter.notifyMatchFailure(
         op, "expected cos_cache dim 1 to be head_size / 2 or "
             "rotary_embedding_dim / 2");
+  // The rotation works on pairs, and a rotary dim of 1 gives a zero divisor.
+  if (rotaryDim % 2 != 0)
+    return rewriter.notifyMatchFailure(op, "expected an even rotary dim");
+  // The interleaved pair of the last element of an odd head is out of bounds.
+  if (interleaved && headSize % 2 != 0)
+    return rewriter.notifyMatchFailure(
+        op, "expected an even head_size when interleaved");
 
   if (inputRank == 4)
     return RotaryParameters{inputShape[1], headSize, rotaryDim};
@@ -5453,9 +5459,9 @@ public:
                       m_TorchConstantInt(&rotaryEmbeddingDim)))
       return rewriter.notifyMatchFailure(op, "expected constant attributes");
 
-    FailureOr<RotaryParameters> parameters =
-        getRotaryParameters(op, input, positionIds, cosCache, sinCache,
-                            numHeads, rotaryEmbeddingDim, rewriter);
+    FailureOr<RotaryParameters> parameters = getRotaryParameters(
+        op, input, positionIds, cosCache, sinCache, interleaved, numHeads,
+        rotaryEmbeddingDim, rewriter);
     if (failed(parameters))
       return failure();
 

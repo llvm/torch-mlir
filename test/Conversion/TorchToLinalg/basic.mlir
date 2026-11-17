@@ -709,6 +709,35 @@ func.func @torch.onnx.rotary_embedding$no_convert$empty_cache(%arg0: !torch.vten
 
 // -----
 
+// An odd rotary dim is rejected, since a rotary_embedding_dim of 1 gives a zero
+// divisor.
+func.func @torch.onnx.rotary_embedding$no_convert$odd_rotary_dim(%arg0: !torch.vtensor<[1,2,8],f32>, %arg1: !torch.vtensor<[1,2],si64>, %arg2: !torch.vtensor<[4,2],f32>, %arg3: !torch.vtensor<[4,2],f32>) -> !torch.vtensor<[1,2,8],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %float = torch.constant.float 1.000000e+00
+  // expected-error @+1 {{failed to legalize operation 'torch.onnx.rotary_embedding'}}
+  %0 = torch.onnx.rotary_embedding %arg0, %arg1, %arg2, %arg3, %int0, %int0, %int2, %int1, %float : !torch.vtensor<[1,2,8],f32>, !torch.vtensor<[1,2],si64>, !torch.vtensor<[4,2],f32>, !torch.vtensor<[4,2],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor<[1,2,8],f32>
+  return %0 : !torch.vtensor<[1,2,8],f32>
+}
+
+// -----
+
+// An odd head size is rejected when interleaved, since the pair of its last
+// element is out of bounds.
+func.func @torch.onnx.rotary_embedding$no_convert$interleaved_odd_head_size(%arg0: !torch.vtensor<[1,2,10],f32>, %arg1: !torch.vtensor<[1,2],si64>, %arg2: !torch.vtensor<[4,2],f32>, %arg3: !torch.vtensor<[4,2],f32>) -> !torch.vtensor<[1,2,10],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int4 = torch.constant.int 4
+  %float = torch.constant.float 1.000000e+00
+  // expected-error @+1 {{failed to legalize operation 'torch.onnx.rotary_embedding'}}
+  %0 = torch.onnx.rotary_embedding %arg0, %arg1, %arg2, %arg3, %int1, %int0, %int2, %int4, %float : !torch.vtensor<[1,2,10],f32>, !torch.vtensor<[1,2],si64>, !torch.vtensor<[4,2],f32>, !torch.vtensor<[4,2],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor<[1,2,10],f32>
+  return %0 : !torch.vtensor<[1,2,10],f32>
+}
+
+// -----
+
 // position_ids that do not match the input's (batch, seq) are rejected.
 func.func @torch.onnx.rotary_embedding$no_convert$position_ids_shape(%arg0: !torch.vtensor<[1,2,8],f32>, %arg1: !torch.vtensor<[1,3],si64>, %arg2: !torch.vtensor<[4,2],f32>, %arg3: !torch.vtensor<[4,2],f32>) -> !torch.vtensor<[1,2,8],f32> {
   %int0 = torch.constant.int 0
