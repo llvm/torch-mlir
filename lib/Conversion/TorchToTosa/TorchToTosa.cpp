@@ -9915,8 +9915,8 @@ private:
   }
 };
 
-// Accumulate each AvgPool3d window in FP32 in depth-height-width order,
-// then apply its divisor once.
+// Sum each AvgPool3d window with an FP32 convolution, then apply its divisor.
+// The convolution backend determines the floating-point accumulation order.
 class ConvertAtenAvgPool3dOp
     : public TorchToTosaOpConversionPattern<AtenAvgPool3dOp> {
 public:
@@ -9988,65 +9988,109 @@ public:
       return rewriter.notifyMatchFailure(
           op, "AvgPool3d requires None or a nonzero constant divisor_override");
 
+    const bool hasBatch = inputTy.getRank() == 5;
+    int64_t batchChannels;
+    if (llvm::MulOverflow(hasBatch ? inputTy.getDimSize(0) : int64_t{1},
+                          inputTy.getDimSize(inputTy.getRank() - 4),
+                          batchChannels))
+      return rewriter.notifyMatchFailure(
+          op, "AvgPool3d batch * channels overflows");
+    // Conv3D uses tensor extents, not Gather's i32 flattened spatial indices.
+    // TOSA tensor_size_t must represent the promoted FP32 byte count too.
+    auto fitsTensorSize = [](ArrayRef<int64_t> shape) {
+      int64_t elements = 1;
+      for (int64_t dim : shape)
+        if (dim <= 0 || llvm::MulOverflow(elements, dim, elements))
+          return false;
+      int64_t bytes;
+      return !llvm::MulOverflow(elements, static_cast<int64_t>(sizeof(float)),
+                                bytes) &&
+             static_cast<uint64_t>(bytes) <= std::numeric_limits<size_t>::max();
+    };
+    if (!fitsTensorSize(inputTy.getShape()))
+      return rewriter.notifyMatchFailure(
+          op, "AvgPool3d input tensor size overflows");
+
     auto spatialShape = inputTy.getShape().take_back(3);
-    int64_t spatialSize = 1;
-    for (int64_t length : spatialShape) {
-      if (length > std::numeric_limits<int32_t>::max() / spatialSize)
-        return rewriter.notifyMatchFailure(
-            op, "AvgPool3d spatial size must fit in i32 gather indices");
-      spatialSize *= length;
-    }
     SmallVector<int64_t, 3> outputShape;
+    SmallVector<int64_t, 3> sliceSize, paddedShape;
+    SmallVector<int64_t, 6> convPadding;
+    bool fullCountedWindows = true;
     for (unsigned axis = 0; axis < 3; ++axis) {
       int64_t length = spatialShape[axis];
-      int64_t span = length + 2 * padding[axis] - kernel[axis];
-      int64_t out = (ceilMode ? llvm::divideCeilSigned(span, stride[axis])
-                              : llvm::divideFloorSigned(span, stride[axis])) +
-                    1;
+      int64_t inputEnd, padded, span, out;
+      if (llvm::AddOverflow(length, padding[axis], inputEnd) ||
+          llvm::AddOverflow(inputEnd, padding[axis], padded) ||
+          llvm::SubOverflow(padded, kernel[axis], span))
+        return rewriter.notifyMatchFailure(op, "AvgPool3d padding overflows");
+      int64_t quotient = ceilMode ? llvm::divideCeilSigned(span, stride[axis])
+                                  : llvm::divideFloorSigned(span, stride[axis]);
+      if (llvm::AddOverflow(quotient, int64_t{1}, out))
+        return rewriter.notifyMatchFailure(
+            op, "AvgPool3d output dimension overflows");
       // Ceil mode may produce a final window that starts in the trailing
       // padding. Its start in input coordinates is (out - 1) * stride -
       // padding. Exclude that window when its start is at or beyond the input
       // length.
-      if (ceilMode && (out - 1) * stride[axis] >= length + padding[axis])
+      if (ceilMode && out > 0 && out - 1 > (inputEnd - 1) / stride[axis])
         --out;
       if (out <= 0)
         return rewriter.notifyMatchFailure(op,
                                            "AvgPool3d output must be positive");
       outputShape.push_back(out);
+
+      int64_t lastOffset, covered, lastStart, end, trailing;
+      if (llvm::MulOverflow(out - 1, stride[axis], lastOffset) ||
+          llvm::AddOverflow(lastOffset, kernel[axis], covered) ||
+          llvm::SubOverflow(lastOffset, padding[axis], lastStart) ||
+          llvm::SubOverflow(covered, padding[axis], end) ||
+          llvm::SubOverflow(end, length, trailing))
+        return rewriter.notifyMatchFailure(op,
+                                           "AvgPool3d window extent overflows");
+      // Starts increase monotonically. Checking the endpoint windows also
+      // validates the constant-divisor path without visiting every window.
+      if (kernel[axis] - padding[axis] <= 0 ||
+          std::min(end, length) <= std::max(lastStart, int64_t{0}))
+        return rewriter.notifyMatchFailure(op,
+                                           "AvgPool3d window must be nonempty");
+      sliceSize.push_back(std::min(length, end));
+      paddedShape.push_back(covered);
+      convPadding.push_back(padding[axis]);
+      convPadding.push_back(std::max(int64_t{0}, trailing));
+      fullCountedWindows &= covered <= padded;
     }
 
-    // Count only requested padding in the divisor, excluding ceil-mode
-    // extension.
-    SmallVector<std::array<int64_t, 3>> windowStarts;
-    SmallVector<float> reciprocalDivisors;
-    for (int64_t od = 0; od < outputShape[0]; ++od) {
-      for (int64_t oh = 0; oh < outputShape[1]; ++oh) {
-        for (int64_t ow = 0; ow < outputShape[2]; ++ow) {
-          std::array<int64_t, 3> start = {od * stride[0] - padding[0],
-                                          oh * stride[1] - padding[1],
-                                          ow * stride[2] - padding[2]};
-          int64_t validCount = 1;
-          int64_t paddedCount = 1;
-          for (unsigned axis = 0; axis < 3; ++axis) {
-            int64_t end = std::min(start[axis] + kernel[axis],
-                                   spatialShape[axis] + padding[axis]);
-            int64_t valid = std::min(end, spatialShape[axis]) -
-                            std::max(start[axis], int64_t{0});
-            if (valid <= 0)
-              return rewriter.notifyMatchFailure(
-                  op, "AvgPool3d window must be nonempty");
-            validCount *= valid;
-            paddedCount *= end - start[axis];
-          }
-          int64_t windowDivisor =
-              hasOverride ? divisor
-                          : (countIncludePad ? paddedCount : validCount);
-          windowStarts.push_back(start);
-          reciprocalDivisors.push_back(1.0f /
-                                       static_cast<float>(windowDivisor));
-        }
-      }
-    }
+    int64_t kernelVolume = 1;
+    for (int64_t extent : kernel)
+      if (llvm::MulOverflow(kernelVolume, extent, kernelVolume))
+        return rewriter.notifyMatchFailure(op,
+                                           "AvgPool3d kernel size overflows");
+    SmallVector<int64_t> convOutputShape = {batchChannels, outputShape[0],
+                                            outputShape[1], outputShape[2], 1};
+    SmallVector<int64_t> convPaddedShape = {batchChannels, paddedShape[0],
+                                            paddedShape[1], paddedShape[2], 1};
+    if (!fitsTensorSize(kernel))
+      return rewriter.notifyMatchFailure(
+          op, "AvgPool3d kernel tensor size overflows");
+    if (!fitsTensorSize(convOutputShape))
+      return rewriter.notifyMatchFailure(
+          op, "AvgPool3d output tensor size overflows");
+    if (!fitsTensorSize(convPaddedShape))
+      return rewriter.notifyMatchFailure(
+          op, "AvgPool3d padded tensor size overflows");
+    // TOSA serialization stores each dimension and Conv3D pad/stride entry
+    // as i32. The product of the spatial dimensions need not fit in i32.
+    auto fitsI32 = [](int64_t value) {
+      return value <= std::numeric_limits<int32_t>::max();
+    };
+    if (!llvm::all_of(inputTy.getShape(), fitsI32) ||
+        !llvm::all_of(kernel, fitsI32) ||
+        !llvm::all_of(convOutputShape, fitsI32))
+      return rewriter.notifyMatchFailure(
+          op, "AvgPool3d Conv3D tensor dimension exceeds the i32 range");
+    if (!llvm::all_of(stride, fitsI32) || !llvm::all_of(convPadding, fitsI32))
+      return rewriter.notifyMatchFailure(
+          op, "AvgPool3d Conv3D padding or stride exceeds the i32 range");
     auto expectedResultTy = dyn_cast<RankedTensorType>(
         this->getTypeConverter()->convertType(op.getType()));
     if (!expectedResultTy ||
@@ -10062,8 +10106,57 @@ public:
         return rewriter.notifyMatchFailure(op,
                                            "AvgPool3d result shape mismatch");
 
+    // Overrides and full counted windows have a provably constant divisor.
+    // Keep partial-window counts for padding exclusion and ceil-mode tails.
+    std::optional<float> uniformReciprocal;
+    SmallVector<float> reciprocalDivisors;
+    bool noPadding = llvm::all_of(padding, [](int64_t p) { return p == 0; });
+    if (hasOverride || (fullCountedWindows && (countIncludePad || noPadding))) {
+      int64_t windowDivisor = hasOverride ? divisor : kernelVolume;
+      uniformReciprocal = 1.0f / static_cast<float>(windowDivisor);
+    } else {
+      for (int64_t od = 0; od < outputShape[0]; ++od) {
+        for (int64_t oh = 0; oh < outputShape[1]; ++oh) {
+          for (int64_t ow = 0; ow < outputShape[2]; ++ow) {
+            std::array<int64_t, 3> position = {od, oh, ow};
+            int64_t validCount = 1;
+            int64_t paddedCount = 1;
+            for (unsigned axis = 0; axis < 3; ++axis) {
+              int64_t start, end, inputEnd;
+              if (llvm::MulOverflow(position[axis], stride[axis], start) ||
+                  llvm::SubOverflow(start, padding[axis], start) ||
+                  llvm::AddOverflow(start, kernel[axis], end) ||
+                  llvm::AddOverflow(spatialShape[axis], padding[axis],
+                                    inputEnd))
+                return rewriter.notifyMatchFailure(
+                    op, "AvgPool3d divisor window overflows");
+              // Count requested padding, excluding the ceil-mode extension.
+              end = std::min(end, inputEnd);
+              int64_t valid = std::min(end, spatialShape[axis]) -
+                              std::max(start, int64_t{0});
+              int64_t counted;
+              if (valid <= 0)
+                return rewriter.notifyMatchFailure(
+                    op, "AvgPool3d window must be nonempty");
+              if (llvm::SubOverflow(end, start, counted) ||
+                  llvm::MulOverflow(validCount, valid, validCount) ||
+                  llvm::MulOverflow(paddedCount, counted, paddedCount))
+                return rewriter.notifyMatchFailure(
+                    op, "AvgPool3d divisor overflows");
+            }
+            int64_t windowDivisor = countIncludePad ? paddedCount : validCount;
+            reciprocalDivisors.push_back(1.0f /
+                                         static_cast<float>(windowDivisor));
+          }
+        }
+      }
+      if (llvm::all_of(reciprocalDivisors, [&](float value) {
+            return value == reciprocalDivisors.front();
+          }))
+        uniformReciprocal = reciprocalDivisors.front();
+    }
+
     SmallVector<int64_t> inputShape(inputTy.getShape());
-    const bool hasBatch = inputTy.getRank() == 5;
     // Keep accumulation and divisor scaling in FP32; round only
     // once when converting the final result back to the original dtype.
     Type elementTy = rewriter.getF32Type();
@@ -10082,83 +10175,72 @@ public:
       input = reshapeTensor(input, inputShape, elementTy, rewriter, loc);
     }
 
-    const int64_t n = inputShape[0];
-    const int64_t c = inputShape[1];
     const int64_t d = inputShape[2];
     const int64_t h = inputShape[3];
     const int64_t w = inputShape[4];
 
-    const int64_t windowCount = windowStarts.size();
-    // Gather each spatial position for all batch/channel pairs at once.
-    input = transposeTensor(input, inputShape, elementTy, {2, 3, 4, 0, 1},
-                            this->getTypeConverter(), rewriter, loc);
-    input =
-        reshapeTensor(input, {1, spatialSize, n * c}, elementTy, rewriter, loc);
-    auto sumTy = RankedTensorType::get({1, windowCount, n * c}, elementTy);
-    auto indexTy =
-        RankedTensorType::get({1, windowCount}, rewriter.getI32Type());
-    auto maskTy =
-        RankedTensorType::get({1, windowCount, 1}, rewriter.getI1Type());
-    Value sum = tosa::ConstOp::create(
-        rewriter, loc, sumTy,
-        DenseElementsAttr::get(sumTy, rewriter.getF32FloatAttr(0.0f)));
-
-    // 3. Accumulate the whole window with width varying fastest. Keep each
-    // addition dependent on the previous sum, including across depth planes.
-    for (int64_t kd = 0; kd < kernel[0]; ++kd) {
-      for (int64_t kh = 0; kh < kernel[1]; ++kh) {
-        for (int64_t kw = 0; kw < kernel[2]; ++kw) {
-          SmallVector<int32_t> indices;
-          SmallVector<bool> valid;
-          indices.reserve(windowCount);
-          valid.reserve(windowCount);
-          for (const auto &start : windowStarts) {
-            int64_t id = start[0] + kd;
-            int64_t ih = start[1] + kh;
-            int64_t iw = start[2] + kw;
-            bool inBounds =
-                id >= 0 && id < d && ih >= 0 && ih < h && iw >= 0 && iw < w;
-            valid.push_back(inBounds);
-            indices.push_back(inBounds ? (id * h + ih) * w + iw : 0);
-          }
-          if (llvm::none_of(valid, [](bool v) { return v; }))
-            continue;
-          Value index = tosa::ConstOp::create(
-              rewriter, loc, indexTy,
-              DenseIntElementsAttr::get(indexTy, ArrayRef<int32_t>(indices)));
-          Value element =
-              tosa::GatherOp::create(rewriter, loc, sumTy, input, index);
-          Value next = tosa::AddOp::create(rewriter, loc, sumTy, sum, element);
-          if (!llvm::all_of(valid, [](bool v) { return v; })) {
-            // Skip padding positions, including placeholder NaN/Inf values.
-            Value mask = tosa::ConstOp::create(
-                rewriter, loc, maskTy,
-                DenseElementsAttr::get(maskTy, ArrayRef<bool>(valid)));
-            next =
-                tosa::SelectOp::create(rewriter, loc, sumTy, mask, next, sum);
-          }
-          sum = next;
-        }
-      }
+    // Fold N and C into the convolution batch: each channel is independent.
+    SmallVector<int64_t> convInputShape = {batchChannels, d, h, w, 1};
+    Value convInput =
+        reshapeTensor(input, convInputShape, elementTy, rewriter, loc);
+    SmallVector<int64_t> sliceShape = convInputShape;
+    bool needsCrop = false;
+    for (unsigned axis = 0; axis < 3; ++axis) {
+      sliceShape[axis + 1] = sliceSize[axis];
+      needsCrop |= sliceSize[axis] != spatialShape[axis];
     }
+    if (needsCrop) {
+      auto sliceTy = RankedTensorType::get(sliceShape, elementTy);
+      convInput = tosa::SliceOp::create(
+          rewriter, loc, sliceTy, convInput,
+          tosa::getTosaConstShape(rewriter, loc, {0, 0, 0, 0, 0}),
+          tosa::getTosaConstShape(rewriter, loc, sliceShape));
+    }
+
+    auto weightTy = RankedTensorType::get(
+        {1, kernel[0], kernel[1], kernel[2], 1}, elementTy);
+    Value weight = tosa::ConstOp::create(
+        rewriter, loc, weightTy,
+        DenseElementsAttr::get(weightTy, rewriter.getF32FloatAttr(1.0f)));
+    auto zeroTy = RankedTensorType::get({1}, elementTy);
+    Value zero = tosa::ConstOp::create(
+        rewriter, loc, zeroTy,
+        DenseElementsAttr::get(zeroTy, rewriter.getF32FloatAttr(0.0f)));
+    auto sumTy = RankedTensorType::get(convOutputShape, elementTy);
+    auto sum = tosa::Conv3DOp::create(
+        rewriter, loc, sumTy, convInput, weight, zero, zero, zero,
+        rewriter.getDenseI64ArrayAttr(convPadding),
+        rewriter.getDenseI64ArrayAttr(stride),
+        rewriter.getDenseI64ArrayAttr({1, 1, 1}), TypeAttr::get(elementTy));
+    sum.setLocalBound(true);
 
     // TOSA has no floating-point divide. Reciprocal multiplication can still
     // differ from a directly rounded FP32 division.
-    auto scaleTy = RankedTensorType::get({1, windowCount, 1}, elementTy);
-    Value scale = tosa::ConstOp::create(
-        rewriter, loc, scaleTy,
-        DenseElementsAttr::get(scaleTy, ArrayRef<float>(reciprocalDivisors)));
+    SmallVector<int64_t> scaleShape =
+        uniformReciprocal
+            ? SmallVector<int64_t>{1, 1, 1, 1, 1}
+            : SmallVector<int64_t>{1, outputShape[0], outputShape[1],
+                                   outputShape[2], 1};
+    auto scaleTy = RankedTensorType::get(scaleShape, elementTy);
+    auto scaleAttr =
+        uniformReciprocal
+            ? DenseElementsAttr::get(
+                  scaleTy, rewriter.getF32FloatAttr(*uniformReciprocal))
+            : DenseElementsAttr::get(scaleTy,
+                                     ArrayRef<float>(reciprocalDivisors));
+    Value scale = tosa::ConstOp::create(rewriter, loc, scaleTy, scaleAttr);
     Value result = tosa::createMulOpAndCast(rewriter, op, sumTy, sum, scale, 0);
-
-    // 4. Restore NCDHW and remove the synthetic batch for a CDHW input.
-    SmallVector<int64_t> spatialFirstShape = {outputShape[0], outputShape[1],
-                                              outputShape[2], n, c};
-    result = reshapeTensor(result, spatialFirstShape, elementTy, rewriter, loc);
-    result =
-        transposeTensor(result, spatialFirstShape, elementTy, {3, 4, 0, 1, 2},
-                        this->getTypeConverter(), rewriter, loc);
-    if (!hasBatch)
-      result = reshapeTensor(result, resultShape, elementTy, rewriter, loc);
+    // CPU eager adds the normalized FP32 value into a +0 output slot. Match
+    // its zero sign before narrowing, which can itself create negative zero.
+    auto positiveZeroTy = RankedTensorType::get({1, 1, 1, 1, 1}, elementTy);
+    Value positiveZero = tosa::ConstOp::create(
+        rewriter, loc, positiveZeroTy,
+        DenseElementsAttr::get(positiveZeroTy, rewriter.getF32FloatAttr(0.0f)));
+    Value isZero = tosa::EqualOp::create(
+        rewriter, loc, sumTy.clone(rewriter.getI1Type()), result, positiveZero);
+    result = tosa::SelectOp::create(rewriter, loc, sumTy, isZero, positiveZero,
+                                    result);
+    result = reshapeTensor(result, resultShape, elementTy, rewriter, loc);
     if (originalElementTy != elementTy) {
       auto casted = tosa::tosaCastTensorToType(
           rewriter, result,

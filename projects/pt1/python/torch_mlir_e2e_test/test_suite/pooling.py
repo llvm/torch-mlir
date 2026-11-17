@@ -1932,6 +1932,37 @@ def AvgPool3dFp32Cancellation_basic(module, tu: TestUtils):
     )
 
 
+class AvgPool3dSignedZero(torch.nn.Module):
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 4, 2, 2, 2], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        result = torch.nn.functional.avg_pool3d(x, 2, divisor_override=-2)
+        # Reciprocals expose zero signs as infinities to the numerical comparator.
+        return result, torch.ones_like(result) / result
+
+
+@register_test_case(module_factory=lambda: AvgPool3dSignedZero())
+def AvgPool3dSignedZero_basic(module, tu: TestUtils):
+    # CPU eager produces +0 for zero sums even with a negative divisor.
+    # Cover both input zero signs, cancellation, and an ordinary nonzero sum.
+    module.forward(
+        torch.tensor(
+            [
+                [0.0] * 8,
+                [-0.0] * 8,
+                [1.0, -1.0, 0.0, -0.0, 0.0, -0.0, 0.0, -0.0],
+                [1.0] * 8,
+            ],
+            dtype=torch.float32,
+        ).reshape(1, 4, 2, 2, 2)
+    )
+
+
 class AvgPool3dCountIncludePadFalse(torch.nn.Module):
 
     def __init__(self):
