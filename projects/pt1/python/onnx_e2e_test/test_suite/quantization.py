@@ -211,6 +211,53 @@ class OnnxMatMulIntegerToFloat_dynamicColumns(_MatMulIntegerToFloat):
 
 
 # ==============================================================================
+# MatMulInteger
+# ==============================================================================
+
+
+@register_onnx_test
+class OnnxMatMulInteger_ui8_basic(OnnxTestCase):
+    # A [4,8] @ B [8,16] lowers through aten.mm.
+    @annotate_inputs(
+        [
+            ("a", torch.uint8, [4, 8], (0, 256)),
+            ("b", torch.uint8, [8, 16], (0, 256)),
+        ]
+    )
+    def graph(self):
+        node = onnx.helper.make_node("MatMulInteger", ["a", "b"], ["y"])
+        return [node], ["y"]
+
+
+@register_onnx_test
+class OnnxMatMulInteger_ui8i8_batched(OnnxTestCase):
+    # A [2,4,8] @ B [2,8,16] with equal batches lowers through aten.bmm.
+    @annotate_inputs(
+        [
+            ("a", torch.uint8, [2, 4, 8], (0, 256)),
+            ("b", torch.int8, [2, 8, 16], (-128, 128)),
+        ]
+    )
+    def graph(self):
+        node = onnx.helper.make_node("MatMulInteger", ["a", "b"], ["y"])
+        return [node], ["y"]
+
+
+@register_onnx_test
+class OnnxMatMulInteger_ui8i8_broadcastBatch(OnnxTestCase):
+    # A [2,4,8] @ B [8,16] broadcasts B over the batch in aten.matmul.
+    @annotate_inputs(
+        [
+            ("a", torch.uint8, [2, 4, 8], (0, 256)),
+            ("b", torch.int8, [8, 16], (-128, 128)),
+        ]
+    )
+    def graph(self):
+        node = onnx.helper.make_node("MatMulInteger", ["a", "b"], ["y"])
+        return [node], ["y"]
+
+
+# ==============================================================================
 # QLinear binary elementwise ops (QLinearAdd, QLinearMul)
 # ==============================================================================
 

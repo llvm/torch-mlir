@@ -27,6 +27,64 @@ using namespace mlir;
 using namespace mlir::torch;
 using namespace mlir::torch::Torch;
 
+/// Creates the integer contraction `init += lhs * rhs` over `indexingMaps` as
+/// a linalg.generic that extends each operand to the element type of `init`
+/// according to its own torch dtype. Used where no named op fits: mixed
+/// signedness (the named ops apply one type function to both operands),
+/// unsigned vector operands (`linalg.dot`, `linalg.vecmat` and `linalg.matvec`
+/// always sign-extend) and batch dimensions that cannot be collapsed.
+static Value createGenericContraction(OpBuilder &b, Location loc, Value lhs,
+                                      Value rhs, Value init,
+                                      ArrayRef<AffineMap> indexingMaps,
+                                      Type lhsDtype, Type rhsDtype) {
+  // Dimensions missing from the result map are the reduction dimensions.
+  AffineMap initMap = indexingMaps.back();
+  SmallVector<utils::IteratorType> iteratorTypes;
+  for (unsigned dim = 0, e = initMap.getNumDims(); dim < e; ++dim)
+    iteratorTypes.push_back(initMap.isFunctionOfDim(dim)
+                                ? utils::IteratorType::parallel
+                                : utils::IteratorType::reduction);
+  Type accType = cast<RankedTensorType>(init.getType()).getElementType();
+  return linalg::GenericOp::create(
+             b, loc, init.getType(), ValueRange{lhs, rhs}, init, indexingMaps,
+             iteratorTypes,
+             [&](OpBuilder &b, Location loc, ValueRange args) {
+               Value lhsElem =
+                   convertScalarToDtype(b, loc, args[0], accType, lhsDtype);
+               Value rhsElem =
+                   convertScalarToDtype(b, loc, args[1], accType, rhsDtype);
+               Value product = arith::MulIOp::create(b, loc, lhsElem, rhsElem);
+               Value sum = arith::AddIOp::create(b, loc, args[2], product);
+               linalg::YieldOp::create(b, loc, sum);
+             })
+      .getResult(0);
+}
+
+/// Creates the contraction `init += lhs * rhs` as the named op `OpTy`, with
+/// the unsigned cast when both operands are unsigned integers. Operands of
+/// mixed signedness take a linalg.generic with the indexing maps of `OpTy`.
+template <typename OpTy>
+static Value createContraction(OpBuilder &b, Location loc, Value lhs, Value rhs,
+                               Value init, Type lhsDtype, Type rhsDtype) {
+  // The same test as in convertScalarToDtype, so that the named op and the
+  // generic agree on which operands are zero-extended.
+  bool isUnsignedLhs = lhsDtype.isUnsignedInteger();
+  bool isUnsignedRhs = rhsDtype.isUnsignedInteger();
+  if (isUnsignedLhs != isUnsignedRhs)
+    return createGenericContraction(
+        b, loc, lhs, rhs, init, OpTy::getDefaultIndexingMaps(b.getContext()),
+        lhsDtype, rhsDtype);
+  // The region builder reads the cast while creating the op, so setting it
+  // afterwards would leave a sign-extending body.
+  SmallVector<NamedAttribute> attributes;
+  if (isUnsignedLhs)
+    attributes.push_back(b.getNamedAttr(
+        "cast", b.getAttr<linalg::TypeFnAttr>(linalg::TypeFn::cast_unsigned)));
+  return OpTy::create(b, loc, init.getType(), ValueRange{lhs, rhs}, init,
+                      attributes)
+      .getResult(0);
+}
+
 namespace {
 
 // for uint8 types, we shift down by 128 so that we can faithfully
@@ -193,43 +251,10 @@ public:
                    rewriter, loc, zeroFill.getType(),
                    ValueRange{lhs, rhs, lhsZeroPoint, rhsZeroPoint}, zeroFill)
                    .getResult(0);
-    } else if (isMixedSignedness) {
-      // `linalg.matmul` extends both operands with the same type function, so
-      // the contraction is written as a generic that extends each operand
-      // according to its own signedness instead.
-      MLIRContext *context = op.getContext();
-      AffineExpr m, n, k;
-      bindDims(context, m, n, k);
-      SmallVector<AffineMap> indexingMaps = {
-          AffineMap::get(3, 0, {m, k}, context),
-          AffineMap::get(3, 0, {k, n}, context),
-          AffineMap::get(3, 0, {m, n}, context)};
-      SmallVector<utils::IteratorType> iteratorTypes = {
-          utils::IteratorType::parallel, utils::IteratorType::parallel,
-          utils::IteratorType::reduction};
-      matmul =
-          linalg::GenericOp::create(
-              rewriter, loc, zeroFill.getType(), ValueRange{lhs, rhs}, zeroFill,
-              indexingMaps, iteratorTypes,
-              [&](OpBuilder &b, Location loc, ValueRange args) {
-                Value lhsElem = convertScalarToDtype(
-                    b, loc, args[0], elementType, lhsTorchType.getDtype());
-                Value rhsElem = convertScalarToDtype(
-                    b, loc, args[1], elementType, rhsTorchType.getDtype());
-                Value product = arith::MulIOp::create(b, loc, lhsElem, rhsElem);
-                Value sum = arith::AddIOp::create(b, loc, args[2], product);
-                linalg::YieldOp::create(b, loc, sum);
-              })
-              .getResult(0);
-    } else if (isUnsignedLhs && isUnsignedRhs) {
-      auto matmulOp = linalg::MatmulOp::create(
-          rewriter, loc, zeroFill.getType(), ValueRange{lhs, rhs}, zeroFill);
-      matmulOp.setCast(linalg::TypeFn::cast_unsigned);
-      matmul = matmulOp->getResult(0);
     } else {
-      matmul = linalg::MatmulOp::create(rewriter, loc, zeroFill.getType(),
-                                        ValueRange{lhs, rhs}, zeroFill)
-                   .getResult(0);
+      matmul = createContraction<linalg::MatmulOp>(
+          rewriter, loc, lhs, rhs, zeroFill, lhsTorchType.getDtype(),
+          rhsTorchType.getDtype());
     }
 
     if (accumulatorDType != resultType.getElementType()) {
@@ -315,7 +340,14 @@ public:
     bool isUnsigned = torch_to_linalg::isUnsignedTorchType(lhsTorchType);
     bool isUnsignedR = torch_to_linalg::isUnsignedTorchType(rhsTorchType);
 
-    if (!lhsZeroPoint && lhsTorchType.getDtype() != rhsTorchType.getDtype()) {
+    Type lhsDtype = lhsTorchType.getDtype();
+    Type rhsDtype = rhsTorchType.getDtype();
+    // Integer dtypes of one width may differ in signedness, since each operand
+    // is extended per its own dtype below.
+    bool isMixedSignedness =
+        isa<mlir::IntegerType>(lhsDtype) && isa<mlir::IntegerType>(rhsDtype) &&
+        lhsType.getElementType() == rhsType.getElementType();
+    if (!lhsZeroPoint && lhsDtype != rhsDtype && !isMixedSignedness) {
       // Allows quantized types to mismatch
       return rewriter.notifyMatchFailure(
           op, "unsupported: aten.matmul with different input element types");
@@ -407,6 +439,14 @@ public:
     // The different cases of torch_matmul op is mentioned here:
     // https://pytorch.org/docs/stable/generated/torch.matmul.html
 
+    MLIRContext *context = op.getContext();
+
+    // `linalg.dot`, `linalg.vecmat` and `linalg.matvec` always sign-extend
+    // their operands, so the vector cases with an unsigned integer operand take
+    // a generic contraction instead.
+    bool hasUnsignedOperand =
+        lhsDtype.isUnsignedInteger() || rhsDtype.isUnsignedInteger();
+
     // First Case: Dot Product.
     if (lhsRank == 1 && rhsRank == 1) {
       Value lhsDim0 = getDimOp(rewriter, loc, lhs, 0);
@@ -415,9 +455,20 @@ public:
       checkDimEqualHelper(rewriter, loc, lhsDim0, rhsDim0);
 
       Value zeroTensor = createZeroInitTensor(rewriter, loc, {}, elementType);
-      Value dotProd = linalg::DotOp::create(rewriter, loc, zeroTensor.getType(),
-                                            ValueRange{lhs, rhs}, zeroTensor)
-                          .getResult(0);
+      Value dotProd;
+      if (hasUnsignedOperand) {
+        AffineExpr k;
+        bindDims(context, k);
+        dotProd = createGenericContraction(rewriter, loc, lhs, rhs, zeroTensor,
+                                           {AffineMap::get(1, 0, {k}, context),
+                                            AffineMap::get(1, 0, {k}, context),
+                                            AffineMap::get(1, 0, {}, context)},
+                                           lhsDtype, rhsDtype);
+      } else {
+        dotProd = linalg::DotOp::create(rewriter, loc, zeroTensor.getType(),
+                                        ValueRange{lhs, rhs}, zeroTensor)
+                      .getResult(0);
+      }
       if (accumulatorDType != resultElementType) {
         dotProd = torch_to_linalg::convertTensorToElementType(
             rewriter, loc, dotProd, resultElementType);
@@ -435,10 +486,21 @@ public:
 
       Value zeroTensor =
           createZeroInitTensor(rewriter, loc, ValueRange{rhsDim1}, elementType);
-      Value matmul =
-          linalg::VecmatOp::create(rewriter, loc, zeroTensor.getType(),
-                                   ValueRange{lhs, rhs}, zeroTensor)
-              .getResult(0);
+      Value matmul;
+      if (hasUnsignedOperand) {
+        AffineExpr n, k;
+        bindDims(context, n, k);
+        matmul =
+            createGenericContraction(rewriter, loc, lhs, rhs, zeroTensor,
+                                     {AffineMap::get(2, 0, {k}, context),
+                                      AffineMap::get(2, 0, {k, n}, context),
+                                      AffineMap::get(2, 0, {n}, context)},
+                                     lhsDtype, rhsDtype);
+      } else {
+        matmul = linalg::VecmatOp::create(rewriter, loc, zeroTensor.getType(),
+                                          ValueRange{lhs, rhs}, zeroTensor)
+                     .getResult(0);
+      }
       if (accumulatorDType != resultElementType) {
         matmul = torch_to_linalg::convertTensorToElementType(
             rewriter, loc, matmul, resultElementType);
@@ -456,10 +518,21 @@ public:
 
       Value zeroTensor =
           createZeroInitTensor(rewriter, loc, ValueRange{lhsDim0}, elementType);
-      Value matmul =
-          linalg::MatvecOp::create(rewriter, loc, zeroTensor.getType(),
-                                   ValueRange{lhs, rhs}, zeroTensor)
-              .getResult(0);
+      Value matmul;
+      if (hasUnsignedOperand) {
+        AffineExpr m, k;
+        bindDims(context, m, k);
+        matmul =
+            createGenericContraction(rewriter, loc, lhs, rhs, zeroTensor,
+                                     {AffineMap::get(2, 0, {m, k}, context),
+                                      AffineMap::get(2, 0, {k}, context),
+                                      AffineMap::get(2, 0, {m}, context)},
+                                     lhsDtype, rhsDtype);
+      } else {
+        matmul = linalg::MatvecOp::create(rewriter, loc, zeroTensor.getType(),
+                                          ValueRange{lhs, rhs}, zeroTensor)
+                     .getResult(0);
+      }
       if (accumulatorDType != resultElementType) {
         matmul = torch_to_linalg::convertTensorToElementType(
             rewriter, loc, matmul, resultElementType);
@@ -486,9 +559,8 @@ public:
                 ValueRange{lhs, rhs, lhsZeroPoint, rhsZeroPoint}, zeroTensor)
                 .getResult(0);
       } else {
-        matmul = linalg::MatmulOp::create(rewriter, loc, zeroTensor.getType(),
-                                          ValueRange{lhs, rhs}, zeroTensor)
-                     .getResult(0);
+        matmul = createContraction<linalg::MatmulOp>(
+            rewriter, loc, lhs, rhs, zeroTensor, lhsDtype, rhsDtype);
       }
       if (accumulatorDType != resultElementType) {
         matmul = torch_to_linalg::convertTensorToElementType(
@@ -594,10 +666,9 @@ public:
                                                       matmul);
           return success();
         }
-        matmul = linalg::BatchMatmulOp::create(
-                     rewriter, loc, zeroTensor.getType(),
-                     ValueRange{broadcastedLhs, broadcastedRhs}, zeroTensor)
-                     .getResult(0);
+        matmul = createContraction<linalg::BatchMatmulOp>(
+            rewriter, loc, broadcastedLhs, broadcastedRhs, zeroTensor, lhsDtype,
+            rhsDtype);
         if (accumulatorDType != resultElementType) {
           matmul = torch_to_linalg::convertTensorToElementType(
               rewriter, loc, matmul, resultElementType);
@@ -614,6 +685,11 @@ public:
       batchDimsInt.pop_back();
       bool multipleDynamicBatchDims =
           llvm::count(batchDimsInt, kUnknownSize) > 1;
+      // The generic contraction for this case has no zero point handling.
+      if (multipleDynamicBatchDims && lhsZeroPoint)
+        return rewriter.notifyMatchFailure(
+            op, "unsupported: quantized aten.matmul with multiple dynamic "
+                "batch dimensions");
 
       // TODO: Lowering to `linalg.BatchMatmul` is only possible when there is
       // at most one dynamic batch dimension due to limited support of the
@@ -660,10 +736,9 @@ public:
                             zeroTensor)
                             .getResult(0);
         } else {
-          batchMatMul = linalg::BatchMatmulOp::create(
-                            rewriter, loc, zeroTensor.getType(),
-                            ValueRange{collapsedLhs, collapsedRhs}, zeroTensor)
-                            .getResult(0);
+          batchMatMul = createContraction<linalg::BatchMatmulOp>(
+              rewriter, loc, collapsedLhs, collapsedRhs, zeroTensor, lhsDtype,
+              rhsDtype);
         }
         if (accumulatorDType != resultElementType) {
           batchMatMul = torch_to_linalg::convertTensorToElementType(
@@ -704,23 +779,30 @@ public:
                             utils::IteratorType::reduction,
                             utils::IteratorType::parallel});
 
-      Value finalRes =
-          linalg::GenericOp::create(
-              rewriter, loc, zeroTensor.getType(),
-              ValueRange{broadcastedLhs, broadcastedRhs}, zeroTensor,
-              /*indexingMaps=*/indexingMaps,
-              /*iteratorTypes=*/iteratorTypes,
-              [&](OpBuilder &b, Location loc, ValueRange args) {
-                Value l = args[0], r = args[1], res = args[2];
-                if (accumulatorDType != lhsType.getElementType()) {
-                  l = arith::ExtFOp::create(b, loc, accumulatorDType, l, {});
-                  r = arith::ExtFOp::create(b, loc, accumulatorDType, r, {});
-                }
-                Value mul = arith::MulFOp::create(b, loc, l, r);
-                Value add = arith::AddFOp::create(b, loc, mul, res);
-                linalg::YieldOp::create(b, loc, add);
-              })
-              .getResult(0);
+      Value finalRes;
+      if (isa<mlir::IntegerType>(elementType)) {
+        finalRes = createGenericContraction(rewriter, loc, broadcastedLhs,
+                                            broadcastedRhs, zeroTensor,
+                                            indexingMaps, lhsDtype, rhsDtype);
+      } else {
+        finalRes =
+            linalg::GenericOp::create(
+                rewriter, loc, zeroTensor.getType(),
+                ValueRange{broadcastedLhs, broadcastedRhs}, zeroTensor,
+                /*indexingMaps=*/indexingMaps,
+                /*iteratorTypes=*/iteratorTypes,
+                [&](OpBuilder &b, Location loc, ValueRange args) {
+                  Value l = args[0], r = args[1], res = args[2];
+                  if (accumulatorDType != lhsType.getElementType()) {
+                    l = arith::ExtFOp::create(b, loc, accumulatorDType, l, {});
+                    r = arith::ExtFOp::create(b, loc, accumulatorDType, r, {});
+                  }
+                  Value mul = arith::MulFOp::create(b, loc, l, r);
+                  Value add = arith::AddFOp::create(b, loc, mul, res);
+                  linalg::YieldOp::create(b, loc, add);
+                })
+                .getResult(0);
+      }
 
       if (accumulatorDType != resultElementType) {
         finalRes = torch_to_linalg::convertTensorToElementType(
@@ -753,6 +835,8 @@ public:
         cast<RankedTensorType>(newResultType).getElementType();
     Type lhsElementType = cast<RankedTensorType>(lhsType).getElementType();
     Type rhsElementType = cast<RankedTensorType>(rhsType).getElementType();
+    Type lhsDtype = cast<ValueTensorType>(op.getSelf().getType()).getDtype();
+    Type rhsDtype = cast<ValueTensorType>(op.getMat2().getType()).getDtype();
 
     if (lhsType.getRank() != 3 || rhsType.getRank() != 3) {
       return rewriter.notifyMatchFailure(
@@ -761,18 +845,21 @@ public:
 
     // Convert the inputs element type equivalent to the result' element type.
     if (lhsElementType != rhsElementType) {
+      Type resultDtype = cast<ValueTensorType>(op.getType()).getDtype();
       if (lhsElementType != resultElementType) {
         // True if the lhs element type is not equal to the result' element
         // type.
         lhs = torch_to_linalg::convertTensorToElementType(rewriter, loc, lhs,
                                                           resultElementType);
         lhsElementType = resultElementType;
+        lhsDtype = resultDtype;
       } else {
         // True if the rhs element type is not equal to the result' element
         // type.
         rhs = torch_to_linalg::convertTensorToElementType(rewriter, loc, rhs,
                                                           resultElementType);
         rhsElementType = resultElementType;
+        rhsDtype = resultDtype;
       }
     }
 
@@ -793,10 +880,8 @@ public:
     Value initTensor0 = createZeroInitTensor(
         rewriter, loc, ValueRange{lhsDim0, lhsDim1, rhsDim2}, accumulatorDType);
 
-    Value bmm =
-        linalg::BatchMatmulOp::create(rewriter, loc, initTensor0.getType(),
-                                      ValueRange{lhs, rhs}, initTensor0)
-            .getResult(0);
+    Value bmm = createContraction<linalg::BatchMatmulOp>(
+        rewriter, loc, lhs, rhs, initTensor0, lhsDtype, rhsDtype);
 
     if (accumulatorDType != resultElementType) {
       bmm = torch_to_linalg::convertTensorToElementType(rewriter, loc, bmm,

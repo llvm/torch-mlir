@@ -157,6 +157,103 @@ func.func @torch.aten.matmul$generic_f16(%arg0: !torch.vtensor<[?,?,8,16],f16>, 
 
 // -----
 
+// CHECK-LABEL: func.func @torch.aten.matmul$dot_ui8
+// CHECK:      linalg.generic
+// CHECK-SAME: iterator_types = ["reduction"]
+// CHECK-SAME: ins(%{{.*}}, %{{.*}} : tensor<4xi8>, tensor<4xi8>) outs(%{{.*}} : tensor<i32>)
+// CHECK:      ^bb0(%[[A:.+]]: i8, %[[B:.+]]: i8, %{{.+}}: i32):
+// CHECK:        arith.extui %[[A]] : i8 to i32
+// CHECK:        arith.extui %[[B]] : i8 to i32
+func.func @torch.aten.matmul$dot_ui8(%arg0: !torch.vtensor<[4],ui8>, %arg1: !torch.vtensor<[4],ui8>) -> !torch.vtensor<[],si32> {
+  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[4],ui8>, !torch.vtensor<[4],ui8> -> !torch.vtensor<[],si32>
+  return %0 : !torch.vtensor<[],si32>
+}
+
+// -----
+
+// CHECK-DAG:  #[[$VECMAT_LHS:.+]] = affine_map<(d0, d1) -> (d1)>
+// CHECK-DAG:  #[[$VECMAT_RHS:.+]] = affine_map<(d0, d1) -> (d1, d0)>
+// CHECK-DAG:  #[[$VECMAT_OUT:.+]] = affine_map<(d0, d1) -> (d0)>
+// CHECK-LABEL: func.func @torch.aten.matmul$vecmat_ui8_si8
+// CHECK:      linalg.generic
+// CHECK-SAME: indexing_maps = [#[[$VECMAT_LHS]], #[[$VECMAT_RHS]], #[[$VECMAT_OUT]]], iterator_types = ["parallel", "reduction"]
+// CHECK-SAME: ins(%{{.*}}, %{{.*}} : tensor<4xi8>, tensor<4x8xi8>) outs(%{{.*}} : tensor<8xi32>)
+// CHECK:      ^bb0(%[[A:.+]]: i8, %[[B:.+]]: i8, %{{.+}}: i32):
+// CHECK:        arith.extui %[[A]] : i8 to i32
+// CHECK:        arith.extsi %[[B]] : i8 to i32
+func.func @torch.aten.matmul$vecmat_ui8_si8(%arg0: !torch.vtensor<[4],ui8>, %arg1: !torch.vtensor<[4,8],si8>) -> !torch.vtensor<[8],si32> {
+  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[4],ui8>, !torch.vtensor<[4,8],si8> -> !torch.vtensor<[8],si32>
+  return %0 : !torch.vtensor<[8],si32>
+}
+
+// -----
+
+// CHECK-DAG:  #[[$MATVEC_LHS:.+]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK-DAG:  #[[$MATVEC_RHS:.+]] = affine_map<(d0, d1) -> (d1)>
+// CHECK-DAG:  #[[$MATVEC_OUT:.+]] = affine_map<(d0, d1) -> (d0)>
+// CHECK-LABEL: func.func @torch.aten.matmul$matvec_si8_ui8
+// CHECK:      linalg.generic
+// CHECK-SAME: indexing_maps = [#[[$MATVEC_LHS]], #[[$MATVEC_RHS]], #[[$MATVEC_OUT]]], iterator_types = ["parallel", "reduction"]
+// CHECK-SAME: ins(%{{.*}}, %{{.*}} : tensor<8x4xi8>, tensor<4xi8>) outs(%{{.*}} : tensor<8xi32>)
+// CHECK:      ^bb0(%[[A:.+]]: i8, %[[B:.+]]: i8, %{{.+}}: i32):
+// CHECK:        arith.extsi %[[A]] : i8 to i32
+// CHECK:        arith.extui %[[B]] : i8 to i32
+func.func @torch.aten.matmul$matvec_si8_ui8(%arg0: !torch.vtensor<[8,4],si8>, %arg1: !torch.vtensor<[4],ui8>) -> !torch.vtensor<[8],si32> {
+  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[8,4],si8>, !torch.vtensor<[4],ui8> -> !torch.vtensor<[8],si32>
+  return %0 : !torch.vtensor<[8],si32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.matmul$2d_ui8
+// CHECK:      linalg.matmul {cast = #linalg.type_fn<cast_unsigned>} ins(%{{.*}}, %{{.*}} : tensor<8x16xi8>, tensor<16x8xi8>) outs(%{{.*}} : tensor<8x8xi32>) -> tensor<8x8xi32>
+func.func @torch.aten.matmul$2d_ui8(%arg0: !torch.vtensor<[8,16],ui8>, %arg1: !torch.vtensor<[16,8],ui8>) -> !torch.vtensor<[8,8],si32> {
+  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[8,16],ui8>, !torch.vtensor<[16,8],ui8> -> !torch.vtensor<[8,8],si32>
+  return %0 : !torch.vtensor<[8,8],si32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.matmul$4d_ui8_si8
+// CHECK:      linalg.generic
+// CHECK-SAME: iterator_types = ["parallel", "parallel", "parallel", "reduction"]
+// CHECK-SAME: ins(%{{.*}}, %{{.*}} : tensor<2x8x16xi8>, tensor<2x16x8xi8>) outs(%{{.*}} : tensor<2x8x8xi32>)
+// CHECK:      ^bb0(%[[A:.+]]: i8, %[[B:.+]]: i8, %{{.+}}: i32):
+// CHECK:        arith.extui %[[A]] : i8 to i32
+// CHECK:        arith.extsi %[[B]] : i8 to i32
+func.func @torch.aten.matmul$4d_ui8_si8(%arg0: !torch.vtensor<[1,2,8,16],ui8>, %arg1: !torch.vtensor<[1,2,16,8],si8>) -> !torch.vtensor<[1,2,8,8],si32> {
+  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[1,2,8,16],ui8>, !torch.vtensor<[1,2,16,8],si8> -> !torch.vtensor<[1,2,8,8],si32>
+  return %0 : !torch.vtensor<[1,2,8,8],si32>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.matmul$generic_si8_ui8
+// CHECK:      linalg.generic
+// CHECK-SAME: iterator_types = ["parallel", "parallel", "parallel", "reduction", "parallel"]
+// CHECK-SAME: ins(%{{.*}}, %{{.*}} : tensor<?x?x8x16xi8>, tensor<?x?x16x8xi8>) outs(%{{.*}} : tensor<?x?x8x8xi32>)
+// CHECK:      ^bb0(%[[A:.+]]: i8, %[[B:.+]]: i8, %{{.+}}: i32):
+// CHECK:        arith.extsi %[[A]] : i8 to i32
+// CHECK:        arith.extui %[[B]] : i8 to i32
+func.func @torch.aten.matmul$generic_si8_ui8(%arg0: !torch.vtensor<[?,?,8,16],si8>, %arg1: !torch.vtensor<[?,?,16,8],ui8>) -> !torch.vtensor<[?,?,8,8],si32> {
+  %0 = torch.aten.matmul %arg0, %arg1 : !torch.vtensor<[?,?,8,16],si8>, !torch.vtensor<[?,?,16,8],ui8> -> !torch.vtensor<[?,?,8,8],si32>
+  return %0 : !torch.vtensor<[?,?,8,8],si32>
+}
+
+// -----
+
+func.func @torch.aten.matmul$no_convert$quantized_dynamic_batch(%arg0: !torch.vtensor<[?,?,8,16],si8>, %arg1: !torch.vtensor<[?,?,16,8],si8>) -> !torch.vtensor<[?,?,8,8],!torch.qint32> {
+  %scale = torch.constant.float 1.000000e-02
+  %zp = torch.constant.int 3
+  %0 = torch.aten._make_per_tensor_quantized_tensor %arg0, %scale, %zp : !torch.vtensor<[?,?,8,16],si8>, !torch.float, !torch.int -> !torch.vtensor<[?,?,8,16],!torch.qint8>
+  %1 = torch.aten._make_per_tensor_quantized_tensor %arg1, %scale, %zp : !torch.vtensor<[?,?,16,8],si8>, !torch.float, !torch.int -> !torch.vtensor<[?,?,16,8],!torch.qint8>
+  // expected-error@+1 {{failed to legalize}}
+  %2 = torch.aten.matmul %0, %1 : !torch.vtensor<[?,?,8,16],!torch.qint8>, !torch.vtensor<[?,?,16,8],!torch.qint8> -> !torch.vtensor<[?,?,8,8],!torch.qint32>
+  return %2 : !torch.vtensor<[?,?,8,8],!torch.qint32>
+}
+
+// -----
+
 // Verify that aten.bmm(si8, si8) -> si32 uses i32 accumulator (not i64),
 // enabling downstream i8 HW intrinsics.
 // CHECK-LABEL: func.func @torch.aten.bmm$i8
@@ -174,6 +271,26 @@ func.func @torch.aten.bmm$i8(%arg0: !torch.vtensor<[2,8,16],si8>, %arg1: !torch.
 // CHECK:      linalg.batch_matmul ins(%{{.*}}, %{{.*}} : tensor<1x4x8xf16>, tensor<1x8x4xf16>) outs(%{{.*}} : tensor<1x4x4xf32>) -> tensor<1x4x4xf32>
 func.func @torch.aten.bmm$mixed_si4_f16(%arg0: !torch.vtensor<[1,4,8],si4>, %arg1: !torch.vtensor<[1,8,4],f16>) -> !torch.vtensor<[1,4,4],f16> {
   %0 = torch.aten.bmm %arg0, %arg1 : !torch.vtensor<[1,4,8],si4>, !torch.vtensor<[1,8,4],f16> -> !torch.vtensor<[1,4,4],f16>
+  return %0 : !torch.vtensor<[1,4,4],f16>
+}
+
+// -----
+
+// CHECK-LABEL: func.func @torch.aten.bmm$ui8
+// CHECK:      linalg.batch_matmul {cast = #linalg.type_fn<cast_unsigned>} ins(%{{.*}}, %{{.*}} : tensor<2x4x8xi8>, tensor<2x8x16xi8>) outs(%{{.*}} : tensor<2x4x16xi32>)
+func.func @torch.aten.bmm$ui8(%arg0: !torch.vtensor<[2,4,8],ui8>, %arg1: !torch.vtensor<[2,8,16],ui8>) -> !torch.vtensor<[2,4,16],si32> {
+  %0 = torch.aten.bmm %arg0, %arg1 : !torch.vtensor<[2,4,8],ui8>, !torch.vtensor<[2,8,16],ui8> -> !torch.vtensor<[2,4,16],si32>
+  return %0 : !torch.vtensor<[2,4,16],si32>
+}
+
+// -----
+
+// After the ui8 operand is converted to f16, the contraction runs on f16
+// operands and must not take the unsigned path.
+// CHECK-LABEL: func.func @torch.aten.bmm$mixed_ui8_f16
+// CHECK:      linalg.batch_matmul ins(%{{.*}}, %{{.*}} : tensor<1x4x8xf16>, tensor<1x8x4xf16>) outs(%{{.*}} : tensor<1x4x4xf32>) -> tensor<1x4x4xf32>
+func.func @torch.aten.bmm$mixed_ui8_f16(%arg0: !torch.vtensor<[1,4,8],ui8>, %arg1: !torch.vtensor<[1,8,4],f16>) -> !torch.vtensor<[1,4,4],f16> {
+  %0 = torch.aten.bmm %arg0, %arg1 : !torch.vtensor<[1,4,8],ui8>, !torch.vtensor<[1,8,4],f16> -> !torch.vtensor<[1,4,4],f16>
   return %0 : !torch.vtensor<[1,4,4],f16>
 }
 

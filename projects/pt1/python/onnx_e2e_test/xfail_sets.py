@@ -36,6 +36,11 @@ ONNX_E2E_LINALG_CRASHING_SET = set()
 # TOSA has different op coverage than linalg; tests unsupported on the
 # torch -> tosa path go here.
 ONNX_E2E_TOSA_XFAIL_SET = {
+    # TOSA lowers uint8 matmul operands to a signed i8 tosa.matmul, which
+    # gives incorrect numerical results for inputs above 127.
+    "OnnxMatMulInteger_ui8_basic",
+    "OnnxMatMulInteger_ui8i8_batched",
+    "OnnxMatMulInteger_ui8i8_broadcastBatch",
     # TOSA per-tensor DQ gives incorrect numerical results for uint8 inputs
     # above 127. Keep the full unsigned range in these tests to expose it.
     "OnnxMatMulIntegerToFloat_aZeroPoint",
