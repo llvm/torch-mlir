@@ -2,8 +2,51 @@
 
 Torch-MLIR lets users attach arbitrary metadata to values in a PyTorch program
 and carries that metadata through lowering, so a downstream compiler can read it
-in backend IR (linalg-on-tensors, TOSA, StableHLO). For example, a compiler may
-need range estimates for the inputs of activation functions.
+in the emitted backend IR. For example, a compiler may need range estimates for
+the inputs of activation functions. See [Scope](#scope) for exactly where this
+holds.
+
+## Scope
+
+Annotations are produced by, and preserved through:
+
+* **FX import.** `torch_mlir.fx.export_and_import` turns
+  `AnnotateAndPassThrough` calls into `mlir.user` attributes (see below).
+* **Torch lowering.** The Torch frontend pipeline that FX import runs
+  (`torchdynamo-export-to-torch-backend-pipeline`), up to the backend contract.
+* **Backend lowering, up to and including the emitted backend IR**, for the
+  linalg-on-tensors, TOSA and StableHLO backend pipelines
+  (`torch-backend-to-{linalg-on-tensors,tosa,stablehlo}-backend-pipeline`).
+  This includes ops lowered through `tm_tensor` (e.g. `sort`, `cumsum`) on the
+  linalg-on-tensors path.
+
+Not covered:
+
+* **Anything after the emitted backend IR.** There is no guarantee for
+  bufferization, `tm-tensor-to-loops`, the RefBackend, or any downstream
+  compiler pipeline. After bufferization there are no tensor SSA results left
+  to annotate.
+* **Other import paths.** TorchScript and ONNX import have no way to produce
+  annotations.
+* **Known exception: CHLO legalization in the StableHLO pipeline.** The
+  upstream `chlo-legalize-to-stablehlo` pass, which runs inside
+  `torch-backend-to-stablehlo-backend-pipeline`, drops annotations from CHLO
+  ops when it rewrites them. Any annotated op that lowers through CHLO (for
+  example `aten.add.Tensor` → `chlo.broadcast_add` → `stablehlo.add`) loses its
+  annotation on this path. This is tracked by the `XFAIL` test
+  `test/Conversion/TorchToStablehlo/backend-pipeline-chlo-user-attrs.mlir` and
+  is pending an upstream StableHLO fix.
+* **Known exception: quantized custom op matching in FX import.** FX import
+  runs `torch-match-quantized-custom-ops` before
+  `torchdynamo-export-to-torch-backend-pipeline`. That pass rewrites
+  `torch.quantized_decomposed.{quantize,dequantize}_per_tensor` custom ops
+  (`torch.operator`) into the corresponding aten quantization ops without
+  forwarding annotations, so annotations placed directly on the outputs of
+  those quantize/dequantize ops are dropped.
+* **Folded and dead ops** (see [Propagation](#propagation)).
+
+This scope is a contract about where annotations are carried; it is not a
+promise that arbitrary downstream passes preserve them.
 
 ## Producing annotations
 
@@ -106,9 +149,9 @@ The precise rules:
 
 ## Testing
 
-End-to-end tests of each backend pipeline provide best-effort coverage.
-For example (as of [#4627])(https://github.com/llvm/torch-mlir/pull/4627))
-these tests check each pipeline:
+End-to-end tests of each backend pipeline enforce the scope above. As of
+[#4627](https://github.com/llvm/torch-mlir/pull/4627), these tests check each
+pipeline:
 
 * `test/Conversion/TorchToLinalg/backend-pipeline-user-attrs.mlir`
 * `test/Conversion/TorchToTosa/backend-pipeline-user-attrs.mlir`
@@ -116,8 +159,9 @@ these tests check each pipeline:
 * `test/python/fx_importer/annotate_*_test.py` (FX import through to
   linalg-on-tensors)
 
-Known gaps can occur due to out-of-tree passes that don't preserve attributes,
-and are recorded as `XFAIL` tests.
+Known gaps, such as the CHLO legalization exception listed under
+[Scope](#scope), are recorded as `XFAIL` tests next to these. A gap in a pass
+owned by Torch-MLIR should be fixed rather than recorded.
 
 ## Writing passes that preserve annotations
 
