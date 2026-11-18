@@ -1620,6 +1620,221 @@ def Torch_QuantizedDecomposedDequantizePerTensorOp : Torch_Op<
   }];
 }
 
+def Torch_QuantizedDecomposedQuantizePerTensorTensorOp : Torch_Op<
+    "quantized_decomposed.quantize_per_tensor.tensor", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly,
+  ]> {
+  let summary = "PT2E quantize_per_tensor.tensor (tensor scale/zero_point, scalar qbounds)";
+  let description = [{
+    Corresponds to `quantized_decomposed::quantize_per_tensor.tensor` in
+    PT2E-exported graphs.  Identical semantics to
+    `quantized_decomposed.quantize_per_tensor` but `scale` and `zero_point`
+    are 0-d scalar tensors instead of Python scalars.  `quant_min` and
+    `quant_max` remain plain integers.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchTensorType:$scale,
+    AnyTorchTensorType:$zero_point,
+    Torch_IntType:$quant_min,
+    Torch_IntType:$quant_max,
+    Torch_IntType:$dtype
+  );
+  let results = (outs AnyTorchTensorType:$result);
+  let assemblyFormat = [{
+    $input `,` $scale `,` $zero_point `,` $quant_min `,` $quant_max `,` $dtype
+    attr-dict
+    `:` qualified(type($input)) `,` qualified(type($scale)) `,`
+        qualified(type($zero_point)) `,` qualified(type($quant_min)) `,`
+        qualified(type($quant_max)) `,` qualified(type($dtype))
+    `->` qualified(type($result))
+  }];
+}
+
+def Torch_QuantizedDecomposedQuantizePerTensorTensor2Op : Torch_Op<
+    "quantized_decomposed.quantize_per_tensor.tensor2", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly,
+  ]> {
+  let summary = "PT2E quantize_per_tensor.tensor2 (all qparams as tensors)";
+  let description = [{
+    Corresponds to `quantized_decomposed::quantize_per_tensor.tensor2` in
+    PT2E-exported graphs.  Identical semantics to
+    `quantized_decomposed.quantize_per_tensor` but `scale`, `zero_point`,
+    `quant_min` and `quant_max` are all 0-d scalar tensors.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchTensorType:$scale,
+    AnyTorchTensorType:$zero_point,
+    AnyTorchTensorType:$quant_min,
+    AnyTorchTensorType:$quant_max,
+    Torch_IntType:$dtype
+  );
+  let results = (outs AnyTorchTensorType:$result);
+  let assemblyFormat = [{
+    $input `,` $scale `,` $zero_point `,` $quant_min `,` $quant_max `,` $dtype
+    attr-dict
+    `:` qualified(type($input)) `,` qualified(type($scale)) `,`
+        qualified(type($zero_point)) `,` qualified(type($quant_min)) `,`
+        qualified(type($quant_max)) `,` qualified(type($dtype))
+    `->` qualified(type($result))
+  }];
+}
+
+def Torch_QuantizedDecomposedDequantizePerTensorTensorOp : Torch_Op<
+    "quantized_decomposed.dequantize_per_tensor.tensor", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly,
+  ]> {
+  let summary = "PT2E dequantize_per_tensor.tensor (tensor scale/zero_point, scalar qbounds)";
+  let description = [{
+    Corresponds to `quantized_decomposed::dequantize_per_tensor.tensor` in
+    PT2E-exported graphs.  Identical semantics to
+    `quantized_decomposed.dequantize_per_tensor` but `scale` and `zero_point`
+    are 0-d scalar tensors instead of Python scalars.  `quant_min` and
+    `quant_max` remain plain integers.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchTensorType:$scale,
+    AnyTorchTensorType:$zero_point,
+    Torch_IntType:$quant_min,
+    Torch_IntType:$quant_max,
+    Torch_IntType:$dtype,
+    AnyTorchOptionalIntType:$out_dtype
+  );
+  let results = (outs AnyTorchTensorType:$result);
+  let assemblyFormat = [{
+    $input `,` $scale `,` $zero_point `,` $quant_min `,` $quant_max `,`
+        $dtype `,` $out_dtype
+    attr-dict
+    `:` qualified(type($input)) `,` qualified(type($scale)) `,`
+        qualified(type($zero_point)) `,` qualified(type($quant_min)) `,`
+        qualified(type($quant_max)) `,` qualified(type($dtype)) `,`
+        qualified(type($out_dtype))
+    `->` qualified(type($result))
+  }];
+}
+
+def Torch_QuantizedDecomposedDequantizePerTensorTensor2Op : Torch_Op<
+    "quantized_decomposed.dequantize_per_tensor.tensor2", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly,
+  ]> {
+  let summary = "PT2E dequantize_per_tensor.tensor2 (all qparams as tensors)";
+  let description = [{
+    Corresponds to `quantized_decomposed::dequantize_per_tensor.tensor2` in
+    PT2E-exported graphs.  Identical semantics to
+    `quantized_decomposed.dequantize_per_tensor` but `scale`, `zero_point`,
+    `quant_min` and `quant_max` are all 0-d scalar tensors.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    AnyTorchTensorType:$scale,
+    AnyTorchTensorType:$zero_point,
+    AnyTorchTensorType:$quant_min,
+    AnyTorchTensorType:$quant_max,
+    Torch_IntType:$dtype,
+    AnyTorchOptionalIntType:$out_dtype
+  );
+  let results = (outs AnyTorchTensorType:$result);
+  let assemblyFormat = [{
+    $input `,` $scale `,` $zero_point `,` $quant_min `,` $quant_max `,`
+        $dtype `,` $out_dtype
+    attr-dict
+    `:` qualified(type($input)) `,` qualified(type($scale)) `,`
+        qualified(type($zero_point)) `,` qualified(type($quant_min)) `,`
+        qualified(type($quant_max)) `,` qualified(type($dtype)) `,`
+        qualified(type($out_dtype))
+    `->` qualified(type($result))
+  }];
+}
+
+def Torch_QuantizedDecomposedChooseQparamsTensorOp : Torch_Op<
+    "quantized_decomposed.choose_qparams.tensor", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly,
+  ]> {
+  let summary = "PT2E choose_qparams.tensor (asymmetric per-tensor calibration)";
+  let description = [{
+    Corresponds to `quantized_decomposed::choose_qparams.tensor` in
+    PT2E-exported dynamic-quantization graphs.
+
+    Computes per-tensor affine quantization parameters (scale and zero_point)
+    from a floating-point activation tensor at runtime:
+    ```
+    scale = max((max(max_val,0) - min(min_val,0)) / quant_range, eps)
+    zp = clamp(qmin - round(min(min_val,0) / scale), quant_min, quant_max)
+    ```
+    Returns scale as a 1-element float tensor and zero_point as a 1-element
+    int64 tensor.  `dtype` encodes the target quantized dtype as a torch.dtype
+    integer code (used for validation only; does not affect output types).
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    Torch_IntType:$quant_min,
+    Torch_IntType:$quant_max,
+    Torch_FloatType:$eps,
+    Torch_IntType:$dtype
+  );
+  let results = (outs AnyTorchTensorType:$scale, AnyTorchTensorType:$zero_point);
+  let assemblyFormat = [{
+    $input `,` $quant_min `,` $quant_max `,` $eps `,` $dtype
+    attr-dict
+    `:` qualified(type($input)) `,` qualified(type($quant_min)) `,`
+        qualified(type($quant_max)) `,` qualified(type($eps)) `,`
+        qualified(type($dtype))
+    `->` qualified(type($scale)) `,` qualified(type($zero_point))
+  }];
+  let hasVerifier = 1;
+}
+
+def Torch_QuantizedDecomposedChooseQparamsSymmetricTensorOp : Torch_Op<
+    "quantized_decomposed.choose_qparams_symmetric.tensor", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly,
+  ]> {
+  let summary = "PT2E choose_qparams_symmetric.tensor (symmetric per-tensor calibration)";
+  let description = [{
+    Corresponds to `quantized_decomposed::choose_qparams_symmetric.tensor` in
+    PT2E-exported dynamic-quantization graphs.
+
+    Computes per-tensor symmetric quantization parameters at runtime:
+    ```
+    scale = max(max(-min(min_val,0),max(max_val,0)) / (qrange / 2), eps)
+    zero_point = 128 if uint8/quint8, else 0
+    ```
+    Returns scale as a 1-element float tensor and zero_point as a 1-element
+    int64 tensor whose value is always zero.  `dtype` encodes the target
+    quantized dtype as a torch.dtype integer code.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    Torch_IntType:$quant_min,
+    Torch_IntType:$quant_max,
+    Torch_FloatType:$eps,
+    Torch_IntType:$dtype
+  );
+  let results = (outs AnyTorchTensorType:$scale, AnyTorchTensorType:$zero_point);
+  let assemblyFormat = [{
+    $input `,` $quant_min `,` $quant_max `,` $eps `,` $dtype
+    attr-dict
+    `:` qualified(type($input)) `,` qualified(type($quant_min)) `,`
+        qualified(type($quant_max)) `,` qualified(type($eps)) `,`
+        qualified(type($dtype))
+    `->` qualified(type($scale)) `,` qualified(type($zero_point))
+  }];
+  let hasVerifier = 1;
+}
+
 def Torch_QuantizedDecomposedQuantizePerChannelOp : Torch_Op<
     "quantized_decomposed.quantize_per_channel", [
     AllowsTypeRefinement,
@@ -1923,6 +2138,57 @@ def Torch_QuantizedDecomposedChooseQparamsPerTokenOp : Torch_Op<
 // torchao quantization ops
 // Hand-authored for torchao ops that appear in torch.export graphs.
 //===----------------------------------------------------------------------===//
+
+def Torch_TorchaoChooseQparamsAffineOp : Torch_Op<
+    "torchao.choose_qparams_affine", [
+    AllowsTypeRefinement,
+    HasValueSemantics,
+    ReadOnly,
+  ]> {
+  let hasVerifier = 1;
+  let summary = "torchao choose_qparams_affine";
+  let description = [{
+    Computes the `scale` and `zero_point` of affine quantization in blocks of
+    shape `block_size` from the minimum and maximum of each block of `input`.
+    `mapping_type` is the name of a torchao `MappingType`. A None `quant_min`
+    or `quant_max` is the bound of `target_dtype`, a None `eps` is the
+    smallest normal number of the input dtype and a None `scale_dtype` is the
+    input dtype. A None `zero_point_dtype` is int32 for the `ASYMMETRIC`
+    mapping and the input dtype otherwise.
+
+    With `keepdim`, the results have shape `input.shape / block_size`.
+    Otherwise, as in torchao, a dimension is dropped only if its block is
+    larger than 1 and equal to the dimension size; size-1 dimensions are
+    kept. If no block is larger than 1, the results are 0-d.
+  }];
+  let arguments = (ins
+    AnyTorchTensorType:$input,
+    Torch_StringType:$mapping_type,
+    AnyTorchListOfTorchIntType:$block_size,
+    Torch_IntType:$target_dtype,
+    AnyTorchOptionalScalarType:$quant_min,
+    AnyTorchOptionalScalarType:$quant_max,
+    AnyTorchOptionalFloatType:$eps,
+    AnyTorchOptionalIntType:$scale_dtype,
+    AnyTorchOptionalIntType:$zero_point_dtype,
+    Torch_BoolType:$keepdim
+  );
+  let results = (outs
+    AnyTorchTensorType:$scale,
+    AnyTorchTensorType:$zero_point
+  );
+  let assemblyFormat = [{
+    $input `,` $mapping_type `,` $block_size `,` $target_dtype `,`
+        $quant_min `,` $quant_max `,` $eps `,` $scale_dtype `,`
+        $zero_point_dtype `,` $keepdim attr-dict
+    `:` qualified(type($input)) `,` qualified(type($mapping_type)) `,`
+        qualified(type($block_size)) `,` qualified(type($target_dtype)) `,`
+        qualified(type($quant_min)) `,` qualified(type($quant_max)) `,`
+        qualified(type($eps)) `,` qualified(type($scale_dtype)) `,`
+        qualified(type($zero_point_dtype)) `,` qualified(type($keepdim))
+    `->` qualified(type($scale)) `,` qualified(type($zero_point))
+  }];
+}
 
 def Torch_TorchaoQuantizeAffineOp : Torch_Op<
     "torchao.quantize_affine", [

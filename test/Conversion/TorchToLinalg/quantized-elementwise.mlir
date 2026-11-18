@@ -85,6 +85,348 @@ func.func @standalone_quantize_si8(
 
 // -----
 
+// choose_qparams.tensor: asymmetric per-tensor calibration, f32 input, si8 range.
+// CHECK-LABEL: func.func @choose_qparams_tensor(
+// CHECK-SAME:    %[[INPUT:[^:,]+]]: !torch.vtensor<[4,8],f32>
+// CHECK:       %[[IN_T:.*]] = torch_c.to_builtin_tensor %[[INPUT]] : !torch.vtensor<[4,8],f32> -> tensor<4x8xf32>
+// CHECK:       %[[NEG_INF:.*]] = arith.constant 0xFF800000 : f32
+// CHECK:       %[[POS_INF:.*]] = arith.constant 0x7F800000 : f32
+// CHECK:       %[[INIT_MIN:.*]] = tensor.from_elements %[[POS_INF]] : tensor<f32>
+// CHECK:       %[[INIT_MAX:.*]] = tensor.from_elements %[[NEG_INF]] : tensor<f32>
+// CHECK:       %[[REDUCE:.*]]:2 = linalg.generic
+// CHECK-SAME:    ins(%[[IN_T]] : tensor<4x8xf32>) outs(%[[INIT_MIN]], %[[INIT_MAX]] : tensor<f32>, tensor<f32>)
+// CHECK:       ^bb0(%[[R_IN:.*]]: f32, %[[R_MIN:.*]]: f32, %[[R_MAX:.*]]: f32):
+// CHECK:         %[[NEW_MIN:.*]] = arith.minimumf %[[R_IN]], %[[R_MIN]] : f32
+// CHECK:         %[[NEW_MAX:.*]] = arith.maximumf %[[R_IN]], %[[R_MAX]] : f32
+// CHECK:         linalg.yield %[[NEW_MIN]], %[[NEW_MAX]] : f32, f32
+// CHECK:       %[[QMIN_F:.*]] = arith.constant -1.280000e+02 : f32
+// CHECK:       %[[QMAX_F:.*]] = arith.constant 1.270000e+02 : f32
+// CHECK:       %[[MIN_V:.*]] = tensor.extract %[[REDUCE]]#0[] : tensor<f32>
+// CHECK:       %[[MAX_V:.*]] = tensor.extract %[[REDUCE]]#1[] : tensor<f32>
+// CHECK:       %[[ZERO:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK:       %[[MIN_C:.*]] = arith.minimumf %[[MIN_V]], %[[ZERO]] : f32
+// CHECK:       %[[MAX_C:.*]] = arith.maximumf %[[MAX_V]], %[[ZERO]] : f32
+// CHECK:       %[[QRANGE:.*]] = arith.subf %[[QMAX_F]], %[[QMIN_F]] : f32
+// CHECK:       %[[DRANGE:.*]] = arith.subf %[[MAX_C]], %[[MIN_C]] : f32
+// CHECK:       %[[RAW_SCALE:.*]] = arith.divf %[[DRANGE]], %[[QRANGE]] : f32
+// CHECK:       %[[SCALE_EPS:.*]] = arith.maximumf %[[RAW_SCALE]], %{{.*}} : f32
+// CHECK:       %[[MIN_OVER_SCALE:.*]] = arith.divf %[[MIN_C]], %[[SCALE_EPS]] : f32
+// As in the reference, the subtraction and clamp happen in int32 (torch.int).
+// CHECK:       %[[RND:.*]] = math.roundeven %[[MIN_OVER_SCALE]] : f32
+// CHECK:       %[[RND_I:.*]] = arith.fptosi %[[RND]] : f32 to i32
+// CHECK-DAG:   %[[QMIN_I:.*]] = arith.constant -128 : i32
+// CHECK-DAG:   %[[QMAX_I:.*]] = arith.constant 127 : i32
+// CHECK:       %[[RAW_ZP:.*]] = arith.subi %[[QMIN_I]], %[[RND_I]] : i32
+// CHECK:       %[[ZP_LO:.*]] = arith.maxsi %[[RAW_ZP]], %[[QMIN_I]] : i32
+// CHECK:       %[[ZP_HI:.*]] = arith.minsi %[[ZP_LO]], %[[QMAX_I]] : i32
+// CHECK:       %[[ZP_I64:.*]] = arith.extsi %[[ZP_HI]] : i32 to i64
+// CHECK:       %[[DEG:.*]] = arith.cmpf ogt, %[[MIN_V]], %[[MAX_V]] : f32
+// CHECK:       %[[ONE:.*]] = arith.constant 1.000000e+00 : f32
+// CHECK:       %[[ZERO_I64:.*]] = arith.constant 0 : i64
+// CHECK:       %[[FINAL_SCALE:.*]] = arith.select %[[DEG]], %[[ONE]], %[[SCALE_EPS]] : f32
+// CHECK:       %[[FINAL_ZP:.*]] = arith.select %[[DEG]], %[[ZERO_I64]], %[[ZP_I64]] : i64
+// CHECK:       tensor.from_elements %[[FINAL_SCALE]] : tensor<1xf32>
+// CHECK:       tensor.from_elements %[[FINAL_ZP]] : tensor<1xi64>
+func.func @choose_qparams_tensor(
+    %input: !torch.vtensor<[4,8],f32>)
+    -> (!torch.vtensor<[1],f32>, !torch.vtensor<[1],si64>) {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %eps = torch.constant.float 1.000000e-08
+  %dtype = torch.constant.int 1
+  %scale, %zp = torch.quantized_decomposed.choose_qparams.tensor
+      %input, %qmin, %qmax, %eps, %dtype
+      : !torch.vtensor<[4,8],f32>, !torch.int, !torch.int, !torch.float, !torch.int
+      -> !torch.vtensor<[1],f32>, !torch.vtensor<[1],si64>
+  return %scale, %zp : !torch.vtensor<[1],f32>, !torch.vtensor<[1],si64>
+}
+
+// -----
+
+// choose_qparams.tensor on a rank-0 (scalar) input. The reduction is a
+// zero-loop linalg.generic directly on the 0-D tensor; no reshape is needed.
+// CHECK-LABEL: func.func @choose_qparams_tensor_rank0(
+// CHECK-SAME:    %[[INPUT:[^:,]+]]: !torch.vtensor<[],f32>
+// CHECK:       %[[IN_T:.*]] = torch_c.to_builtin_tensor %[[INPUT]] : !torch.vtensor<[],f32> -> tensor<f32>
+// CHECK:       linalg.generic
+// CHECK-SAME:    ins(%[[IN_T]] : tensor<f32>)
+// CHECK:       %[[SCALE_1D:.*]] = tensor.from_elements %{{.*}} : tensor<1xf32>
+// CHECK:       %[[SCALE_V:.*]] = torch_c.from_builtin_tensor %[[SCALE_1D]] : tensor<1xf32> -> !torch.vtensor<[1],f32>
+// CHECK:       %[[ZP_1D:.*]] = tensor.from_elements %{{.*}} : tensor<1xi64>
+// CHECK:       %[[ZP_V:.*]] = torch_c.from_builtin_tensor %[[ZP_1D]] : tensor<1xi64> -> !torch.vtensor<[1],si64>
+// CHECK:       return %[[SCALE_V]], %[[ZP_V]] : !torch.vtensor<[1],f32>, !torch.vtensor<[1],si64>
+func.func @choose_qparams_tensor_rank0(
+    %input: !torch.vtensor<[],f32>)
+    -> (!torch.vtensor<[1],f32>, !torch.vtensor<[1],si64>) {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %eps = torch.constant.float 1.000000e-08
+  %dtype = torch.constant.int 1
+  %scale, %zp = torch.quantized_decomposed.choose_qparams.tensor
+      %input, %qmin, %qmax, %eps, %dtype
+      : !torch.vtensor<[],f32>, !torch.int, !torch.int, !torch.float, !torch.int
+      -> !torch.vtensor<[1],f32>, !torch.vtensor<[1],si64>
+  return %scale, %zp : !torch.vtensor<[1],f32>, !torch.vtensor<[1],si64>
+}
+
+// -----
+
+// choose_qparams.tensor with the f64 scale result type: compute
+// in the input dtype (f32) and only the final scale is extended to f64.
+// CHECK-LABEL: func.func @choose_qparams_tensor_f64_scale(
+// CHECK:       linalg.generic
+// CHECK:         arith.minimumf %{{.*}}, %{{.*}} : f32
+// CHECK-NOT:     arith.extf
+// CHECK:       %[[RAW_SCALE:.*]] = arith.divf %{{.*}}, %{{.*}} : f32
+// CHECK:       %[[SEL:.*]] = arith.select %{{.*}}, %{{.*}}, %{{.*}} : f32
+// CHECK:       %[[EXT:.*]] = arith.extf %[[SEL]] : f32 to f64
+// CHECK:       tensor.from_elements %[[EXT]] : tensor<1xf64>
+// CHECK:       tensor.from_elements %{{.*}} : tensor<1xi64>
+func.func @choose_qparams_tensor_f64_scale(
+    %input: !torch.vtensor<[4,8],f32>)
+    -> (!torch.vtensor<[1],f64>, !torch.vtensor<[1],si64>) {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %eps = torch.constant.float 1.000000e-08
+  %dtype = torch.constant.int 1
+  %scale, %zp = torch.quantized_decomposed.choose_qparams.tensor
+      %input, %qmin, %qmax, %eps, %dtype
+      : !torch.vtensor<[4,8],f32>, !torch.int, !torch.int, !torch.float, !torch.int
+      -> !torch.vtensor<[1],f64>, !torch.vtensor<[1],si64>
+  return %scale, %zp : !torch.vtensor<[1],f64>, !torch.vtensor<[1],si64>
+}
+
+// -----
+
+// choose_qparams.tensor, f16 input: like PyTorch, the min/max, range and scale
+// division are computed in f16; the eps clamp and zero point are computed in
+// f32, and the final scale is extended to f64.
+// CHECK-LABEL: func.func @choose_qparams_tensor_f16_input(
+// CHECK:       linalg.generic
+// CHECK-NOT:     arith.extf
+// CHECK:         arith.minimumf %{{.*}}, %{{.*}} : f16
+// CHECK-NOT:   arith.truncf %{{.*}} : f32 to f16
+// CHECK:       %[[RAW:.*]] = arith.divf %{{.*}}, %{{.*}} : f16
+// CHECK:       %[[RAW_F:.*]] = arith.extf %[[RAW]] : f16 to f32
+// CHECK:       %[[SCALE:.*]] = arith.maximumf %[[RAW_F]], %{{.*}} : f32
+// CHECK:       %[[MIN_F:.*]] = arith.extf %{{.*}} : f16 to f32
+// CHECK:       arith.divf %[[MIN_F]], %[[SCALE]] : f32
+// CHECK:       %[[SEL:.*]] = arith.select %{{.*}}, %{{.*}}, %{{.*}} : f32
+// CHECK:       %[[EXT:.*]] = arith.extf %[[SEL]] : f32 to f64
+// CHECK:       tensor.from_elements %[[EXT]] : tensor<1xf64>
+func.func @choose_qparams_tensor_f16_input(
+    %input: !torch.vtensor<[4,8],f16>)
+    -> (!torch.vtensor<[1],f64>, !torch.vtensor<[1],si64>) {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %eps = torch.constant.float 1.000000e-08
+  %dtype = torch.constant.int 1
+  %scale, %zp = torch.quantized_decomposed.choose_qparams.tensor
+      %input, %qmin, %qmax, %eps, %dtype
+      : !torch.vtensor<[4,8],f16>, !torch.int, !torch.int, !torch.float, !torch.int
+      -> !torch.vtensor<[1],f64>, !torch.vtensor<[1],si64>
+  return %scale, %zp : !torch.vtensor<[1],f64>, !torch.vtensor<[1],si64>
+}
+
+// -----
+
+// choose_qparams_symmetric.tensor, bf16 input: scale computed in bf16, then
+// extended to f32 for the eps clamp, as above.
+// CHECK-LABEL: func.func @choose_qparams_symmetric_tensor_bf16_input(
+// CHECK:       linalg.generic
+// CHECK-NOT:     arith.extf
+// CHECK:         arith.minimumf %{{.*}}, %{{.*}} : bf16
+// CHECK-NOT:   arith.truncf %{{.*}} : f32 to bf16
+// CHECK:       %[[HALF:.*]] = arith.divf %{{.*}}, %{{.*}} : bf16
+// CHECK:       %[[RAW:.*]] = arith.divf %{{.*}}, %[[HALF]] : bf16
+// CHECK:       %[[RAW_F:.*]] = arith.extf %[[RAW]] : bf16 to f32
+// CHECK:       arith.maximumf %[[RAW_F]], %{{.*}} : f32
+// CHECK:       %[[SEL:.*]] = arith.select %{{.*}}, %{{.*}}, %{{.*}} : f32
+// CHECK:       %[[EXT:.*]] = arith.extf %[[SEL]] : f32 to f64
+// CHECK:       tensor.from_elements %[[EXT]] : tensor<1xf64>
+func.func @choose_qparams_symmetric_tensor_bf16_input(
+    %input: !torch.vtensor<[4,8],bf16>)
+    -> (!torch.vtensor<[1],f64>, !torch.vtensor<[1],si64>) {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %eps = torch.constant.float 1.000000e-08
+  %dtype = torch.constant.int 1
+  %scale, %zp = torch.quantized_decomposed.choose_qparams_symmetric.tensor
+      %input, %qmin, %qmax, %eps, %dtype
+      : !torch.vtensor<[4,8],bf16>, !torch.int, !torch.int, !torch.float, !torch.int
+      -> !torch.vtensor<[1],f64>, !torch.vtensor<[1],si64>
+  return %scale, %zp : !torch.vtensor<[1],f64>, !torch.vtensor<[1],si64>
+}
+
+// -----
+
+// Symmetric round-trip: choose_qparams_symmetric.tensor -> quantize_per_tensor
+// -> dequantize_per_tensor (scalar-qparam form).
+// CHECK-LABEL: func.func @choose_qparams_symmetric_quantize_dequantize_roundtrip(
+// CHECK-SAME:    %[[INPUT:[^:,]+]]: !torch.vtensor<[?,?],f32>
+// CHECK-DAG:   %[[IN_T:.*]] = torch_c.to_builtin_tensor %[[INPUT]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
+// choose_qparams_symmetric block:
+// CHECK:       %[[REDUCE:.*]]:2 = linalg.generic
+// CHECK-SAME:    ins(%[[IN_T]] : tensor<?x?xf32>)
+// CHECK:       tensor.extract %[[REDUCE]]#0[] : tensor<f32>
+// CHECK:       tensor.extract %[[REDUCE]]#1[] : tensor<f32>
+// CHECK:       %[[SCALE_1D:.*]] = tensor.from_elements %{{.*}} : tensor<1xf32>
+// CHECK:       %[[SCALE_V:.*]] = torch_c.from_builtin_tensor %[[SCALE_1D]] : tensor<1xf32> -> !torch.vtensor<[1],f32>
+// CHECK:       %[[ZP_1D:.*]] = tensor.from_elements %{{.*}} : tensor<1xi64>
+// CHECK:       %[[ZP_V:.*]] = torch_c.from_builtin_tensor %[[ZP_1D]] : tensor<1xi64> -> !torch.vtensor<[1],si64>
+// CHECK:       %[[SCALE:.*]] = torch.aten.item %[[SCALE_V]] : !torch.vtensor<[1],f32> -> !torch.float
+// CHECK:       %[[ZP:.*]] = torch.aten.item %[[ZP_V]] : !torch.vtensor<[1],si64> -> !torch.int
+// quantize block:
+// %[[Q:.*]]. The payload must consume both the aten.item scale and zp.
+// CHECK:       %[[Q:.*]] = linalg.generic
+// CHECK-SAME:    ins(%[[IN_T]] : tensor<?x?xf32>)
+// CHECK-SAME:    outs(%{{.*}} : tensor<?x?xi8>)
+// CHECK:       torch_c.to_f64 %[[SCALE]]
+// CHECK:       torch_c.to_i64 %[[ZP]]
+// CHECK:       linalg.yield %{{.*}} : i8
+// dequantize block:
+// CHECK:       %[[CAST:.*]] = tensor.cast %[[Q]] : tensor<?x?xi8> to tensor<?x?xi8>
+// CHECK:       linalg.generic
+// CHECK-SAME:    ins(%[[CAST]] : tensor<?x?xi8>)
+// CHECK-SAME:    outs(%{{.*}} : tensor<?x?xf32>)
+// CHECK:       torch_c.to_i64 %[[ZP]]
+// CHECK:       torch_c.to_f64 %[[SCALE]]
+// CHECK:       linalg.yield %{{.*}} : f32
+func.func @choose_qparams_symmetric_quantize_dequantize_roundtrip(
+    %input: !torch.vtensor<[?,?],f32>)
+    -> !torch.vtensor<[?,?],f32> {
+  %qmin  = torch.constant.int -128
+  %qmax  = torch.constant.int 127
+  %eps   = torch.constant.float 1.000000e-08
+  %dtype = torch.constant.int 1
+  %scale_t, %zp_t = torch.quantized_decomposed.choose_qparams_symmetric.tensor
+      %input, %qmin, %qmax, %eps, %dtype
+      : !torch.vtensor<[?,?],f32>, !torch.int, !torch.int, !torch.float, !torch.int
+      -> !torch.vtensor<[1],f32>, !torch.vtensor<[1],si64>
+  %scale = torch.aten.item %scale_t : !torch.vtensor<[1],f32> -> !torch.float
+  %zp    = torch.aten.item %zp_t    : !torch.vtensor<[1],si64> -> !torch.int
+  %quantized = torch.quantized_decomposed.quantize_per_tensor
+      %input, %scale, %zp, %qmin, %qmax, %dtype
+      : !torch.vtensor<[?,?],f32>, !torch.float, !torch.int,
+        !torch.int, !torch.int, !torch.int -> !torch.vtensor<[?,?],si8>
+  %none  = torch.constant.none
+  %od    = torch.derefine %none : !torch.none to !torch.optional<int>
+  %out   = torch.quantized_decomposed.dequantize_per_tensor
+      %quantized, %scale, %zp, %qmin, %qmax, %dtype, %od
+      : !torch.vtensor<[?,?],si8>, !torch.float, !torch.int,
+        !torch.int, !torch.int, !torch.int, !torch.optional<int>
+        -> !torch.vtensor<[?,?],f32>
+  return %out : !torch.vtensor<[?,?],f32>
+}
+
+// -----
+
+// Asymmetric round-trip: choose_qparams.tensor -> quantize_per_tensor ->
+// dequantize_per_tensor (scalar-qparam form)
+// CHECK-LABEL: func.func @choose_qparams_quantize_dequantize_roundtrip(
+// CHECK-SAME:    %[[INPUT:[^:,]+]]: !torch.vtensor<[?,?],f32>
+// CHECK:       %[[IN_T:.*]] = torch_c.to_builtin_tensor %[[INPUT]] : !torch.vtensor<[?,?],f32> -> tensor<?x?xf32>
+// choose_qparams block:
+// input, then scalar scale/zp are built as tensor<1x...> and extracted with
+// aten.item.
+// CHECK:       %[[REDUCE:.*]]:2 = linalg.generic
+// CHECK-SAME:    ins(%[[IN_T]] : tensor<?x?xf32>)
+// CHECK:       tensor.extract %[[REDUCE]]#0[] : tensor<f32>
+// CHECK:       tensor.extract %[[REDUCE]]#1[] : tensor<f32>
+// CHECK:       %[[SCALE_1D:.*]] = tensor.from_elements %{{.*}} : tensor<1xf32>
+// CHECK:       %[[SCALE_V:.*]] = torch_c.from_builtin_tensor %[[SCALE_1D]] : tensor<1xf32> -> !torch.vtensor<[1],f32>
+// CHECK:       %[[ZP_1D:.*]] = tensor.from_elements %{{.*}} : tensor<1xi64>
+// CHECK:       %[[ZP_V:.*]] = torch_c.from_builtin_tensor %[[ZP_1D]] : tensor<1xi64> -> !torch.vtensor<[1],si64>
+// CHECK:       %[[SCALE:.*]] = torch.aten.item %[[SCALE_V]] : !torch.vtensor<[1],f32> -> !torch.float
+// CHECK:       %[[ZP:.*]] = torch.aten.item %[[ZP_V]] : !torch.vtensor<[1],si64> -> !torch.int
+// quantize block:
+// CHECK:       %[[Q:.*]] = linalg.generic
+// CHECK-SAME:    ins(%[[IN_T]] : tensor<?x?xf32>)
+// CHECK-SAME:    outs(%{{.*}} : tensor<?x?xi8>)
+// CHECK:       torch_c.to_f64 %[[SCALE]]
+// CHECK:       torch_c.to_i64 %[[ZP]]
+// CHECK:       linalg.yield %{{.*}} : i8
+// dequantize block:
+// CHECK:       %[[CAST:.*]] = tensor.cast %[[Q]] : tensor<?x?xi8> to tensor<?x?xi8>
+// CHECK:       linalg.generic
+// CHECK-SAME:    ins(%[[CAST]] : tensor<?x?xi8>)
+// CHECK-SAME:    outs(%{{.*}} : tensor<?x?xf32>)
+// CHECK:       torch_c.to_i64 %[[ZP]]
+// CHECK:       torch_c.to_f64 %[[SCALE]]
+// CHECK:       linalg.yield %{{.*}} : f32
+func.func @choose_qparams_quantize_dequantize_roundtrip(
+    %input: !torch.vtensor<[?,?],f32>)
+    -> !torch.vtensor<[?,?],f32> {
+  %qmin  = torch.constant.int -128
+  %qmax  = torch.constant.int 127
+  %eps   = torch.constant.float 1.000000e-08
+  %dtype = torch.constant.int 1
+  %scale_t, %zp_t = torch.quantized_decomposed.choose_qparams.tensor
+      %input, %qmin, %qmax, %eps, %dtype
+      : !torch.vtensor<[?,?],f32>, !torch.int, !torch.int, !torch.float, !torch.int
+      -> !torch.vtensor<[1],f32>, !torch.vtensor<[1],si64>
+  %scale = torch.aten.item %scale_t : !torch.vtensor<[1],f32> -> !torch.float
+  %zp    = torch.aten.item %zp_t    : !torch.vtensor<[1],si64> -> !torch.int
+  %quantized = torch.quantized_decomposed.quantize_per_tensor
+      %input, %scale, %zp, %qmin, %qmax, %dtype
+      : !torch.vtensor<[?,?],f32>, !torch.float, !torch.int,
+        !torch.int, !torch.int, !torch.int -> !torch.vtensor<[?,?],si8>
+  %none  = torch.constant.none
+  %od    = torch.derefine %none : !torch.none to !torch.optional<int>
+  %out   = torch.quantized_decomposed.dequantize_per_tensor
+      %quantized, %scale, %zp, %qmin, %qmax, %dtype, %od
+      : !torch.vtensor<[?,?],si8>, !torch.float, !torch.int,
+        !torch.int, !torch.int, !torch.int, !torch.optional<int>
+        -> !torch.vtensor<[?,?],f32>
+  return %out : !torch.vtensor<[?,?],f32>
+}
+
+// -----
+
+// choose_qparams_symmetric.tensor: symmetric per-tensor calibration, f32 input, si8 range.
+// CHECK-LABEL: func.func @choose_qparams_symmetric_tensor(
+// CHECK-SAME:    %[[INPUT:[^:,]+]]: !torch.vtensor<[4,8],f32>
+// CHECK:       %[[IN_T:.*]] = torch_c.to_builtin_tensor %[[INPUT]] : !torch.vtensor<[4,8],f32> -> tensor<4x8xf32>
+// CHECK:       %[[REDUCE:.*]]:2 = linalg.generic
+// CHECK-SAME:    ins(%[[IN_T]] : tensor<4x8xf32>)
+// CHECK:       %[[QMIN_F:.*]] = arith.constant -1.280000e+02 : f32
+// CHECK:       %[[QMAX_F:.*]] = arith.constant 1.270000e+02 : f32
+// CHECK:       %[[MIN_V:.*]] = tensor.extract %[[REDUCE]]#0[] : tensor<f32>
+// CHECK:       %[[MAX_V:.*]] = tensor.extract %[[REDUCE]]#1[] : tensor<f32>
+// CHECK:       %[[ZERO:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK:       %[[MIN_C:.*]] = arith.minimumf %[[MIN_V]], %[[ZERO]] : f32
+// CHECK:       %[[MAX_C:.*]] = arith.maximumf %[[MAX_V]], %[[ZERO]] : f32
+// CHECK:       %[[QRANGE:.*]] = arith.subf %[[QMAX_F]], %[[QMIN_F]] : f32
+// CHECK:       %[[NEG_MIN:.*]] = arith.negf %[[MIN_C]] : f32
+// CHECK:       %[[ABSMAX:.*]] = arith.maximumf %[[NEG_MIN]], %[[MAX_C]] : f32
+// CHECK:       %[[TWO:.*]] = arith.constant 2.000000e+00 : f32
+// CHECK:       %[[HALF_RANGE:.*]] = arith.divf %[[QRANGE]], %[[TWO]] : f32
+// CHECK:       %[[RAW_SCALE:.*]] = arith.divf %[[ABSMAX]], %[[HALF_RANGE]] : f32
+// CHECK:       %[[SCALE_EPS:.*]] = arith.maximumf %[[RAW_SCALE]], %{{.*}} : f32
+// CHECK:       %[[ZP_I64:.*]] = arith.constant 0 : i64
+// CHECK:       %[[DEG:.*]] = arith.cmpf ogt, %[[MIN_V]], %[[MAX_V]] : f32
+// CHECK:       %[[ONE:.*]] = arith.constant 1.000000e+00 : f32
+// CHECK:       %[[ZERO_I64:.*]] = arith.constant 0 : i64
+// CHECK:       %[[FINAL_SCALE:.*]] = arith.select %[[DEG]], %[[ONE]], %[[SCALE_EPS]] : f32
+// CHECK:       %[[FINAL_ZP:.*]] = arith.select %[[DEG]], %[[ZERO_I64]], %[[ZP_I64]] : i64
+// CHECK:       tensor.from_elements %[[FINAL_SCALE]] : tensor<1xf32>
+// CHECK:       tensor.from_elements %[[FINAL_ZP]] : tensor<1xi64>
+func.func @choose_qparams_symmetric_tensor(
+    %input: !torch.vtensor<[4,8],f32>)
+    -> (!torch.vtensor<[1],f32>, !torch.vtensor<[1],si64>) {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %eps = torch.constant.float 1.000000e-08
+  %dtype = torch.constant.int 1
+  %scale, %zp = torch.quantized_decomposed.choose_qparams_symmetric.tensor
+      %input, %qmin, %qmax, %eps, %dtype
+      : !torch.vtensor<[4,8],f32>, !torch.int, !torch.int, !torch.float, !torch.int
+      -> !torch.vtensor<[1],f32>, !torch.vtensor<[1],si64>
+  return %scale, %zp : !torch.vtensor<[1],f32>, !torch.vtensor<[1],si64>
+}
+
+// -----
+
 // CHECK: #[[IDENTITY:.*]] = affine_map<(d0, d1) -> (d0, d1)>
 // CHECK: #[[CHANNEL0:.*]] = affine_map<(d0, d1) -> (d0)>
 // CHECK-LABEL: func.func @dequantize_per_channel_axis0(
@@ -1664,4 +2006,398 @@ func.func @dequantize_affine_per_tensor(
         !torch.vtensor<[],f32>, !torch.none, !torch.int, !torch.none,
         !torch.none, !torch.int -> !torch.vtensor<[?,16],bf16>
   return %out : !torch.vtensor<[?,16],bf16>
+}
+
+// -----
+
+// Without keepdim, the dimension covered by the block gets dropped.
+// CHECK: #[[EXPANDED:.*]] = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>
+// CHECK: #[[BLOCKS:.*]] = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2)>
+// CHECK: #[[DROPPED:.*]] = affine_map<(d0, d1) -> (d0, d1, 0)>
+// CHECK: #[[RESULT:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK-LABEL: func.func @choose_qparams_affine_asymmetric_per_token(
+// CHECK: %[[INPUT:.*]] = torch_c.to_builtin_tensor
+// CHECK: %[[EXPANDED_INPUT:.*]] = tensor.expand_shape %[[INPUT]] {{\[\[}}0], [1], [2, 3]] output_shape [2, 4, 1, 8] : tensor<2x4x8xf32> into tensor<2x4x1x8xf32>
+// CHECK: %[[MINMAX:.*]]:2 = linalg.generic
+// CHECK-SAME: indexing_maps = [#[[EXPANDED]], #[[BLOCKS]], #[[BLOCKS]]]
+// CHECK-SAME: iterator_types = ["parallel", "parallel", "parallel", "reduction"]
+// CHECK-SAME: ins(%[[EXPANDED_INPUT]] : tensor<2x4x1x8xf32>)
+// CHECK: arith.minimumf
+// CHECK: arith.maximumf
+// CHECK: linalg.generic
+// CHECK-SAME: indexing_maps = [#[[DROPPED]], #[[DROPPED]], #[[RESULT]], #[[RESULT]]]
+// CHECK-SAME: ins(%[[MINMAX]]#0, %[[MINMAX]]#1 : tensor<2x4x1xf32>, tensor<2x4x1xf32>)
+// CHECK-SAME: outs(%{{.*}}, %{{.*}} : tensor<2x4xf32>, tensor<2x4xi8>)
+// CHECK: ^bb0(%[[MIN:.*]]: f32, %[[MAX:.*]]: f32, %{{.*}}: f32, %{{.*}}: i8):
+// CHECK:   %[[ZERO:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK:   %[[MIN_NEG:.*]] = arith.minimumf %[[MIN]], %[[ZERO]] : f32
+// CHECK:   %[[MAX_POS:.*]] = arith.maximumf %[[MAX]], %[[ZERO]] : f32
+// CHECK:   %[[RANGE:.*]] = arith.subf %[[MAX_POS]], %[[MIN_NEG]] : f32
+// CHECK:   %[[QRANGE:.*]] = arith.constant 2.550000e+02 : f32
+// CHECK:   %[[RAW_SCALE:.*]] = arith.divf %[[RANGE]], %[[QRANGE]] : f32
+// CHECK:   %[[EPS:.*]] = arith.constant 1.17549435E-38 : f32
+// CHECK:   %[[SCALE:.*]] = arith.maximumf %[[RAW_SCALE]], %[[EPS]] : f32
+// CHECK:   %[[DESCALED:.*]] = arith.divf %[[MIN_NEG]], %[[SCALE]] : f32
+// CHECK:   %[[ROUND:.*]] = math.roundeven %[[DESCALED]] : f32
+// CHECK:   %[[QMIN:.*]] = arith.constant -1.280000e+02 : f32
+// CHECK:   %[[ZP:.*]] = arith.subf %[[QMIN]], %[[ROUND]] : f32
+// CHECK:   %[[LOW:.*]] = arith.maximumf %[[ZP]], %{{.*}} : f32
+// CHECK:   %[[HIGH:.*]] = arith.minimumf %[[LOW]], %{{.*}} : f32
+// CHECK:   %[[ZP_INT:.*]] = arith.fptosi %[[HIGH]] : f32 to i8
+// CHECK:   linalg.yield %[[SCALE]], %[[ZP_INT]] : f32, i8
+func.func @choose_qparams_affine_asymmetric_per_token(
+    %input: !torch.vtensor<[2,4,8],f32>)
+    -> (!torch.vtensor<[2,4],f32>, !torch.vtensor<[2,4],si8>) {
+  %int1 = torch.constant.int 1
+  %int8 = torch.constant.int 8
+  %dtype = torch.constant.int 1
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %mapping = torch.constant.str "ASYMMETRIC"
+  %block_size = torch.prim.ListConstruct %int1, %int1, %int8
+      : (!torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %scale, %zero_point = torch.torchao.choose_qparams_affine
+      %input, %mapping, %block_size, %dtype, %qmin, %qmax, %none, %none,
+      %dtype, %false
+      : !torch.vtensor<[2,4,8],f32>, !torch.str, !torch.list<int>, !torch.int,
+        !torch.int, !torch.int, !torch.none, !torch.none, !torch.int,
+        !torch.bool -> !torch.vtensor<[2,4],f32>, !torch.vtensor<[2,4],si8>
+  return %scale, %zero_point
+      : !torch.vtensor<[2,4],f32>, !torch.vtensor<[2,4],si8>
+}
+
+// -----
+
+// A bf16 input gets bf16 scales and zero points. The reduction runs in bf16
+// and each step of the scale is rounded to bf16, as in eager PyTorch.
+// CHECK: #[[EXPANDED:.*]] = affine_map<(d0, d1, d2) -> (d0, d1, d2)>
+// CHECK: #[[BLOCKS:.*]] = affine_map<(d0, d1, d2) -> (d0, d1)>
+// CHECK: #[[RESULT:.*]] = affine_map<(d0, d1) -> (d0, d1)>
+// CHECK-LABEL: func.func @choose_qparams_affine_symmetric_per_group_keepdim(
+// CHECK: %[[EXPANDED_INPUT:.*]] = tensor.expand_shape %{{.*}} {{\[\[}}0], [1, 2]] output_shape [4, 4, 8] : tensor<4x32xbf16> into tensor<4x4x8xbf16>
+// CHECK: %[[MINMAX:.*]]:2 = linalg.generic
+// CHECK-SAME: indexing_maps = [#[[EXPANDED]], #[[BLOCKS]], #[[BLOCKS]]]
+// CHECK-SAME: iterator_types = ["parallel", "parallel", "reduction"]
+// CHECK: ^bb0(%{{.*}}: bf16, %{{.*}}: bf16, %{{.*}}: bf16):
+// CHECK: linalg.generic
+// CHECK-SAME: indexing_maps = [#[[RESULT]], #[[RESULT]], #[[RESULT]], #[[RESULT]]]
+// CHECK-SAME: outs(%{{.*}}, %{{.*}} : tensor<4x4xbf16>, tensor<4x4xbf16>)
+// CHECK: ^bb0(%[[MIN:.*]]: bf16, %[[MAX:.*]]: bf16, %{{.*}}: bf16, %{{.*}}: bf16):
+// CHECK:   %[[MIN_EXT:.*]] = arith.extf %[[MIN]] : bf16 to f32
+// CHECK:   %[[MAX_EXT:.*]] = arith.extf %[[MAX]] : bf16 to f32
+// CHECK:   %[[ZERO:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK:   %[[MIN_NEG:.*]] = arith.minimumf %[[MIN_EXT]], %[[ZERO]] : f32
+// CHECK:   %[[MAX_POS:.*]] = arith.maximumf %[[MAX_EXT]], %[[ZERO]] : f32
+// CHECK:   %[[NEG:.*]] = arith.negf %[[MIN_NEG]] : f32
+// CHECK:   %[[ABS_MAX:.*]] = arith.maximumf %[[NEG]], %[[MAX_POS]] : f32
+// CHECK:   %[[HALF_RANGE:.*]] = arith.constant 7.500000e+00 : f32
+// CHECK:   %[[RAW_SCALE:.*]] = arith.divf %[[ABS_MAX]], %[[HALF_RANGE]] : f32
+// CHECK:   %[[RAW_SCALE_BF16:.*]] = arith.truncf %[[RAW_SCALE]] : f32 to bf16
+// CHECK:   %[[RAW_SCALE_EXT:.*]] = arith.extf %[[RAW_SCALE_BF16]] : bf16 to f32
+// CHECK:   %[[EPS:.*]] = arith.constant 1.17549435E-38 : f32
+// CHECK:   %[[SCALE:.*]] = arith.maximumf %[[RAW_SCALE_EXT]], %[[EPS]] : f32
+// CHECK:   %[[ZP:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK:   %[[ZP_ROUNDED:.*]] = arith.truncf %[[ZP]] : f32 to bf16
+// CHECK:   %[[ZP_EXT:.*]] = arith.extf %[[ZP_ROUNDED]] : bf16 to f32
+// CHECK:   %[[SCALE_BF16:.*]] = arith.truncf %{{.*}} : f32 to bf16
+// CHECK:   %[[ZP_BF16:.*]] = arith.truncf %[[ZP_EXT]] : f32 to bf16
+// CHECK:   linalg.yield %[[SCALE_BF16]], %[[ZP_BF16]] : bf16, bf16
+func.func @choose_qparams_affine_symmetric_per_group_keepdim(
+    %input: !torch.vtensor<[4,32],bf16>)
+    -> (!torch.vtensor<[4,4],bf16>, !torch.vtensor<[4,4],bf16>) {
+  %int1 = torch.constant.int 1
+  %int8 = torch.constant.int 8
+  %dtype = torch.constant.int 1
+  %qmin = torch.constant.int -8
+  %qmax = torch.constant.int 7
+  %none = torch.constant.none
+  %true = torch.constant.bool true
+  %mapping = torch.constant.str "SYMMETRIC"
+  %block_size = torch.prim.ListConstruct %int1, %int8
+      : (!torch.int, !torch.int) -> !torch.list<int>
+  %scale, %zero_point = torch.torchao.choose_qparams_affine
+      %input, %mapping, %block_size, %dtype, %qmin, %qmax, %none, %none,
+      %none, %true
+      : !torch.vtensor<[4,32],bf16>, !torch.str, !torch.list<int>, !torch.int,
+        !torch.int, !torch.int, !torch.none, !torch.none, !torch.none,
+        !torch.bool -> !torch.vtensor<[4,4],bf16>, !torch.vtensor<[4,4],bf16>
+  return %scale, %zero_point
+      : !torch.vtensor<[4,4],bf16>, !torch.vtensor<[4,4],bf16>
+}
+
+// -----
+
+// A non-constant block_size entry, such as a symbolic size from torch.export,
+// spans its dimension, so a block_size of the whole input gives 0-d results.
+// CHECK: #[[EXPANDED:.*]] = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>
+// CHECK: #[[BLOCKS:.*]] = affine_map<(d0, d1, d2, d3) -> (d0, d2)>
+// CHECK: #[[DROPPED:.*]] = affine_map<() -> (0, 0)>
+// CHECK: #[[RESULT:.*]] = affine_map<() -> ()>
+// CHECK-LABEL: func.func @choose_qparams_affine_no_clipping_err_per_tensor_dynamic(
+// CHECK: %[[EXPANDED_INPUT:.*]] = tensor.expand_shape %{{.*}} {{\[\[}}0, 1], [2, 3]] output_shape [1, %{{.*}}, 1, 16] : tensor<?x16xf32> into tensor<1x?x1x16xf32>
+// CHECK: %[[MINMAX:.*]]:2 = linalg.generic
+// CHECK-SAME: indexing_maps = [#[[EXPANDED]], #[[BLOCKS]], #[[BLOCKS]]]
+// CHECK-SAME: iterator_types = ["parallel", "reduction", "parallel", "reduction"]
+// CHECK: linalg.generic
+// CHECK-SAME: indexing_maps = [#[[DROPPED]], #[[DROPPED]], #[[RESULT]], #[[RESULT]]]
+// CHECK-SAME: outs(%{{.*}}, %{{.*}} : tensor<f32>, tensor<i32>)
+// CHECK: ^bb0(%[[MIN:.*]]: f32, %[[MAX:.*]]: f32, %{{.*}}: f32, %{{.*}}: i32):
+// CHECK:   %[[MIN_NEG:.*]] = arith.minimumf %[[MIN]], %{{.*}} : f32
+// CHECK:   %[[MAX_POS:.*]] = arith.maximumf %[[MAX]], %{{.*}} : f32
+// CHECK:   %[[QMIN:.*]] = arith.constant -1.280000e+02 : f32
+// CHECK:   %[[SMIN:.*]] = arith.divf %[[MIN_NEG]], %[[QMIN]] : f32
+// CHECK:   %[[QMAX:.*]] = arith.constant 1.270000e+02 : f32
+// CHECK:   %[[SMAX:.*]] = arith.divf %[[MAX_POS]], %[[QMAX]] : f32
+// CHECK:   %[[CMP:.*]] = arith.cmpf ogt, %[[SMIN]], %[[SMAX]] : f32
+// CHECK:   %[[RAW_SCALE:.*]] = arith.select %[[CMP]], %[[SMIN]], %[[SMAX]] : f32
+// CHECK:   %[[EPS:.*]] = arith.constant 9.99999997E-7 : f32
+// CHECK:   %[[SCALE:.*]] = arith.maximumf %[[RAW_SCALE]], %[[EPS]] : f32
+// CHECK:   %[[ZP:.*]] = arith.constant 0.000000e+00 : f32
+// CHECK:   %[[ZP_INT:.*]] = arith.fptosi %[[ZP]] : f32 to i32
+// CHECK:   linalg.yield %[[SCALE]], %[[ZP_INT]] : f32, i32
+func.func @choose_qparams_affine_no_clipping_err_per_tensor_dynamic(
+    %input: !torch.vtensor<[?,16],f32>)
+    -> (!torch.vtensor<[],f32>, !torch.vtensor<[],si32>) {
+  %int0 = torch.constant.int 0
+  %int16 = torch.constant.int 16
+  %dtype = torch.constant.int 1
+  %zp_dtype = torch.constant.int 3
+  %eps = torch.constant.float 1.000000e-06
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %mapping = torch.constant.str "SYMMETRIC_NO_CLIPPING_ERR"
+  %size = torch.aten.size.int %input, %int0
+      : !torch.vtensor<[?,16],f32>, !torch.int -> !torch.int
+  %block_size = torch.prim.ListConstruct %size, %int16
+      : (!torch.int, !torch.int) -> !torch.list<int>
+  %scale, %zero_point = torch.torchao.choose_qparams_affine
+      %input, %mapping, %block_size, %dtype, %none, %none, %eps, %none,
+      %zp_dtype, %false
+      : !torch.vtensor<[?,16],f32>, !torch.str, !torch.list<int>, !torch.int,
+        !torch.none, !torch.none, !torch.float, !torch.none, !torch.int,
+        !torch.bool -> !torch.vtensor<[],f32>, !torch.vtensor<[],si32>
+  return %scale, %zero_point : !torch.vtensor<[],f32>, !torch.vtensor<[],si32>
+}
+
+// -----
+
+func.func @choose_qparams_affine_non_constant_mapping_type(
+    %input: !torch.vtensor<[4,16],f32>, %mapping: !torch.str)
+    -> (!torch.vtensor<[4],f32>, !torch.vtensor<[4],f32>) {
+  %int1 = torch.constant.int 1
+  %int16 = torch.constant.int 16
+  %dtype = torch.constant.int 1
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %block_size = torch.prim.ListConstruct %int1, %int16
+      : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.torchao.choose_qparams_affine' that was explicitly marked illegal}}
+  %scale, %zero_point = torch.torchao.choose_qparams_affine
+      %input, %mapping, %block_size, %dtype, %none, %none, %none, %none,
+      %none, %false
+      : !torch.vtensor<[4,16],f32>, !torch.str, !torch.list<int>, !torch.int,
+        !torch.none, !torch.none, !torch.none, !torch.none, !torch.none,
+        !torch.bool -> !torch.vtensor<[4],f32>, !torch.vtensor<[4],f32>
+  return %scale, %zero_point : !torch.vtensor<[4],f32>, !torch.vtensor<[4],f32>
+}
+
+// -----
+
+func.func @choose_qparams_affine_keepdim_without_reduction(
+    %input: !torch.vtensor<[4,16],f32>)
+    -> (!torch.vtensor<[4,16],f32>, !torch.vtensor<[4,16],f32>) {
+  %int1 = torch.constant.int 1
+  %dtype = torch.constant.int 1
+  %none = torch.constant.none
+  %true = torch.constant.bool true
+  %mapping = torch.constant.str "SYMMETRIC"
+  %block_size = torch.prim.ListConstruct %int1, %int1
+      : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.torchao.choose_qparams_affine' that was explicitly marked illegal}}
+  %scale, %zero_point = torch.torchao.choose_qparams_affine
+      %input, %mapping, %block_size, %dtype, %none, %none, %none, %none,
+      %none, %true
+      : !torch.vtensor<[4,16],f32>, !torch.str, !torch.list<int>, !torch.int,
+        !torch.none, !torch.none, !torch.none, !torch.none, !torch.none,
+        !torch.bool -> !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,16],f32>
+  return %scale, %zero_point : !torch.vtensor<[4,16],f32>, !torch.vtensor<[4,16],f32>
+}
+
+// -----
+
+func.func @choose_qparams_affine_wrong_result_shape(
+    %input: !torch.vtensor<[?,16],f32>)
+    -> (!torch.vtensor<[3,7],f32>, !torch.vtensor<[3,7],f32>) {
+  %int0 = torch.constant.int 0
+  %int8 = torch.constant.int 8
+  %dtype = torch.constant.int 1
+  %none = torch.constant.none
+  %true = torch.constant.bool true
+  %mapping = torch.constant.str "SYMMETRIC"
+  %size = torch.aten.size.int %input, %int0
+      : !torch.vtensor<[?,16],f32>, !torch.int -> !torch.int
+  %block_size = torch.prim.ListConstruct %size, %int8
+      : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.torchao.choose_qparams_affine' that was explicitly marked illegal}}
+  %scale, %zero_point = torch.torchao.choose_qparams_affine
+      %input, %mapping, %block_size, %dtype, %none, %none, %none, %none,
+      %none, %true
+      : !torch.vtensor<[?,16],f32>, !torch.str, !torch.list<int>, !torch.int,
+        !torch.none, !torch.none, !torch.none, !torch.none, !torch.none,
+        !torch.bool -> !torch.vtensor<[3,7],f32>, !torch.vtensor<[3,7],f32>
+  return %scale, %zero_point : !torch.vtensor<[3,7],f32>, !torch.vtensor<[3,7],f32>
+}
+
+// -----
+
+func.func @choose_qparams_affine_wrong_result_rank(
+    %input: !torch.vtensor<[?,16],f32>)
+    -> (!torch.vtensor<[1],f32>, !torch.vtensor<[1],f32>) {
+  %int0 = torch.constant.int 0
+  %int8 = torch.constant.int 8
+  %dtype = torch.constant.int 1
+  %none = torch.constant.none
+  %true = torch.constant.bool true
+  %mapping = torch.constant.str "SYMMETRIC"
+  %size = torch.aten.size.int %input, %int0
+      : !torch.vtensor<[?,16],f32>, !torch.int -> !torch.int
+  %block_size = torch.prim.ListConstruct %size, %int8
+      : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{failed to legalize operation 'torch.torchao.choose_qparams_affine' that was explicitly marked illegal}}
+  %scale, %zero_point = torch.torchao.choose_qparams_affine
+      %input, %mapping, %block_size, %dtype, %none, %none, %none, %none,
+      %none, %true
+      : !torch.vtensor<[?,16],f32>, !torch.str, !torch.list<int>, !torch.int,
+        !torch.none, !torch.none, !torch.none, !torch.none, !torch.none,
+        !torch.bool -> !torch.vtensor<[1],f32>, !torch.vtensor<[1],f32>
+  return %scale, %zero_point : !torch.vtensor<[1],f32>, !torch.vtensor<[1],f32>
+}
+
+// -----
+
+// The qparams from choose_qparams_affine feed quantize_affine and
+// dequantize_affine directly, one block per group of 8, with dynamic sizes.
+// CHECK: #[[GROUP:.*]] = affine_map<(d0, d1) -> (d0, d1 floordiv 8)>
+// CHECK-LABEL: func.func @choose_qparams_affine_round_trip(
+// CHECK: %[[INPUT:.*]] = torch_c.to_builtin_tensor
+// CHECK: %[[ROWS:.*]] = tensor.dim %[[INPUT]], %{{.*}} : tensor<?x?xf32>
+// CHECK: %[[COLS:.*]] = tensor.dim %[[INPUT]], %{{.*}} : tensor<?x?xf32>
+// CHECK: %[[EIGHT:.*]] = arith.constant 8 : index
+// CHECK: %[[GROUPS:.*]] = arith.divui %[[COLS]], %[[EIGHT]] : index
+// CHECK: tensor.expand_shape %[[INPUT]] {{\[\[}}0], [1, 2]] output_shape [%[[ROWS]], %[[GROUPS]], 8] : tensor<?x?xf32> into tensor<?x?x8xf32>
+// CHECK: %[[QPARAMS:.*]]:2 = linalg.generic {{.*}} outs(%{{.*}}, %{{.*}} : tensor<?x?xf32>, tensor<?x?xi8>)
+// CHECK: %[[SCALE:.*]] = tensor.cast %[[QPARAMS]]#0 : tensor<?x?xf32> to tensor<?x?xf32>
+// CHECK: %[[ZERO_POINT:.*]] = tensor.cast %[[QPARAMS]]#1 : tensor<?x?xi8> to tensor<?x?xi8>
+// CHECK: %[[QUANTIZED:.*]] = linalg.generic
+// CHECK-SAME: indexing_maps = [#{{.*}}, #[[GROUP]], #[[GROUP]], #{{.*}}]
+// CHECK-SAME: ins(%[[INPUT]], %[[SCALE]], %[[ZERO_POINT]] : tensor<?x?xf32>, tensor<?x?xf32>, tensor<?x?xi8>)
+// CHECK-SAME: outs(%{{.*}} : tensor<?x?xi8>)
+// CHECK: linalg.generic
+// CHECK-SAME: indexing_maps = [#{{.*}}, #[[GROUP]], #[[GROUP]], #{{.*}}]
+// CHECK-SAME: ins(%[[QUANTIZED]], %[[SCALE]], %[[ZERO_POINT]] : tensor<?x?xi8>, tensor<?x?xf32>, tensor<?x?xi8>)
+// CHECK-SAME: outs(%{{.*}} : tensor<?x?xf32>)
+func.func @choose_qparams_affine_round_trip(
+    %input: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
+  %int1 = torch.constant.int 1
+  %int8 = torch.constant.int 8
+  %float32 = torch.constant.int 6
+  %int8_dtype = torch.constant.int 1
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %mapping = torch.constant.str "ASYMMETRIC"
+  %block_size = torch.prim.ListConstruct %int1, %int8
+      : (!torch.int, !torch.int) -> !torch.list<int>
+  %scale, %zero_point = torch.torchao.choose_qparams_affine
+      %input, %mapping, %block_size, %int8_dtype, %qmin, %qmax, %none, %none,
+      %int8_dtype, %false
+      : !torch.vtensor<[?,?],f32>, !torch.str, !torch.list<int>, !torch.int,
+        !torch.int, !torch.int, !torch.none, !torch.none, !torch.int,
+        !torch.bool -> !torch.vtensor<[?,?],f32>, !torch.vtensor<[?,?],si8>
+  %quantized = torch.torchao.quantize_affine
+      %input, %block_size, %scale, %zero_point, %int8_dtype, %qmin, %qmax
+      : !torch.vtensor<[?,?],f32>, !torch.list<int>, !torch.vtensor<[?,?],f32>,
+        !torch.vtensor<[?,?],si8>, !torch.int, !torch.int, !torch.int
+        -> !torch.vtensor<[?,?],si8>
+  %out = torch.torchao.dequantize_affine
+      %quantized, %block_size, %scale, %zero_point, %int8_dtype, %qmin, %qmax,
+      %float32
+      : !torch.vtensor<[?,?],si8>, !torch.list<int>, !torch.vtensor<[?,?],f32>,
+        !torch.vtensor<[?,?],si8>, !torch.int, !torch.int, !torch.int,
+        !torch.int -> !torch.vtensor<[?,?],f32>
+  return %out : !torch.vtensor<[?,?],f32>
+}
+
+// -----
+
+// choose_qparams_per_token, f16 input: the reference upcasts f16 scales to f32
+// (scales.float()), so the lowering computes in f32 and extends to f64.
+// CHECK-LABEL: func.func @choose_qparams_per_token_f16_input(
+// CHECK:       linalg.generic
+// CHECK:         arith.extf %{{.*}} : f16 to f32
+// CHECK:         math.absf %{{.*}} : f32
+// CHECK:       linalg.generic
+// CHECK:         %[[S:.*]] = arith.divf %{{.*}}, %{{.*}} : f32
+// CHECK:         %[[EXT:.*]] = arith.extf %[[S]] : f32 to f64
+// CHECK:         linalg.yield %[[EXT]], %{{.*}} : f64, i64
+func.func @choose_qparams_per_token_f16_input(
+    %input: !torch.vtensor<[4,16],f16>)
+    -> (!torch.vtensor<[4,1],f64>, !torch.vtensor<[4,1],si64>) {
+  %dtype = torch.constant.int 1
+  %scale, %zp = torch.quantized_decomposed.choose_qparams_per_token
+      %input, %dtype
+      : !torch.vtensor<[4,16],f16>, !torch.int
+      -> !torch.vtensor<[4,1],f64>, !torch.vtensor<[4,1],si64>
+  return %scale, %zp : !torch.vtensor<[4,1],f64>, !torch.vtensor<[4,1],si64>
+}
+
+// -----
+
+// choose_qparams_per_token, bf16 input: the reference keeps bf16 (only f16 is
+// upcast), so the lowering computes in bf16 and extends to f64.
+// CHECK-LABEL: func.func @choose_qparams_per_token_bf16_input(
+// CHECK:       linalg.generic
+// CHECK-NOT:     arith.extf
+// CHECK:         math.absf %{{.*}} : bf16
+// CHECK:       linalg.generic
+// CHECK:         %[[S:.*]] = arith.divf %{{.*}}, %{{.*}} : bf16
+// CHECK:         %[[EXT:.*]] = arith.extf %[[S]] : bf16 to f64
+// CHECK:         linalg.yield %[[EXT]], %{{.*}} : f64, i64
+func.func @choose_qparams_per_token_bf16_input(
+    %input: !torch.vtensor<[4,16],bf16>)
+    -> (!torch.vtensor<[4,1],f64>, !torch.vtensor<[4,1],si64>) {
+  %dtype = torch.constant.int 1
+  %scale, %zp = torch.quantized_decomposed.choose_qparams_per_token
+      %input, %dtype
+      : !torch.vtensor<[4,16],bf16>, !torch.int
+      -> !torch.vtensor<[4,1],f64>, !torch.vtensor<[4,1],si64>
+  return %scale, %zp : !torch.vtensor<[4,1],f64>, !torch.vtensor<[4,1],si64>
+}
+
+// -----
+
+// choose_qparams_per_token_asymmetric, f16 input: the reference does no
+// promotion (eps is a Python float), so the lowering computes in f16 and only
+// extends the final scale to f64.
+// CHECK-LABEL: func.func @choose_qparams_per_token_asymmetric_f16_input(
+// CHECK:       linalg.generic
+// CHECK-NOT:     arith.extf
+// CHECK:         arith.minimumf %{{.*}}, %{{.*}} : f16
+// CHECK:       linalg.generic
+// CHECK:         arith.divf %{{.*}}, %{{.*}} : f16
+// CHECK:         arith.fptosi %{{.*}} : f16 to i64
+// CHECK:         %[[EXT:.*]] = arith.extf %{{.*}} : f16 to f64
+// CHECK:         linalg.yield %[[EXT]], %{{.*}} : f64, i64
+func.func @choose_qparams_per_token_asymmetric_f16_input(
+    %input: !torch.vtensor<[4,16],f16>)
+    -> (!torch.vtensor<[4,1],f64>, !torch.vtensor<[4,1],si64>) {
+  %dtype = torch.constant.int 1
+  %scale, %zp = torch.quantized_decomposed.choose_qparams_per_token_asymmetric
+      %input, %dtype
+      : !torch.vtensor<[4,16],f16>, !torch.int
+      -> !torch.vtensor<[4,1],f64>, !torch.vtensor<[4,1],si64>
+  return %scale, %zp : !torch.vtensor<[4,1],f64>, !torch.vtensor<[4,1],si64>
 }

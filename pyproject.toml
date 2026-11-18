@@ -13,7 +13,7 @@ requires = [
     "nanobind>=2.9, <3.0",
     "PyYAML>=5.4.0, <=6.0.3",
     "typing_extensions>=4.12.2",
-    "numpy>=2.1.0, <=2.1.2",
+    "numpy>=2.1.0, <=2.5.4",
     "ml_dtypes>=0.5.0, <=0.6.0",
 ]
 build-backend = "setuptools.build_meta"

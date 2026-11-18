@@ -646,6 +646,44 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         return success();
       });
   patterns.onOp(
+      "QuickGelu", 1, [](OpBinder binder, ConversionPatternRewriter &rewriter) {
+        Value input;
+        float alpha;
+        Torch::ValueTensorType resultType;
+        if (binder.tensorOperand(input) ||
+            binder.f32FloatAttr(alpha, "alpha", 1.702f) ||
+            binder.tensorResultType(resultType))
+          return rewriter.notifyMatchFailure(
+              binder.op, "expected one tensor input and a float alpha");
+        if (!isa_and_present<Float16Type, BFloat16Type, Float32Type,
+                             Float64Type>(resultType.getOptionalDtype()))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "expected floating-point result");
+
+        // Computes x * sigmoid(alpha * x), in f32 for f16 and bf16.
+        Location loc = binder.getLoc();
+        Type computeType = resultType;
+        if (isa<Float16Type, BFloat16Type>(resultType.getDtype())) {
+          Type f32Type = rewriter.getF32Type();
+          input = Torch::convertTensorToDtype(rewriter, loc, input, f32Type);
+          computeType = resultType.getWithSizesAndDtype(
+              resultType.getOptionalSizes(), f32Type);
+        }
+        Value cstAlpha = Torch::ConstantFloatOp::create(
+            rewriter, loc, rewriter.getF64FloatAttr(alpha));
+        Value scaled = Torch::AtenMulScalarOp::create(
+            rewriter, loc, computeType, input, cstAlpha);
+        Value sigmoid =
+            Torch::AtenSigmoidOp::create(rewriter, loc, computeType, scaled);
+        Value result = Torch::AtenMulTensorOp::create(
+            rewriter, loc, computeType, input, sigmoid);
+        if (computeType != resultType)
+          result = Torch::convertTensorToDtype(rewriter, loc, result,
+                                               resultType.getDtype());
+        rewriter.replaceOp(binder.op, result);
+        return success();
+      });
+  patterns.onOp(
       "MatMulIntegerToFloat", 1,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
         Value a, b, aScale, bScale, aZeroPoint, bZeroPoint, bias;

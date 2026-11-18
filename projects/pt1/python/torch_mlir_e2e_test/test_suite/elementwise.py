@@ -5323,8 +5323,8 @@ class ElementwiseDivTensorUnsignedIntegerModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: ElementwiseDivTensorUnsignedIntegerModule())
 def ElementwiseDivTensorUnsignedIntegerModule_basic(module, tu: TestUtils):
     module.forward(
-        tu.randint(3, 4, low=0, high=10).to(torch.uint8),
-        tu.randint(3, 4, low=0, high=10).type(torch.uint8),
+        tu.randint(3, 4, low=0, high=256).to(torch.uint8),
+        tu.randint(3, 4, low=1, high=256).type(torch.uint8),
     )
 
 
@@ -5669,6 +5669,178 @@ def ElementwiseDivTensorRoundingModeFloorIntStaticModule_basic(module, tu: TestU
         tu.randint(3, 4, low=-10, high=10).type(torch.int32),
         tu.randint(3, 4, low=1, high=10).type(torch.int64),
     )
+
+
+# Integer division of uint8 tensors. The dividends and some of the divisors are
+# above 127, where signed division gives different results. The RefBackend
+# returns integer results as signed, so the results are returned as int64.
+
+
+class ElementwiseDivTensorRoundingModeTruncUnsignedModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.uint8, True),
+            ([3, 4], torch.uint8, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.div(a, b, rounding_mode="trunc").to(torch.int64)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseDivTensorRoundingModeTruncUnsignedModule()
+)
+def ElementwiseDivTensorRoundingModeTruncUnsignedModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(3, 4, low=128, high=256).type(torch.uint8),
+        tu.randint(3, 4, low=1, high=256).type(torch.uint8),
+    )
+
+
+class ElementwiseDivTensorRoundingModeFloorUnsignedModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.uint8, True),
+            ([3, 4], torch.uint8, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.div(a, b, rounding_mode="floor").to(torch.int64)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseDivTensorRoundingModeFloorUnsignedModule()
+)
+def ElementwiseDivTensorRoundingModeFloorUnsignedModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(3, 4, low=128, high=256).type(torch.uint8),
+        tu.randint(3, 4, low=1, high=256).type(torch.uint8),
+    )
+
+
+class ElementwiseDivScalarRoundingModeFloorUnsignedModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.uint8, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.div(a, 3, rounding_mode="floor").to(torch.int64)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseDivScalarRoundingModeFloorUnsignedModule()
+)
+def ElementwiseDivScalarRoundingModeFloorUnsignedModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=128, high=256).type(torch.uint8))
+
+
+class ElementwiseDivTensorRoundingModeTruncMixedSignModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.uint8, True),
+            ([3, 4], torch.int32, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.div(a, b, rounding_mode="trunc").to(torch.int64)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseDivTensorRoundingModeTruncMixedSignModule()
+)
+def ElementwiseDivTensorRoundingModeTruncMixedSignModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(3, 4, low=128, high=256).type(torch.uint8),
+        tu.randint(3, 4, low=1, high=128).type(torch.int32),
+    )
+
+
+class ElementwiseDivScalarRoundingModeFloorUnsignedNegativeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.uint8, True),
+        ]
+    )
+    def forward(self, a):
+        # PyTorch converts the divisor to uint8, so -3 divides as 253.
+        return torch.div(a, -3, rounding_mode="floor").to(torch.int64)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseDivScalarRoundingModeFloorUnsignedNegativeModule()
+)
+def ElementwiseDivScalarRoundingModeFloorUnsignedNegativeModule_basic(
+    module, tu: TestUtils
+):
+    module.forward(tu.randint(3, 4, low=0, high=256).type(torch.uint8))
+
+
+class ElementwiseDivScalarRoundingModeFloorInt8Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.int8, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.div(a, -3, rounding_mode="floor").to(torch.int64)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseDivScalarRoundingModeFloorInt8Module()
+)
+def ElementwiseDivScalarRoundingModeFloorInt8Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=-128, high=128).type(torch.int8))
+
+
+class ElementwiseDivScalarUnsignedModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.uint8, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.div(a, -3)
+
+
+@register_test_case(module_factory=lambda: ElementwiseDivScalarUnsignedModule())
+def ElementwiseDivScalarUnsignedModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=0, high=256).type(torch.uint8))
 
 
 # ==============================================================================

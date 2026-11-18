@@ -2141,3 +2141,302 @@ func.func @torch.aten.softplus(%arg0: !torch.vtensor<[3,4],f32>) -> !torch.vtens
   %0 = torch.aten.softplus %arg0, %beta, %threshold : !torch.vtensor<[3,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[3,4],f32>
   return %0 : !torch.vtensor<[3,4],f32>
 }
+
+// -----
+
+// Decompose quantized_decomposed.quantize_per_tensor.tensor into the
+// scalar-qparam quantize_per_tensor form by extracting scale/zp with
+// aten.item.
+// CHECK-LABEL: func.func @decompose_quantize_per_tensor_tensor(
+// CHECK-SAME:    %[[INPUT:[^:,]+]]: !torch.vtensor<[4,8],f32>,
+// CHECK-SAME:    %[[SCALE:[^:,]+]]: !torch.vtensor<[],f32>,
+// CHECK-SAME:    %[[ZP:[^:,]+]]: !torch.vtensor<[],si32>
+// CHECK-DAG:   %[[SCALE_V:.*]] = torch.aten.item %[[SCALE]]
+// CHECK-DAG:   %[[ZP_V:.*]] = torch.aten.item %[[ZP]]
+// CHECK:       %[[OUT:.*]] = torch.quantized_decomposed.quantize_per_tensor
+// CHECK-SAME:    %[[INPUT]], %[[SCALE_V]], %[[ZP_V]]
+// CHECK-NOT:   torch.quantized_decomposed.quantize_per_tensor.tensor
+// CHECK:       return %[[OUT]]
+func.func @decompose_quantize_per_tensor_tensor(
+    %input: !torch.vtensor<[4,8],f32>,
+    %scale: !torch.vtensor<[],f32>,
+    %zp: !torch.vtensor<[],si32>)
+    -> !torch.vtensor<[4,8],si8> {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 1
+  %out = torch.quantized_decomposed.quantize_per_tensor.tensor
+      %input, %scale, %zp, %qmin, %qmax, %dtype
+      : !torch.vtensor<[4,8],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[],si32>,
+        !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,8],si8>
+  return %out : !torch.vtensor<[4,8],si8>
+}
+
+// -----
+
+// Decompose quantized_decomposed.quantize_per_tensor.tensor2 into the
+// scalar-qparam quantize_per_tensor form (qmin/qmax are also 0-d tensors).
+// CHECK-LABEL: func.func @decompose_quantize_per_tensor_tensor2(
+// CHECK-SAME:    %[[INPUT:[^:,]+]]: !torch.vtensor<[4,8],f32>,
+// CHECK-SAME:    %[[SCALE:[^:,]+]]: !torch.vtensor<[],f32>,
+// CHECK-SAME:    %[[ZP:[^:,]+]]: !torch.vtensor<[],si32>,
+// CHECK-SAME:    %[[QMIN:[^:,]+]]: !torch.vtensor<[],si32>,
+// CHECK-SAME:    %[[QMAX:[^:,]+]]: !torch.vtensor<[],si32>
+// CHECK-DAG:   %[[SCALE_V:.*]] = torch.aten.item %[[SCALE]]
+// CHECK-DAG:   %[[ZP_V:.*]] = torch.aten.item %[[ZP]]
+// CHECK-DAG:   %[[QMIN_V:.*]] = torch.aten.item %[[QMIN]]
+// CHECK-DAG:   %[[QMAX_V:.*]] = torch.aten.item %[[QMAX]]
+// CHECK:       %[[OUT:.*]] = torch.quantized_decomposed.quantize_per_tensor
+// CHECK-SAME:    %[[INPUT]], %[[SCALE_V]], %[[ZP_V]], %[[QMIN_V]], %[[QMAX_V]]
+// CHECK-NOT:   torch.quantized_decomposed.quantize_per_tensor.tensor2
+// CHECK:       return %[[OUT]]
+func.func @decompose_quantize_per_tensor_tensor2(
+    %input: !torch.vtensor<[4,8],f32>,
+    %scale: !torch.vtensor<[],f32>,
+    %zp: !torch.vtensor<[],si32>,
+    %qmin_t: !torch.vtensor<[],si32>,
+    %qmax_t: !torch.vtensor<[],si32>)
+    -> !torch.vtensor<[4,8],si8> {
+  %dtype = torch.constant.int 1
+  %out = torch.quantized_decomposed.quantize_per_tensor.tensor2
+      %input, %scale, %zp, %qmin_t, %qmax_t, %dtype
+      : !torch.vtensor<[4,8],f32>, !torch.vtensor<[],f32>, !torch.vtensor<[],si32>,
+        !torch.vtensor<[],si32>, !torch.vtensor<[],si32>, !torch.int -> !torch.vtensor<[4,8],si8>
+  return %out : !torch.vtensor<[4,8],si8>
+}
+
+// -----
+
+// Decompose quantized_decomposed.dequantize_per_tensor.tensor into the
+// scalar-qparam dequantize_per_tensor form.
+// CHECK-LABEL: func.func @decompose_dequantize_per_tensor_tensor(
+// CHECK-SAME:    %[[INPUT:[^:,]+]]: !torch.vtensor<[4,8],si8>,
+// CHECK-SAME:    %[[SCALE:[^:,]+]]: !torch.vtensor<[],f32>,
+// CHECK-SAME:    %[[ZP:[^:,]+]]: !torch.vtensor<[],si32>
+// CHECK-DAG:   %[[SCALE_V:.*]] = torch.aten.item %[[SCALE]]
+// CHECK-DAG:   %[[ZP_V:.*]] = torch.aten.item %[[ZP]]
+// CHECK:       %[[OUT:.*]] = torch.quantized_decomposed.dequantize_per_tensor
+// CHECK-SAME:    %[[INPUT]], %[[SCALE_V]], %[[ZP_V]]
+// CHECK-NOT:   torch.quantized_decomposed.dequantize_per_tensor.tensor
+// CHECK:       return %[[OUT]]
+func.func @decompose_dequantize_per_tensor_tensor(
+    %input: !torch.vtensor<[4,8],si8>,
+    %scale: !torch.vtensor<[],f32>,
+    %zp: !torch.vtensor<[],si32>)
+    -> !torch.vtensor<[4,8],f32> {
+  %qmin = torch.constant.int -128
+  %qmax = torch.constant.int 127
+  %dtype = torch.constant.int 1
+  %none = torch.constant.none
+  %od = torch.derefine %none : !torch.none to !torch.optional<int>
+  %out = torch.quantized_decomposed.dequantize_per_tensor.tensor
+      %input, %scale, %zp, %qmin, %qmax, %dtype, %od
+      : !torch.vtensor<[4,8],si8>, !torch.vtensor<[],f32>, !torch.vtensor<[],si32>,
+        !torch.int, !torch.int, !torch.int, !torch.optional<int> -> !torch.vtensor<[4,8],f32>
+  return %out : !torch.vtensor<[4,8],f32>
+}
+
+// -----
+
+// Decompose quantized_decomposed.dequantize_per_tensor.tensor2 into the
+// scalar-qparam dequantize_per_tensor form
+// CHECK-LABEL: func.func @decompose_dequantize_per_tensor_tensor2(
+// CHECK-SAME:    %[[INPUT:[^:,]+]]: !torch.vtensor<[4,8],si8>,
+// CHECK-SAME:    %[[SCALE:[^:,]+]]: !torch.vtensor<[],f32>,
+// CHECK-SAME:    %[[ZP:[^:,]+]]: !torch.vtensor<[],si32>,
+// CHECK-SAME:    %[[QMIN:[^:,]+]]: !torch.vtensor<[],si32>,
+// CHECK-SAME:    %[[QMAX:[^:,]+]]: !torch.vtensor<[],si32>
+// CHECK-DAG:   %[[SCALE_V:.*]] = torch.aten.item %[[SCALE]]
+// CHECK-DAG:   %[[ZP_V:.*]] = torch.aten.item %[[ZP]]
+// CHECK-DAG:   %[[QMIN_V:.*]] = torch.aten.item %[[QMIN]]
+// CHECK-DAG:   %[[QMAX_V:.*]] = torch.aten.item %[[QMAX]]
+// CHECK:       %[[OUT:.*]] = torch.quantized_decomposed.dequantize_per_tensor
+// CHECK-SAME:    %[[INPUT]], %[[SCALE_V]], %[[ZP_V]], %[[QMIN_V]], %[[QMAX_V]]
+// CHECK-NOT:   torch.quantized_decomposed.dequantize_per_tensor.tensor2
+// CHECK:       return %[[OUT]]
+func.func @decompose_dequantize_per_tensor_tensor2(
+    %input: !torch.vtensor<[4,8],si8>,
+    %scale: !torch.vtensor<[],f32>,
+    %zp: !torch.vtensor<[],si32>,
+    %qmin_t: !torch.vtensor<[],si32>,
+    %qmax_t: !torch.vtensor<[],si32>)
+    -> !torch.vtensor<[4,8],f32> {
+  %dtype = torch.constant.int 1
+  %none = torch.constant.none
+  %od = torch.derefine %none : !torch.none to !torch.optional<int>
+  %out = torch.quantized_decomposed.dequantize_per_tensor.tensor2
+      %input, %scale, %zp, %qmin_t, %qmax_t, %dtype, %od
+      : !torch.vtensor<[4,8],si8>, !torch.vtensor<[],f32>, !torch.vtensor<[],si32>,
+        !torch.vtensor<[],si32>, !torch.vtensor<[],si32>, !torch.int, !torch.optional<int>
+        -> !torch.vtensor<[4,8],f32>
+  return %out : !torch.vtensor<[4,8],f32>
+}
+
+// -----
+
+// quantize_per_tensor.tensor with f16 input and unsigned ui8 output. The
+// decomposition is identical regardless of dtypes.
+// CHECK-LABEL: func.func @quantize_per_tensor_tensor_f16_ui8(
+// CHECK-SAME:    %[[INPUT:[^:,]+]]: !torch.vtensor<[4,8],f16>,
+// CHECK-SAME:    %[[SCALE:[^:,]+]]: !torch.vtensor<[],f16>,
+// CHECK-SAME:    %[[ZP:[^:,]+]]: !torch.vtensor<[],si32>
+// CHECK-DAG:   %[[SCALE_V:.*]] = torch.aten.item %[[SCALE]]
+// CHECK-DAG:   %[[ZP_V:.*]] = torch.aten.item %[[ZP]]
+// CHECK:       %[[OUT:.*]] = torch.quantized_decomposed.quantize_per_tensor
+// CHECK-SAME:    %[[INPUT]], %[[SCALE_V]], %[[ZP_V]]
+// CHECK-NOT:   torch.quantized_decomposed.quantize_per_tensor.tensor
+// CHECK:       return %[[OUT]]
+func.func @quantize_per_tensor_tensor_f16_ui8(
+    %input: !torch.vtensor<[4,8],f16>,
+    %scale: !torch.vtensor<[],f16>,
+    %zp: !torch.vtensor<[],si32>)
+    -> !torch.vtensor<[4,8],ui8> {
+  %qmin = torch.constant.int 0
+  %qmax = torch.constant.int 255
+  %dtype = torch.constant.int 0
+  %out = torch.quantized_decomposed.quantize_per_tensor.tensor
+      %input, %scale, %zp, %qmin, %qmax, %dtype
+      : !torch.vtensor<[4,8],f16>, !torch.vtensor<[],f16>, !torch.vtensor<[],si32>,
+        !torch.int, !torch.int, !torch.int -> !torch.vtensor<[4,8],ui8>
+  return %out : !torch.vtensor<[4,8],ui8>
+}
+
+// -----
+
+// quantize_per_tensor.tensor2 with f16 input, ui8 output, tensor qmin/qmax:
+// all four 0-d qparam tensors are extracted with aten.item.
+// CHECK-LABEL: func.func @quantize_per_tensor_tensor2_f16_ui8(
+// CHECK-SAME:    %[[INPUT:[^:,]+]]: !torch.vtensor<[2,4],f16>,
+// CHECK-SAME:    %[[SCALE:[^:,]+]]: !torch.vtensor<[],f16>,
+// CHECK-SAME:    %[[ZP:[^:,]+]]: !torch.vtensor<[],si32>,
+// CHECK-SAME:    %[[QMIN:[^:,]+]]: !torch.vtensor<[],si32>,
+// CHECK-SAME:    %[[QMAX:[^:,]+]]: !torch.vtensor<[],si32>
+// CHECK-DAG:   %[[SCALE_V:.*]] = torch.aten.item %[[SCALE]]
+// CHECK-DAG:   %[[ZP_V:.*]] = torch.aten.item %[[ZP]]
+// CHECK-DAG:   %[[QMIN_V:.*]] = torch.aten.item %[[QMIN]]
+// CHECK-DAG:   %[[QMAX_V:.*]] = torch.aten.item %[[QMAX]]
+// CHECK:       %[[OUT:.*]] = torch.quantized_decomposed.quantize_per_tensor
+// CHECK-SAME:    %[[INPUT]], %[[SCALE_V]], %[[ZP_V]], %[[QMIN_V]], %[[QMAX_V]]
+// CHECK-NOT:   torch.quantized_decomposed.quantize_per_tensor.tensor2
+// CHECK:       return %[[OUT]]
+func.func @quantize_per_tensor_tensor2_f16_ui8(
+    %input: !torch.vtensor<[2,4],f16>,
+    %scale: !torch.vtensor<[],f16>,
+    %zp: !torch.vtensor<[],si32>,
+    %qmin_t: !torch.vtensor<[],si32>,
+    %qmax_t: !torch.vtensor<[],si32>)
+    -> !torch.vtensor<[2,4],ui8> {
+  %dtype = torch.constant.int 0
+  %out = torch.quantized_decomposed.quantize_per_tensor.tensor2
+      %input, %scale, %zp, %qmin_t, %qmax_t, %dtype
+      : !torch.vtensor<[2,4],f16>, !torch.vtensor<[],f16>, !torch.vtensor<[],si32>,
+        !torch.vtensor<[],si32>, !torch.vtensor<[],si32>, !torch.int -> !torch.vtensor<[2,4],ui8>
+  return %out : !torch.vtensor<[2,4],ui8>
+}
+
+// -----
+
+// dequantize_per_tensor.tensor with unsigned ui8 input -> f32 output.
+// CHECK-LABEL: func.func @dequantize_per_tensor_tensor_ui8(
+// CHECK-SAME:    %[[INPUT:[^:,]+]]: !torch.vtensor<[4,8],ui8>,
+// CHECK-SAME:    %[[SCALE:[^:,]+]]: !torch.vtensor<[],f32>,
+// CHECK-SAME:    %[[ZP:[^:,]+]]: !torch.vtensor<[],si32>
+// CHECK-DAG:   %[[SCALE_V:.*]] = torch.aten.item %[[SCALE]]
+// CHECK-DAG:   %[[ZP_V:.*]] = torch.aten.item %[[ZP]]
+// CHECK:       %[[OUT:.*]] = torch.quantized_decomposed.dequantize_per_tensor
+// CHECK-SAME:    %[[INPUT]], %[[SCALE_V]], %[[ZP_V]]
+// CHECK-NOT:   torch.quantized_decomposed.dequantize_per_tensor.tensor
+// CHECK:       return %[[OUT]]
+func.func @dequantize_per_tensor_tensor_ui8(
+    %input: !torch.vtensor<[4,8],ui8>,
+    %scale: !torch.vtensor<[],f32>,
+    %zp: !torch.vtensor<[],si32>)
+    -> !torch.vtensor<[4,8],f32> {
+  %qmin = torch.constant.int 0
+  %qmax = torch.constant.int 255
+  %dtype = torch.constant.int 0
+  %none = torch.constant.none
+  %od = torch.derefine %none : !torch.none to !torch.optional<int>
+  %out = torch.quantized_decomposed.dequantize_per_tensor.tensor
+      %input, %scale, %zp, %qmin, %qmax, %dtype, %od
+      : !torch.vtensor<[4,8],ui8>, !torch.vtensor<[],f32>, !torch.vtensor<[],si32>,
+        !torch.int, !torch.int, !torch.int, !torch.optional<int> -> !torch.vtensor<[4,8],f32>
+  return %out : !torch.vtensor<[4,8],f32>
+}
+
+// -----
+
+// dequantize_per_tensor.tensor2 with ui8 input and tensor qmin/qmax: all four
+// 0-d qparam tensors are extracted with aten.item.
+// CHECK-LABEL: func.func @dequantize_per_tensor_tensor2_ui8(
+// CHECK-SAME:    %[[INPUT:[^:,]+]]: !torch.vtensor<[2,4],ui8>,
+// CHECK-SAME:    %[[SCALE:[^:,]+]]: !torch.vtensor<[],f32>,
+// CHECK-SAME:    %[[ZP:[^:,]+]]: !torch.vtensor<[],si32>,
+// CHECK-SAME:    %[[QMIN:[^:,]+]]: !torch.vtensor<[],si32>,
+// CHECK-SAME:    %[[QMAX:[^:,]+]]: !torch.vtensor<[],si32>
+// CHECK-DAG:   %[[SCALE_V:.*]] = torch.aten.item %[[SCALE]]
+// CHECK-DAG:   %[[ZP_V:.*]] = torch.aten.item %[[ZP]]
+// CHECK-DAG:   %[[QMIN_V:.*]] = torch.aten.item %[[QMIN]]
+// CHECK-DAG:   %[[QMAX_V:.*]] = torch.aten.item %[[QMAX]]
+// CHECK:       %[[OUT:.*]] = torch.quantized_decomposed.dequantize_per_tensor
+// CHECK-SAME:    %[[INPUT]], %[[SCALE_V]], %[[ZP_V]], %[[QMIN_V]], %[[QMAX_V]]
+// CHECK-NOT:   torch.quantized_decomposed.dequantize_per_tensor.tensor2
+// CHECK:       return %[[OUT]]
+func.func @dequantize_per_tensor_tensor2_ui8(
+    %input: !torch.vtensor<[2,4],ui8>,
+    %scale: !torch.vtensor<[],f32>,
+    %zp: !torch.vtensor<[],si32>,
+    %qmin_t: !torch.vtensor<[],si32>,
+    %qmax_t: !torch.vtensor<[],si32>)
+    -> !torch.vtensor<[2,4],f32> {
+  %dtype = torch.constant.int 0
+  %none = torch.constant.none
+  %od = torch.derefine %none : !torch.none to !torch.optional<int>
+  %out = torch.quantized_decomposed.dequantize_per_tensor.tensor2
+      %input, %scale, %zp, %qmin_t, %qmax_t, %dtype, %od
+      : !torch.vtensor<[2,4],ui8>, !torch.vtensor<[],f32>, !torch.vtensor<[],si32>,
+        !torch.vtensor<[],si32>, !torch.vtensor<[],si32>, !torch.int, !torch.optional<int>
+        -> !torch.vtensor<[2,4],f32>
+  return %out : !torch.vtensor<[2,4],f32>
+}
+
+// -----
+
+// masked_scatter with a dynamic source and a self that broadcasts against mask:
+// the source may be empty at runtime, so it is padded by one element to keep
+// the gather in bounds, and the gathered values take the broadcast shape of
+// self and mask.
+// CHECK-LABEL:  func.func @masked_scatter_dynamic(
+// CHECK-SAME:      %[[SELF:.*]]: !torch.vtensor<[1,3],f32>, %[[MASK:.*]]: !torch.vtensor<[?,3],i1>, %[[SOURCE:.*]]: !torch.vtensor<[?],f32>)
+// CHECK-DAG:      %[[C0:.*]] = torch.constant.int 0
+// CHECK-DAG:      %[[C1:.*]] = torch.constant.int 1
+// CHECK-DAG:      %[[C3:.*]] = torch.constant.int 3
+// CHECK:          %[[MASK_INT:.*]] = torch.aten.add.Tensor %[[MASK]], {{.*}} -> !torch.vtensor<[?,3],si64>
+// CHECK:          %[[DIM0:.*]] = torch.aten.size.int %[[MASK_INT]], %[[C0]] :
+// CHECK:          %[[SIZES:.*]] = torch.prim.ListConstruct %[[DIM0]], %[[C3]] :
+// CHECK:          %[[CUMSUM:.*]] = torch.aten.cumsum %{{.*}}, %[[C0]]
+// CHECK:          %[[SUB:.*]] = torch.aten.sub.Scalar %[[CUMSUM]], %[[C1]], %[[C1]]
+// CHECK:          %[[INDEX:.*]] = torch.aten.clamp %[[SUB]], %[[C0]]
+// CHECK:          %[[PAD:.*]] = torch.prim.ListConstruct %[[C0]], %[[C1]] :
+// CHECK:          %[[PADDED:.*]] = torch.aten.constant_pad_nd %[[SOURCE]], %[[PAD]], %[[C0]] : {{.*}} -> !torch.vtensor<[?],f32>
+// CHECK:          %[[GATHER:.*]] = torch.aten.index_select %[[PADDED]], %[[C0]], %[[INDEX]] :
+// CHECK:          %[[VIEW:.*]] = torch.aten.view %[[GATHER]], %[[SIZES]] : {{.*}} -> !torch.vtensor<[?,3],f32>
+// CHECK:          torch.aten.where.self %[[MASK]], %[[VIEW]], %[[SELF]] :
+func.func @masked_scatter_dynamic(%self: !torch.vtensor<[1,3],f32>, %mask: !torch.vtensor<[?,3],i1>, %source: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,3],f32> {
+  %0 = torch.aten.masked_scatter %self, %mask, %source : !torch.vtensor<[1,3],f32>, !torch.vtensor<[?,3],i1>, !torch.vtensor<[?],f32> -> !torch.vtensor<[?,3],f32>
+  return %0 : !torch.vtensor<[?,3],f32>
+}
+
+// -----
+
+// A static, non-empty source needs no padding, so masked_scatter gathers from
+// it directly.
+// CHECK-LABEL:  func.func @masked_scatter_static_source(
+// CHECK-SAME:      %[[SELF:.*]]: !torch.vtensor<[2,3],f32>, %[[MASK:.*]]: !torch.vtensor<[2,3],i1>, %[[SOURCE:.*]]: !torch.vtensor<[4],f32>)
+// CHECK:          %[[GATHER:.*]] = torch.aten.index_select %[[SOURCE]],
+// CHECK:          %[[VIEW:.*]] = torch.aten.view %[[GATHER]],
+// CHECK:          torch.aten.where.self %[[MASK]], %[[VIEW]], %[[SELF]] :
+func.func @masked_scatter_static_source(%self: !torch.vtensor<[2,3],f32>, %mask: !torch.vtensor<[2,3],i1>, %source: !torch.vtensor<[4],f32>) -> !torch.vtensor<[2,3],f32> {
+  %0 = torch.aten.masked_scatter %self, %mask, %source : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],i1>, !torch.vtensor<[4],f32> -> !torch.vtensor<[2,3],f32>
+  return %0 : !torch.vtensor<[2,3],f32>
+}

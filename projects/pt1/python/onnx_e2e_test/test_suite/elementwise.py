@@ -120,6 +120,26 @@ class OnnxAdd_i32_customRange(OnnxTestCase):
 
 
 @register_onnx_test
+class OnnxDiv_ui8_basic(OnnxTestCase):
+    # Integer Div on uint8. The dividends and some of the divisors are above 127,
+    # where signed division gives different results. The RefBackend returns
+    # integer results as signed, so the quotient is cast to int64.
+    @annotate_inputs(
+        [
+            ("x", torch.uint8, [4, 4], (128, 256)),
+            ("y", torch.uint8, [4, 4], (1, 256)),
+        ]
+    )
+    def graph(self):
+        div = onnx.helper.make_node("Div", ["x", "y"], ["q"])
+        cast = onnx.helper.make_node("Cast", ["q"], ["z"], to=onnx.TensorProto.INT64)
+        return [div, cast], ["z"]
+
+
+# ==============================================================================
+
+
+@register_onnx_test
 class OnnxAdd_f32_dynamicInput(OnnxTestCase):
     # A -1 dim marks a dynamic INPUT: it imports as `?` and materialize_inputs
     # substitutes a concrete size at runtime for both golden and SUT.  The
@@ -231,5 +251,46 @@ class OnnxFastGelu_f16_rounding(_FastGelu):
     # tail. FP32 computation followed by a single f16 rounding gives
     # -0.00264739990234375.
     @annotate_inputs([("x", torch.float16, [1], (-3.09765625, -3.09765625))])
+    def graph(self):
+        return super().graph()
+
+
+# ==============================================================================
+
+
+class _QuickGelu(OnnxTestCase):
+    # Inputs avoid the negative tail, where the error of ONNX Runtime's
+    # approximate sigmoid exceeds the harness tolerances.
+    extra_opsets = {"com.microsoft": 1}
+    # None leaves the attribute out, so the default alpha applies.
+    alpha = None
+
+    def graph(self):
+        attributes = {} if self.alpha is None else {"alpha": self.alpha}
+        node = onnx.helper.make_node(
+            "QuickGelu", ["x"], ["y"], domain="com.microsoft", **attributes
+        )
+        return [node], ["y"]
+
+
+@register_onnx_test
+class OnnxQuickGelu_f32(_QuickGelu):
+    @annotate_inputs([("x", torch.float32, [3, 4], (-5.0, 5.0))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class OnnxQuickGelu_f64_alpha(_QuickGelu):
+    alpha = 1.5
+
+    @annotate_inputs([("x", torch.float64, [3, 4], (-5.0, 5.0))])
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class OnnxQuickGelu_f16(_QuickGelu):
+    @annotate_inputs([("x", torch.float16, [8, 8], (-3.0, 3.0))])
     def graph(self):
         return super().graph()

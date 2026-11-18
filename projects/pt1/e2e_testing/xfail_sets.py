@@ -407,6 +407,11 @@ TORCHDYNAMO_CRASHING_SET = {
 FX_IMPORTER_XFAIL_SET = {
     # Negative AvgPool3d divisors produce -0 instead of eager's +0.
     "AvgPool3dSignedZero_basic",
+    # Torch-to-Linalg nearest2d rounds explicit scales up to integers and
+    # uses integer floor division, producing incorrect source indices.
+    "UpSampleNearest2dFloat32Scale_basic",
+    "UpSampleNearest2dFractionalScales_basic",
+    "UpSampleNearest2dSizeCompatibility_basic",
     "TimeOutModule_basic",  # this test is expected to time out
     "AddFloatIntModule_basic",
     "AllBoolFalseModule_basic",
@@ -495,7 +500,6 @@ FX_IMPORTER_XFAIL_SET = {
     "TensorToBoolZeroRank_basic",
     "TensorToBool_basic",
     "ThresholdBackward2dMixedModule_basic",
-    "TorchPrimLoopWhileLikeHOPModule_basic",  # Compilation error: failed to legalize operation 'func.call'
     "UnsafeViewCollapseDynamicWithAtenSizeIntModule_basic",
     "UpSampleNearest2dDynamicFactor_basic",
     "ViewCollapseDynamicWithAtenSizeIntModule_basic",
@@ -527,6 +531,9 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
     "Aten_TrilinearModuleSumdims_basic",
     "SliceOutOfLowerBoundEndIndexModule_basic",
     "RollModule_basic",
+    # The while-like torch.prim.Loop is lowered to an scf.for with an upper
+    # bound of INT64_MAX and no exit, so the compiled test never finishes.
+    "TorchPrimLoopWhileLikeHOPModule_basic",
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
@@ -708,6 +715,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "ElementwiseQuantizePerTensorModule_basic",
     "ElementwiseQuantizePerTensorUIntModule_basic",
     "ElementwiseReciprocalIntModule_basic",
+    "ElementwiseToDtypeF32ConstantToUI8Module_basic",
     "ElementwiseToDtypeI64ToUI8Module_basic",
     "FloatImplicitModule_basic",
     "GeFloatIntModule_basic",
@@ -730,6 +738,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "IndexPutBoolMaskAccumulateModule_basic",
     "IndexPutBoolMaskDynamicModule_basic",
     "IndexPutMixedIntBoolModule_basic",
+    "IndexPutNegativeIndexModule_basic",
     "IndexPutHackedTwin1DFloatAccumulateModule_basic",
     "IndexPutHackedTwin1DFloatNonAccumulateModule_basic",
     "IndexPutHackedTwin1DIntAccumulateModule_basic",
@@ -824,6 +833,19 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "QuantizedDecomposedDynamicQuantPerTokenAsymmetric3D_basic",
     "QuantizedDecomposedDynamicQuantPerTokenAsymmetric_basic",
     "QuantizedDecomposedDynamicQuantPerTokenSymmetric_basic",
+    "QuantizedDecomposedDequantizePerTensorTensor_basic",
+    "QuantizedDecomposedDequantizePerTensorTensor2_basic",
+    "QuantizedDecomposedQuantizePerTensorTensor_basic",
+    "QuantizedDecomposedQuantizePerTensorTensor2_basic",
+    "QuantizedDecomposedChooseQparamsSymmetricTensor_basic",
+    "QuantizedDecomposedChooseQparamsTensor_basic",
+    "QuantizedDecomposedChooseQparamsSymmetricTensorUint8_basic",
+    "QuantizedDecomposedChooseQparamsTensorBf16_basic",
+    "QuantizedDecomposedChooseQparamsTensorF16Overflow_basic",
+    "QuantizedDecomposedDynamicQuantFlowSymmetric_basic",
+    "QuantizedDecomposedDynamicQuantFlowSymmetric_negative",
+    "QuantizedDecomposedDynamicQuantFlowAsymmetric_basic",
+    "QuantizedDecomposedDynamicQuantFlowAsymmetric_negative",
     "QuantizedMLP_basic",
     "QuantizedNoLayer_basic",
     "QuantizedSingleLayer_basic",
@@ -902,6 +924,9 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "IscloseStaticModule_basic",
     "UpSampleNearest2dDynamicFactor_basic",
     "UpSampleNearest2dDynamicSize_basic",
+    "UpSampleNearest2dFloat32Scale_basic",
+    "UpSampleNearest2dFractionalScales_basic",
+    "UpSampleNearest2dSizeCompatibility_basic",
     "UpSampleNearest2dStaticFactor_basic",
     "UpSampleNearest2dStaticSize_basic",
     "UpSampleNearest2d_basic",
@@ -2799,8 +2824,6 @@ ONNX_XFAIL_SET = {
     "AtenAsStridedAfterNumpyTModule_basic",
     # ONNX transpose materializes permute before gather, so indexing uses new storage.
     "AtenAsStridedAfterPermuteModule_basic",
-    # ONNX _reshape_alias path creates an invalid 24-to-1 reshape/collapse.
-    "AtenAsStridedAfterReshapeAliasModule_basic",
     # ONNX export lowers channels-last as_strided to flatten/gather over the
     # logical NCHW tensor, losing channels-last storage order.
     "AtenAsStridedAfterToChannelsLastModule_basic",
@@ -2812,8 +2835,6 @@ ONNX_XFAIL_SET = {
     "AtenAsStridedAfterTModule_basic",
     # ONNX transpose materializes transpose before gather, so indexing uses new storage.
     "AtenAsStridedAfterTransposeModule_basic",
-    # ONNX unflatten path creates an invalid 24-to-1 reshape/collapse.
-    "AtenAsStridedAfterUnflattenModule_basic",
     # ONNX unfold export materializes windows before gather, losing view storage.
     "AtenAsStridedAfterUnfoldModule_basic",
     # ONNX _unsafe_view path creates an invalid reshape/collapse after slice.
@@ -2822,6 +2843,9 @@ ONNX_XFAIL_SET = {
     # This test is expected to time out
     "TimeOutModule_basic",
     # Failure - incorrect numerics
+    # ONNX export preserves explicit Resize scales, losing PyTorch's
+    # same-size/exact-2x nearest-neighbor compatibility sampling.
+    "UpSampleNearest2dSizeCompatibility_basic",
     "AvgPool2dDivisorOverrideModule_basic",
     "ElementwiseAtanTensorBFloat16SpecialValuesModule_basic",
     "ElementwiseFminModule_basic",
@@ -2943,9 +2967,6 @@ ONNX_XFAIL_SET = {
     "AvgPool3dDiffKernelsStridesNoPadCeilPadNotIncluded_basic",
     "AvgPool3dDiffKernelsStridesPadCeilPadNotIncluded_basic",
     "BatchMlpLayerModule_basic",
-    "BincountMinlengthModule_basic",
-    "BincountModule_basic",
-    "BincountStaticSizeModule_basic",
     "BoolFloatConstantModule_basic",
     "BoolFloatFalseModule_basic",
     "BoolFloatTrueModule_basic",
@@ -3125,6 +3146,19 @@ ONNX_XFAIL_SET = {
     "QuantizedDecomposedDynamicQuantPerTokenAsymmetric3D_basic",
     "QuantizedDecomposedDynamicQuantPerTokenAsymmetric_basic",
     "QuantizedDecomposedDynamicQuantPerTokenSymmetric_basic",
+    "QuantizedDecomposedDequantizePerTensorTensor_basic",
+    "QuantizedDecomposedDequantizePerTensorTensor2_basic",
+    "QuantizedDecomposedQuantizePerTensorTensor_basic",
+    "QuantizedDecomposedQuantizePerTensorTensor2_basic",
+    "QuantizedDecomposedChooseQparamsSymmetricTensor_basic",
+    "QuantizedDecomposedChooseQparamsTensor_basic",
+    "QuantizedDecomposedChooseQparamsSymmetricTensorUint8_basic",
+    "QuantizedDecomposedChooseQparamsTensorBf16_basic",
+    "QuantizedDecomposedChooseQparamsTensorF16Overflow_basic",
+    "QuantizedDecomposedDynamicQuantFlowSymmetric_basic",
+    "QuantizedDecomposedDynamicQuantFlowSymmetric_negative",
+    "QuantizedDecomposedDynamicQuantFlowAsymmetric_basic",
+    "QuantizedDecomposedDynamicQuantFlowAsymmetric_negative",
     "QuantizedReluInt8_basic",
     "QuantizedReluInt32_basic",
     "QuantizedReluUint8_basic",
@@ -3276,27 +3310,12 @@ ONNX_XFAIL_SET = {
     "ElementwiseReluModule_bfloat16",
     # Regressed by the switch to the dynamo ONNX exporter, see https://github.com/llvm/torch-mlir/issues/4690
     "ArgmaxKeepdimModule_basic",
-    "AtenAsStridedAfterBroadcastToModule_basic",
-    "AtenAsStridedAfterChainedViewsModule_basic",
-    "AtenAsStridedAfterContiguousModule_basic",
-    "AtenAsStridedAfterExpandAsModule_basic",
-    "AtenAsStridedAfterExpandModule_basic",
-    "AtenAsStridedAfterReshapeFlattenModule_basic",
-    "AtenAsStridedAfterSliceModule_basic",
-    "AtenAsStridedAfterSqueezeUnsqueezeModule_basic",
-    "AtenAsStridedAfterViewModule_basic",
-    "AtenAsStridedModule_basic",
-    "AtenAsStridedNoStorageOffsetModule_basic",
-    "AtenAsStridedUnknownSizeModule_basic",
-    "AtenLinear1D_basic",
-    "AtenLinearMatVec_basic",
     "BucketizeTensorFloatModule_basic",
     "CopyWithDifferentSizesModule_basic",
     "CrossEntropyLossNoReductionModule_basic",
     "CumsumModule_basic",
     "ElementwiseBitwiseLeftShiftInt32Module_basic",
     "ElementwiseBitwiseLeftShiftInt64Module_basic",
-    "ElementwiseMulScalarModule_basic",
     "ElementwiseRreluEvalModule_basic",
     "ElementwiseRreluEvalStaticModule_basic",
     "ElementwiseRreluTrainModule_basic",
@@ -3304,14 +3323,12 @@ ONNX_XFAIL_SET = {
     "IndexTensorHackedTwinMultiInputNonContiguousMultipleStaticDims_basic",
     "IndexTensorMultiInputNonContiguousMultipleStaticDims_basic",
     "MeanDimNoneDimModule_basic",
-    "MeanDtypeModule_basic",
     "PowIntFloatModule_basic",
     "QuantizedBatchedInputSingleLayer_basic",
     "QuantizedNoLayer_basic",
     "QuantizedSingleLayer_basic",
     "ReduceAmaxEmptyDim_basic",
     "ReduceAminmaxAllDims_basic",
-    "RepeatInterleaveSelfIntNoDimModule_basic",
     "RsubIntModule_noalpha_basic",
     "ScaledDotProductAttentionBoolMaskModule_basic",
     "ScaledDotProductAttentionSameCausalModule_basic",
@@ -3330,6 +3347,14 @@ if torch_version_for_comparison() >= version.parse("2.13.0"):
     # PyTorch 2.13 and newer ONNX exporters support this addbmm case.
     ONNX_XFAIL_SET = ONNX_XFAIL_SET - {
         "AddbmmWithAlphaBetaModule_basic",
+    }
+
+if torch_version_for_comparison() >= version.parse("2.16.0.dev"):
+    # PyTorch 2.16 and newer export these through the ONNX exporter.
+    ONNX_XFAIL_SET = ONNX_XFAIL_SET - {
+        "QuantizedDecomposedQuantizePerChannelUnsignedZeroPoint_basic",
+        "QuantizedDecomposedQuantizePerTensorTensor_basic",
+        "QuantizedDecomposedQuantizePerTensorTensor2_basic",
     }
 
 if torch_version_for_comparison() > version.parse("2.4.0.dev"):
@@ -3479,7 +3504,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "TrilIndicesNegativeOffsetModule_basic",
     "TriuIndicesAllZerosModule_basic",
     "TriuIndicesModule_basic",
-    "TypeConversionUint8ToF32Module_basic",
     "AdaptiveAvgPool3dDynamicNoBatch_basic",
     "AdaptiveAvgPool3dDynamic_basic",
     "AdaptiveMaxPool1dDynamicNoBatch_basic",
@@ -3716,6 +3740,19 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "QuantizedDecomposedDynamicQuantPerTokenAsymmetric3D_basic",
     "QuantizedDecomposedDynamicQuantPerTokenAsymmetric_basic",
     "QuantizedDecomposedDynamicQuantPerTokenSymmetric_basic",
+    "QuantizedDecomposedDequantizePerTensorTensor_basic",
+    "QuantizedDecomposedDequantizePerTensorTensor2_basic",
+    "QuantizedDecomposedQuantizePerTensorTensor_basic",
+    "QuantizedDecomposedQuantizePerTensorTensor2_basic",
+    "QuantizedDecomposedChooseQparamsSymmetricTensor_basic",
+    "QuantizedDecomposedChooseQparamsTensor_basic",
+    "QuantizedDecomposedChooseQparamsSymmetricTensorUint8_basic",
+    "QuantizedDecomposedChooseQparamsTensorBf16_basic",
+    "QuantizedDecomposedChooseQparamsTensorF16Overflow_basic",
+    "QuantizedDecomposedDynamicQuantFlowSymmetric_basic",
+    "QuantizedDecomposedDynamicQuantFlowSymmetric_negative",
+    "QuantizedDecomposedDynamicQuantFlowAsymmetric_basic",
+    "QuantizedDecomposedDynamicQuantFlowAsymmetric_negative",
     "QuantizedMLP_basic",
     "QuantizedNoLayer_basic",
     "QuantizedReluInt32_basic",
@@ -3997,6 +4034,8 @@ ONNX_TOSA_XFAIL_SET = {
     "ElementwiseRreluTrainStaticModule_basic",
     "FakeQuantizePerTensorAffineCachemaskModule_basic",
     "IndexPutWithNoneAndBroadcastModule_basic",
+    "MaskedScatterBroadcastSelfEmptySource_basic",
+    "MaskedScatterBroadcastSelf_basic",
     "MaskedScatterStaticBasic_basic",
     "MaxUnpool3dModulePad0_basic",
     "MaxUnpool3dModule_basic",
@@ -4021,7 +4060,6 @@ ONNX_TOSA_XFAIL_SET = {
     "TensorsConcatComplex128IntModule_basic",
     "TensorsConcatComplex64FloatModule_basic",
     "TimeOutModule_basic",
-    "TypeConversionUint8ToF32Module_basic",
     "UnfoldModule_basic",
     "WeightNormInterfaceModule_basic",
     "AdaptiveAvgPool1dGeneralDynamicNoBatches_basic",
@@ -4188,6 +4226,8 @@ ONNX_TOSA_XFAIL_SET = {
     "CollapseRank1DynamicModule_basic",
     "CollapseStaticModule_basic",
     "ConstantBoolParameterModule_basic",
+    "ConstantPadNdNegativeModule_basic",
+    "ConstantPadNdNegativeModule_positiveAmount",
     "ContainsIntList_False",
     "ContainsIntList_True",
     "Conv1dModule_basic",

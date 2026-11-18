@@ -191,6 +191,9 @@ class OnnxTestCase:
     # ONNX opset the model imports; the probe and final models share it.
     opset: int = _DEFAULT_OPSET
     extra_opsets: Optional[dict[str, int]] = None
+    # Evaluate the reference with ONNX Runtime instead of onnx.reference, for
+    # ops that onnx.reference does not implement correctly.
+    use_onnxruntime_reference: bool = False
 
     def graph(self):
         raise NotImplementedError
@@ -220,7 +223,7 @@ class OnnxTestCase:
         # Local imports so that the pure descriptor path (registration) does not
         # pull in the reference evaluator / numpy input machinery.
         from .config import materialize_inputs
-        from .reference import run_reference
+        from .reference import mark_onnxruntime_reference, run_reference
 
         annotations = cls._input_annotations()
         # A -1 in an annotation shape marks a dynamic dim: TensorPlaceholder /
@@ -269,6 +272,8 @@ class OnnxTestCase:
             validate=False,
             extra_opsets=cls.extra_opsets,
         )
+        if cls.use_onnxruntime_reference:
+            mark_onnxruntime_reference(probe_model)
         numpy_inputs = materialize_inputs(cls.input_placeholders(), seed=0)
         feed = {
             annotation[0]: arr for (annotation, arr) in zip(annotations, numpy_inputs)
@@ -286,7 +291,7 @@ class OnnxTestCase:
             for name, arr in zip(probe_names, golden)
         ]
         num_outputs = len(output_names)
-        return build_model(
+        model = build_model(
             nodes,
             input_infos,
             inferred_infos[:num_outputs],
@@ -295,3 +300,6 @@ class OnnxTestCase:
             extra_opsets=cls.extra_opsets,
             value_infos=inferred_infos[num_outputs:],
         )
+        if cls.use_onnxruntime_reference:
+            mark_onnxruntime_reference(model)
+        return model

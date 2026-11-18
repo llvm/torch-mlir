@@ -37,6 +37,56 @@ def MaskedScatterStaticBasic_basic(module, tu: TestUtils):
     module.forward(x, mask, y)
 
 
+class MaskedScatterBroadcastSelf(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 4], torch.float32, True),
+            ([3, 4], torch.bool, True),
+            ([12], torch.float32, True),
+        ]
+    )
+    def forward(self, x, mask, y):
+        return torch.ops.aten.masked_scatter(x, mask, y)
+
+
+@register_test_case(module_factory=lambda: MaskedScatterBroadcastSelf())
+def MaskedScatterBroadcastSelf_basic(module, tu: TestUtils):
+    x = tu.rand(1, 4)
+    mask = tu.rand(3, 4) > 0.5
+    y = tu.rand(12)
+    module.forward(x, mask, y)
+
+
+class MaskedScatterBroadcastSelfEmptySource(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 4], torch.float32, True),
+            ([3, 4], torch.bool, True),
+            ([0], torch.float32, True),
+        ]
+    )
+    def forward(self, x, mask, y):
+        return torch.ops.aten.masked_scatter(x, mask, y)
+
+
+@register_test_case(module_factory=lambda: MaskedScatterBroadcastSelfEmptySource())
+def MaskedScatterBroadcastSelfEmptySource_basic(module, tu: TestUtils):
+    x = tu.rand(1, 4)
+    mask = torch.zeros(3, 4, dtype=torch.bool)
+    y = tu.rand(0)
+    module.forward(x, mask, y)
+
+
 class IndexPutImpl1DFloatNonAccumulateModule(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -1502,6 +1552,34 @@ def IndexPutWithNoneAndBroadcastModule_basic(module, tu: TestUtils):
         tu.randint(6, 1, high=4),
         tu.randint(7, high=5),
         tu.rand(1, 6, 7),  # broadcasted to (2, 3, 6, 7)
+    )
+
+
+# Assigning through two index tensors that hold negative indices.
+class IndexPutNegativeIndexModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 5], torch.float32, True),
+            ([2], torch.int64, True),
+            ([2], torch.int64, True),
+            ([2], torch.float32, True),
+        ]
+    )
+    def forward(self, input, rows, cols, values):
+        output = input.clone()
+        output[rows, cols] = values
+        return output
+
+
+@register_test_case(module_factory=lambda: IndexPutNegativeIndexModule())
+def IndexPutNegativeIndexModule_basic(module, tu: TestUtils):
+    module.forward(
+        tu.rand(4, 5), torch.tensor([-1, 0]), torch.tensor([-2, 1]), tu.rand(2)
     )
 
 

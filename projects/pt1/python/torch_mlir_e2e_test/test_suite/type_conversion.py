@@ -171,6 +171,56 @@ def TypeConversionUint8ToF32Module_basic(module, tu: TestUtils):
     module.forward(torch.tensor([0, 1, 255]).to(torch.uint8))
 
 
+# Float to uint8 casts. PyTorch converts through int64 and wraps, so negative
+# values and values in [128, 256) must both come out right. The RefBackend
+# returns integer results as signed, so the results are returned as int64.
+
+
+class ElementwiseToDtypeF32ToUI8Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return x.to(torch.uint8).to(torch.int64)
+
+
+@register_test_case(module_factory=lambda: ElementwiseToDtypeF32ToUI8Module())
+def ElementwiseToDtypeF32ToUI8Module_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4, low=-100.0, high=255.0))
+
+
+# Constant inputs make the compiler fold the casts, so a conversion that is
+# undefined for these values fails here even if x86 would get it right at run
+# time.
+class ElementwiseToDtypeF32ConstantToUI8Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4], torch.int64, True),
+        ]
+    )
+    def forward(self, x):
+        negative = torch.full((4,), -3.0).to(torch.uint8).to(torch.int64)
+        high = torch.full((4,), 200.0).to(torch.uint8).to(torch.int64)
+        return negative + x, high + x
+
+
+@register_test_case(module_factory=lambda: ElementwiseToDtypeF32ConstantToUI8Module())
+def ElementwiseToDtypeF32ConstantToUI8Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(4, low=0, high=10))
+
+
 # ==============================================================================
 
 

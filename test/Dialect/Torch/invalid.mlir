@@ -1192,6 +1192,145 @@ func.func @torch.torchao.dequantize_affine$unsupported_input_dtype(
 
 // -----
 
+func.func @torch.torchao.choose_qparams_affine$invalid_input_dtype(
+    %arg0: !torch.vtensor<[4,16],f64>) -> (!torch.vtensor<[4],f64>, !torch.vtensor<[4],si32>) {
+  %int1 = torch.constant.int 1
+  %int16 = torch.constant.int 16
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %str = torch.constant.str "ASYMMETRIC"
+  %block_size = torch.prim.ListConstruct %int1, %int16 : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{'torch.torchao.choose_qparams_affine' op input must have an f16, bf16 or f32 dtype}}
+  %0:2 = torch.torchao.choose_qparams_affine %arg0, %str, %block_size, %int1, %none, %none, %none, %none, %none, %false : !torch.vtensor<[4,16],f64>, !torch.str, !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none, !torch.none, !torch.bool -> !torch.vtensor<[4],f64>, !torch.vtensor<[4],si32>
+  return %0#0, %0#1 : !torch.vtensor<[4],f64>, !torch.vtensor<[4],si32>
+}
+
+// -----
+
+func.func @torch.torchao.choose_qparams_affine$invalid_mapping_type(
+    %arg0: !torch.vtensor<[4,16],f32>) -> (!torch.vtensor<[4],f32>, !torch.vtensor<[4],f32>) {
+  %int1 = torch.constant.int 1
+  %int16 = torch.constant.int 16
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %str = torch.constant.str "INVALID_MAPPING_TYPE"
+  %block_size = torch.prim.ListConstruct %int1, %int16 : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{'torch.torchao.choose_qparams_affine' op mapping_type must be ASYMMETRIC, SYMMETRIC or SYMMETRIC_NO_CLIPPING_ERR}}
+  %0:2 = torch.torchao.choose_qparams_affine %arg0, %str, %block_size, %int1, %none, %none, %none, %none, %none, %false : !torch.vtensor<[4,16],f32>, !torch.str, !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none, !torch.none, !torch.bool -> !torch.vtensor<[4],f32>, !torch.vtensor<[4],f32>
+  return %0#0, %0#1 : !torch.vtensor<[4],f32>, !torch.vtensor<[4],f32>
+}
+
+// -----
+
+func.func @torch.torchao.choose_qparams_affine$invalid_quant_min(
+    %arg0: !torch.vtensor<[4,16],f32>) -> (!torch.vtensor<[4],f32>, !torch.vtensor<[4],si32>) {
+  %int1 = torch.constant.int 1
+  %int16 = torch.constant.int 16
+  %qmin = torch.constant.int -129
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %str = torch.constant.str "ASYMMETRIC"
+  %block_size = torch.prim.ListConstruct %int1, %int16 : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{'torch.torchao.choose_qparams_affine' op quant_min and quant_max must lie within the bounds of target_dtype}}
+  %0:2 = torch.torchao.choose_qparams_affine %arg0, %str, %block_size, %int1, %qmin, %none, %none, %none, %none, %false : !torch.vtensor<[4,16],f32>, !torch.str, !torch.list<int>, !torch.int, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none, !torch.bool -> !torch.vtensor<[4],f32>, !torch.vtensor<[4],si32>
+  return %0#0, %0#1 : !torch.vtensor<[4],f32>, !torch.vtensor<[4],si32>
+}
+
+// -----
+
+func.func @torch.torchao.choose_qparams_affine$invalid_scale_dtype(
+    %arg0: !torch.vtensor<[4,16],f32>) -> (!torch.vtensor<[4],bf16>, !torch.vtensor<[4],si32>) {
+  %int1 = torch.constant.int 1
+  %int16 = torch.constant.int 16
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %str = torch.constant.str "ASYMMETRIC"
+  %block_size = torch.prim.ListConstruct %int1, %int16 : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{'torch.torchao.choose_qparams_affine' op scale must have the dtype given by scale_dtype}}
+  %0:2 = torch.torchao.choose_qparams_affine %arg0, %str, %block_size, %int1, %none, %none, %none, %none, %none, %false : !torch.vtensor<[4,16],f32>, !torch.str, !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none, !torch.none, !torch.bool -> !torch.vtensor<[4],bf16>, !torch.vtensor<[4],si32>
+  return %0#0, %0#1 : !torch.vtensor<[4],bf16>, !torch.vtensor<[4],si32>
+}
+
+// -----
+
+func.func @torch.torchao.choose_qparams_affine$invalid_default_zero_point_dtype(
+    %arg0: !torch.vtensor<[4,16],f32>) -> (!torch.vtensor<[4],f32>, !torch.vtensor<[4],si32>) {
+  %int1 = torch.constant.int 1
+  %int16 = torch.constant.int 16
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %str = torch.constant.str "SYMMETRIC"
+  %block_size = torch.prim.ListConstruct %int1, %int16 : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{'torch.torchao.choose_qparams_affine' op zero_point must have the dtype given by zero_point_dtype}}
+  %0:2 = torch.torchao.choose_qparams_affine %arg0, %str, %block_size, %int1, %none, %none, %none, %none, %none, %false : !torch.vtensor<[4,16],f32>, !torch.str, !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none, !torch.none, !torch.bool -> !torch.vtensor<[4],f32>, !torch.vtensor<[4],si32>
+  return %0#0, %0#1 : !torch.vtensor<[4],f32>, !torch.vtensor<[4],si32>
+}
+
+// -----
+
+func.func @torch.torchao.choose_qparams_affine$invalid_zero_point_shape(
+    %arg0: !torch.vtensor<[4,16],f32>) -> (!torch.vtensor<[4],f32>, !torch.vtensor<[4,1],si32>) {
+  %int1 = torch.constant.int 1
+  %int16 = torch.constant.int 16
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %str = torch.constant.str "ASYMMETRIC"
+  %block_size = torch.prim.ListConstruct %int1, %int16 : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{'torch.torchao.choose_qparams_affine' op scale and zero_point must have the same shape}}
+  %0:2 = torch.torchao.choose_qparams_affine %arg0, %str, %block_size, %int1, %none, %none, %none, %none, %none, %false : !torch.vtensor<[4,16],f32>, !torch.str, !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none, !torch.none, !torch.bool -> !torch.vtensor<[4],f32>, !torch.vtensor<[4,1],si32>
+  return %0#0, %0#1 : !torch.vtensor<[4],f32>, !torch.vtensor<[4,1],si32>
+}
+
+// -----
+
+func.func @torch.torchao.choose_qparams_affine$invalid_block_size_divisor(
+    %arg0: !torch.vtensor<[4,16],f32>) -> (!torch.vtensor<[4,3],f32>, !torch.vtensor<[4,3],si32>) {
+  %int1 = torch.constant.int 1
+  %int5 = torch.constant.int 5
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %str = torch.constant.str "ASYMMETRIC"
+  %block_size = torch.prim.ListConstruct %int1, %int5 : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{'torch.torchao.choose_qparams_affine' op block_size entries must be positive divisors of the input sizes}}
+  %0:2 = torch.torchao.choose_qparams_affine %arg0, %str, %block_size, %int1, %none, %none, %none, %none, %none, %false : !torch.vtensor<[4,16],f32>, !torch.str, !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none, !torch.none, !torch.bool -> !torch.vtensor<[4,3],f32>, !torch.vtensor<[4,3],si32>
+  return %0#0, %0#1 : !torch.vtensor<[4,3],f32>, !torch.vtensor<[4,3],si32>
+}
+
+// -----
+
+// Without keepdim, the dimension whose block covers it is dropped.
+func.func @torch.torchao.choose_qparams_affine$invalid_result_shape(
+    %arg0: !torch.vtensor<[4,16],f32>) -> (!torch.vtensor<[4,1],f32>, !torch.vtensor<[4,1],si32>) {
+  %int1 = torch.constant.int 1
+  %int16 = torch.constant.int 16
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %str = torch.constant.str "ASYMMETRIC"
+  %block_size = torch.prim.ListConstruct %int1, %int16 : (!torch.int, !torch.int) -> !torch.list<int>
+  // expected-error @+1 {{'torch.torchao.choose_qparams_affine' op scale and zero_point must have one element per block, in the shape given by block_size and keepdim}}
+  %0:2 = torch.torchao.choose_qparams_affine %arg0, %str, %block_size, %int1, %none, %none, %none, %none, %none, %false : !torch.vtensor<[4,16],f32>, !torch.str, !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none, !torch.none, !torch.bool -> !torch.vtensor<[4,1],f32>, !torch.vtensor<[4,1],si32>
+  return %0#0, %0#1 : !torch.vtensor<[4,1],f32>, !torch.vtensor<[4,1],si32>
+}
+
+// -----
+
+// A zero_point_dtype that torchao accepts but the verifier can't map, here
+// torch.uint16, leaves the zero_point dtype unchecked instead of aborting.
+func.func @torch.torchao.choose_qparams_affine$unmapped_zero_point_dtype(
+    %arg0: !torch.vtensor<[4,16],f32>) -> (!torch.vtensor<[4],f32>, !torch.vtensor<[4],ui16>) {
+  %int1 = torch.constant.int 1
+  %int16 = torch.constant.int 16
+  %int27 = torch.constant.int 27
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %str = torch.constant.str "ASYMMETRIC"
+  %block_size = torch.prim.ListConstruct %int1, %int16 : (!torch.int, !torch.int) -> !torch.list<int>
+  %0:2 = torch.torchao.choose_qparams_affine %arg0, %str, %block_size, %int1, %none, %none, %none, %none, %int27, %false : !torch.vtensor<[4,16],f32>, !torch.str, !torch.list<int>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none, !torch.int, !torch.bool -> !torch.vtensor<[4],f32>, !torch.vtensor<[4],ui16>
+  return %0#0, %0#1 : !torch.vtensor<[4],f32>, !torch.vtensor<[4],ui16>
+}
+
+// -----
+
 func.func @torch.quantized_decomposed.quantize_per_tensor$invalid_input_dtype(%arg0: !torch.vtensor<[4,8],si32>) -> !torch.vtensor<[4,8],si8> {
   %scale = torch.constant.float 5.000000e-01
   %zero_point = torch.constant.int 0
