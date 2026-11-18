@@ -16,6 +16,8 @@ from torch_mlir_e2e_test.test_suite import COMMON_TORCH_MLIR_LOWERING_XFAILS
 print(f"TORCH_VERSION_FOR_COMPARISON =", torch_version_for_comparison())
 
 LINALG_XFAIL_SET = COMMON_TORCH_MLIR_LOWERING_XFAILS | {
+    # Negative AvgPool3d divisors produce -0 instead of eager's +0.
+    "AvgPool3dSignedZero_basic",
     # TorchScript importer fails: required keyword attribute 'unused' is undefined
     "AtenEmbeddingBagLastBagBoundaryModule_basic",
     "AtenEmbeddingBagStaticModule_basic",
@@ -112,6 +114,8 @@ TORCHDYNAMO_XFAIL_SET = {
     # https://github.com/pytorch/torchdynamo/issues/1954
     "UniformNoCorrelationModule_basic",
     #### Torch-MLIR internal compiler errors
+    # Negative AvgPool3d divisors produce -0 instead of eager's +0.
+    "AvgPool3dSignedZero_basic",
     # These are probably due to slightly different ops being recorded by
     # torchdynamo vs. torchscript.
     # No upstream decompositions.
@@ -401,6 +405,8 @@ TORCHDYNAMO_CRASHING_SET = {
 }
 
 FX_IMPORTER_XFAIL_SET = {
+    # Negative AvgPool3d divisors produce -0 instead of eager's +0.
+    "AvgPool3dSignedZero_basic",
     # Torch-to-Linalg nearest2d rounds explicit scales up to integers and
     # uses integer floor division, producing incorrect source indices.
     "UpSampleNearest2dFloat32Scale_basic",
@@ -531,6 +537,8 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
+    # AvgPool3d lowering ignores divisor_override.
+    "AvgPool3dSignedZero_basic",
     # StableHLO scatter lowering fails bufferization for these tests.
     "ScatterAddDenseFloat16Module_basic",
     "ScatterAddDenseSignedZeroModule_basic",
@@ -2096,6 +2104,7 @@ TOSA_PASS_SET = {
     "Meshgrid_basic",
     "AvgPool2dCountIncludePadFalseStaticModule_basic",
     "AvgPool2dDivisorOverrideModule_basic",
+    "AvgPool3dSignedZero_basic",
     "TensorSplitSections_GetItemModule_basic",
     "TensorSplitSections_ListUnpackModule_basic",
     "Atleast1dModule0dInput_basic",
@@ -2797,6 +2806,8 @@ LTC_XFAIL_SET = {
 }
 
 ONNX_XFAIL_SET = {
+    # ONNX export drops avg_pool3d divisor_override.
+    "AvgPool3dSignedZero_basic",
     # The ONNX test configuration replaces annotated integer inputs with
     # zero-filled placeholders. Their sums do not match these tests' fixed
     # nonzero output_size values, so eager repeat_interleave rejects them
@@ -3480,10 +3491,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "AtenKthvalueFloat64Module_basic",
     "AtenKthvalueKeepDimModule_basic",
     "AtenKthvalueModule_basic",
-    "AvgPool3dStaticModule_basic",
-    "AvgPool3dCountIncludePadFalse_basic",
-    "AvgPool3dCountIncludePadFalseWithoutPadding_basic",
-    "AvgPool3dSingleIntTupleStrideModule_basic",
     "IndexPutWithNoneAndBroadcastModule_basic",
     "MultinomialModule2D_F32",
     "MultinomialModule2D_basic",
@@ -3550,8 +3557,6 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "Aten_EmbeddingBagExample_basic",
     "AvgPool1dIntModule_basic",
     "AvgPool1dStaticModule_basic",
-    "AvgPool3dDiffKernelsStridesNoPadCeilPadNotIncluded_basic",
-    "AvgPool3dDiffKernelsStridesPadCeilPadNotIncluded_basic",
     "AvgPool2dIntModule_basic",
     "BernoulliFloatModule_basic",
     "BernoulliPModule_basic",
@@ -3872,6 +3877,8 @@ ONNX_TOSA_CRASHING_SET = {
 }
 
 ONNX_TOSA_XFAIL_SET = {
+    # ONNX conversion produces six stride values for avg_pool3d.
+    "AvgPool3dSignedZero_basic",
     # PyTorch's ONNX exporter does not support aten::addbmm.
     "AddbmmBetaZeroNonFiniteInputModule_basic",
     # PyTorch's ONNX exporter does not support aten::addbmm.
