@@ -2440,3 +2440,86 @@ func.func @masked_scatter_static_source(%self: !torch.vtensor<[2,3],f32>, %mask:
   %0 = torch.aten.masked_scatter %self, %mask, %source : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],i1>, !torch.vtensor<[4],f32> -> !torch.vtensor<[2,3],f32>
   return %0 : !torch.vtensor<[2,3],f32>
 }
+
+// -----
+
+// With dynamic sizes, start/end/step are computed at runtime from the sizes of
+// self and src: step = C + 1, end = start + (L - 1) * step + 1, start = offset.
+// CHECK-LABEL: func.func @torch.aten.diagonal_scatter$dynamic(
+// CHECK-SAME:      %[[SELF:.*]]: !torch.vtensor<[?,?],f32>, %[[SRC:.*]]: !torch.vtensor<[?],f32>
+// CHECK-DAG:     %[[INT0:.*]] = torch.constant.int 0
+// CHECK-DAG:     %[[INT1:.*]] = torch.constant.int 1
+// CHECK:         %[[R:.*]] = torch.aten.size.int %[[SELF]], %[[INT0]]
+// CHECK:         %[[C:.*]] = torch.aten.size.int %[[SELF]], %[[INT1]]
+// CHECK:         %[[L:.*]] = torch.aten.size.int %[[SRC]], %[[INT0]]
+// CHECK:         %[[STEP:.*]] = torch.aten.add.int %[[C]], %[[INT1]]
+// CHECK:         %[[LM1:.*]] = torch.aten.sub.int %[[L]], %[[INT1]]
+// CHECK:         %[[SPAN:.*]] = torch.aten.mul.int %[[LM1]], %[[STEP]]
+// CHECK:         %[[LAST:.*]] = torch.aten.add.int %[[INT1]], %[[SPAN]]
+// CHECK:         %[[END:.*]] = torch.aten.add.int %[[LAST]], %[[INT1]]
+// CHECK:         %[[FLAT:.*]] = torch.aten.view %[[SELF]], %{{.*}} -> !torch.vtensor<[?],f32>
+// CHECK:         %[[SCATTER:.*]] = torch.aten.slice_scatter %[[FLAT]], %[[SRC]], %[[INT0]], %[[INT1]], %[[END]], %[[STEP]]
+// CHECK:         %[[SIZES:.*]] = torch.prim.ListConstruct %[[R]], %[[C]]
+// CHECK:         %[[RES:.*]] = torch.aten.unflatten.int %[[SCATTER]], %[[INT0]], %[[SIZES]]
+// CHECK-NOT:     torch.aten.diagonal_scatter
+// CHECK:         return %[[RES]]
+func.func @torch.aten.diagonal_scatter$dynamic(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torch.vtensor<[?],f32>) -> !torch.vtensor<[?,?],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %0 = torch.aten.diagonal_scatter %arg0, %arg1, %int1, %int0, %int1 : !torch.vtensor<[?,?],f32>, !torch.vtensor<[?],f32>, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[?,?],f32>
+  return %0 : !torch.vtensor<[?,?],f32>
+}
+
+// -----
+
+// Negative dims are normalized (dim1 = -2 -> 1, dim2 = -3 -> 0), and since
+// dim1 > dim2 the permutation reverses them: perm = [2, 1, 0], which is its own
+// inverse. The diagonal is then taken over the trailing [3, 2] -> flat [6] dims.
+// With static sizes the slice bounds fold to constants:
+//   start = 0, step = 2 + 1 = 3, end = 0 + (2 - 1) * 3 + 1 = 4.
+// CHECK-LABEL: func.func @torch.aten.diagonal_scatter$negative_dims(
+// CHECK-SAME:      %[[SELF:.*]]: !torch.vtensor<[2,3,4],f32>, %[[SRC:.*]]: !torch.vtensor<[4,2],f32>
+// CHECK-DAG:     %[[INT0:.*]] = torch.constant.int 0
+// CHECK-DAG:     %[[INT1:.*]] = torch.constant.int 1
+// CHECK-DAG:     %[[INT2:.*]] = torch.constant.int 2
+// CHECK-DAG:     %[[INT3:.*]] = torch.constant.int 3
+// CHECK-DAG:     %[[INT4:.*]] = torch.constant.int 4
+// CHECK:         %[[PERM:.*]] = torch.prim.ListConstruct %[[INT2]], %[[INT1]], %[[INT0]]
+// CHECK:         %[[PERMUTED:.*]] = torch.aten.permute %[[SELF]], %[[PERM]] : {{.*}} -> !torch.vtensor<[4,3,2],f32>
+// CHECK:         %[[FLAT:.*]] = torch.aten.view %[[PERMUTED]], {{.*}} -> !torch.vtensor<[4,6],f32>
+// CHECK:         %[[SCATTER:.*]] = torch.aten.slice_scatter %[[FLAT]], %[[SRC]], %[[INT1]], %[[INT0]], %[[INT4]], %[[INT3]] : {{.*}} -> !torch.vtensor<[4,6],f32>
+// CHECK:         %[[UNFLAT:.*]] = torch.aten.view %[[SCATTER]], {{.*}} -> !torch.vtensor<[4,3,2],f32>
+// CHECK:         %[[RES:.*]] = torch.aten.permute %[[UNFLAT]], {{.*}} -> !torch.vtensor<[2,3,4],f32>
+// CHECK-NOT:     torch.aten.diagonal_scatter
+// CHECK:         return %[[RES]]
+func.func @torch.aten.diagonal_scatter$negative_dims(%arg0: !torch.vtensor<[2,3,4],f32>, %arg1: !torch.vtensor<[4,2],f32>) -> !torch.vtensor<[2,3,4],f32> {
+  %int0 = torch.constant.int 0
+  %int-2 = torch.constant.int -2
+  %int-3 = torch.constant.int -3
+  %0 = torch.aten.diagonal_scatter %arg0, %arg1, %int0, %int-2, %int-3 : !torch.vtensor<[2,3,4],f32>, !torch.vtensor<[4,2],f32>, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2,3,4],f32>
+  return %0 : !torch.vtensor<[2,3,4],f32>
+}
+
+// -----
+
+// An offset past the last column gives an empty diagonal (src is [0]). The
+// slice bounds fold to start = 4, step = 4 + 1 = 5,
+// end = 4 + (0 - 1) * 5 + 1 = 0, so the slice is empty and slice_scatter leaves
+// self unchanged.
+// CHECK-LABEL: func.func @torch.aten.diagonal_scatter$empty_diagonal(
+// CHECK-SAME:      %[[SELF:.*]]: !torch.vtensor<[3,4],f32>, %[[SRC:.*]]: !torch.vtensor<[0],f32>
+// CHECK-DAG:     %[[INT0:.*]] = torch.constant.int 0
+// CHECK-DAG:     %[[INT4:.*]] = torch.constant.int 4
+// CHECK-DAG:     %[[INT5:.*]] = torch.constant.int 5
+// CHECK:         %[[FLAT:.*]] = torch.aten.view %[[SELF]], {{.*}} -> !torch.vtensor<[12],f32>
+// CHECK:         %[[SCATTER:.*]] = torch.aten.slice_scatter %[[FLAT]], %[[SRC]], %[[INT0]], %[[INT4]], %[[INT0]], %[[INT5]] : !torch.vtensor<[12],f32>, !torch.vtensor<[0],f32>, {{.*}} -> !torch.vtensor<[12],f32>
+// CHECK:         %[[RES:.*]] = torch.aten.view %[[SCATTER]], {{.*}} -> !torch.vtensor<[3,4],f32>
+// CHECK-NOT:     torch.aten.diagonal_scatter
+// CHECK:         return %[[RES]]
+func.func @torch.aten.diagonal_scatter$empty_diagonal(%arg0: !torch.vtensor<[3,4],f32>, %arg1: !torch.vtensor<[0],f32>) -> !torch.vtensor<[3,4],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int4 = torch.constant.int 4
+  %0 = torch.aten.diagonal_scatter %arg0, %arg1, %int4, %int0, %int1 : !torch.vtensor<[3,4],f32>, !torch.vtensor<[0],f32>, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[3,4],f32>
+  return %0 : !torch.vtensor<[3,4],f32>
+}

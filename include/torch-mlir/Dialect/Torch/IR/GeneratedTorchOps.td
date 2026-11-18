@@ -15221,6 +15221,7 @@ def Torch_AtenDiagonalScatterOp : Torch_Op<"aten.diagonal_scatter", [
       printDefaultTorchOp(printer, *this, 5, 1);
     }
   }];
+  let hasVerifier = 1;
 }
 
 def Torch_AtenAsStridedScatterOp : Torch_Op<"aten.as_strided_scatter", [
