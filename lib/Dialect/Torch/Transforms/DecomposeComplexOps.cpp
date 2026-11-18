@@ -1578,6 +1578,12 @@ class DecomposeAtenSplitWithSizesOp
     if (splitSizes.empty())
       return rewriter.notifyMatchFailure(op, "No split sizes");
 
+    for (Value size : splitSizes) {
+      int64_t sizeInt;
+      if (matchPattern(size, m_TorchConstantInt(&sizeInt)) && sizeInt < 0)
+        return rewriter.notifyMatchFailure(op, "Negative split size");
+    }
+
     auto selfTy = dyn_cast<BaseTensorType>(self.getType());
     if (!selfTy || !selfTy.hasSizes())
       return rewriter.notifyMatchFailure(op, "Self shape unknown");
@@ -1587,15 +1593,26 @@ class DecomposeAtenSplitWithSizesOp
     if (!resultTy)
       return rewriter.notifyMatchFailure(op, "Result type not a list");
 
-    auto sliceTy =
-        dyn_cast_or_null<Torch::BaseTensorType>(resultTy.getContainedType());
-    if (!sliceTy || !sliceTy.hasSizes())
-      return rewriter.notifyMatchFailure(op, "Slice type is unknown");
-
     int64_t dimInt = 0;
     bool hasDim = matchPattern(op.getDim(), m_TorchConstantInt(&dimInt));
-    if (dimInt < 0)
-      dimInt += rank;
+    if (hasDim) {
+      dimInt = toPositiveDim(dimInt, rank);
+      if (!isValidDim(dimInt, rank))
+        return rewriter.notifyMatchFailure(op, "Invalid dim");
+    }
+
+    // Derive the slice type from `self` when the list element type has no
+    // sizes, as in the `!torch.list<vtensor>` of the FX importer.
+    auto sliceTy =
+        dyn_cast_or_null<Torch::BaseTensorType>(resultTy.getContainedType());
+    if (!sliceTy || !sliceTy.hasSizes()) {
+      if (!hasDim)
+        return rewriter.notifyMatchFailure(op, "Slice type is unknown");
+      SmallVector<int64_t> sliceSizesFromSelf(selfTy.getSizes());
+      sliceSizesFromSelf[dimInt] = Torch::kUnknownSize;
+      sliceTy = cast<BaseTensorType>(selfTy.getWithSizesAndDtype(
+          sliceSizesFromSelf, selfTy.getOptionalDtype()));
+    }
 
     auto intTy = rewriter.getType<Torch::IntType>();
     Value one =
@@ -1624,6 +1641,14 @@ class DecomposeAtenSplitWithSizesOp
       slices.push_back(slice);
       begin = end;
     }
+
+    // Keep the split's check that the sizes add up to the size of `dim`.
+    // `begin` is now the end of the last slice.
+    Value dimSize = AtenSizeIntOp::create(rewriter, loc, self, op.getDim());
+    Value sizesMatch = AtenEqIntOp::create(rewriter, loc, begin, dimSize);
+    RuntimeAssertOp::create(
+        rewriter, loc, sizesMatch,
+        rewriter.getStringAttr("split dim must be sum of split_sizes"));
 
     rewriter.replaceOpWithNewOp<PrimListConstructOp>(op, resultTy, slices);
     return success();
