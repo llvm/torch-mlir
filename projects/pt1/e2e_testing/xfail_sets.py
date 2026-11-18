@@ -586,9 +586,11 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     "SliceCopyNonZeroDim_Module_basic",
     "SliceCopy_Module_basic",
     # aten.diagonal_scatter decomposes into aten.slice_scatter, which is also
-    # not supported here ("op was not bufferized").
+    # not supported here ("op was not bufferized"). The empty-diagonal case
+    # passes since its slice_scatter writes nothing.
     "DiagonalScatterDim20Module_basic",
     "DiagonalScatterModule_basic",
+    "DiagonalScatterNegativeDimsModule_basic",
     "DiagonalScatterNegativeOffsetModule_basic",
     "DiagonalScatterPositiveOffsetModule_basic",
     "SliceScatterModule_basic",
@@ -2813,7 +2815,9 @@ ONNX_XFAIL_SET = {
     # decomposition mutates a view (prims.copy_to), so the graph is not
     # functional.
     "DiagonalScatterDim20Module_basic",
+    "DiagonalScatterEmptyDiagonalModule_basic",
     "DiagonalScatterModule_basic",
+    "DiagonalScatterNegativeDimsModule_basic",
     "DiagonalScatterNegativeOffsetModule_basic",
     "DiagonalScatterPositiveOffsetModule_basic",
     # ONNX export applies explicit offset to materialized slice storage.

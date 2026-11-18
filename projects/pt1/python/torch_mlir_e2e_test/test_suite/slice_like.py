@@ -621,6 +621,51 @@ def DiagonalScatterPositiveOffsetModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 5), tu.rand(4))
 
 
+class DiagonalScatterNegativeDimsModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3, 4], torch.float32, True),
+            ([4, 2], torch.float32, True),
+        ]
+    )
+    def forward(self, x, src):
+        # dim1 = -2 -> 1 and dim2 = -3 -> 0, so the dims are also reversed.
+        return torch.ops.aten.diagonal_scatter(x, src, offset=0, dim1=-2, dim2=-3)
+
+
+@register_test_case(module_factory=lambda: DiagonalScatterNegativeDimsModule())
+def DiagonalScatterNegativeDimsModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 4), tu.rand(4, 2))
+
+
+class DiagonalScatterEmptyDiagonalModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1], torch.float32, True),
+            ([-1], torch.float32, True),
+        ]
+    )
+    def forward(self, x, src):
+        # The offset is past the last column, so the diagonal is empty and the
+        # result equals x.
+        return torch.ops.aten.diagonal_scatter(x, src, offset=4, dim1=0, dim2=1)
+
+
+@register_test_case(module_factory=lambda: DiagonalScatterEmptyDiagonalModule())
+def DiagonalScatterEmptyDiagonalModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(3, 4), torch.empty(0))
+
+
 # ==============================================================================
 
 
