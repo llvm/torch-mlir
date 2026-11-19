@@ -4,6 +4,7 @@
 # Also available under a BSD-style license. See LICENSE.
 """Elementwise ONNX op tests."""
 
+import numpy as np
 import torch
 import onnx.helper
 
@@ -294,3 +295,50 @@ class OnnxQuickGelu_f16(_QuickGelu):
     @annotate_inputs([("x", torch.float16, [8, 8], (-3.0, 3.0))])
     def graph(self):
         return super().graph()
+
+
+# ==============================================================================
+
+
+class _IsInf(OnnxTestCase):
+    # The input generator only samples finite values, so a Constant node adds
+    # +inf, -inf, NaN, 0 and the largest finite values to a small random input.
+    attributes = {}
+
+    @annotate_inputs([("x", torch.float32, [6], (-1.0, 1.0))])
+    def graph(self):
+        fmax = float(np.finfo(np.float32).max)
+        special = onnx.helper.make_node(
+            "Constant",
+            [],
+            ["special"],
+            value=onnx.helper.make_tensor(
+                "special",
+                onnx.TensorProto.FLOAT,
+                [6],
+                [np.inf, -np.inf, np.nan, 0.0, fmax, -fmax],
+            ),
+        )
+        add = onnx.helper.make_node("Add", ["x", "special"], ["y"])
+        isinf = onnx.helper.make_node("IsInf", ["y"], ["z"], **self.attributes)
+        return [special, add, isinf], ["z"]
+
+
+@register_onnx_test
+class OnnxIsInf_f32_basic(_IsInf):
+    pass
+
+
+@register_onnx_test
+class OnnxIsInf_f32_positiveOnly(_IsInf):
+    attributes = {"detect_negative": 0}
+
+
+@register_onnx_test
+class OnnxIsInf_f32_negativeOnly(_IsInf):
+    attributes = {"detect_positive": 0}
+
+
+@register_onnx_test
+class OnnxIsInf_f32_neither(_IsInf):
+    attributes = {"detect_negative": 0, "detect_positive": 0}

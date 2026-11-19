@@ -1926,20 +1926,42 @@ func.func @test_nonzero(%arg0: !torch.vtensor<[?],f32>) -> !torch.vtensor<[1,?],
     return %0 : !torch.vtensor<[3],f32>
   }
 
+// CHECK-LABEL: func.func @test_isinf(
+  func.func @test_isinf(%arg0: !torch.vtensor<[6],f32>) -> !torch.vtensor<[6],i1> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+    // CHECK: torch.aten.isinf %arg0 : !torch.vtensor<[6],f32> -> !torch.vtensor<[6],i1>
+    %0 = torch.operator "onnx.IsInf"(%arg0) : (!torch.vtensor<[6],f32>) -> !torch.vtensor<[6],i1>
+    return %0 : !torch.vtensor<[6],i1>
+  }
+
+// CHECK-LABEL: func.func @test_isinf_both(
+  func.func @test_isinf_both(%arg0: !torch.vtensor<[6],f32>) -> !torch.vtensor<[6],i1> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+    // CHECK: torch.aten.isinf %arg0 : !torch.vtensor<[6],f32> -> !torch.vtensor<[6],i1>
+    %0 = torch.operator "onnx.IsInf"(%arg0) {torch.onnx.detect_negative = 1 : si64, torch.onnx.detect_positive = 1 : si64} : (!torch.vtensor<[6],f32>) -> !torch.vtensor<[6],i1>
+    return %0 : !torch.vtensor<[6],i1>
+  }
+
 // CHECK-LABEL: func.func @test_isinf_negative
   func.func @test_isinf_negative(%arg0: !torch.vtensor<[6],f32>) -> !torch.vtensor<[6],i1> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
-    // CHECK: torch.aten.neg %arg0 : !torch.vtensor<[6],f32> -> !torch.vtensor<[6],f32>
-    // CHECK: torch.aten.relu %0 : !torch.vtensor<[6],f32> -> !torch.vtensor<[6],f32>
-    // CHECK: torch.aten.isinf %1 : !torch.vtensor<[6],f32> -> !torch.vtensor<[6],i1>
+    // CHECK-NOT: torch.aten.relu
+    // CHECK: torch.aten.isneginf %arg0 : !torch.vtensor<[6],f32> -> !torch.vtensor<[6],i1>
     %0 = torch.operator "onnx.IsInf"(%arg0) {torch.onnx.detect_positive = 0 : si64} : (!torch.vtensor<[6],f32>) -> !torch.vtensor<[6],i1>
     return %0 : !torch.vtensor<[6],i1>
   }
 
 // CHECK-LABEL: func.func @test_isinf_positive
   func.func @test_isinf_positive(%arg0: !torch.vtensor<[6],f32>) -> !torch.vtensor<[6],i1> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
-    // CHECK: torch.aten.relu %arg0 : !torch.vtensor<[6],f32> -> !torch.vtensor<[6],f32>
-    // CHECK: torch.aten.isinf %0 : !torch.vtensor<[6],f32> -> !torch.vtensor<[6],i1>
+    // CHECK-NOT: torch.aten.relu
+    // CHECK: torch.aten.isposinf %arg0 : !torch.vtensor<[6],f32> -> !torch.vtensor<[6],i1>
     %0 = torch.operator "onnx.IsInf"(%arg0) {torch.onnx.detect_negative = 0 : si64} : (!torch.vtensor<[6],f32>) -> !torch.vtensor<[6],i1>
+    return %0 : !torch.vtensor<[6],i1>
+  }
+
+// CHECK-LABEL: func.func @test_isinf_none
+  func.func @test_isinf_none(%arg0: !torch.vtensor<[6],f32>) -> !torch.vtensor<[6],i1> attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+    // CHECK: %[[DTYPE:.+]] = torch.constant.int 11
+    // CHECK: %[[NONE:.+]] = torch.constant.none
+    // CHECK: torch.aten.zeros_like %arg0, %[[DTYPE]], %[[NONE]], %[[NONE]], %[[NONE]], %[[NONE]] : !torch.vtensor<[6],f32>, !torch.int, !torch.none, !torch.none, !torch.none, !torch.none -> !torch.vtensor<[6],i1>
+    %0 = torch.operator "onnx.IsInf"(%arg0) {torch.onnx.detect_negative = 0 : si64, torch.onnx.detect_positive = 0 : si64} : (!torch.vtensor<[6],f32>) -> !torch.vtensor<[6],i1>
     return %0 : !torch.vtensor<[6],i1>
   }
 
