@@ -340,10 +340,7 @@ public:
     SmallVector<Value> slices;
     for (size_t i = 0; i < op.getNumResults(); i++) {
       auto resultTy = op.getResult(i).getType();
-      Value nextIndex = Torch::ConstantIntOp::create(
-          rewriter, loc, rewriter.getI64IntegerAttr(i + 1));
-      Value end =
-          rewriter.createOrFold<AtenMulIntOp>(loc, nextIndex, splitSize);
+      Value end = rewriter.createOrFold<AtenAddIntOp>(loc, start, splitSize);
       Value sliceTensorOp = AtenSliceTensorOp::create(
           rewriter, loc, resultTy, input, dim, start, end, /*step=*/cstOne);
       slices.push_back(sliceTensorOp);

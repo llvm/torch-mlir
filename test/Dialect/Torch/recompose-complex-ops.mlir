@@ -5,13 +5,11 @@
 // CHECK-SAME:      %[[SELF:[^:]+]]: !torch.vtensor<[?,4],f32>, %[[SPLIT:[^:]+]]: !torch.int)
 // CHECK-DAG:      %[[C0:.*]] = torch.constant.int 0
 // CHECK-DAG:      %[[C1:.*]] = torch.constant.int 1
-// CHECK-DAG:      %[[C2:.*]] = torch.constant.int 2
-// CHECK-DAG:      %[[C3:.*]] = torch.constant.int 3
 // CHECK:          torch.runtime.assert
 // CHECK:          %[[S0:.*]] = torch.aten.slice.Tensor %[[SELF]], %[[C0]], %[[C0]], %[[SPLIT]], %[[C1]]
-// CHECK:          %[[END1:.*]] = torch.aten.mul.int %[[C2]], %[[SPLIT]]
+// CHECK:          %[[END1:.*]] = torch.aten.add.int %[[SPLIT]], %[[SPLIT]]
 // CHECK:          %[[S1:.*]] = torch.aten.slice.Tensor %[[SELF]], %[[C0]], %[[SPLIT]], %[[END1]], %[[C1]]
-// CHECK:          %[[END2:.*]] = torch.aten.mul.int %[[C3]], %[[SPLIT]]
+// CHECK:          %[[END2:.*]] = torch.aten.add.int %[[END1]], %[[SPLIT]]
 // CHECK:          %[[S2:.*]] = torch.aten.slice.Tensor %[[SELF]], %[[C0]], %[[END1]], %[[END2]], %[[C1]]
 // CHECK:          return %[[S0]], %[[S1]], %[[S2]]
 func.func @split_tensor_symbolic_list_unpack(%arg0: !torch.vtensor<[?,4],f32>, %arg1: !torch.int) -> (!torch.vtensor<[?,4],f32>, !torch.vtensor<[?,4],f32>, !torch.vtensor<[?,4],f32>) {

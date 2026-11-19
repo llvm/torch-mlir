@@ -3804,12 +3804,18 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
     auto elementTy = dyn_cast<BaseTensorType>(element.getType());
     if (!elementTy ||
         !TensorStaticInfoCastOp::areCastCompatible(elementTy, resultTy))
-      return rewriter.notifyMatchFailure(
-          op, "element type is not cast compatible with the result type");
+      return rewriter.notifyMatchFailure(op, [&](Diagnostic &diag) {
+        diag << "element type " << element.getType()
+             << " is not cast compatible with the result type " << resultTy;
+      });
     if (isValidSubtype(elementTy, resultTy)) {
       rewriter.replaceUsesWithIf(op.getResult(), element, [](OpOperand &use) {
         return use.getOwner()->hasTrait<OpTrait::AllowsTypeRefinement>();
       });
+      if (op->use_empty()) {
+        rewriter.eraseOp(op);
+        return success();
+      }
     }
     rewriter.replaceOpWithNewOp<TensorStaticInfoCastOp>(op, resultTy, element);
     return success();

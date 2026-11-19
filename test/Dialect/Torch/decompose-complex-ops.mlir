@@ -2444,25 +2444,25 @@ func.func @masked_scatter_static_source(%self: !torch.vtensor<[2,3],f32>, %mask:
 // -----
 
 // The FX importer types the result list without sizes, so the slice types come
-// from `self`.
+// from `self`. A symbolic size makes `dim` unknown, even for a static `self`.
 // CHECK-LABEL:  func.func @split_with_sizes_untyped_list(
-// CHECK-SAME:      %[[SELF:[^:]+]]: !torch.vtensor<[3,?],f32>, %[[SIZE:[^:]+]]: !torch.int)
+// CHECK-SAME:      %[[SELF:[^:]+]]: !torch.vtensor<[3,5],f32>, %[[SIZE:[^:]+]]: !torch.int)
 // CHECK-DAG:      %[[DIM:.*]] = torch.constant.int -1
 // CHECK-DAG:      %[[C0:.*]] = torch.constant.int 0
 // CHECK-DAG:      %[[C1:.*]] = torch.constant.int 1
 // CHECK-DAG:      %[[C2:.*]] = torch.constant.int 2
+// CHECK-DAG:      %[[C5:.*]] = torch.constant.int 5
 // CHECK:          %[[FIRST:.*]] = torch.aten.slice.Tensor %[[SELF]], %[[DIM]], %[[C0]], %[[C2]], %[[C1]] : {{.*}} -> !torch.vtensor<[3,2],f32>
 // CHECK:          %[[END:.*]] = torch.aten.add.int %[[C2]], %[[SIZE]]
 // CHECK:          %[[SECOND:.*]] = torch.aten.slice.Tensor %[[SELF]], %[[DIM]], %[[C2]], %[[END]], %[[C1]] : {{.*}} -> !torch.vtensor<[3,?],f32>
-// CHECK:          %[[TOTAL:.*]] = torch.aten.size.int %[[SELF]], %[[DIM]]
-// CHECK:          %[[MATCH:.*]] = torch.aten.eq.int %[[END]], %[[TOTAL]]
+// CHECK:          %[[MATCH:.*]] = torch.aten.eq.int %[[END]], %[[C5]]
 // CHECK:          torch.runtime.assert %[[MATCH]], "split dim must be sum of split_sizes"
 // CHECK:          torch.prim.ListConstruct %[[FIRST]], %[[SECOND]] : (!torch.vtensor<[3,2],f32>, !torch.vtensor<[3,?],f32>) -> !torch.list<vtensor>
-func.func @split_with_sizes_untyped_list(%arg0: !torch.vtensor<[3,?],f32>, %arg1: !torch.int) -> !torch.list<vtensor> {
+func.func @split_with_sizes_untyped_list(%arg0: !torch.vtensor<[3,5],f32>, %arg1: !torch.int) -> !torch.list<vtensor> {
   %int-1 = torch.constant.int -1
   %int2 = torch.constant.int 2
   %0 = torch.prim.ListConstruct %int2, %arg1 : (!torch.int, !torch.int) -> !torch.list<int>
-  %1 = torch.aten.split_with_sizes %arg0, %0, %int-1 : !torch.vtensor<[3,?],f32>, !torch.list<int>, !torch.int -> !torch.list<vtensor>
+  %1 = torch.aten.split_with_sizes %arg0, %0, %int-1 : !torch.vtensor<[3,5],f32>, !torch.list<int>, !torch.int -> !torch.list<vtensor>
   return %1 : !torch.list<vtensor>
 }
 
