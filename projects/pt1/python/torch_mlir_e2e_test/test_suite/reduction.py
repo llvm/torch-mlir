@@ -391,6 +391,33 @@ def ReduceAnyDimsFloatModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(3, 4, 5))
 
 
+class ReduceAnyDimsUint8Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 2, 3], torch.uint8, True),
+        ]
+    )
+    def forward(self, a):
+        # The refbackend returns every i8 buffer as int8, so widen the uint8
+        # result to compare its logical values rather than its signedness.
+        return torch.ops.aten.any(a, dim=[0, 1]).to(torch.int32)
+
+
+@register_test_case(module_factory=lambda: ReduceAnyDimsUint8Module())
+def ReduceAnyDimsUint8Module_basic(module, tu: TestUtils):
+    module.forward(
+        torch.tensor(
+            [[[0, 0, 1], [0, 0, 0]], [[0, 0, 0], [0, 1, 0]]],
+            dtype=torch.uint8,
+        )
+    )
+
+
 # ==============================================================================
 
 
