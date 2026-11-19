@@ -982,12 +982,9 @@ class FxImporter:
                 arg_replacements[input_name] = state_value
 
         # Always lift buffers.
+        buffers = dict(prog.named_buffers())
         for input_name, state_name in sig.inputs_to_buffers.items():
-            try:
-                state_value = state_dict[state_name]
-            except KeyError as e:
-                raise AssertionError("Could not find state mapping for buffer") from e
-            arg_replacements[input_name] = state_value
+            arg_replacements[input_name] = buffers[state_name]
 
         # Lift parameters.
         for input_name, state_name in sig.inputs_to_parameters.items():
