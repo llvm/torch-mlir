@@ -15,7 +15,8 @@ import torch
 def has_default_domain_contrib_op(model: onnx.ModelProto) -> bool:
     """Return whether the main graph of *model* uses an ONNX Runtime contrib op
     of the default domain, such as SimplifiedLayerNormalization, which the
-    model's ONNX opset does not define."""
+    model's ONNX opset does not define.
+    """
     opset = next(
         entry.version for entry in model.opset_import if entry.domain in ("", "ai.onnx")
     )

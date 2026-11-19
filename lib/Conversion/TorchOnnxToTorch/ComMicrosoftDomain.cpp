@@ -7,6 +7,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/Traits.h"
+#include "mlir/IR/TypeUtilities.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Patterns.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -595,18 +597,16 @@ static Value createNBitsActivation(ConversionPatternRewriter &rewriter,
 /// `invStdVar = rsqrt(mean(x^2) + epsilon)` reduces the dimensions of `x` from
 /// the non-negative `axis` on and keeps them with size 1. Both results have the
 /// dtype of `x`. `aten.rms_norm` does not return `invStdVar`, so the norm is
-/// built from it instead of computing it twice. `epsilon` and `one` are float
-/// constants.
+/// built from it instead of computing it twice. `epsilon` is a float constant.
 static std::pair<Value, Value>
 createRMSNormWithInvStdVar(ConversionPatternRewriter &rewriter, Location loc,
-                           Value x, Value scale, int64_t axis, Value epsilon,
-                           Value one) {
+                           Value x, Value scale, int64_t axis, Value epsilon) {
   auto xType = cast<Torch::ValueTensorType>(x.getType());
   ArrayRef<int64_t> sizes = xType.getSizes();
   int64_t rank = sizes.size();
-  Value two = Torch::ConstantIntOp::create(rewriter, loc, 2);
-  Value squared =
-      Torch::AtenPowTensorScalarOp::create(rewriter, loc, xType, x, two);
+  // Squares with a multiplication, because TOSA leaves pow undefined for a
+  // negative base.
+  Value squared = Torch::AtenMulTensorOp::create(rewriter, loc, xType, x, x);
   Value dimList = Torch::toIntListConstruct(
       rewriter, loc, llvm::to_vector(llvm::seq<int64_t>(axis - rank, 0)));
   Value keepDim = Torch::ConstantBoolOp::create(rewriter, loc, true);
@@ -617,6 +617,7 @@ createRMSNormWithInvStdVar(ConversionPatternRewriter &rewriter, Location loc,
       rewriter.getContext(), reducedSizes, xType.getOptionalDtype());
   Value meanSquare = Torch::AtenMeanDimOp::create(
       rewriter, loc, reducedType, squared, dimList, keepDim, /*dtype=*/none);
+  Value one = Torch::ConstantIntOp::create(rewriter, loc, 1);
   Value meanSquarePlusEpsilon = Torch::AtenAddScalarOp::create(
       rewriter, loc, reducedType, meanSquare, epsilon, one);
   Value invStdVar = Torch::AtenRsqrtOp::create(rewriter, loc, reducedType,
@@ -920,6 +921,33 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
           return rewriter.notifyMatchFailure(
               binder.op, "expected axis within the input rank");
 
+        // ORT requires a scale that broadcasts to the input.
+        auto scaleType = cast<Torch::ValueTensorType>(scale.getType());
+        SmallVector<int64_t> llvmInputSizes =
+            Torch::makeShapeLLVMCompatible(inputSizes);
+        SmallVector<int64_t> broadcastSizes;
+        if (!OpTrait::util::getBroadcastedShape(
+                llvmInputSizes,
+                Torch::makeShapeLLVMCompatible(scaleType.getSizes()),
+                broadcastSizes) ||
+            failed(verifyCompatibleShape(broadcastSizes, llvmInputSizes)))
+          return rewriter.notifyMatchFailure(
+              binder.op, "expected a scale that broadcasts to the input");
+
+        // Declared result shapes may be less static than the computed ones,
+        // but must not contradict them.
+        SmallVector<int64_t> reducedSizes(inputSizes);
+        llvm::fill(llvm::drop_begin(reducedSizes, axis), 1);
+        if (failed(verifyCompatibleShape(
+                Torch::makeShapeLLVMCompatible(outputType.getSizes()),
+                llvmInputSizes)) ||
+            (hasInvStdVar &&
+             failed(verifyCompatibleShape(
+                 Torch::makeShapeLLVMCompatible(invStdVarType.getSizes()),
+                 Torch::makeShapeLLVMCompatible(reducedSizes)))))
+          return rewriter.notifyMatchFailure(
+              binder.op, "expected result shapes compatible with the input");
+
         // Upcasts to stash_type for numerical stability.
         Location loc = binder.getLoc();
         if (inputType.getDtype() != *stashDtype)
@@ -930,15 +958,12 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
             rewriter, loc, rewriter.getF64FloatAttr(epsilon));
         ArrayRef<int64_t> normalizedSizes = inputSizes.drop_front(axis);
         Value output, invStdVar;
-        // The aten.rms_norm decomposition needs a scale of exactly the
+        // The aten.rms_norm decomposition needs a scale of exactly the static
         // normalized shape, which a dynamic or broadcast dimension breaks.
-        if (hasInvStdVar ||
-            cast<Torch::ValueTensorType>(scale.getType()).getSizes() !=
-                normalizedSizes) {
-          Value cstOne = Torch::ConstantFloatOp::create(
-              rewriter, loc, rewriter.getF64FloatAttr(1.0));
+        if (hasInvStdVar || !scaleType.areAllSizesKnown() ||
+            scaleType.getSizes() != normalizedSizes) {
           std::tie(output, invStdVar) = createRMSNormWithInvStdVar(
-              rewriter, loc, input, scale, axis, cstEpsilon, cstOne);
+              rewriter, loc, input, scale, axis, cstEpsilon);
         } else {
           Value normalizedShape =
               Torch::toIntListConstruct(rewriter, loc, normalizedSizes);
@@ -950,6 +975,9 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         if (outputDtype != *stashDtype)
           output =
               Torch::convertTensorToDtype(rewriter, loc, output, outputDtype);
+        if (output.getType() != outputType)
+          output = Torch::TensorStaticInfoCastOp::create(rewriter, loc,
+                                                         outputType, output);
 
         SmallVector<Value> results = {output};
         if (hasInvStdVar) {
@@ -957,6 +985,9 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
           if (invStdVarDtype != *stashDtype)
             invStdVar = Torch::convertTensorToDtype(rewriter, loc, invStdVar,
                                                     invStdVarDtype);
+          if (invStdVar.getType() != invStdVarType)
+            invStdVar = Torch::TensorStaticInfoCastOp::create(
+                rewriter, loc, invStdVarType, invStdVar);
           results.push_back(invStdVar);
         } else if (numResults == 2) {
           results.push_back(Torch::ConstantNoneOp::create(rewriter, loc));
@@ -1064,7 +1095,7 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         Value invStdStash;
         if (wantInvStd) {
           std::tie(output, invStdStash) = createRMSNormWithInvStdVar(
-              rewriter, loc, sStash, gamma, inputRank - 1, cstEpsilon, cstOne);
+              rewriter, loc, sStash, gamma, inputRank - 1, cstEpsilon);
         } else {
           // Build normalized_shape for last dimension: [inputShape[-1]]
           auto castInput = cast<Torch::ValueTensorType>(input.getType());
