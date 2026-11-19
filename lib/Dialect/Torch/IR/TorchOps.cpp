@@ -3792,7 +3792,33 @@ void Aten__Getitem__TOp::getCanonicalizationPatterns(
     if (!indexOpt)
       return rewriter.notifyMatchFailure(op, "statically invalid index");
 
-    rewriter.replaceOp(op, {listConstruct.getOperand(*indexOpt)});
+    Value element = listConstruct.getOperand(*indexOpt);
+    Type resultTy = op.getType();
+    if (element.getType() == resultTy || !isa<BaseTensorType>(resultTy)) {
+      rewriter.replaceOp(op, element);
+      return success();
+    }
+
+    // A tensor element can have more or less static information than the
+    // result. Users that allow type refinement take a more precise element
+    // directly. The other users get a cast to the result type.
+    auto elementTy = dyn_cast<BaseTensorType>(element.getType());
+    if (!elementTy ||
+        !TensorStaticInfoCastOp::areCastCompatible(elementTy, resultTy))
+      return rewriter.notifyMatchFailure(op, [&](Diagnostic &diag) {
+        diag << "element type " << element.getType()
+             << " is not cast compatible with the result type " << resultTy;
+      });
+    if (isValidSubtype(elementTy, resultTy)) {
+      rewriter.replaceUsesWithIf(op.getResult(), element, [](OpOperand &use) {
+        return use.getOwner()->hasTrait<OpTrait::AllowsTypeRefinement>();
+      });
+      if (op->use_empty()) {
+        rewriter.eraseOp(op);
+        return success();
+      }
+    }
+    rewriter.replaceOpWithNewOp<TensorStaticInfoCastOp>(op, resultTy, element);
     return success();
   });
   patterns.add(+[](Aten__Getitem__TOp op, PatternRewriter &rewriter) {

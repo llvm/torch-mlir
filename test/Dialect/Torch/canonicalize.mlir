@@ -812,6 +812,42 @@ func.func @torch.aten.__getitem__.t$no_change_test1(%arg0: !torch.list<int>) -> 
   return %0 : !torch.int
 }
 
+// CHECK-LABEL:   func.func @torch.aten.__getitem__.t$tensor_static_info_cast(
+// CHECK-SAME:                                                   %[[FIRST:.*]]: !torch.vtensor<[2,4],f32>,
+// CHECK:           %[[CAST:.*]] = torch.tensor_static_info_cast %[[FIRST]] : !torch.vtensor<[2,4],f32> to !torch.vtensor<[?,4],f32>
+// CHECK:           return %[[CAST]] : !torch.vtensor<[?,4],f32>
+func.func @torch.aten.__getitem__.t$tensor_static_info_cast(%arg0: !torch.vtensor<[2,4],f32>, %arg1: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[?,4],f32> {
+  %int0 = torch.constant.int 0
+  %0 = torch.prim.ListConstruct %arg0, %arg1 : (!torch.vtensor<[2,4],f32>, !torch.vtensor<[3,4],f32>) -> !torch.list<vtensor>
+  %1 = torch.aten.__getitem__.t %0, %int0 : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[?,4],f32>
+  return %1 : !torch.vtensor<[?,4],f32>
+}
+
+// Not canonicalized because the element can't be cast to the result type
+// CHECK-LABEL:   func.func @torch.aten.__getitem__.t$no_change_incompatible_tensor(
+// CHECK:           %[[LIST:.*]] = torch.prim.ListConstruct
+// CHECK:           %[[ITEM:.*]] = torch.aten.__getitem__.t %[[LIST]], %{{.*}} : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[?,4],si64>
+// CHECK:           return %[[ITEM]] : !torch.vtensor<[?,4],si64>
+func.func @torch.aten.__getitem__.t$no_change_incompatible_tensor(%arg0: !torch.vtensor<[2,4],f32>) -> !torch.vtensor<[?,4],si64> {
+  %int0 = torch.constant.int 0
+  %0 = torch.prim.ListConstruct %arg0 : (!torch.vtensor<[2,4],f32>) -> !torch.list<vtensor>
+  %1 = torch.aten.__getitem__.t %0, %int0 : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[?,4],si64>
+  return %1 : !torch.vtensor<[?,4],si64>
+}
+
+// Not canonicalized because the element is not a tensor
+// CHECK-LABEL:   func.func @torch.aten.__getitem__.t$no_change_non_tensor_element(
+// CHECK:           %[[LIST:.*]] = torch.prim.ListConstruct
+// CHECK:           %[[ITEM:.*]] = torch.aten.__getitem__.t %[[LIST]], %{{.*}} : !torch.list<optional<vtensor>>, !torch.int -> !torch.vtensor
+// CHECK:           return %[[ITEM]] : !torch.vtensor
+func.func @torch.aten.__getitem__.t$no_change_non_tensor_element() -> !torch.vtensor {
+  %int0 = torch.constant.int 0
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %none : (!torch.none) -> !torch.list<optional<vtensor>>
+  %1 = torch.aten.__getitem__.t %0, %int0 : !torch.list<optional<vtensor>>, !torch.int -> !torch.vtensor
+  return %1 : !torch.vtensor
+}
+
 // CHECK-LABEL:   func.func @torch.aten.__getitem__.t$getitem_of_size(
 // CHECK-SAME:                                                   %[[TENSOR:.*]]: !torch.tensor,
 // CHECK-SAME:                                                   %[[INDEX:.*]]: !torch.int) -> !torch.int {

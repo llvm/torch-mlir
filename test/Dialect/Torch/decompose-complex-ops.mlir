@@ -2440,3 +2440,60 @@ func.func @masked_scatter_static_source(%self: !torch.vtensor<[2,3],f32>, %mask:
   %0 = torch.aten.masked_scatter %self, %mask, %source : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],i1>, !torch.vtensor<[4],f32> -> !torch.vtensor<[2,3],f32>
   return %0 : !torch.vtensor<[2,3],f32>
 }
+
+// -----
+
+// The FX importer types the result list without sizes, so the slice types come
+// from `self`. A symbolic size makes `dim` unknown, even for a static `self`.
+// CHECK-LABEL:  func.func @split_with_sizes_untyped_list(
+// CHECK-SAME:      %[[SELF:[^:]+]]: !torch.vtensor<[3,5],f32>, %[[SIZE:[^:]+]]: !torch.int)
+// CHECK-DAG:      %[[DIM:.*]] = torch.constant.int -1
+// CHECK-DAG:      %[[C0:.*]] = torch.constant.int 0
+// CHECK-DAG:      %[[C1:.*]] = torch.constant.int 1
+// CHECK-DAG:      %[[C2:.*]] = torch.constant.int 2
+// CHECK-DAG:      %[[C5:.*]] = torch.constant.int 5
+// CHECK:          %[[FIRST:.*]] = torch.aten.slice.Tensor %[[SELF]], %[[DIM]], %[[C0]], %[[C2]], %[[C1]] : {{.*}} -> !torch.vtensor<[3,2],f32>
+// CHECK:          %[[END:.*]] = torch.aten.add.int %[[C2]], %[[SIZE]]
+// CHECK:          %[[SECOND:.*]] = torch.aten.slice.Tensor %[[SELF]], %[[DIM]], %[[C2]], %[[END]], %[[C1]] : {{.*}} -> !torch.vtensor<[3,?],f32>
+// CHECK:          %[[MATCH:.*]] = torch.aten.eq.int %[[END]], %[[C5]]
+// CHECK:          torch.runtime.assert %[[MATCH]], "split dim must be sum of split_sizes"
+// CHECK:          torch.prim.ListConstruct %[[FIRST]], %[[SECOND]] : (!torch.vtensor<[3,2],f32>, !torch.vtensor<[3,?],f32>) -> !torch.list<vtensor>
+func.func @split_with_sizes_untyped_list(%arg0: !torch.vtensor<[3,5],f32>, %arg1: !torch.int) -> !torch.list<vtensor> {
+  %int-1 = torch.constant.int -1
+  %int2 = torch.constant.int 2
+  %0 = torch.prim.ListConstruct %int2, %arg1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.split_with_sizes %arg0, %0, %int-1 : !torch.vtensor<[3,5],f32>, !torch.list<int>, !torch.int -> !torch.list<vtensor>
+  return %1 : !torch.list<vtensor>
+}
+
+// -----
+
+// CHECK-LABEL:  func.func @split_with_sizes_invalid_dim(
+// CHECK-SAME:      %[[SELF:[^:]+]]: !torch.vtensor<[3,?],f32>, %[[SIZE:[^:]+]]: !torch.int)
+// CHECK:          %[[C2:.*]] = torch.constant.int 2{{$}}
+// CHECK:          %[[SIZES:.*]] = torch.prim.ListConstruct %[[C2]], %[[SIZE]]
+// CHECK:          %[[SPLIT:.*]] = torch.aten.split_with_sizes %[[SELF]], %[[SIZES]], %[[C2]] : !torch.vtensor<[3,?],f32>, !torch.list<int>, !torch.int -> !torch.list<vtensor>
+// CHECK-NEXT:     return %[[SPLIT]]
+func.func @split_with_sizes_invalid_dim(%arg0: !torch.vtensor<[3,?],f32>, %arg1: !torch.int) -> !torch.list<vtensor> {
+  %int2 = torch.constant.int 2
+  %0 = torch.prim.ListConstruct %int2, %arg1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.split_with_sizes %arg0, %0, %int2 : !torch.vtensor<[3,?],f32>, !torch.list<int>, !torch.int -> !torch.list<vtensor>
+  return %1 : !torch.list<vtensor>
+}
+
+// -----
+
+// CHECK-LABEL:  func.func @split_with_sizes_negative_size(
+// CHECK-SAME:      %[[SELF:[^:]+]]: !torch.vtensor<[3,?],f32>, %[[SIZE:[^:]+]]: !torch.int)
+// CHECK-DAG:      %[[DIM:.*]] = torch.constant.int -1{{$}}
+// CHECK-DAG:      %[[NEG:.*]] = torch.constant.int -2{{$}}
+// CHECK:          %[[SIZES:.*]] = torch.prim.ListConstruct %[[NEG]], %[[SIZE]]
+// CHECK:          %[[SPLIT:.*]] = torch.aten.split_with_sizes %[[SELF]], %[[SIZES]], %[[DIM]] : !torch.vtensor<[3,?],f32>, !torch.list<int>, !torch.int -> !torch.list<vtensor>
+// CHECK-NEXT:     return %[[SPLIT]]
+func.func @split_with_sizes_negative_size(%arg0: !torch.vtensor<[3,?],f32>, %arg1: !torch.int) -> !torch.list<vtensor> {
+  %int-1 = torch.constant.int -1
+  %int-2 = torch.constant.int -2
+  %0 = torch.prim.ListConstruct %int-2, %arg1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.split_with_sizes %arg0, %0, %int-1 : !torch.vtensor<[3,?],f32>, !torch.list<int>, !torch.int -> !torch.list<vtensor>
+  return %1 : !torch.list<vtensor>
+}

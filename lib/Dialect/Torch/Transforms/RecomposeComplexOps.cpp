@@ -270,13 +270,6 @@ public:
       return rewriter.notifyMatchFailure(
           op, "Expected `idx` of `Aten__Getitem__TOp` to be a positive int");
 
-    int64_t splitSize;
-    if (!matchPattern(splitTensorOp.getSplitSize(),
-                      m_TorchConstantInt(&splitSize)))
-      return rewriter.notifyMatchFailure(
-          op,
-          "Expected `SplitSize` of `AtenSplitTensorOp` to be a constant int");
-
     Location loc = op.getLoc();
     Value input = splitTensorOp.getSelf();
     Value dim = splitTensorOp.getDim();
@@ -293,11 +286,10 @@ public:
 
     Value step =
         ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(1));
-    Value start = ConstantIntOp::create(
-        rewriter, loc, rewriter.getI64IntegerAttr(index * splitSize));
-    Value end = ConstantIntOp::create(
-        rewriter, loc,
-        rewriter.getI64IntegerAttr(index * splitSize + splitSize));
+    Value splitSize = splitTensorOp.getSplitSize();
+    Value start =
+        rewriter.createOrFold<AtenMulIntOp>(loc, op.getIdx(), splitSize);
+    Value end = rewriter.createOrFold<AtenAddIntOp>(loc, start, splitSize);
     Value sliceTensorOp = AtenSliceTensorOp::create(
         rewriter, loc, op.getResult().getType(), input, dim, start, end, step);
     rewriter.replaceOp(op, sliceTensorOp);
@@ -321,13 +313,6 @@ public:
       return rewriter.notifyMatchFailure(
           op, "SplitTensorOp result is potentially mutated");
 
-    int64_t splitSize;
-    if (!matchPattern(splitTensorOp.getSplitSize(),
-                      m_TorchConstantInt(&splitSize)))
-      return rewriter.notifyMatchFailure(
-          op,
-          "Expected `SplitSize` of `AtenSplitTensorOp` to be a constant int");
-
     Location loc = op.getLoc();
     Value input = splitTensorOp.getSelf();
     Value dim = splitTensorOp.getDim();
@@ -348,16 +333,18 @@ public:
         rewriter.getStringAttr("numResults should equal to floordiv(totalSize "
                                "+ splitSize - 1, splitSize)"));
 
+    // Each piece starts where the previous one ends.
+    Value splitSize = splitTensorOp.getSplitSize();
+    Value start = Torch::ConstantIntOp::create(rewriter, loc,
+                                               rewriter.getI64IntegerAttr(0));
     SmallVector<Value> slices;
     for (size_t i = 0; i < op.getNumResults(); i++) {
       auto resultTy = op.getResult(i).getType();
-      auto start = Torch::ConstantIntOp::create(
-          rewriter, loc, rewriter.getI64IntegerAttr(i * splitSize));
-      auto end = Torch::ConstantIntOp::create(
-          rewriter, loc, rewriter.getI64IntegerAttr((i + 1) * splitSize));
+      Value end = rewriter.createOrFold<AtenAddIntOp>(loc, start, splitSize);
       Value sliceTensorOp = AtenSliceTensorOp::create(
           rewriter, loc, resultTy, input, dim, start, end, /*step=*/cstOne);
       slices.push_back(sliceTensorOp);
+      start = end;
     }
     rewriter.replaceOp(op, slices);
     // erase splitTensorOp if no user left
