@@ -5,13 +5,28 @@
 
 from typing import Any
 
+import ml_dtypes
 import numpy as np
 import torch
 
 
+def tensor_to_numpy(t: torch.Tensor) -> np.ndarray:
+    # NumPy has no native bfloat16, so reinterpret the bits as ml_dtypes.bfloat16.
+    if t.dtype == torch.bfloat16:
+        return t.view(torch.int16).numpy().view(ml_dtypes.bfloat16)
+    return t.numpy()
+
+
+def numpy_to_tensor(a: np.ndarray) -> torch.Tensor:
+    # torch.from_numpy does not accept ml_dtypes.bfloat16 arrays.
+    if a.dtype == ml_dtypes.bfloat16:
+        return torch.from_numpy(a.view(np.int16)).view(torch.bfloat16)
+    return torch.from_numpy(a)
+
+
 def recursively_convert_to_numpy(o: Any):
     if isinstance(o, torch.Tensor):
-        return o.numpy()
+        return tensor_to_numpy(o)
     if isinstance(o, tuple):
         return tuple(recursively_convert_to_numpy(x) for x in o)
     if isinstance(o, list):
@@ -30,7 +45,7 @@ def recursively_convert_to_numpy(o: Any):
 
 def recursively_convert_from_numpy(o: Any):
     if isinstance(o, np.ndarray):
-        return torch.from_numpy(o)
+        return numpy_to_tensor(o)
     if isinstance(o, tuple):
         return tuple(recursively_convert_from_numpy(x) for x in o)
     if isinstance(o, list):
