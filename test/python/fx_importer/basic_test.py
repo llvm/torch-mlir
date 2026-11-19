@@ -65,6 +65,33 @@ def test_import_frozen_exported_program():
 
 
 @run
+# CHECK-LABEL: test_import_frozen_exported_program_with_non_persistent_buffer
+# CHECK:     func.func @main(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32>
+# CHECK:     %[[b:.+]] = torch.vtensor.literal(dense_resource<torch_tensor_3_1_torch.float32> : tensor<3x1xf32>)
+# CHECK:     %[[mul:.+]] = torch.aten.mul.Tensor %[[ARG0]], %[[b]]
+# CHECK:     %[[c:.+]] = torch.vtensor.literal(dense_resource<torch_tensor_3_1_torch.float32_1> : tensor<3x1xf32>)
+# CHECK:     %[[add:.+]] = torch.aten.add.Tensor %[[mul]], %[[c]]
+# CHECK:     return %[[add]]
+# CHECK:     dialect_resources:
+# CHECK-DAG: torch_tensor_3_1_torch.float32: "0x04000000000000400000004000000040"
+# CHECK-DAG: torch_tensor_3_1_torch.float32_1: "0x04000000000040400000404000004040"
+def test_import_frozen_exported_program_with_non_persistent_buffer():
+    # Non-persistent buffers are in the constants of the program, not in its
+    # state_dict.
+    class Basic(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.register_buffer("b", torch.full((3, 1), 2.0), persistent=False)
+            self.register_buffer("c", torch.full((3, 1), 3.0))
+
+        def forward(self, x):
+            return x * self.b + self.c
+
+    m = fx.export_and_import(Basic(), torch.randn(3, 4))
+    print(m)
+
+
+@run
 # CHECK-LABEL: test_import_frozen_exported_program_with_func_name
 # CHECK:     func.func @test_net(%[[ARG0:[a-zA-Z0-9]+]]: !torch.vtensor<[3,4],f32>) -> !torch.vtensor<[3,4],f32>
 def test_import_frozen_exported_program_with_func_name():
