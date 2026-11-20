@@ -319,6 +319,14 @@ static Type getCommonIndexElementType(ValueRange indices) {
   return elementType;
 }
 
+/// Returns whether every index is a ranked tensor with a static shape.
+static bool areStaticallyShaped(ValueRange indices) {
+  return llvm::all_of(indices, [](Value index) {
+    auto indexType = dyn_cast<RankedTensorType>(index.getType());
+    return indexType && indexType.hasStaticShape();
+  });
+}
+
 // Cast tensor indices to an i32 or i64 target type.
 // Returns a null Value for non-tensor input.
 static Value castTosaIndexToType(PatternRewriter &rewriter, Value index,
@@ -7181,10 +7189,11 @@ LogicalResult ConvertAtenOp<AtenIndexPutHackedTwinOp>::matchAndRewriteImpl(
   auto indexTensors = getTypeConvertedValues(
       rewriter, op->getLoc(), getTypeConverter(), tensorsTorchType);
   Type indexElementType = getCommonIndexElementType(indexTensors);
-  if (!indexElementType || llvm::any_of(indexTensors, [](Value index) {
-        return !isa<RankedTensorType>(index.getType());
-      }))
-    return rewriter.notifyMatchFailure(op, "expected ranked tensor indices");
+  if (!indexElementType)
+    return rewriter.notifyMatchFailure(op, "expected tensor indices");
+  if (!areStaticallyShaped(indexTensors))
+    return rewriter.notifyMatchFailure(op,
+                                       "unimplemented: dynamic index shapes");
 
   auto outType = getTypeConverter()->convertType(op.getType());
 
@@ -7305,10 +7314,11 @@ LogicalResult ConvertAtenOp<AtenIndexTensorHackedTwinOp>::matchAndRewriteImpl(
   auto indexTensors = getTypeConvertedValues(
       rewriter, op->getLoc(), getTypeConverter(), tensorsTorchType);
   Type indexElementType = getCommonIndexElementType(indexTensors);
-  if (!indexElementType || llvm::any_of(indexTensors, [](Value index) {
-        return !isa<RankedTensorType>(index.getType());
-      }))
-    return rewriter.notifyMatchFailure(op, "expected ranked tensor indices");
+  if (!indexElementType)
+    return rewriter.notifyMatchFailure(op, "expected tensor indices");
+  if (!areStaticallyShaped(indexTensors))
+    return rewriter.notifyMatchFailure(op,
+                                       "unimplemented: dynamic index shapes");
 
   auto outType = getTypeConverter()->convertType(op.getType());
 
