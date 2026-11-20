@@ -12,6 +12,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/ControlFlow/IR/ControlFlowOps.h"
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
+#include "mlir/Dialect/Utils/IndexingUtils.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
 #include "torch-mlir/Dialect/Torch/IR/TorchOps.h"
@@ -690,39 +691,27 @@ LogicalResult torch_to_linalg::permuteTensor(Operation *op,
     return success();
   }
 
-  // Check if the dimensions are a valid constants.
+  // `dimensions` needs one in-range entry per input dimension.
   int64_t numDimensions = dimensions.size();
   if (inputRank != numDimensions)
     return rewriter.notifyMatchFailure(
         op, "size of `dims` must be equal to the rank of the input");
-  for (uint32_t i = 0; i < numDimensions; i++) {
-    if (dimensions[i] < 0)
-      dimensions[i] = toPositiveDim(dimensions[i], inputRank);
-    if (!isValidDim(dimensions[i], inputRank))
+  for (int64_t &dim : dimensions) {
+    dim = toPositiveDim(dim, inputRank);
+    if (!isValidDim(dim, inputRank))
       return rewriter.notifyMatchFailure(op, "dimension out of range");
   }
 
-  // Check if dimensions are in the original order (no permutation needed).
-  bool isIdentityPermutation = true;
-  for (uint32_t i = 0; i < numDimensions; i++) {
-    if (dimensions[i] != static_cast<int64_t>(i)) {
-      isIdentityPermutation = false;
-      break;
-    }
-  }
-
   // If no permutation is needed, return the input as result.
-  if (isIdentityPermutation) {
+  if (isIdentityPermutation(dimensions)) {
     result = input;
     return success();
   }
 
-  SmallVector<Value> outputDims;
-  for (uint32_t i = 0; i < inputRank; i++)
-    outputDims.push_back(getDimOp(rewriter, loc, input, dimensions[i]));
-
-  Value outVector = tensor::EmptyOp::create(
-      rewriter, loc, getAsOpFoldResult(outputDims), elementType);
+  SmallVector<OpFoldResult> outputSizes =
+      applyPermutation(tensor::getMixedSizes(rewriter, loc, input), dimensions);
+  Value outVector =
+      tensor::EmptyOp::create(rewriter, loc, outputSizes, elementType);
 
   result =
       linalg::TransposeOp::create(rewriter, loc, input, outVector, dimensions)

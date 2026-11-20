@@ -580,6 +580,33 @@ func.func @torch.aten.transpose$basic(%arg0: !torch.vtensor<[4,3],f32>) -> !torc
 
 // -----
 
+// The init comes from the input, so a more static result type only needs a
+// cast of the result.
+// CHECK-LABEL:   func.func @torch.aten.transpose$static_result(
+// CHECK:           %[[INPUT:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[?,?,4],f32> -> tensor<?x?x4xf32>
+// CHECK:           %[[INIT:.*]] = tensor.empty({{.*}}) : tensor<?x4x?xf32>
+// CHECK:           %[[TRANSPOSED:.*]] = linalg.transpose ins(%[[INPUT]] : tensor<?x?x4xf32>) outs(%[[INIT]] : tensor<?x4x?xf32>) permutation = [0, 2, 1]
+// CHECK:           tensor.cast %[[TRANSPOSED]] : tensor<?x4x?xf32> to tensor<?x4x16xf32>
+func.func @torch.aten.transpose$static_result(%arg0: !torch.vtensor<[?,?,4],f32>) -> !torch.vtensor<[?,4,16],f32> {
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %0 = torch.aten.transpose.int %arg0, %int1, %int2 : !torch.vtensor<[?,?,4],f32>, !torch.int, !torch.int -> !torch.vtensor<[?,4,16],f32>
+  return %0 : !torch.vtensor<[?,4,16],f32>
+}
+
+// -----
+
+// A result type the transposed input cannot be cast to is rejected.
+func.func @torch.aten.transpose$no_convert$incompatible_result(%arg0: !torch.vtensor<[4,3],f32>) -> !torch.vtensor<[5,5],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  // expected-error@+1 {{failed to legalize operation 'torch.aten.transpose.int'}}
+  %0 = torch.aten.transpose.int %arg0, %int0, %int1 : !torch.vtensor<[4,3],f32>, !torch.int, !torch.int -> !torch.vtensor<[5,5],f32>
+  return %0 : !torch.vtensor<[5,5],f32>
+}
+
+// -----
+
 // CHECK-DAG: #[[$ATTR_0:.+]] = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>
 // CHECK-DAG: #[[$ATTR_1:.+]] = affine_map<(d0, d1, d2, d3) -> (d0, d2)>
 // CHECK-LABEL:   func.func @test_rotary_embedding(
