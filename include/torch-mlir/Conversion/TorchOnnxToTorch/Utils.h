@@ -107,8 +107,6 @@ Value createConstantIntList(OpBinder binder,
                             ConversionPatternRewriter &rewriter,
                             ArrayRef<int64_t> cstInput);
 
-Torch::ValueTensorType getQTorchTypeFromTorchIntType(Type ty);
-
 inline bool isSupportedQuantizeDequantizeLinearDtype(Type type) {
   // TODO: Support uint16 once Torch::getScalarTypeForType can map it.
   return type.isUnsignedInteger(8) || type.isSignedInteger(8) ||
@@ -203,6 +201,8 @@ LogicalResult createTorchPermuteOp(OpBinder binder,
 
 /// This utility checks the compatibility for scale and zero_point value and
 /// extracts the scalar value from it used for per-tensor quantization.
+/// `inZeroPoint` may be null (an omitted optional ONNX input), in which case
+/// `outZeroPoint` is set to the constant integer 0.
 LogicalResult extractPerTensorQuantizationArguments(
     ConversionPatternRewriter &rewriter, Location loc, Value inScale,
     Value inZeroPoint, Value &outScale, Value &outZeroPoint);
@@ -241,6 +241,24 @@ createDequantizePerChannelTensor(ConversionPatternRewriter &rewriter,
                                  Location loc, Value input, Value scales,
                                  Value zeroPoints, int64_t axis, Value &output,
                                  FloatType outFloatTy = nullptr);
+
+/// This utility dequantizes an integer tensor `input` (rank >= 2) whose
+/// quantization parameters vary along the batch dims (all dims before
+/// rank-2) and along dim rank-2, which must have a static size. `scale` and
+/// `zeroPoint` must have the same shape and rank as `input`, size 1 along the
+/// last dim, and batch dims that are either 1 (broadcast) or equal to the
+/// corresponding dim of `input`, e.g. (B, X, 1) for an input of shape
+/// (B, X, K). A `quantized_decomposed.dequantize_per_token` op (PT2E
+/// representation) is emitted. Broadcast batch dims of the parameters are
+/// expanded, since the op requires them to match the input. Callers whose
+/// parameters vary along the last dim have to transpose the last two dims of
+/// the (integer) input and of the parameters first.
+/// `outFloatTy` behaves as in `createDequantizeTensor`, except that
+/// `out_dtype` is not optional for this op: it is always passed, as f32 if
+/// `outFloatTy` is null.
+LogicalResult createDequantizePerTokenTensor(
+    ConversionPatternRewriter &rewriter, Location loc, Value input, Value scale,
+    Value zeroPoint, Value &output, FloatType outFloatTy = nullptr);
 
 } // namespace mlir::torch::onnx_c
 

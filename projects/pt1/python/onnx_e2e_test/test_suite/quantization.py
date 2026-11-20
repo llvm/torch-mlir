@@ -1127,3 +1127,300 @@ class OnnxQLinearConv_nonPoT(_QLinearConv):
     @annotate_inputs([("x", torch.int8, [1, 8, 6, 6], (-128, 128))])
     def graph(self):
         return super().graph()
+
+
+# ==============================================================================
+# QLinearMatMul (default ONNX domain)
+# ==============================================================================
+#
+# The reference evaluator (numpy) wraps around on overflow while the lowering
+# saturates as the ONNX spec requires. The scales and input ranges below keep
+# the rescaled accumulator well inside the output range so that both agree:
+# inputs stay within +-30 of their zero point, K is 3, so |acc| <= 2700 and
+# a_scale * b_scale / y_scale = 0.04 gives |result - y_zp| <= 108.
+
+
+class _QLinearMatMul(OnnxTestCase):
+    """Base for QLinearMatMul tests: y = quantize(matmul(deq(a), deq(b))).
+
+    Subclasses set the quantization parameters (numpy scalars, or arrays for
+    per-row (a) and per-column (b) parameters). The dtype of each parameter
+    set follows the dtype of its zero point.
+    """
+
+    a_scale = np.float32(0.05)
+    a_zp = np.uint8(120)
+    b_scale = np.float32(0.04)
+    b_zp = np.uint8(130)
+    y_scale = np.float32(0.05)
+    y_zp = np.uint8(125)
+
+    def graph(self):
+        node = onnx.helper.make_node(
+            "QLinearMatMul",
+            ["a", "a_scale", "a_zp", "b", "b_scale", "b_zp", "y_scale", "y_zp"],
+            ["y"],
+        )
+        initializers = [
+            onnx.numpy_helper.from_array(np.asarray(getattr(self, name)), name=name)
+            for name in ("a_scale", "a_zp", "b_scale", "b_zp", "y_scale", "y_zp")
+        ]
+        return [node], ["y"], initializers
+
+
+class _QLinearMatMulI8(_QLinearMatMul):
+    a_zp = np.int8(-5)
+    b_zp = np.int8(3)
+    y_zp = np.int8(-2)
+
+
+_A_UI8 = (90, 150)  # a_zp (120) +- 30
+_B_UI8 = (100, 160)  # b_zp (130) +- 30
+_A_I8 = (-35, 25)  # a_zp (-5) +- 30
+_B_I8 = (-27, 33)  # b_zp (3) +- 30
+
+
+@register_onnx_test
+class QLinearMatMul_ui8_basic(_QLinearMatMul):
+    @annotate_inputs(
+        [
+            ("a", torch.uint8, [4, 3], _A_UI8),
+            ("b", torch.uint8, [3, 5], _B_UI8),
+        ]
+    )
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class QLinearMatMul_i8_basic(_QLinearMatMulI8):
+    @annotate_inputs(
+        [
+            ("a", torch.int8, [4, 3], _A_I8),
+            ("b", torch.int8, [3, 5], _B_I8),
+        ]
+    )
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class QLinearMatMul_i8_largeK(_QLinearMatMulI8):
+    # K = 4096 with inputs near the top of the int8 range: the int32
+    # accumulator is about 6e7, well past 2^24, where a sequential f32
+    # accumulation can no longer represent every integer. The lowering
+    # dequantizes and multiplies in f64 so the accumulator stays exact. This
+    # is a smoke test for large accumulators; it is not guaranteed to fail
+    # with an f32 lowering because backends may sum pairwise. The power-of-two
+    # scales keep the rescaled result (about 60 steps) inside the int8 range.
+    a_scale = np.float32(1.0 / 64)
+    b_scale = np.float32(1.0 / 64)
+    y_scale = np.float32(256.0)
+
+    @annotate_inputs(
+        [
+            ("a", torch.int8, [2, 4096], (120, 127)),
+            ("b", torch.int8, [4096, 3], (120, 127)),
+        ]
+    )
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class QLinearMatMul_i8_perColumnB(_QLinearMatMulI8):
+    # One scale / zero point per column of b (shape [N]).
+    b_scale = np.array([0.02, 0.03, 0.04, 0.03, 0.02], dtype=np.float32)
+    b_zp = np.array([-3, 0, 2, 5, -7], dtype=np.int8)
+
+    @annotate_inputs(
+        [
+            ("a", torch.int8, [4, 3], _A_I8),
+            ("b", torch.int8, [3, 5], (-30, 30)),
+        ]
+    )
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class QLinearMatMul_i8_perRowA(_QLinearMatMulI8):
+    # One scale / zero point per row of a, given as [M, 1] so that the
+    # reference evaluator broadcasts them along the rows of a.
+    a_scale = np.array([[0.02], [0.03], [0.04], [0.05]], dtype=np.float32)
+    a_zp = np.array([[-3], [0], [2], [-5]], dtype=np.int8)
+
+    @annotate_inputs(
+        [
+            ("a", torch.int8, [4, 3], (-30, 30)),
+            ("b", torch.int8, [3, 5], _B_I8),
+        ]
+    )
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class QLinearMatMul_i8_batched(_QLinearMatMulI8):
+    # Rank-4 a with a rank-3 b whose batch dim broadcasts against a's.
+    @annotate_inputs(
+        [
+            ("a", torch.int8, [2, 3, 4, 3], _A_I8),
+            ("b", torch.int8, [3, 3, 5], _B_I8),
+        ]
+    )
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class QLinearMatMul_i8_vectorA(_QLinearMatMulI8):
+    # 1-D a behaves like numpy.matmul: [K] x [K, N] -> [N].
+    @annotate_inputs(
+        [
+            ("a", torch.int8, [3], _A_I8),
+            ("b", torch.int8, [3, 5], _B_I8),
+        ]
+    )
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class QLinearMatMul_ui8_i8_mixed(_QLinearMatMul):
+    # a is uint8, b and y are int8.
+    b_zp = np.int8(3)
+    y_zp = np.int8(-2)
+
+    @annotate_inputs(
+        [
+            ("a", torch.uint8, [4, 3], _A_UI8),
+            ("b", torch.int8, [3, 5], _B_I8),
+        ]
+    )
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class QLinearMatMul_i8_vectorB(_QLinearMatMulI8):
+    # 1-D b behaves like numpy.matmul: [M, K] x [K] -> [M].
+    @annotate_inputs(
+        [
+            ("a", torch.int8, [4, 3], _A_I8),
+            ("b", torch.int8, [3], _B_I8),
+        ]
+    )
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class QLinearMatMul_i8_batchedA_vectorB(_QLinearMatMulI8):
+    # Batched a with a 1-D b: [B, M, K] x [K] -> [B, M].
+    @annotate_inputs(
+        [
+            ("a", torch.int8, [2, 4, 3], _A_I8),
+            ("b", torch.int8, [3], _B_I8),
+        ]
+    )
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class QLinearMatMul_i8_vectorA_vectorB(_QLinearMatMulI8):
+    # Both operands 1-D: [K] x [K] -> scalar.
+    @annotate_inputs(
+        [
+            ("a", torch.int8, [3], _A_I8),
+            ("b", torch.int8, [3], _B_I8),
+        ]
+    )
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class QLinearMatMul_i8_batchedParamsB(_QLinearMatMulI8):
+    # Per-column parameters that also differ per batch of b: [B, 1, N].
+    b_scale = np.array(
+        [[[0.02, 0.03, 0.04, 0.03, 0.02]], [[0.04, 0.03, 0.02, 0.03, 0.04]]],
+        dtype=np.float32,
+    )
+    b_zp = np.array([[[-3, 0, 2, 5, -7]], [[4, -1, 0, 3, 6]]], dtype=np.int8)
+
+    @annotate_inputs(
+        [
+            ("a", torch.int8, [2, 4, 3], _A_I8),
+            ("b", torch.int8, [2, 3, 5], (-30, 30)),
+        ]
+    )
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class QLinearMatMul_i8_batchedParamsA(_QLinearMatMulI8):
+    # Per-row parameters that also differ per batch of a: [B, M, 1].
+    a_scale = np.array(
+        [[[0.02], [0.03], [0.04], [0.05]], [[0.05], [0.04], [0.03], [0.02]]],
+        dtype=np.float32,
+    )
+    a_zp = np.array([[[-3], [0], [2], [-5]], [[1], [-2], [4], [0]]], dtype=np.int8)
+
+    @annotate_inputs(
+        [
+            ("a", torch.int8, [2, 4, 3], (-30, 30)),
+            ("b", torch.int8, [2, 3, 5], _B_I8),
+        ]
+    )
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class QLinearMatMul_i8_batchedParamsAB(_QLinearMatMulI8):
+    # Batched parameters on both operands.
+    a_scale = np.array(
+        [[[0.02], [0.03], [0.04], [0.05]], [[0.05], [0.04], [0.03], [0.02]]],
+        dtype=np.float32,
+    )
+    a_zp = np.array([[[-3], [0], [2], [-5]], [[1], [-2], [4], [0]]], dtype=np.int8)
+    b_scale = np.array(
+        [[[0.02, 0.03, 0.04, 0.03, 0.02]], [[0.04, 0.03, 0.02, 0.03, 0.04]]],
+        dtype=np.float32,
+    )
+    b_zp = np.array([[[-3, 0, 2, 5, -7]], [[4, -1, 0, 3, 6]]], dtype=np.int8)
+    # y_scale is chosen so that no output element sits near a rounding tie.
+    # With the default 0.05, one element is ~2e-7 from a tie: the ONNX
+    # reference evaluator rounds its f32 requantization constant
+    # (a_scale * b_scale / y_scale) the other way from the
+    # dequantize -> matmul -> quantize lowering, giving an off-by-one result.
+    y_scale = np.float32(0.052)
+
+    @annotate_inputs(
+        [
+            ("a", torch.int8, [2, 4, 3], (-30, 30)),
+            ("b", torch.int8, [2, 3, 5], (-30, 30)),
+        ]
+    )
+    def graph(self):
+        return super().graph()
+
+
+@register_onnx_test
+class QLinearMatMul_i8_f16Scales(_QLinearMatMulI8):
+    # Scales given as float16 (allowed since opset 21).
+    a_scale = np.float16(0.05)
+    b_scale = np.float16(0.04)
+    y_scale = np.float16(0.05)
+
+    @annotate_inputs(
+        [
+            ("a", torch.int8, [4, 3], _A_I8),
+            ("b", torch.int8, [3, 5], _B_I8),
+        ]
+    )
+    def graph(self):
+        return super().graph()

@@ -19,14 +19,14 @@ using namespace mlir::torch::onnx_c;
 
 namespace {
 
-// A successful match supplies everything needed to build DQ without inspecting
-// or classifying the input/qparam types again. Matching does not create IR.
+// A successful match supplies everything needed to build DQ without
+// classifying the qparam types again. Matching does not create IR. The storage
+// dtype, quantization bounds and result type are derived from `input` by the
+// shared dequantize helpers in Utils.
 struct QuantizedTensorInfo {
   Value input;
   Value scale;
   Value zeroPoint;
-  IntegerType storageDtype;
-  Torch::ValueTensorType floatType;
   int64_t axis;
   int64_t columns;
   int64_t scaleLength;
@@ -103,13 +103,9 @@ matchQuantizedTensor(OpBinder binder, ConversionPatternRewriter &rewriter,
   // The spec's per-column parameters index the last input dimension,
   // independently for A and B, including when the inputs are batched.
   int64_t axis = inputType.getSizes().size() - 1;
-  auto floatType = cast<Torch::ValueTensorType>(inputType.getWithSizesAndDtype(
-      inputType.getSizes(), rewriter.getF32Type()));
   return QuantizedTensorInfo{input,
                              scale,
                              zeroPoint,
-                             cast<IntegerType>(inputType.getDtype()),
-                             floatType,
                              axis,
                              columns,
                              *scaleLength,
@@ -123,14 +119,15 @@ matchQuantizedTensor(OpBinder binder, ConversionPatternRewriter &rewriter,
 // when the other qparam is per-column, preserving its runtime value.
 Value expandScalarQParam(ConversionPatternRewriter &rewriter, Location loc,
                          const QuantizedTensorInfo &info, Value param,
-                         Type dtype, Value axis) {
+                         Value axis) {
   Value size = Torch::AtenSizeIntOp::create(rewriter, loc, info.input, axis);
   Value sizes = Torch::PrimListConstructOp::create(
       rewriter, loc,
       rewriter.getType<Torch::ListType>(rewriter.getType<Torch::IntType>()),
       SmallVector<Value>{size});
+  auto paramType = cast<Torch::ValueTensorType>(param.getType());
   auto expandedType = rewriter.getType<Torch::ValueTensorType>(
-      ArrayRef<int64_t>{info.columns}, dtype);
+      ArrayRef<int64_t>{info.columns}, paramType.getOptionalDtype());
   Value implicit = Torch::ConstantBoolOp::create(rewriter, loc, false);
   return Torch::AtenExpandOp::create(rewriter, loc, expandedType, param, sizes,
                                      implicit);
@@ -154,36 +151,37 @@ void assertQParamLength(ConversionPatternRewriter &rewriter, Location loc,
                              "must match input's last dimension"));
 }
 
-Value createMatMulIntegerToFloatDequantize(ConversionPatternRewriter &rewriter,
-                                           Location loc,
-                                           const QuantizedTensorInfo &info) {
-  // DQ(input) = (cast<f32>(input) - zero_point) * scale.
-  auto [quantMin, quantMax] =
-      createQuantizationBounds(rewriter, loc, info.storageDtype);
-  Value dtype =
-      Torch::getDtypeIntValueForType(rewriter, loc, info.storageDtype);
-  Value outDtype =
-      Torch::getDtypeIntValueForType(rewriter, loc, info.floatType.getDtype());
+// DQ(input) = (cast<f32>(input) - zero_point) * scale, built with the shared
+// PT2E dequantize helpers. Matching has already verified the input and qparam
+// types, so the helpers are not expected to fail.
+FailureOr<Value>
+createMatMulIntegerToFloatDequantize(ConversionPatternRewriter &rewriter,
+                                     Location loc,
+                                     const QuantizedTensorInfo &info) {
+  FloatType outFloatTy = rewriter.getF32Type();
   Value scale = info.scale;
   Value zeroPoint = info.zeroPoint;
+  Value output;
 
   if (info.isPerTensor()) {
     // ONNX carries scalar qparams as tensors, but the PT2E per-tensor op
-    // accepts Torch scalars. Item keeps runtime qparams as SSA operands.
-    scale = Torch::AtenItemOp::create(
-        rewriter, loc, rewriter.getType<Torch::FloatType>(), scale);
-    if (zeroPoint) {
-      zeroPoint = Torch::AtenItemOp::create(
-          rewriter, loc, rewriter.getType<Torch::IntType>(), zeroPoint);
-    } else {
-      zeroPoint = Torch::ConstantIntOp::create(rewriter, loc, 0);
-    }
-    return Torch::QuantizedDecomposedDequantizePerTensorOp::create(
-        rewriter, loc, info.floatType, info.input, scale, zeroPoint, quantMin,
-        quantMax, dtype, outDtype);
+    // accepts Torch scalars. A missing zero point becomes the constant 0.
+    if (failed(extractPerTensorQuantizationArguments(
+            rewriter, loc, scale, zeroPoint, scale, zeroPoint)) ||
+        failed(createDequantizeTensor(rewriter, loc, info.input, scale,
+                                      zeroPoint, output, outFloatTy)))
+      return failure();
+    return output;
   }
 
-  Value axis = Torch::ConstantIntOp::create(rewriter, loc, info.axis);
+  // The per-column path only needs the axis as an SSA value to query the
+  // column count, i.e. for runtime length checks and scalar qparam expansion.
+  bool needsColumns = info.columns == Torch::kUnknownSize ||
+                      info.scaleIsScalar ||
+                      (zeroPoint && info.zeroPointIsScalar);
+  Value axis;
+  if (needsColumns)
+    axis = Torch::ConstantIntOp::create(rewriter, loc, info.axis);
   if (info.columns == Torch::kUnknownSize) {
     Value columns =
         Torch::AtenSizeIntOp::create(rewriter, loc, info.input, axis);
@@ -200,21 +198,21 @@ Value createMatMulIntegerToFloatDequantize(ConversionPatternRewriter &rewriter,
     }
   }
   if (info.scaleIsScalar) {
-    scale = expandScalarQParam(rewriter, loc, info, scale,
-                               info.floatType.getDtype(), axis);
+    scale = expandScalarQParam(rewriter, loc, info, scale, axis);
   }
   if (zeroPoint) {
     if (info.zeroPointIsScalar) {
-      zeroPoint = expandScalarQParam(rewriter, loc, info, zeroPoint,
-                                     info.storageDtype, axis);
+      zeroPoint = expandScalarQParam(rewriter, loc, info, zeroPoint, axis);
     }
   } else {
     // None is PT2E per-channel DQ's representation of a zero zero point.
     zeroPoint = Torch::ConstantNoneOp::create(rewriter, loc);
   }
-  return Torch::QuantizedDecomposedDequantizePerChannelOp::create(
-      rewriter, loc, info.floatType, info.input, scale, zeroPoint, axis,
-      quantMin, quantMax, dtype, outDtype);
+  if (failed(createDequantizePerChannelTensor(rewriter, loc, info.input, scale,
+                                              zeroPoint, info.axis, output,
+                                              outFloatTy)))
+    return failure();
+  return output;
 }
 
 } // namespace
@@ -739,15 +737,23 @@ void mlir::torch::onnx_c::populateComMicrosoftDomain(
         }
 
         Location loc = binder.getLoc();
-        Value aFloat =
+        // All match failures are detected above. These checks are defensive
+        // only, since the shared helpers accept every matched input.
+        FailureOr<Value> aFloat =
             createMatMulIntegerToFloatDequantize(rewriter, loc, *aInfo);
-        Value bFloat =
+        if (failed(aFloat))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "failed to dequantize A");
+        FailureOr<Value> bFloat =
             createMatMulIntegerToFloatDequantize(rewriter, loc, *bInfo);
+        if (failed(bFloat))
+          return rewriter.notifyMatchFailure(binder.op,
+                                             "failed to dequantize B");
         // A_f = DQ(A); B_f = DQ(B); Y = matmul(A_f, B_f) [+ bias].
         // The inputs are already quantized and the result is float, so there
         // is no output quantization boundary to create.
         Value result = Torch::AtenMatmulOp::create(rewriter, loc, resultType,
-                                                   aFloat, bFloat);
+                                                   *aFloat, *bFloat);
         if (bias) {
           Value one = Torch::ConstantIntOp::create(rewriter, loc, 1);
           result = Torch::AtenAddTensorOp::create(rewriter, loc, resultType,
