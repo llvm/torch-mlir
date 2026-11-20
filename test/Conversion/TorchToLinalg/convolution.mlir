@@ -207,3 +207,29 @@ func.func @tranConv2dNegativeAndPositivePadding(%arg0: !torch.vtensor<[1,1,4,7],
   %4 = torch.aten.convolution %arg0, %arg1, %arg2, %0, %1, %2, %true, %3, %int1 : !torch.vtensor<[1,1,4,7],f32>, !torch.vtensor<[1,2,3,3],f32>, !torch.vtensor<[2],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,2,15,21],f32>
   return %4 : !torch.vtensor<[1,2,15,21],f32>
 }
+
+// The output padding of 2 exceeds the crop of 1, so the buffer is one column
+// wider than the strided input.
+// CHECK-LABEL:   func.func @tranConv2dNegativePaddingOutputPadding(
+// CHECK-SAME:                                                      %[[INPUT_VTENSOR:.*]]: !torch.vtensor<[1,1,4,7],f32>,
+// CHECK-SAME:                                                      %[[WEIGHTS_VTENSOR:.*]]: !torch.vtensor<[1,2,3,3],f32>,
+// CHECK-SAME:                                                      %[[BIAS_VTENSOR:.*]]: !torch.vtensor<[2],f32>) -> !torch.vtensor<[1,2,6,23],f32> {
+// CHECK:           %[[INPUT_TENSOR:.*]] = torch_c.to_builtin_tensor %[[INPUT_VTENSOR]] : !torch.vtensor<[1,1,4,7],f32> -> tensor<1x1x4x7xf32>
+// CHECK:           %[[EMPTY_UNSTRIDED_TENSOR:.*]] = tensor.empty() : tensor<1x1x8x26xf32>
+// CHECK:           %[[ZEROS_UNSTRIDED_TENSOR:.*]] = linalg.fill ins(%{{.*}} : f32) outs(%[[EMPTY_UNSTRIDED_TENSOR]] : tensor<1x1x8x26xf32>) -> tensor<1x1x8x26xf32>
+// CHECK:           %[[INPUT_UNSTRIDED_TENSOR:.*]] = tensor.insert_slice %[[INPUT_TENSOR]] into %[[ZEROS_UNSTRIDED_TENSOR]][0, 0, 2, 0] [1, 1, 4, 7] [1, 1, 1, 4] : tensor<1x1x4x7xf32> into tensor<1x1x8x26xf32>
+// CHECK:           %[[CROPPED_UNSTRIDED_TENSOR:.*]] = tensor.extract_slice %[[INPUT_UNSTRIDED_TENSOR]][0, 0, 0, 1] [1, 1, 8, 25] [1, 1, 1, 1] : tensor<1x1x8x26xf32> to tensor<1x1x8x25xf32>
+func.func @tranConv2dNegativePaddingOutputPadding(%arg0: !torch.vtensor<[1,1,4,7],f32>, %arg1: !torch.vtensor<[1,2,3,3],f32>, %arg2: !torch.vtensor<[2],f32>) -> !torch.vtensor<[1,2,6,23],f32> {
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %int0 = torch.constant.int 0
+  %int4 = torch.constant.int 4
+  %true = torch.constant.bool true
+  %0 = torch.prim.ListConstruct %int1, %int4 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.prim.ListConstruct %int0, %int3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %3 = torch.prim.ListConstruct %int0, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
+  %4 = torch.aten.convolution %arg0, %arg1, %arg2, %0, %1, %2, %true, %3, %int1 : !torch.vtensor<[1,1,4,7],f32>, !torch.vtensor<[1,2,3,3],f32>, !torch.vtensor<[2],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,2,6,23],f32>
+  return %4 : !torch.vtensor<[1,2,6,23],f32>
+}
