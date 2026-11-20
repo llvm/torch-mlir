@@ -18,6 +18,8 @@ import onnx.helper
 
 from torch_mlir.compiler_utils import TensorPlaceholder
 
+from .utils import has_default_domain_contrib_op
+
 # ---------------------------------------------------------------------------
 # OnnxTest — the fundamental test descriptor
 # ---------------------------------------------------------------------------
@@ -80,15 +82,16 @@ def build_model(
         initializers: Optional list of ``onnx.TensorProto`` weight tensors.
         opset: ONNX opset version (default ``_DEFAULT_OPSET``).
         ir_version: ONNX IR version (default ``_DEFAULT_IR_VERSION``).
-        validate: Run ``onnx.checker.check_model`` (default True).  Set False
-            for the pass-1 probe model, whose outputs are intentionally
-            shapeless (the checker requires a shape).
+        validate: Run ``onnx.checker.check_model`` (default True), except on
+            graphs with contrib ops of the default domain, which the checker
+            rejects.  Set False for the pass-1 probe model, whose outputs are
+            intentionally shapeless (the checker requires a shape).
         extra_opsets: Additional operator domains and their versions.
         value_infos: Optional list of ``onnx.ValueInfoProto`` objects typing
             intermediate (non-input, non-output) tensors.
 
     Returns:
-        An ``onnx.ModelProto`` (validated unless ``validate`` is False).
+        An ``onnx.ModelProto``, validated as described for ``validate``.
     """
     graph = onnx.helper.make_graph(
         nodes=nodes,
@@ -107,7 +110,7 @@ def build_model(
         ],
         ir_version=ir_version,
     )
-    if validate:
+    if validate and not has_default_domain_contrib_op(model):
         onnx.checker.check_model(model)
     return model
 
