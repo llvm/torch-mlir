@@ -75,6 +75,13 @@ ONNX_E2E_TOSA_XFAIL_SET = {
     "OnnxRNN_thresholdedrelu_at_alpha",
     # OnnxSTFT_onesided_basic: STFT has no torch -> tosa lowering.
     "OnnxSTFT_onesided_basic",
+    # OnnxRotaryEmbedding_*: RotaryEmbedding has no torch -> tosa lowering.
+    "OnnxRotaryEmbedding_3d_dynamic",
+    "OnnxRotaryEmbedding_4d",
+    "OnnxRotaryEmbedding_interleaved",
+    "OnnxRotaryEmbedding_partialRotaryDim",
+    "OnnxRotaryEmbedding_positionOffset",
+    "OnnxRotaryEmbedding_scale",
     # OnnxAveragePool2d_countIncludePad_asymmetricPadsDilated: tosa.avg_pool2d
     # has no dilation, so the torch -> tosa pooling lowering rejects it.
     "OnnxAveragePool2d_countIncludePad_asymmetricPadsDilated",
