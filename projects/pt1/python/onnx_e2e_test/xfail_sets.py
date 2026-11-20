@@ -120,6 +120,10 @@ ONNX_E2E_TOSA_XFAIL_SET = {
     # OnnxQLinearConv_ui8_basic: TOSA mishandles uint8 inputs above 127.
     # Keep the full unsigned range in these tests to expose it.
     "OnnxQLinearConv_ui8_basic",
+    # OnnxAttention_unidirectionalDynamicSeq: TorchToTosa cannot lower
+    # aten.slice.Tensor on a tensor with a dynamic (sequence) dimension, which
+    # the fused QKV split produces. Passes on linalg.
+    "OnnxAttention_unidirectionalDynamicSeq",
 }
 
 
