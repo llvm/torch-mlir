@@ -199,3 +199,72 @@ class IndexSelectDynamicIndexSizeModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: IndexSelectDynamicIndexSizeModule())
 def IndexSelectDynamicIndexSizeModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(4, 5, 6), torch.tensor([1, 2]))
+
+
+# The tests below include the first and last valid index along the selected
+# dimension. They check that the bounds checks accept every index in
+# [0, size(dim)) and compare against the size of the selected input
+# dimension.
+
+
+class IndexSelectBoundaryIdxModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 5, 6], torch.float32, True),
+            ([3], torch.int64, True),
+        ]
+    )
+    def forward(self, input, indices):
+        return torch.index_select(input, 1, indices)
+
+
+@register_test_case(module_factory=lambda: IndexSelectBoundaryIdxModule())
+def IndexSelectBoundaryIdxModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 5, 6), torch.tensor([4, 0, 4]))
+
+
+class IndexSelectMoreIdxThanDimSizeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([4, 5, 6], torch.float32, True),
+            ([7], torch.int64, True),
+        ]
+    )
+    def forward(self, input, indices):
+        return torch.index_select(input, 0, indices)
+
+
+@register_test_case(module_factory=lambda: IndexSelectMoreIdxThanDimSizeModule())
+def IndexSelectMoreIdxThanDimSizeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 5, 6), torch.tensor([3, 3, 0, 1, 2, 3, 0]))
+
+
+class IndexSelectDynamicBoundaryIdxModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+            ([-1], torch.int64, True),
+        ]
+    )
+    def forward(self, input, indices):
+        return torch.index_select(input, 2, indices)
+
+
+@register_test_case(module_factory=lambda: IndexSelectDynamicBoundaryIdxModule())
+def IndexSelectDynamicBoundaryIdxModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4, 5, 6), torch.tensor([5, 0, 5]))
