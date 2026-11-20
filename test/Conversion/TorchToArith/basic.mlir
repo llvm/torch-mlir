@@ -222,6 +222,27 @@ func.func @torch.aten.sub.int(%arg0: !torch.int, %arg1: !torch.int) -> !torch.in
   return %0 : !torch.int
 }
 
+// CHECK-LABEL:  func.func @torch.aten.remainder.int(
+// CHECK-SAME:                            %[[LHS:.*]]: !torch.int,
+// CHECK-SAME:                            %[[RHS:.*]]: !torch.int) -> !torch.int {
+// CHECK-DAG:      %[[LHS_I64:.*]] = torch_c.to_i64 %[[LHS]]
+// CHECK-DAG:      %[[RHS_I64:.*]] = torch_c.to_i64 %[[RHS]]
+// CHECK:          %[[REM:.*]] = arith.remsi %[[LHS_I64]], %[[RHS_I64]] : i64
+// CHECK:          %[[ZERO:.*]] = arith.constant 0 : i64
+// CHECK:          %[[REM_NE_ZERO:.*]] = arith.cmpi ne, %[[REM]], %[[ZERO]] : i64
+// CHECK:          %[[RHS_NEG:.*]] = arith.cmpi slt, %[[RHS_I64]], %[[ZERO]] : i64
+// CHECK:          %[[REM_NEG:.*]] = arith.cmpi slt, %[[REM]], %[[ZERO]] : i64
+// CHECK:          %[[SIGNS_DIFFER:.*]] = arith.xori %[[RHS_NEG]], %[[REM_NEG]] : i1
+// CHECK:          %[[NEEDS_FIX:.*]] = arith.andi %[[REM_NE_ZERO]], %[[SIGNS_DIFFER]] : i1
+// CHECK:          %[[FIXED:.*]] = arith.addi %[[REM]], %[[RHS_I64]] : i64
+// CHECK:          %[[RESULT:.*]] = arith.select %[[NEEDS_FIX]], %[[FIXED]], %[[REM]] : i64
+// CHECK:          %[[OUT:.*]] = torch_c.from_i64 %[[RESULT]]
+// CHECK:          return %[[OUT]] : !torch.int
+func.func @torch.aten.remainder.int(%arg0: !torch.int, %arg1: !torch.int) -> !torch.int {
+  %0 = torch.aten.remainder.int %arg0, %arg1 : !torch.int, !torch.int -> !torch.int
+  return %0 : !torch.int
+}
+
 // CHECK-LABEL:  func.func @torch.aten.add.float(
 // CHECK-SAME:                            %[[LHS:.*]]: !torch.float,
 // CHECK-SAME:                            %[[RHS:.*]]: !torch.float) -> !torch.float {

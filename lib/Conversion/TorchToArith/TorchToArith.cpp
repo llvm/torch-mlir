@@ -111,6 +111,23 @@ public:
 } // namespace
 
 namespace {
+/// Lowers `aten.remainder.int`: a non-zero result takes the sign of the
+/// divisor.
+class ConvertAtenRemainderIntOp
+    : public OpConversionPattern<AtenRemainderIntOp> {
+public:
+  using OpConversionPattern::OpConversionPattern;
+  LogicalResult
+  matchAndRewrite(AtenRemainderIntOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    rewriter.replaceOp(op, createRemainder(rewriter, op.getLoc(),
+                                           adaptor.getA(), adaptor.getB()));
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class ConvertAtenNotOp : public OpConversionPattern<Aten__Not__Op> {
 public:
   using OpConversionPattern<Aten__Not__Op>::OpConversionPattern;
@@ -539,8 +556,7 @@ public:
                         AtenMulFloatIntOp>();
     patterns.add<ConvertAtenBinaryOp<AtenAddIntOp, arith::AddIOp>>(
         typeConverter, context);
-    patterns.add<ConvertAtenBinaryOp<AtenRemainderIntOp, arith::RemSIOp>>(
-        typeConverter, context);
+    patterns.add<ConvertAtenRemainderIntOp>(typeConverter, context);
     patterns.add<ConvertAtenBinaryOp<AtenAddFloatIntOp, arith::AddFOp>>(
         typeConverter, context);
     patterns.add<ConvertAtenBinaryOp<AtenSubIntOp, arith::SubIOp>>(
