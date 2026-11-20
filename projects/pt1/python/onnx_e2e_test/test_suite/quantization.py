@@ -210,6 +210,21 @@ class OnnxMatMulIntegerToFloat_dynamicColumns(_MatMulIntegerToFloat):
         return super().graph()
 
 
+@register_onnx_test
+class OnnxMatMulIntegerToFloat_f16(_MatMulIntegerToFloat):
+    # f16 scales, bias and result. ONNX Runtime computes in f32 and rounds once
+    # at the end, so the bias is added before the rounding.
+    optional_inputs = ("a_zero_point", "", "bias")
+    a_scale = np.array(0.0137, dtype=np.float16)
+    b_scale = np.array([0.31, 0.047, 1.9, 0.27, 0.83], dtype=np.float16)
+    a_zero_point = np.array(131, dtype=np.uint8)
+    bias = np.array([-2.7, -0.4, 0.0, 1.3, 3.1], dtype=np.float16)
+
+    @annotate_inputs([("a", torch.uint8, [4, 3], (0, 256))])
+    def graph(self):
+        return super().graph()
+
+
 # ==============================================================================
 # QLinear binary elementwise ops (QLinearAdd, QLinearMul)
 # ==============================================================================
