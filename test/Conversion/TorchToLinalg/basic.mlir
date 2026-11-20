@@ -621,6 +621,25 @@ func.func @torch.onnx.rotary_embedding$rank4(%arg0: !torch.vtensor<[1,3,2,6],f32
 
 // -----
 
+// A rank-4 input with a dynamic batch and seq keeps both dims dynamic.
+// CHECK-DAG: #[[$ID:.+]] = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>
+// CHECK-DAG: #[[$POS:.+]] = affine_map<(d0, d1, d2, d3) -> (d0, d2)>
+// CHECK-LABEL:   func.func @torch.onnx.rotary_embedding$rank4_dynamic(
+// CHECK:           %[[INPUT:.*]] = torch_c.to_builtin_tensor %arg0 : !torch.vtensor<[?,1,?,6],f32> -> tensor<?x1x?x6xf32>
+// CHECK:           %[[BATCH:.*]] = tensor.dim %[[INPUT]], %{{.*}} : tensor<?x1x?x6xf32>
+// CHECK:           %[[SEQ:.*]] = tensor.dim %[[INPUT]], %{{.*}} : tensor<?x1x?x6xf32>
+// CHECK:           %[[EMPTY:.*]] = tensor.empty(%[[BATCH]], %[[SEQ]]) : tensor<?x1x?x6xf32>
+// CHECK:           %[[ROTARY:.*]] = linalg.generic {indexing_maps = [#[[$ID]], #[[$POS]], #[[$ID]]], {{.*}}} ins(%[[INPUT]], %{{.*}} : tensor<?x1x?x6xf32>, tensor<?x?xi64>) outs(%[[EMPTY]] : tensor<?x1x?x6xf32>)
+// CHECK:           tensor.cast %[[ROTARY]] : tensor<?x1x?x6xf32> to tensor<?x1x?x6xf32>
+func.func @torch.onnx.rotary_embedding$rank4_dynamic(%arg0: !torch.vtensor<[?,1,?,6],f32>, %arg1: !torch.vtensor<[?,?],si64>, %arg2: !torch.vtensor<[4,3],f32>, %arg3: !torch.vtensor<[4,3],f32>) -> !torch.vtensor<[?,1,?,6],f32> {
+  %int0 = torch.constant.int 0
+  %float = torch.constant.float 1.000000e+00
+  %0 = torch.onnx.rotary_embedding %arg0, %arg1, %arg2, %arg3, %int0, %int0, %int0, %int0, %float : !torch.vtensor<[?,1,?,6],f32>, !torch.vtensor<[?,?],si64>, !torch.vtensor<[4,3],f32>, !torch.vtensor<[4,3],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor<[?,1,?,6],f32>
+  return %0 : !torch.vtensor<[?,1,?,6],f32>
+}
+
+// -----
+
 // A rank-3 input (batch, seq, num_heads * head_size) is expanded to
 // (batch, seq, num_heads, head_size) with position_ids indexing dims 0 and 1.
 // CHECK-DAG: #[[$ID:.+]] = affine_map<(d0, d1, d2, d3) -> (d0, d1, d2, d3)>
@@ -647,11 +666,20 @@ func.func @torch.onnx.rotary_embedding$rank3_dynamic(%arg0: !torch.vtensor<[?,?,
 // indices from rotary_embedding_dim on keep the input.
 // CHECK-LABEL:   func.func @torch.onnx.rotary_embedding$interleaved_partial(
 // CHECK:           %[[ROT_DIM:.*]] = arith.constant 4 : index
+// CHECK:           %[[HALF_ROT_DIM:.*]] = arith.constant 2 : index
 // CHECK:           linalg.generic
 // CHECK:           ^bb0(%[[IN:.*]]: f32, %{{.*}}: i64, %{{.*}}: f32):
 // CHECK:             %[[H:.*]] = linalg.index 3 : index
+// CHECK:             %[[PAIR:.*]] = arith.divsi %[[H]], %{{.*}} : index
+// CHECK:             %[[CACHE_IDX:.*]] = arith.remsi %[[PAIR]], %[[HALF_ROT_DIM]] : index
 // CHECK:             %[[ODD:.*]] = arith.andi %[[H]], %{{.*}} : index
 // CHECK:             %[[SIGN:.*]] = arith.index_cast %[[ODD]] : index to i1
+// CHECK:             %[[PREV:.*]] = arith.subi %[[H]], %{{.*}} : index
+// CHECK:             %[[NEXT:.*]] = arith.addi %[[H]], %{{.*}} : index
+// CHECK:             %[[J:.*]] = arith.select %[[SIGN]], %[[PREV]], %[[NEXT]] : index
+// CHECK:             tensor.extract %{{.*}}{{\[}}%{{.*}}, %[[CACHE_IDX]]] : tensor<8x2xf32>
+// CHECK:             tensor.extract %{{.*}}{{\[}}%{{.*}}, %[[CACHE_IDX]]] : tensor<8x2xf32>
+// CHECK:             tensor.extract %{{.*}}{{\[}}%{{.*}}, %{{.*}}, %{{.*}}, %[[J]]] : tensor<1x2x3x8xf32>
 // CHECK:             %[[OUT:.*]] = arith.select %[[SIGN]], %{{.*}}, %{{.*}} : f32
 // CHECK:             %[[IS_ROTATED:.*]] = arith.cmpi slt, %[[H]], %[[ROT_DIM]] : index
 // CHECK:             %[[RESULT:.*]] = arith.select %[[IS_ROTATED]], %[[OUT]], %[[IN]] : f32
@@ -698,6 +726,19 @@ func.func @torch.onnx.rotary_embedding$no_convert$hidden_size(%arg0: !torch.vten
 
 // -----
 
+// rotary_embedding_dim without num_heads is rejected, since a rank-3 input
+// would take its head size from the cache, which only covers the rotated part.
+func.func @torch.onnx.rotary_embedding$no_convert$missing_num_heads(%arg0: !torch.vtensor<[1,2,16],f32>, %arg1: !torch.vtensor<[1,2],si64>, %arg2: !torch.vtensor<[8,2],f32>, %arg3: !torch.vtensor<[8,2],f32>) -> !torch.vtensor<[1,2,16],f32> {
+  %int0 = torch.constant.int 0
+  %int4 = torch.constant.int 4
+  %float = torch.constant.float 1.000000e+00
+  // expected-error @+1 {{failed to legalize operation 'torch.onnx.rotary_embedding'}}
+  %0 = torch.onnx.rotary_embedding %arg0, %arg1, %arg2, %arg3, %int0, %int0, %int0, %int4, %float : !torch.vtensor<[1,2,16],f32>, !torch.vtensor<[1,2],si64>, !torch.vtensor<[8,2],f32>, !torch.vtensor<[8,2],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor<[1,2,16],f32>
+  return %0 : !torch.vtensor<[1,2,16],f32>
+}
+
+// -----
+
 // An empty cos_cache is rejected, since the head size derived from it is 0.
 func.func @torch.onnx.rotary_embedding$no_convert$empty_cache(%arg0: !torch.vtensor<[1,2,8],f32>, %arg1: !torch.vtensor<[1,2],si64>, %arg2: !torch.vtensor<[4,0],f32>, %arg3: !torch.vtensor<[4,0],f32>) -> !torch.vtensor<[1,2,8],f32> {
   %int0 = torch.constant.int 0
@@ -709,15 +750,41 @@ func.func @torch.onnx.rotary_embedding$no_convert$empty_cache(%arg0: !torch.vten
 
 // -----
 
-// An odd rotary dim is rejected, since a rotary_embedding_dim of 1 gives a zero
-// divisor.
-func.func @torch.onnx.rotary_embedding$no_convert$odd_rotary_dim(%arg0: !torch.vtensor<[1,2,8],f32>, %arg1: !torch.vtensor<[1,2],si64>, %arg2: !torch.vtensor<[4,2],f32>, %arg3: !torch.vtensor<[4,2],f32>) -> !torch.vtensor<[1,2,8],f32> {
+// A cos_cache wider than rotary_embedding_dim / 2 is rejected, since ONNX
+// Runtime reads it with a row stride of rotary_embedding_dim / 2.
+func.func @torch.onnx.rotary_embedding$no_convert$cache_width(%arg0: !torch.vtensor<[1,2,3,8],f32>, %arg1: !torch.vtensor<[1,3],si64>, %arg2: !torch.vtensor<[8,4],f32>, %arg3: !torch.vtensor<[8,4],f32>) -> !torch.vtensor<[1,2,3,8],f32> {
   %int0 = torch.constant.int 0
-  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int4 = torch.constant.int 4
+  %float = torch.constant.float 1.000000e+00
+  // expected-error @+1 {{failed to legalize operation 'torch.onnx.rotary_embedding'}}
+  %0 = torch.onnx.rotary_embedding %arg0, %arg1, %arg2, %arg3, %int0, %int0, %int2, %int4, %float : !torch.vtensor<[1,2,3,8],f32>, !torch.vtensor<[1,3],si64>, !torch.vtensor<[8,4],f32>, !torch.vtensor<[8,4],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor<[1,2,3,8],f32>
+  return %0 : !torch.vtensor<[1,2,3,8],f32>
+}
+
+// -----
+
+// An odd rotary dim is rejected, since its last element has no pair.
+func.func @torch.onnx.rotary_embedding$no_convert$odd_rotary_dim(%arg0: !torch.vtensor<[1,2,8],f32>, %arg1: !torch.vtensor<[1,2],si64>, %arg2: !torch.vtensor<[4,1],f32>, %arg3: !torch.vtensor<[4,1],f32>) -> !torch.vtensor<[1,2,8],f32> {
+  %int0 = torch.constant.int 0
+  %int2 = torch.constant.int 2
+  %int3 = torch.constant.int 3
+  %float = torch.constant.float 1.000000e+00
+  // expected-error @+1 {{failed to legalize operation 'torch.onnx.rotary_embedding'}}
+  %0 = torch.onnx.rotary_embedding %arg0, %arg1, %arg2, %arg3, %int0, %int0, %int2, %int3, %float : !torch.vtensor<[1,2,8],f32>, !torch.vtensor<[1,2],si64>, !torch.vtensor<[4,1],f32>, !torch.vtensor<[4,1],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor<[1,2,8],f32>
+  return %0 : !torch.vtensor<[1,2,8],f32>
+}
+
+// -----
+
+// An interleaved value other than 0 or 1 is rejected, since ONNX Runtime's CPU
+// kernel treats it as 0 and its JSEP and DML kernels as 1.
+func.func @torch.onnx.rotary_embedding$no_convert$interleaved_value(%arg0: !torch.vtensor<[1,2,8],f32>, %arg1: !torch.vtensor<[1,2],si64>, %arg2: !torch.vtensor<[4,2],f32>, %arg3: !torch.vtensor<[4,2],f32>) -> !torch.vtensor<[1,2,8],f32> {
+  %int0 = torch.constant.int 0
   %int2 = torch.constant.int 2
   %float = torch.constant.float 1.000000e+00
   // expected-error @+1 {{failed to legalize operation 'torch.onnx.rotary_embedding'}}
-  %0 = torch.onnx.rotary_embedding %arg0, %arg1, %arg2, %arg3, %int0, %int0, %int2, %int1, %float : !torch.vtensor<[1,2,8],f32>, !torch.vtensor<[1,2],si64>, !torch.vtensor<[4,2],f32>, !torch.vtensor<[4,2],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor<[1,2,8],f32>
+  %0 = torch.onnx.rotary_embedding %arg0, %arg1, %arg2, %arg3, %int2, %int0, %int0, %int0, %float : !torch.vtensor<[1,2,8],f32>, !torch.vtensor<[1,2],si64>, !torch.vtensor<[4,2],f32>, !torch.vtensor<[4,2],f32>, !torch.int, !torch.int, !torch.int, !torch.int, !torch.float -> !torch.vtensor<[1,2,8],f32>
   return %0 : !torch.vtensor<[1,2,8],f32>
 }
 

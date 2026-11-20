@@ -5333,7 +5333,7 @@ namespace {
 struct RotaryParameters {
   int64_t numHeads;
   int64_t headSize;
-  int64_t rotaryEmbeddingDim;
+  int64_t rotaryDim;
 };
 } // namespace
 
@@ -5341,12 +5341,11 @@ struct RotaryParameters {
 /// not supported.
 static FailureOr<RotaryParameters> getRotaryParameters(
     OnnxVariantRotaryEmbeddingOp op, Value input, Value positionIds,
-    Value cosCache, Value sinCache, bool interleaved, int64_t numHeads,
+    Value cosCache, Value sinCache, int64_t interleaved, int64_t numHeads,
     int64_t rotaryEmbeddingDim, ConversionPatternRewriter &rewriter) {
   // input        : (batch, seq, hidden) or (batch, num_heads, seq, head_size)
   // position_ids : (batch, seq), (1) or ()
-  // cos_cache    : (max_seq, head_size / 2) or
-  //                (max_seq, rotary_embedding_dim / 2)
+  // cos_cache    : (max_seq, rotary_dim / 2)
   // sin_cache    : same shape as cos_cache
   auto inputType = cast<RankedTensorType>(input.getType());
   ArrayRef<int64_t> inputShape = inputType.getShape();
@@ -5383,9 +5382,17 @@ static FailureOr<RotaryParameters> getRotaryParameters(
     return rewriter.notifyMatchFailure(
         op, "expected input, cos_cache and sin_cache of the same float type");
 
-  if (rotaryEmbeddingDim > 0 && numHeads == 0)
+  // ONNX Runtime requires num_heads with rotary_embedding_dim. Without it, a
+  // rank-3 input would take its head size from the cache, which only covers
+  // the rotated part of each head.
+  if (rotaryEmbeddingDim > 0 && numHeads <= 0)
     return rewriter.notifyMatchFailure(
         op, "expected num_heads with rotary_embedding_dim");
+
+  // ONNX Runtime's CPU kernel treats other values as 0, its JSEP and DML
+  // kernels as 1.
+  if (interleaved != 0 && interleaved != 1)
+    return rewriter.notifyMatchFailure(op, "expected interleaved to be 0 or 1");
 
   // An empty cache gives head size 0, which a rank-3 input without num_heads
   // divides by.
@@ -5404,13 +5411,12 @@ static FailureOr<RotaryParameters> getRotaryParameters(
   if (rotaryDim > headSize)
     return rewriter.notifyMatchFailure(
         op, "expected rotary_embedding_dim <= head_size");
-  if (cacheDim != headSize / 2 && cacheDim != rotaryDim / 2)
+  // Each rotated pair of values uses one cache entry. ONNX Runtime reads a
+  // wider cache with a row stride of rotary_dim / 2, and ONNX's
+  // RotaryEmbedding rejects it.
+  if (2 * cacheDim != rotaryDim)
     return rewriter.notifyMatchFailure(
-        op, "expected cos_cache dim 1 to be head_size / 2 or "
-            "rotary_embedding_dim / 2");
-  // The rotation works on pairs, and a rotary dim of 1 gives a zero divisor.
-  if (rotaryDim % 2 != 0)
-    return rewriter.notifyMatchFailure(op, "expected an even rotary dim");
+        op, "expected cos_cache dim 1 to be half the rotary dim");
   // The interleaved pair of the last element of an odd head is out of bounds.
   if (interleaved && headSize % 2 != 0)
     return rewriter.notifyMatchFailure(
@@ -5451,7 +5457,8 @@ public:
           op, "expected a result type compatible with the input");
     Type elementType = inputType.getElementType();
 
-    // Like ONNX Runtime, the lowering ignores `scale` and `is_packed_batching`.
+    // ONNX Runtime does not use `scale`, and uses `is_packed_batching` only to
+    // reject seq > max_seq, so the lowering ignores both.
     int64_t interleaved, numHeads, rotaryEmbeddingDim;
     if (!matchPattern(op.getInterleaved(), m_TorchConstantInt(&interleaved)) ||
         !matchPattern(op.getNumHeads(), m_TorchConstantInt(&numHeads)) ||
@@ -5484,10 +5491,10 @@ public:
     Value outTensor = tensor::EmptyOp::create(
         rewriter, loc, tensor::getMixedSizes(rewriter, loc, processedInput),
         elementType);
-    Value cstRotaryEmbDim = arith::ConstantIndexOp::create(
-        rewriter, loc, parameters->rotaryEmbeddingDim);
+    Value cstRotaryEmbDim =
+        arith::ConstantIndexOp::create(rewriter, loc, parameters->rotaryDim);
     Value cstHalfRotaryEmbDim = arith::ConstantIndexOp::create(
-        rewriter, loc, parameters->rotaryEmbeddingDim / 2);
+        rewriter, loc, parameters->rotaryDim / 2);
 
     AffineMap identityMap =
         AffineMap::getMultiDimIdentityMap(4, rewriter.getContext());
@@ -5529,9 +5536,9 @@ public:
               // sin_term = input[i][j] * sin_cache[position_id][cache_idx]
               // out[i][h] = sign ? cos_term + sin_term : cos_term - sin_term
               //
-              // An h at or past rotary_emb_dim keeps input[i][h]. The modulos
-              // keep its indices in bounds, since the body reads them for
-              // every h.
+              // An h at or past rotary_emb_dim keeps input[i][h]. The body
+              // still reads its indices, which the modulos and, when
+              // interleaved, the even head_size keep in bounds.
 
               SmallVector<Value> indices;
               for (int64_t dim = 0; dim < 4; ++dim)
@@ -5588,7 +5595,7 @@ public:
                   builder, loc, sign,
                   arith::AddFOp::create(builder, loc, cosTerm, sinTerm),
                   arith::SubFOp::create(builder, loc, cosTerm, sinTerm));
-              if (parameters->rotaryEmbeddingDim < parameters->headSize) {
+              if (parameters->rotaryDim < parameters->headSize) {
                 Value isRotated = arith::CmpIOp::create(
                     builder, loc, arith::CmpIPredicate::slt, h,
                     cstRotaryEmbDim);
