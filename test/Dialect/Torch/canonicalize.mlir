@@ -1101,6 +1101,115 @@ func.func @torch.constant.bool$constantlike() -> (!torch.bool, !torch.bool, !tor
   return %0, %1, %2 : !torch.bool, !torch.bool, !torch.bool
 }
 
+// CHECK-LABEL:   func.func @torch.prim.Loop$counted_while$tensor_bound(
+// CHECK-SAME:          %[[X:.*]]: !torch.vtensor<[2,3],f32>, %[[N:.*]]: !torch.vtensor<[],si64>, %[[I0:.*]]: !torch.vtensor<[],si64>)
+// CHECK-DAG:       %[[ONE:.*]] = torch.constant.int 1
+// CHECK-DAG:       %[[TRUE:.*]] = torch.constant.bool true
+// CHECK-NOT:       torch.aten.lt
+// CHECK:           %[[DIFF:.*]] = torch.aten.sub.Tensor %[[N]], %[[I0]], %[[ONE]]
+// CHECK:           %[[TRIP:.*]] = torch.aten.Int.Tensor %[[DIFF]]
+// CHECK:           torch.prim.Loop %[[TRIP]], %[[TRUE]], init(%[[I0]], %[[X]])
+// CHECK-NOT:         torch.aten.lt
+// CHECK:             torch.prim.Loop.condition %[[TRUE]], iter(
+func.func @torch.prim.Loop$counted_while$tensor_bound(%arg0: !torch.vtensor<[2,3],f32>, %arg1: !torch.vtensor<[],si64>, %arg2: !torch.vtensor<[],si64>) -> !torch.vtensor<[2,3],f32> {
+  %int1 = torch.constant.int 1
+  %int9223372036854775807 = torch.constant.int 9223372036854775807
+  %0 = torch.aten.lt.Tensor %arg2, %arg1 : !torch.vtensor<[],si64>, !torch.vtensor<[],si64> -> !torch.vtensor<[],i1>
+  %1 = torch.aten.Bool.Tensor %0 : !torch.vtensor<[],i1> -> !torch.bool
+  %2:2 = torch.prim.Loop %int9223372036854775807, %1, init(%arg2, %arg0) {
+  ^bb0(%arg3: !torch.int, %arg4: !torch.vtensor<[],si64>, %arg5: !torch.vtensor<[2,3],f32>):
+    %3 = torch.aten.add.Scalar %arg4, %int1, %int1 : !torch.vtensor<[],si64>, !torch.int, !torch.int -> !torch.vtensor<[],si64>
+    %4 = torch.aten.mul.Tensor %arg5, %arg5 : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32> -> !torch.vtensor<[2,3],f32>
+    %5 = torch.aten.lt.Tensor %3, %arg1 : !torch.vtensor<[],si64>, !torch.vtensor<[],si64> -> !torch.vtensor<[],i1>
+    %6 = torch.aten.Bool.Tensor %5 : !torch.vtensor<[],i1> -> !torch.bool
+    torch.prim.Loop.condition %6, iter(%3, %4 : !torch.vtensor<[],si64>, !torch.vtensor<[2,3],f32>)
+  } : (!torch.int, !torch.bool, !torch.vtensor<[],si64>, !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[],si64>, !torch.vtensor<[2,3],f32>)
+  return %2#1 : !torch.vtensor<[2,3],f32>
+}
+
+// CHECK-LABEL:   func.func @torch.prim.Loop$counted_while$int_bound(
+// CHECK-SAME:          %[[X:.*]]: !torch.vtensor<[2,3],f32>, %[[N:.*]]: !torch.int, %[[I0:.*]]: !torch.vtensor<[],si64>)
+// CHECK-DAG:       %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           %[[START:.*]] = torch.aten.Int.Tensor %[[I0]]
+// CHECK:           %[[TRIP:.*]] = torch.aten.sub.int %[[N]], %[[START]]
+// CHECK:           torch.prim.Loop %[[TRIP]], %[[TRUE]], init(%[[I0]], %[[X]])
+// CHECK:             torch.prim.Loop.condition %[[TRUE]], iter(
+func.func @torch.prim.Loop$counted_while$int_bound(%arg0: !torch.vtensor<[2,3],f32>, %arg1: !torch.int, %arg2: !torch.vtensor<[],si64>) -> !torch.vtensor<[2,3],f32> {
+  %int1 = torch.constant.int 1
+  %int9223372036854775807 = torch.constant.int 9223372036854775807
+  %0 = torch.aten.lt.Scalar %arg2, %arg1 : !torch.vtensor<[],si64>, !torch.int -> !torch.vtensor<[],i1>
+  %1 = torch.aten.Bool.Tensor %0 : !torch.vtensor<[],i1> -> !torch.bool
+  %2:2 = torch.prim.Loop %int9223372036854775807, %1, init(%arg2, %arg0) {
+  ^bb0(%arg3: !torch.int, %arg4: !torch.vtensor<[],si64>, %arg5: !torch.vtensor<[2,3],f32>):
+    %3 = torch.aten.add.Scalar %arg4, %int1, %int1 : !torch.vtensor<[],si64>, !torch.int, !torch.int -> !torch.vtensor<[],si64>
+    %4 = torch.aten.mul.Tensor %arg5, %arg5 : !torch.vtensor<[2,3],f32>, !torch.vtensor<[2,3],f32> -> !torch.vtensor<[2,3],f32>
+    %5 = torch.aten.lt.Scalar %3, %arg1 : !torch.vtensor<[],si64>, !torch.int -> !torch.vtensor<[],i1>
+    %6 = torch.aten.Bool.Tensor %5 : !torch.vtensor<[],i1> -> !torch.bool
+    torch.prim.Loop.condition %6, iter(%3, %4 : !torch.vtensor<[],si64>, !torch.vtensor<[2,3],f32>)
+  } : (!torch.int, !torch.bool, !torch.vtensor<[],si64>, !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[],si64>, !torch.vtensor<[2,3],f32>)
+  return %2#1 : !torch.vtensor<[2,3],f32>
+}
+
+// CHECK-LABEL:   func.func @torch.prim.Loop$counted_while$tensor_step(
+// CHECK-DAG:       %[[TRUE:.*]] = torch.constant.bool true
+// CHECK:           %[[TRIP:.*]] = torch.aten.Int.Tensor
+// CHECK:           torch.prim.Loop %[[TRIP]], %[[TRUE]], init(
+func.func @torch.prim.Loop$counted_while$tensor_step(%arg0: !torch.vtensor<[2,3],f32>, %arg1: !torch.vtensor<[],si64>, %arg2: !torch.vtensor<[],si64>) -> !torch.vtensor<[2,3],f32> {
+  %int1 = torch.constant.int 1
+  %one = torch.vtensor.literal(dense<1> : tensor<si64>) : !torch.vtensor<[],si64>
+  %int9223372036854775807 = torch.constant.int 9223372036854775807
+  %0 = torch.aten.lt.Tensor %arg2, %arg1 : !torch.vtensor<[],si64>, !torch.vtensor<[],si64> -> !torch.vtensor<[],i1>
+  %1 = torch.aten.Bool.Tensor %0 : !torch.vtensor<[],i1> -> !torch.bool
+  %2:2 = torch.prim.Loop %int9223372036854775807, %1, init(%arg2, %arg0) {
+  ^bb0(%arg3: !torch.int, %arg4: !torch.vtensor<[],si64>, %arg5: !torch.vtensor<[2,3],f32>):
+    %3 = torch.aten.add.Tensor %arg4, %one, %int1 : !torch.vtensor<[],si64>, !torch.vtensor<[],si64>, !torch.int -> !torch.vtensor<[],si64>
+    %5 = torch.aten.lt.Tensor %3, %arg1 : !torch.vtensor<[],si64>, !torch.vtensor<[],si64> -> !torch.vtensor<[],i1>
+    %6 = torch.aten.Bool.Tensor %5 : !torch.vtensor<[],i1> -> !torch.bool
+    torch.prim.Loop.condition %6, iter(%3, %arg5 : !torch.vtensor<[],si64>, !torch.vtensor<[2,3],f32>)
+  } : (!torch.int, !torch.bool, !torch.vtensor<[],si64>, !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[],si64>, !torch.vtensor<[2,3],f32>)
+  return %2#1 : !torch.vtensor<[2,3],f32>
+}
+
+// CHECK-LABEL:   func.func @torch.prim.Loop$counted_while$no_fold$step_two(
+// CHECK:           %[[MAX:.*]] = torch.constant.int 9223372036854775807
+// CHECK:           torch.prim.Loop %[[MAX]], %{{.*}}, init(
+// CHECK-NOT:       torch.aten.Int.Tensor
+func.func @torch.prim.Loop$counted_while$no_fold$step_two(%arg0: !torch.vtensor<[2,3],f32>, %arg1: !torch.vtensor<[],si64>, %arg2: !torch.vtensor<[],si64>) -> !torch.vtensor<[2,3],f32> {
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %int9223372036854775807 = torch.constant.int 9223372036854775807
+  %0 = torch.aten.lt.Tensor %arg2, %arg1 : !torch.vtensor<[],si64>, !torch.vtensor<[],si64> -> !torch.vtensor<[],i1>
+  %1 = torch.aten.Bool.Tensor %0 : !torch.vtensor<[],i1> -> !torch.bool
+  %2:2 = torch.prim.Loop %int9223372036854775807, %1, init(%arg2, %arg0) {
+  ^bb0(%arg3: !torch.int, %arg4: !torch.vtensor<[],si64>, %arg5: !torch.vtensor<[2,3],f32>):
+    %3 = torch.aten.add.Scalar %arg4, %int2, %int1 : !torch.vtensor<[],si64>, !torch.int, !torch.int -> !torch.vtensor<[],si64>
+    %5 = torch.aten.lt.Tensor %3, %arg1 : !torch.vtensor<[],si64>, !torch.vtensor<[],si64> -> !torch.vtensor<[],i1>
+    %6 = torch.aten.Bool.Tensor %5 : !torch.vtensor<[],i1> -> !torch.bool
+    torch.prim.Loop.condition %6, iter(%3, %arg5 : !torch.vtensor<[],si64>, !torch.vtensor<[2,3],f32>)
+  } : (!torch.int, !torch.bool, !torch.vtensor<[],si64>, !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[],si64>, !torch.vtensor<[2,3],f32>)
+  return %2#1 : !torch.vtensor<[2,3],f32>
+}
+
+// CHECK-LABEL:   func.func @torch.prim.Loop$counted_while$no_fold$bound_changes(
+// CHECK:           %[[MAX:.*]] = torch.constant.int 9223372036854775807
+// CHECK:           torch.prim.Loop %[[MAX]], %{{.*}}, init(
+// CHECK-NOT:       torch.aten.Int.Tensor
+func.func @torch.prim.Loop$counted_while$no_fold$bound_changes(%arg0: !torch.vtensor<[2,3],f32>, %arg1: !torch.vtensor<[],si64>, %arg2: !torch.vtensor<[],si64>) -> !torch.vtensor<[2,3],f32> {
+  %int1 = torch.constant.int 1
+  %int9223372036854775807 = torch.constant.int 9223372036854775807
+  %0 = torch.aten.lt.Tensor %arg2, %arg1 : !torch.vtensor<[],si64>, !torch.vtensor<[],si64> -> !torch.vtensor<[],i1>
+  %1 = torch.aten.Bool.Tensor %0 : !torch.vtensor<[],i1> -> !torch.bool
+  %2:2 = torch.prim.Loop %int9223372036854775807, %1, init(%arg2, %arg0) {
+  ^bb0(%arg3: !torch.int, %arg4: !torch.vtensor<[],si64>, %arg5: !torch.vtensor<[2,3],f32>):
+    %3 = torch.aten.add.Scalar %arg4, %int1, %int1 : !torch.vtensor<[],si64>, !torch.int, !torch.int -> !torch.vtensor<[],si64>
+    %4 = torch.aten.add.Scalar %arg1, %int1, %int1 : !torch.vtensor<[],si64>, !torch.int, !torch.int -> !torch.vtensor<[],si64>
+    %5 = torch.aten.lt.Tensor %3, %4 : !torch.vtensor<[],si64>, !torch.vtensor<[],si64> -> !torch.vtensor<[],i1>
+    %6 = torch.aten.Bool.Tensor %5 : !torch.vtensor<[],i1> -> !torch.bool
+    torch.prim.Loop.condition %6, iter(%3, %arg5 : !torch.vtensor<[],si64>, !torch.vtensor<[2,3],f32>)
+  } : (!torch.int, !torch.bool, !torch.vtensor<[],si64>, !torch.vtensor<[2,3],f32>) -> (!torch.vtensor<[],si64>, !torch.vtensor<[2,3],f32>)
+  return %2#1 : !torch.vtensor<[2,3],f32>
+}
+
 // CHECK-LABEL:   func.func @torch.prim.If$erase_dead_branch(
 // CHECK-SAME:                                          %[[ARG:.*]]: !torch.int) -> !torch.int {
 // CHECK-NEXT:       %[[RET:.*]] = torch.aten.add.int %[[ARG]], %[[ARG]] : !torch.int, !torch.int -> !torch.int

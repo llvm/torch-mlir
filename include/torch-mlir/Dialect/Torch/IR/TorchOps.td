@@ -533,6 +533,7 @@ def Torch_PrimLoopOp : Torch_Op<"prim.Loop", [
     $maxTripCount `,` $initialCondition `,` `init` `(` $iterArgsInit `)` $region
     attr-dict `:` functional-type(operands, results)
   }];
+  let hasCanonicalizer = 1;
   let extraClassDeclaration = [{
     /// Returns true if this loop is "for-like". Otherwise it is "while-like"
     /// and this function returns false.
