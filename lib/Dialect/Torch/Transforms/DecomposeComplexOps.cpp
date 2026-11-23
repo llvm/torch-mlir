@@ -8113,19 +8113,20 @@ public:
                       m_TorchConstantBool(&useInputStats)))
       return rewriter.notifyMatchFailure(
           op, "use_input_stats must be a constant bool");
-    auto hasSizes = [](Value v) {
-      auto tensorTy = dyn_cast<BaseTensorType>(v.getType());
-      return tensorTy && tensorTy.hasSizes();
+    auto isNoneOrRank1 = [](Value v) {
+      return isa<Torch::NoneType>(v.getType()) ||
+             (isa<BaseTensorType>(v.getType()) && getTensorRank(v) == 1);
     };
-    auto isNoneOrHasSizes = [&](Value v) {
-      return isa<Torch::NoneType>(v.getType()) || hasSizes(v);
-    };
-    if (!isNoneOrHasSizes(op.getWeight()) || !isNoneOrHasSizes(op.getBias()))
+    if (!isNoneOrRank1(op.getWeight()) || !isNoneOrRank1(op.getBias()))
       return rewriter.notifyMatchFailure(
-          op, "expected weight and bias to be None or tensors with sizes");
+          op, "expected weight and bias to be None or rank-1 tensors");
 
     // With the running stats, instance_norm is batch_norm in inference mode.
     if (!useInputStats) {
+      auto hasSizes = [](Value v) {
+        auto tensorTy = dyn_cast<BaseTensorType>(v.getType());
+        return tensorTy && tensorTy.hasSizes();
+      };
       if (!hasSizes(op.getRunningMean()) || !hasSizes(op.getRunningVar()))
         return rewriter.notifyMatchFailure(
             op, "expected running stats to be tensors with sizes");
