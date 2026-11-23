@@ -9532,6 +9532,45 @@ class DecomposeAtenNewEmptyOp : public OpRewritePattern<AtenNewEmptyOp> {
 } // namespace
 
 namespace {
+// Returns the pads of the circular pad `op` if it can be decomposed into
+// slices and a concatenation, and failure otherwise.
+FailureOr<SmallVector<int64_t>> getCircularPads(AtenPadOp op,
+                                                PatternRewriter &rewriter) {
+  SmallVector<int64_t> padInts;
+  if (!matchPattern(op.getPad(), m_TorchListOfConstantInts(padInts)))
+    return rewriter.notifyMatchFailure(op,
+                                       "circular mode requires constant pads");
+  auto selfTy = cast<BaseTensorType>(op.getSelf().getType());
+  if (!selfTy.hasSizes())
+    return rewriter.notifyMatchFailure(op, "expected a ranked input");
+  ArrayRef<int64_t> sizes = selfTy.getSizes();
+  int64_t rank = sizes.size();
+  int64_t numPadDims = padInts.size() / 2;
+  if (numPadDims > rank)
+    return rewriter.notifyMatchFailure(op, "more padded dims than input dims");
+  for (int64_t i = 0; i < numPadDims; ++i) {
+    int64_t left = padInts[2 * i];
+    int64_t right = padInts[2 * i + 1];
+    if (left == 0 && right == 0)
+      continue;
+    // A dynamic dim size cannot be checked, so the pads are assumed valid.
+    int64_t size = sizes[rank - 1 - i];
+    if (size == kUnknownSize)
+      continue;
+    // Negative pads crop the dim, and positive pads then wrap the cropped dim
+    // at most once.
+    int64_t croppedSize =
+        size - std::max<int64_t>(-left, 0) - std::max<int64_t>(-right, 0);
+    if (croppedSize < 0)
+      return rewriter.notifyMatchFailure(
+          op, "negative pads must not crop more than the dim size");
+    if (left > croppedSize || right > croppedSize)
+      return rewriter.notifyMatchFailure(
+          op, "circular pads must not exceed the cropped dim size");
+  }
+  return padInts;
+}
+
 // Decompose `aten.pad` op into `aten.constantPadNd` op.
 class DecomposeAtenPadOp : public OpRewritePattern<AtenPadOp> {
   using OpRewritePattern::OpRewritePattern;
@@ -9567,16 +9606,107 @@ class DecomposeAtenPadOp : public OpRewritePattern<AtenPadOp> {
         return rewriter.notifyMatchFailure(op,
                                            "expected an even number of pads");
 
-      for (uint64_t i = padInts.size() - 1; i > 0; i -= 2) {
-        if (padInts[i] != 0 || padInts[i - 1] != 0)
-          break;
-        usefulPadIndexEnd = i - 1;
-      }
+      // The pads are (start, end) pairs, last dim first, so a trailing (0, 0)
+      // pair leaves a leading dim unpadded. Drop those pairs. When every pair
+      // is (0, 0), no dim is padded and the pad is removed.
+      while (usefulPadIndexEnd >= 2 && padInts[usefulPadIndexEnd - 1] == 0 &&
+             padInts[usefulPadIndexEnd - 2] == 0)
+        usefulPadIndexEnd -= 2;
       if (usefulPadIndexEnd == 0) {
         rewriter.replaceOp(op, op.getSelf());
         return success();
       }
     }
+
+    uint64_t numPadDims = usefulPadIndexEnd / 2;
+
+    // Decompose circular padding of each padded dim d into
+    //   cat([x[n-left:n], x, x[0:right]], d)
+    // where n is the size of d, and left and right are the pads added at the
+    // start and end of d. A negative pad first crops x along d, and the
+    // positive pads then wrap the cropped x.
+    if (mode == "circular") {
+      FailureOr<SmallVector<int64_t>> circularPads =
+          getCircularPads(op, rewriter);
+      if (failed(circularPads))
+        return failure();
+      auto selfTy = cast<BaseTensorType>(op.getSelf().getType());
+      SmallVector<int64_t> sizes(selfTy.getSizes());
+      int64_t rank = sizes.size();
+
+      Location loc = op.getLoc();
+      auto getTypeWithDimSize = [&](int64_t dim, int64_t size) {
+        SmallVector<int64_t> newSizes(sizes);
+        newSizes[dim] = size;
+        return selfTy.getWithSizesAndDtype(newSizes, selfTy.getOptionalDtype());
+      };
+      auto getConstantInt = [&](int64_t value) -> Value {
+        return ConstantIntOp::create(rewriter, loc,
+                                     rewriter.getI64IntegerAttr(value));
+      };
+      Value none = ConstantNoneOp::create(rewriter, loc);
+      Value one = getConstantInt(1);
+      Value result = op.getSelf();
+      for (uint64_t i = 0; i < numPadDims; ++i) {
+        int64_t left = (*circularPads)[2 * i];
+        int64_t right = (*circularPads)[2 * i + 1];
+        if (left == 0 && right == 0)
+          continue;
+        int64_t dim = rank - 1 - i;
+        Value dimValue = getConstantInt(dim);
+        // The trimmed pad list ends with a nonzero pair, so the last iteration
+        // always runs, and its last op produces the op's result type.
+        bool isLastDim = i + 1 == numPadDims;
+        auto addToDimSize = [&](int64_t delta) {
+          if (sizes[dim] != kUnknownSize)
+            sizes[dim] += delta;
+        };
+
+        int64_t cropStart = std::max<int64_t>(-left, 0);
+        int64_t cropEnd = std::max<int64_t>(-right, 0);
+        left = std::max<int64_t>(left, 0);
+        right = std::max<int64_t>(right, 0);
+        if (cropStart > 0 || cropEnd > 0) {
+          addToDimSize(-cropStart - cropEnd);
+          Type cropType = isLastDim && left == 0 && right == 0
+                              ? op.getType()
+                              : getTypeWithDimSize(dim, sizes[dim]);
+          Value cropEndValue = cropEnd > 0 ? getConstantInt(-cropEnd) : none;
+          result = AtenSliceTensorOp::create(
+              rewriter, loc, cropType, result, dimValue,
+              getConstantInt(cropStart), cropEndValue, one);
+        }
+        if (left == 0 && right == 0)
+          continue;
+
+        SmallVector<Value> parts;
+        if (left > 0)
+          parts.push_back(AtenSliceTensorOp::create(
+              rewriter, loc, getTypeWithDimSize(dim, left), result, dimValue,
+              getConstantInt(-left), none, one));
+        parts.push_back(result);
+        if (right > 0)
+          parts.push_back(AtenSliceTensorOp::create(
+              rewriter, loc, getTypeWithDimSize(dim, right), result, dimValue,
+              getConstantInt(0), getConstantInt(right), one));
+        Value list = PrimListConstructOp::create(
+            rewriter, loc,
+            Torch::ListType::get(getTypeWithDimSize(dim, kUnknownSize)), parts);
+        addToDimSize(left + right);
+        Type catType =
+            isLastDim ? op.getType() : getTypeWithDimSize(dim, sizes[dim]);
+        result = AtenCatOp::create(rewriter, loc, catType, list, dimValue);
+      }
+      rewriter.replaceOp(op, result);
+      return success();
+    }
+
+    if (mode != "reflect" && mode != "replicate")
+      return rewriter.notifyMatchFailure(op, "unsupported mode: " + mode);
+    if (numPadDims < 1 || numPadDims > 3)
+      return rewriter.notifyMatchFailure(
+          op, "unsupported number of dims for '" + mode +
+                  "' mode: " + std::to_string(numPadDims));
 
     // make a new list of padding ints if dimensionality reduction can be
     // performed
@@ -9589,8 +9719,6 @@ class DecomposeAtenPadOp : public OpRewritePattern<AtenPadOp> {
           usefulPadValues);
     }
 
-    uint64_t numPadDims = usefulPadIndexEnd / 2;
-
     if (mode == "reflect") {
       // only support for relectionpad 1d and 2d
       switch (numPadDims) {
@@ -9602,41 +9730,28 @@ class DecomposeAtenPadOp : public OpRewritePattern<AtenPadOp> {
         rewriter.replaceOpWithNewOp<AtenReflectionPad2dOp>(
             op, op.getType(), op.getSelf(), usefulPads);
         break;
-      case 3:
+      default: // numPadDims is 3
         rewriter.replaceOpWithNewOp<AtenReflectionPad3dOp>(
             op, op.getType(), op.getSelf(), usefulPads);
-        break;
-      default:
-        return rewriter.notifyMatchFailure(
-            op, "unsupported number of dims for 'reflect' mode: " +
-                    std::to_string(numPadDims));
       }
       return success();
     }
 
-    if (mode == "replicate") {
-      switch (numPadDims) {
-      case 1:
-        rewriter.replaceOpWithNewOp<AtenReplicationPad1dOp>(
-            op, op.getType(), op.getSelf(), usefulPads);
-        break;
-      case 2:
-        rewriter.replaceOpWithNewOp<AtenReplicationPad2dOp>(
-            op, op.getType(), op.getSelf(), usefulPads);
-        break;
-      case 3:
-        rewriter.replaceOpWithNewOp<AtenReplicationPad3dOp>(
-            op, op.getType(), op.getSelf(), usefulPads);
-        break;
-      default:
-        return rewriter.notifyMatchFailure(
-            op, "unsupported number of dims for 'replicate' mode: " +
-                    std::to_string(numPadDims));
-      }
-      return success();
+    // mode is "replicate"
+    switch (numPadDims) {
+    case 1:
+      rewriter.replaceOpWithNewOp<AtenReplicationPad1dOp>(
+          op, op.getType(), op.getSelf(), usefulPads);
+      break;
+    case 2:
+      rewriter.replaceOpWithNewOp<AtenReplicationPad2dOp>(
+          op, op.getType(), op.getSelf(), usefulPads);
+      break;
+    default: // numPadDims is 3
+      rewriter.replaceOpWithNewOp<AtenReplicationPad3dOp>(
+          op, op.getType(), op.getSelf(), usefulPads);
     }
-
-    return rewriter.notifyMatchFailure(op, "unsupported mode: " + mode);
+    return success();
   }
 };
 } // namespace

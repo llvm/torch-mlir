@@ -2497,3 +2497,287 @@ func.func @split_with_sizes_negative_size(%arg0: !torch.vtensor<[3,?],f32>, %arg
   %1 = torch.aten.split_with_sizes %arg0, %0, %int-1 : !torch.vtensor<[3,?],f32>, !torch.list<int>, !torch.int -> !torch.list<vtensor>
   return %1 : !torch.list<vtensor>
 }
+
+// -----
+
+// CHECK-LABEL:  func.func @pad_circular_trailing_zero_pads(
+// CHECK-SAME:      %[[SELF:[^:]+]]: !torch.vtensor<[3,5],f32>)
+// CHECK-DAG:      %[[NONE:.*]] = torch.constant.none
+// CHECK-DAG:      %[[ONE:.*]] = torch.constant.int 1
+// CHECK-DAG:      %[[NEG1:.*]] = torch.constant.int -1
+// CHECK-DAG:      %[[ZERO:.*]] = torch.constant.int 0
+// CHECK-DAG:      %[[TWO:.*]] = torch.constant.int 2
+// CHECK:          %[[LEFT:.*]] = torch.aten.slice.Tensor %[[SELF]], %[[ONE]], %[[NEG1]], %[[NONE]], %[[ONE]] : !torch.vtensor<[3,5],f32>, !torch.int, !torch.int, !torch.none, !torch.int -> !torch.vtensor<[3,1],f32>
+// CHECK:          %[[RIGHT:.*]] = torch.aten.slice.Tensor %[[SELF]], %[[ONE]], %[[ZERO]], %[[TWO]], %[[ONE]] : !torch.vtensor<[3,5],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[3,2],f32>
+// CHECK:          %[[LIST:.*]] = torch.prim.ListConstruct %[[LEFT]], %[[SELF]], %[[RIGHT]] : (!torch.vtensor<[3,1],f32>, !torch.vtensor<[3,5],f32>, !torch.vtensor<[3,2],f32>) -> !torch.list<vtensor<[3,?],f32>>
+// CHECK:          %[[CAT:.*]] = torch.aten.cat %[[LIST]], %[[ONE]] : !torch.list<vtensor<[3,?],f32>>, !torch.int -> !torch.vtensor<[3,8],f32>
+// CHECK:          return %[[CAT]]
+func.func @pad_circular_trailing_zero_pads(%arg0: !torch.vtensor<[3,5],f32>) -> !torch.vtensor<[3,8],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %str = torch.constant.str "circular"
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %int1, %int2, %int0, %int0 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.pad %arg0, %0, %str, %none : !torch.vtensor<[3,5],f32>, !torch.list<int>, !torch.str, !torch.none -> !torch.vtensor<[3,8],f32>
+  return %1 : !torch.vtensor<[3,8],f32>
+}
+
+// -----
+
+// The last dim is padded first, then the dim before it. A zero pad adds no
+// slice.
+// CHECK-LABEL:  func.func @pad_circular_2d(
+// CHECK-SAME:      %[[SELF:[^:]+]]: !torch.vtensor<[2,3,4],f32>)
+// CHECK:          %[[L2:.*]] = torch.aten.slice.Tensor %[[SELF]], {{.*}} -> !torch.vtensor<[2,3,1],f32>
+// CHECK:          %[[R2:.*]] = torch.aten.slice.Tensor %[[SELF]], {{.*}} -> !torch.vtensor<[2,3,1],f32>
+// CHECK:          %[[LIST2:.*]] = torch.prim.ListConstruct %[[L2]], %[[SELF]], %[[R2]]
+// CHECK:          %[[CAT2:.*]] = torch.aten.cat %[[LIST2]], {{.*}} -> !torch.vtensor<[2,3,6],f32>
+// CHECK:          %[[L1:.*]] = torch.aten.slice.Tensor %[[CAT2]], {{.*}} -> !torch.vtensor<[2,2,6],f32>
+// CHECK-NOT:      torch.aten.slice.Tensor
+// CHECK:          %[[LIST1:.*]] = torch.prim.ListConstruct %[[L1]], %[[CAT2]] :
+// CHECK:          %[[CAT1:.*]] = torch.aten.cat %[[LIST1]], {{.*}} -> !torch.vtensor<[2,5,6],f32>
+// CHECK:          return %[[CAT1]]
+func.func @pad_circular_2d(%arg0: !torch.vtensor<[2,3,4],f32>) -> !torch.vtensor<[2,5,6],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %str = torch.constant.str "circular"
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %int1, %int1, %int2, %int0 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.pad %arg0, %0, %str, %none : !torch.vtensor<[2,3,4],f32>, !torch.list<int>, !torch.str, !torch.none -> !torch.vtensor<[2,5,6],f32>
+  return %1 : !torch.vtensor<[2,5,6],f32>
+}
+
+// -----
+
+// Circular mode wraps at most once, so a pad larger than the dim is not
+// decomposed. The trailing (0, 0) pair must not be trimmed either: the op
+// must be left unchanged.
+// CHECK-LABEL:  func.func @pad_circular_pad_larger_than_dim(
+// CHECK-SAME:      %[[SELF:[^:]+]]: !torch.vtensor<[3,5],f32>)
+// CHECK:          %[[PADS:.*]] = torch.prim.ListConstruct
+// CHECK:          %[[PAD:.*]] = torch.aten.pad %[[SELF]], %[[PADS]]
+// CHECK-NEXT:     return %[[PAD]]
+func.func @pad_circular_pad_larger_than_dim(%arg0: !torch.vtensor<[3,5],f32>) -> !torch.vtensor<[3,11],f32> {
+  %int0 = torch.constant.int 0
+  %int6 = torch.constant.int 6
+  %str = torch.constant.str "circular"
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %int6, %int0, %int0, %int0 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.pad %arg0, %0, %str, %none : !torch.vtensor<[3,5],f32>, !torch.list<int>, !torch.str, !torch.none -> !torch.vtensor<[3,11],f32>
+  return %1 : !torch.vtensor<[3,11],f32>
+}
+
+// -----
+
+// CHECK-LABEL:  func.func @pad_circular_non_constant_pads(
+// CHECK:          torch.aten.pad
+// CHECK-NOT:      torch.aten.cat
+func.func @pad_circular_non_constant_pads(%arg0: !torch.vtensor<[3,5],f32>, %arg1: !torch.int) -> !torch.vtensor<[3,?],f32> {
+  %int1 = torch.constant.int 1
+  %str = torch.constant.str "circular"
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %arg1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.pad %arg0, %0, %str, %none : !torch.vtensor<[3,5],f32>, !torch.list<int>, !torch.str, !torch.none -> !torch.vtensor<[3,?],f32>
+  return %1 : !torch.vtensor<[3,?],f32>
+}
+
+// -----
+
+// After trimming the trailing (0, 0) pair, four dims are still padded, which
+// reflect mode does not support. The op must be left unchanged.
+// CHECK-LABEL:  func.func @pad_reflect_trailing_zero_pads_4d(
+// CHECK-SAME:      %[[SELF:[^:]+]]: !torch.vtensor<[2,3,4,5,6],f32>)
+// CHECK:          %[[PADS:.*]] = torch.prim.ListConstruct
+// CHECK:          %[[PAD:.*]] = torch.aten.pad %[[SELF]], %[[PADS]]
+// CHECK-NEXT:     return %[[PAD]]
+func.func @pad_reflect_trailing_zero_pads_4d(%arg0: !torch.vtensor<[2,3,4,5,6],f32>) -> !torch.vtensor<[2,5,6,7,8],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %str = torch.constant.str "reflect"
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %int1, %int1, %int1, %int1, %int1, %int1, %int1, %int1, %int0, %int0 : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.pad %arg0, %0, %str, %none : !torch.vtensor<[2,3,4,5,6],f32>, !torch.list<int>, !torch.str, !torch.none -> !torch.vtensor<[2,5,6,7,8],f32>
+  return %1 : !torch.vtensor<[2,5,6,7,8],f32>
+}
+
+// -----
+
+// CHECK-LABEL:  func.func @pad_reflect_trailing_zero_pads_3d(
+// CHECK-SAME:      %[[SELF:[^:]+]]: !torch.vtensor<[2,3,4,5],f32>)
+// CHECK:          %[[PADS:.*]] = torch.prim.ListConstruct %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+// CHECK:          %[[PAD:.*]] = torch.aten.reflection_pad3d %[[SELF]], %[[PADS]]
+// CHECK-NEXT:     return %[[PAD]]
+func.func @pad_reflect_trailing_zero_pads_3d(%arg0: !torch.vtensor<[2,3,4,5],f32>) -> !torch.vtensor<[2,5,6,7],f32> {
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %str = torch.constant.str "reflect"
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %int1, %int1, %int1, %int1, %int1, %int1, %int0, %int0 : (!torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.pad %arg0, %0, %str, %none : !torch.vtensor<[2,3,4,5],f32>, !torch.list<int>, !torch.str, !torch.none -> !torch.vtensor<[2,5,6,7],f32>
+  return %1 : !torch.vtensor<[2,5,6,7],f32>
+}
+
+// -----
+
+// Only the leading pads are constant, so circular mode is not decomposed.
+// CHECK-LABEL:  func.func @pad_circular_partially_constant_pads(
+// CHECK:          torch.aten.pad
+// CHECK-NOT:      torch.aten.cat
+func.func @pad_circular_partially_constant_pads(%arg0: !torch.vtensor<[3,5],f32>, %arg1: !torch.int) -> !torch.vtensor<[?,?],f32> {
+  %int1 = torch.constant.int 1
+  %str = torch.constant.str "circular"
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %int1, %int1, %arg1, %arg1 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.pad %arg0, %0, %str, %none : !torch.vtensor<[3,5],f32>, !torch.list<int>, !torch.str, !torch.none -> !torch.vtensor<[?,?],f32>
+  return %1 : !torch.vtensor<[?,?],f32>
+}
+
+// -----
+
+// A negative pad crops the dim, and the positive pad then wraps the cropped
+// dim.
+// CHECK-LABEL:  func.func @pad_circular_negative_pads(
+// CHECK-SAME:      %[[SELF:[^:]+]]: !torch.vtensor<[3,5],f32>)
+// CHECK:          %[[CROP:.*]] = torch.aten.slice.Tensor %[[SELF]], %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}} : !torch.vtensor<[3,5],f32>, !torch.int, !torch.int, !torch.none, !torch.int -> !torch.vtensor<[3,4],f32>
+// CHECK:          %[[RIGHT:.*]] = torch.aten.slice.Tensor %[[CROP]], {{.*}} -> !torch.vtensor<[3,2],f32>
+// CHECK:          %[[LIST:.*]] = torch.prim.ListConstruct %[[CROP]], %[[RIGHT]] :
+// CHECK:          %[[CAT:.*]] = torch.aten.cat %[[LIST]], {{.*}} -> !torch.vtensor<[3,6],f32>
+// CHECK:          return %[[CAT]]
+func.func @pad_circular_negative_pads(%arg0: !torch.vtensor<[3,5],f32>) -> !torch.vtensor<[3,6],f32> {
+  %int-1 = torch.constant.int -1
+  %int2 = torch.constant.int 2
+  %str = torch.constant.str "circular"
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %int-1, %int2 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.pad %arg0, %0, %str, %none : !torch.vtensor<[3,5],f32>, !torch.list<int>, !torch.str, !torch.none -> !torch.vtensor<[3,6],f32>
+  return %1 : !torch.vtensor<[3,6],f32>
+}
+
+// -----
+
+// CHECK-LABEL:  func.func @pad_circular_crop_only(
+// CHECK-SAME:      %[[SELF:[^:]+]]: !torch.vtensor<[3,5],f32>)
+// CHECK-DAG:      %[[ONE:.*]] = torch.constant.int 1
+// CHECK-DAG:      %[[NEG1:.*]] = torch.constant.int -1
+// CHECK:          %[[CROP:.*]] = torch.aten.slice.Tensor %[[SELF]], %[[ONE]], %[[ONE]], %[[NEG1]], %[[ONE]] : !torch.vtensor<[3,5],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[3,3],f32>
+// CHECK-NOT:      torch.aten.cat
+// CHECK:          return %[[CROP]]
+func.func @pad_circular_crop_only(%arg0: !torch.vtensor<[3,5],f32>) -> !torch.vtensor<[3,3],f32> {
+  %int-1 = torch.constant.int -1
+  %str = torch.constant.str "circular"
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %int-1, %int-1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.pad %arg0, %0, %str, %none : !torch.vtensor<[3,5],f32>, !torch.list<int>, !torch.str, !torch.none -> !torch.vtensor<[3,3],f32>
+  return %1 : !torch.vtensor<[3,3],f32>
+}
+
+// -----
+
+// After cropping one element, the dim has size 4, and a pad of 5 would wrap
+// more than once.
+// CHECK-LABEL:  func.func @pad_circular_pad_larger_than_cropped_dim(
+// CHECK:          torch.aten.pad
+// CHECK-NOT:      torch.aten.cat
+func.func @pad_circular_pad_larger_than_cropped_dim(%arg0: !torch.vtensor<[3,5],f32>) -> !torch.vtensor<[3,9],f32> {
+  %int-1 = torch.constant.int -1
+  %int5 = torch.constant.int 5
+  %str = torch.constant.str "circular"
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %int5, %int-1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.pad %arg0, %0, %str, %none : !torch.vtensor<[3,5],f32>, !torch.list<int>, !torch.str, !torch.none -> !torch.vtensor<[3,9],f32>
+  return %1 : !torch.vtensor<[3,9],f32>
+}
+
+// -----
+
+// The negative pads would crop six elements from a dim of size 5.
+// CHECK-LABEL:  func.func @pad_circular_crop_larger_than_dim(
+// CHECK:          torch.aten.pad
+// CHECK-NOT:      torch.aten.slice.Tensor
+func.func @pad_circular_crop_larger_than_dim(%arg0: !torch.vtensor<[3,5],f32>) -> !torch.vtensor<[3,?],f32> {
+  %int-3 = torch.constant.int -3
+  %str = torch.constant.str "circular"
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %int-3, %int-3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.pad %arg0, %0, %str, %none : !torch.vtensor<[3,5],f32>, !torch.list<int>, !torch.str, !torch.none -> !torch.vtensor<[3,?],f32>
+  return %1 : !torch.vtensor<[3,?],f32>
+}
+
+// -----
+
+// The last dim is cropped at the start and wrapped at the end. Dim 1 is
+// then wrapped at the start and cropped at the end, and its slices take
+// the size of the cropped dim.
+// CHECK-LABEL:  func.func @pad_circular_negative_pads_2d(
+// CHECK-SAME:      %[[SELF:[^:]+]]: !torch.vtensor<[1,3,4],f32>)
+// CHECK:          %[[CROP2:.*]] = torch.aten.slice.Tensor %[[SELF]], {{.*}} -> !torch.vtensor<[1,3,3],f32>
+// CHECK:          %[[R2:.*]] = torch.aten.slice.Tensor %[[CROP2]], {{.*}} -> !torch.vtensor<[1,3,2],f32>
+// CHECK:          %[[LIST2:.*]] = torch.prim.ListConstruct %[[CROP2]], %[[R2]] :
+// CHECK:          %[[CAT2:.*]] = torch.aten.cat %[[LIST2]], {{.*}} -> !torch.vtensor<[1,3,5],f32>
+// CHECK:          %[[CROP1:.*]] = torch.aten.slice.Tensor %[[CAT2]], {{.*}} -> !torch.vtensor<[1,2,5],f32>
+// CHECK:          %[[L1:.*]] = torch.aten.slice.Tensor %[[CROP1]], {{.*}} -> !torch.vtensor<[1,1,5],f32>
+// CHECK:          %[[LIST1:.*]] = torch.prim.ListConstruct %[[L1]], %[[CROP1]] :
+// CHECK:          %[[CAT1:.*]] = torch.aten.cat %[[LIST1]], {{.*}} -> !torch.vtensor<[1,3,5],f32>
+// CHECK:          return %[[CAT1]]
+func.func @pad_circular_negative_pads_2d(%arg0: !torch.vtensor<[1,3,4],f32>) -> !torch.vtensor<[1,3,5],f32> {
+  %int-1 = torch.constant.int -1
+  %int1 = torch.constant.int 1
+  %int2 = torch.constant.int 2
+  %str = torch.constant.str "circular"
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %int-1, %int2, %int1, %int-1 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.pad %arg0, %0, %str, %none : !torch.vtensor<[1,3,4],f32>, !torch.list<int>, !torch.str, !torch.none -> !torch.vtensor<[1,3,5],f32>
+  return %1 : !torch.vtensor<[1,3,5],f32>
+}
+
+// -----
+
+// The pads cannot be checked against a dynamic dim size, so they are assumed
+// to be valid.
+// CHECK-LABEL:  func.func @pad_circular_dynamic_dim(
+// CHECK-SAME:      %[[SELF:[^:]+]]: !torch.vtensor<[3,?],f32>)
+// CHECK:          %[[LEFT:.*]] = torch.aten.slice.Tensor %[[SELF]], {{.*}} -> !torch.vtensor<[3,1],f32>
+// CHECK:          %[[RIGHT:.*]] = torch.aten.slice.Tensor %[[SELF]], {{.*}} -> !torch.vtensor<[3,1],f32>
+// CHECK:          %[[LIST:.*]] = torch.prim.ListConstruct %[[LEFT]], %[[SELF]], %[[RIGHT]] :
+// CHECK:          %[[CAT:.*]] = torch.aten.cat %[[LIST]], {{.*}} -> !torch.vtensor<[3,?],f32>
+// CHECK:          return %[[CAT]]
+func.func @pad_circular_dynamic_dim(%arg0: !torch.vtensor<[3,?],f32>) -> !torch.vtensor<[3,?],f32> {
+  %int1 = torch.constant.int 1
+  %str = torch.constant.str "circular"
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.pad %arg0, %0, %str, %none : !torch.vtensor<[3,?],f32>, !torch.list<int>, !torch.str, !torch.none -> !torch.vtensor<[3,?],f32>
+  return %1 : !torch.vtensor<[3,?],f32>
+}
+
+// -----
+
+// All pads are zero, so the pad is removed.
+// CHECK-LABEL:  func.func @pad_reflect_all_zero_pads(
+// CHECK-SAME:      %[[SELF:[^:]+]]: !torch.vtensor<[3,5],f32>)
+// CHECK-NOT:      torch.aten.pad
+// CHECK:          return %[[SELF]]
+func.func @pad_reflect_all_zero_pads(%arg0: !torch.vtensor<[3,5],f32>) -> !torch.vtensor<[3,5],f32> {
+  %int0 = torch.constant.int 0
+  %str = torch.constant.str "reflect"
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %int0, %int0, %int0, %int0 : (!torch.int, !torch.int, !torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.pad %arg0, %0, %str, %none : !torch.vtensor<[3,5],f32>, !torch.list<int>, !torch.str, !torch.none -> !torch.vtensor<[3,5],f32>
+  return %1 : !torch.vtensor<[3,5],f32>
+}
+
+// -----
+
+// CHECK-LABEL:  func.func @pad_reflect_empty_pads(
+// CHECK-SAME:      %[[SELF:[^:]+]]: !torch.vtensor<[3,5],f32>)
+// CHECK-NOT:      torch.aten.pad
+// CHECK:          return %[[SELF]]
+func.func @pad_reflect_empty_pads(%arg0: !torch.vtensor<[3,5],f32>) -> !torch.vtensor<[3,5],f32> {
+  %str = torch.constant.str "reflect"
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct  : () -> !torch.list<int>
+  %1 = torch.aten.pad %arg0, %0, %str, %none : !torch.vtensor<[3,5],f32>, !torch.list<int>, !torch.str, !torch.none -> !torch.vtensor<[3,5],f32>
+  return %1 : !torch.vtensor<[3,5],f32>
+}

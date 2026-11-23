@@ -424,3 +424,95 @@ class PadToMultipleModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: PadToMultipleModule())
 def PadToMultipleModule_basic(module, tu: TestUtils):
     module.forward(tu.rand(1, 4, 33))
+
+
+# ==============================================================================
+
+
+class CircularPad1dModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3, 6], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.pad(x, [2, 4], "circular")
+
+
+@register_test_case(module_factory=lambda: CircularPad1dModule())
+def CircularPad1dModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 6, low=-1))
+
+
+# ==============================================================================
+
+
+class CircularPad2dModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 2, 4, 5], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.pad(x, [1, 3, 4, 0], "circular")
+
+
+@register_test_case(module_factory=lambda: CircularPad2dModule())
+def CircularPad2dModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 2, 4, 5, low=-1))
+
+
+# ==============================================================================
+
+
+class CircularPadNegativeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([1, 3, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.pad(x, [-1, 2, 1, -1], "circular")
+
+
+@register_test_case(module_factory=lambda: CircularPadNegativeModule())
+def CircularPadNegativeModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(1, 3, 4, low=-1))
+
+
+# ==============================================================================
+
+
+class CircularPadDynamicModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1, -1, -1], torch.float32, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.ops.aten.pad(x, [1, 2, -1, 2], "circular")
+
+
+@register_test_case(module_factory=lambda: CircularPadDynamicModule())
+def CircularPadDynamicModule_basic(module, tu: TestUtils):
+    module.forward(tu.rand(2, 3, 5, low=-1))
