@@ -5,10 +5,11 @@
 """Shared reference evaluation for output-shape probing and golden values."""
 
 import numpy as np
-import onnx
 from onnx.reference import ReferenceEvaluator
 from onnx.reference.ops.op_conv_integer import ConvInteger as _OnnxConvInteger
 from onnx.reference.ops.op_qlinear_conv import QLinearConv as _OnnxQLinearConv
+
+from .utils import has_default_domain_contrib_op
 
 
 # ReferenceEvaluator keys `new_ops` by class name, so this must be named after
@@ -67,7 +68,7 @@ def mark_onnxruntime_reference(model):
 
 
 def create_reference_evaluator(model):
-    # ONNX Runtime supplies the actual Microsoft contrib kernels. Use it for
+    # ONNX Runtime supplies the actual contrib kernels. Use it for
     # the entire graph so mixed standard/contrib graphs share one evaluator.
     # Tests whose ops onnx.reference does not implement correctly ask for it
     # through the model metadata.
@@ -75,8 +76,10 @@ def create_reference_evaluator(model):
         prop.key == ONNXRUNTIME_REFERENCE_KEY and prop.value == "onnxruntime"
         for prop in model.metadata_props
     )
-    if wants_onnxruntime or any(
-        opset.domain == "com.microsoft" for opset in model.opset_import
+    if (
+        wants_onnxruntime
+        or any(opset.domain == "com.microsoft" for opset in model.opset_import)
+        or has_default_domain_contrib_op(model)
     ):
         import onnxruntime as ort
 

@@ -2,7 +2,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 # Also available under a BSD-style license. See LICENSE.
-"""ONNX-native tests for Microsoft-domain normalization ops."""
+"""ONNX-native tests for ONNX Runtime's normalization contrib ops."""
 
 import torch
 import onnx.helper
@@ -108,3 +108,38 @@ class OnnxSkipSimplifiedLayerNormalization_f16(OnnxTestCase):
     )
     def graph(self):
         return [_ssln_node(["input", "skip", "gamma"])], _SSLN_OUTPUTS
+
+
+# ==============================================================================
+# SimplifiedLayerNormalization
+#
+# ONNX Runtime contrib op in the default domain. RMS-style norm over the
+# dimensions from axis on, computed in stash_type. y has the dtype of scale and
+# the optional inv_std_var has stash_type.
+# ==============================================================================
+
+
+def _sln_node(outputs, axis=-1):
+    return onnx.helper.make_node(
+        "SimplifiedLayerNormalization", ["x", "scale"], outputs, axis=axis
+    )
+
+
+@register_onnx_test
+class OnnxSimplifiedLayerNormalization_f16_axis1_invStdVar(OnnxTestCase):
+    # Normalizes over the last two dimensions in f32 and returns inv_std_var.
+    @annotate_inputs(
+        [("x", torch.float16, [2, 4, 8]), ("scale", torch.float16, [4, 8])]
+    )
+    def graph(self):
+        outputs = ["y", "inv_std_var"]
+        return [_sln_node(outputs, axis=1)], outputs
+
+
+@register_onnx_test
+class OnnxSimplifiedLayerNormalization_f32_f16Scale(OnnxTestCase):
+    # Without inv_std_var the lowering uses aten.rms_norm, and y gets the dtype
+    # of the scale.
+    @annotate_inputs([("x", torch.float32, [2, 4, 8]), ("scale", torch.float16, [8])])
+    def graph(self):
+        return [_sln_node(["y"])], ["y"]
