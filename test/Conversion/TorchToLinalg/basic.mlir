@@ -1176,6 +1176,54 @@ func.func @torch.aten.min$bool(%arg0: !torch.vtensor<[4],i1>) -> !torch.vtensor<
 }
 
 // -----
+// CHECK-LABEL: func.func @torch.aten.sum$unsigned_i8
+// CHECK:         linalg.generic
+// CHECK:         ^bb0(%[[IN:.+]]: i8, %[[OUT:.+]]: i64):
+// CHECK-NEXT:      %[[EXT:.+]] = arith.extui %[[IN]] : i8 to i64
+// CHECK-NEXT:      %[[RES:.+]] = arith.addi %[[EXT]], %[[OUT]] : i64
+func.func @torch.aten.sum$unsigned_i8(%arg0: !torch.vtensor<[4],ui8>) -> !torch.vtensor<[],si64> {
+  %none = torch.constant.none
+  %0 = torch.aten.sum %arg0, %none : !torch.vtensor<[4],ui8>, !torch.none -> !torch.vtensor<[],si64>
+  return %0 : !torch.vtensor<[],si64>
+}
+
+// -----
+// CHECK-LABEL: func.func @torch.aten.prod$unsigned_i8
+// CHECK:         linalg.generic
+// CHECK:         ^bb0(%[[IN:.+]]: i8, %[[OUT:.+]]: i64):
+// CHECK-NEXT:      %[[EXT:.+]] = arith.extui %[[IN]] : i8 to i64
+// CHECK-NEXT:      %[[RES:.+]] = arith.muli %[[EXT]], %[[OUT]] : i64
+func.func @torch.aten.prod$unsigned_i8(%arg0: !torch.vtensor<[4],ui8>) -> !torch.vtensor<[],si64> {
+  %none = torch.constant.none
+  %0 = torch.aten.prod %arg0, %none : !torch.vtensor<[4],ui8>, !torch.none -> !torch.vtensor<[],si64>
+  return %0 : !torch.vtensor<[],si64>
+}
+
+// -----
+// CHECK-LABEL: func.func @torch.aten.sum$signed_to_unsigned_i8
+// CHECK:         linalg.generic
+// CHECK:         ^bb0(%[[IN:.+]]: i64, %[[OUT:.+]]: i8):
+// CHECK-NEXT:      %[[TRUNC:.+]] = arith.trunci %[[IN]] : i64 to i8
+// CHECK-NEXT:      %[[RES:.+]] = arith.addi %[[TRUNC]], %[[OUT]] : i8
+func.func @torch.aten.sum$signed_to_unsigned_i8(%arg0: !torch.vtensor<[4],si64>) -> !torch.vtensor<[],ui8> {
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.sum %arg0, %int0 : !torch.vtensor<[4],si64>, !torch.int -> !torch.vtensor<[],ui8>
+  return %0 : !torch.vtensor<[],ui8>
+}
+
+// -----
+// CHECK-LABEL: func.func @torch.aten.prod$signed_to_unsigned_i8
+// CHECK:         linalg.generic
+// CHECK:         ^bb0(%[[IN:.+]]: i64, %[[OUT:.+]]: i8):
+// CHECK-NEXT:      %[[TRUNC:.+]] = arith.trunci %[[IN]] : i64 to i8
+// CHECK-NEXT:      %[[RES:.+]] = arith.muli %[[TRUNC]], %[[OUT]] : i8
+func.func @torch.aten.prod$signed_to_unsigned_i8(%arg0: !torch.vtensor<[4],si64>) -> !torch.vtensor<[],ui8> {
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.prod %arg0, %int0 : !torch.vtensor<[4],si64>, !torch.int -> !torch.vtensor<[],ui8>
+  return %0 : !torch.vtensor<[],ui8>
+}
+
+// -----
 // CHECK-LABEL: func.func @torch.aten.max.dim$bool
 // CHECK:         %[[INIT:.+]] = arith.constant false
 // CHECK:         linalg.fill ins(%[[INIT]] : i1)

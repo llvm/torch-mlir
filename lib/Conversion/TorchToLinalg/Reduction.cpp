@@ -370,16 +370,28 @@ static Value createLinalgPayloadForReduceOp(OpBuilder &b, Location loc,
                                             ArrayRef<Value> operands,
                                             Type resultElementType) {
   if (isa<AtenSumOp, AtenSumDimIntListOp>(op)) {
-    Value self =
-        convertScalarToDtype(b, loc, payloadArgs[0], resultElementType);
+    Value self = convertScalarToDtype(
+        b, loc, payloadArgs[0], resultElementType,
+        /*srcOriginalDtype=*/
+        cast<BaseTensorType>(op->getOperand(0).getType()).getDtype(),
+        /*dstOriginalDtype=*/
+        cast<BaseTensorType>(op->getResult(0).getType()).getDtype());
+    if (!self)
+      return nullptr;
     Value result = payloadArgs[1];
     if (isa<mlir::FloatType>(resultElementType))
       return arith::AddFOp::create(b, loc, self, result);
     else if (isa<mlir::IntegerType>(resultElementType))
       return arith::AddIOp::create(b, loc, self, result);
   } else if (isa<AtenProdOp, AtenProdDimIntOp, PrimsProdOp>(op)) {
-    Value self =
-        convertScalarToDtype(b, loc, payloadArgs[0], resultElementType);
+    Value self = convertScalarToDtype(
+        b, loc, payloadArgs[0], resultElementType,
+        /*srcOriginalDtype=*/
+        cast<BaseTensorType>(op->getOperand(0).getType()).getDtype(),
+        /*dstOriginalDtype=*/
+        cast<BaseTensorType>(op->getResult(0).getType()).getDtype());
+    if (!self)
+      return nullptr;
     Value result = payloadArgs[1];
     if (isa<mlir::FloatType>(resultElementType))
       return arith::MulFOp::create(b, loc, self, result);

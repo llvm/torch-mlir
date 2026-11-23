@@ -790,6 +790,71 @@ def ReduceProdSignedIntModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, 5, low=-100, high=100))
 
 
+# The uint8 inputs include values of 128 and above, which the signed
+# interpretation of the same bits gets wrong. The RefBackend returns integer
+# results as signed, so uint8 results are returned as int64.
+
+
+class ReduceSumUInt8Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.uint8, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.sum(a)
+
+
+@register_test_case(module_factory=lambda: ReduceSumUInt8Module())
+def ReduceSumUInt8Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=0, high=256).to(torch.uint8))
+
+
+class ReduceSumDimIntListUInt8Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.uint8, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.sum(a, dim=[1])
+
+
+@register_test_case(module_factory=lambda: ReduceSumDimIntListUInt8Module())
+def ReduceSumDimIntListUInt8Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=0, high=256).to(torch.uint8))
+
+
+class ReduceProdUInt8Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([2, 3], torch.uint8, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.prod(a)
+
+
+@register_test_case(module_factory=lambda: ReduceProdUInt8Module())
+def ReduceProdUInt8Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(2, 3, low=120, high=256).to(torch.uint8))
+
+
 # ==============================================================================
 
 

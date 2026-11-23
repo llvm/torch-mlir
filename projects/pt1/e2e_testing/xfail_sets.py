@@ -3868,6 +3868,11 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ElementwiseClampMinModule_bfloat16",
     "ElementwiseClampModule_bfloat16",
     "ElementwiseReluModule_bfloat16",
+    # TOSA integer arithmetic is signed, so uint8 values of 128 and above give
+    # wrong results. The uint8 prod lowering emits invalid TOSA.
+    "ReduceProdUInt8Module_basic",
+    "ReduceSumDimIntListUInt8Module_basic",
+    "ReduceSumUInt8Module_basic",
 }
 
 ONNX_TOSA_CRASHING_SET = {
