@@ -6212,15 +6212,15 @@ func.func @torch.aten.max_pool2d$asymmetric_pad(%arg0: !torch.vtensor<[?,3,1024,
 // CHECK: %[[POOL_NAN_SCORES:.*]] = tosa.cast %[[POOL_NANS]]
 // CHECK: %[[POOL_REVERSED:.*]] = tosa.reverse %[[POOL_NAN_SCORES]] axis(2)
 // CHECK: %[[POOL_FROM_END:.*]] = tosa.argmax %[[POOL_REVERSED]] axis(2)
-// CHECK: %[[POOL_K_MINUS_ONE:.*]] = tosa.const values(dense<2> : tensor<1x1xi32>)
+// CHECK: %[[POOL_K_MINUS_ONE:.*]] = tosa.const values(dense<2> : tensor<1x1xi64>)
 // CHECK: %[[POOL_LAST:.*]] = tosa.sub %[[POOL_K_MINUS_ONE]], %[[POOL_FROM_END]]
 // CHECK: %[[POOL_HAS_NAN:.*]] = tosa.reduce_any %[[POOL_NANS]] axis(2)
 // CHECK: %[[POOL_HAS_NAN_FLAT:.*]] = tosa.reshape %[[POOL_HAS_NAN]]
 // CHECK: %[[POOL_WINNER:.*]] = tosa.select %[[POOL_HAS_NAN_FLAT]], %[[POOL_LAST]], %[[POOL_FIRST]]
 // CHECK: %[[POOL_WINNER_FLAT:.*]] = tosa.reshape %[[POOL_WINNER]]
 // CHECK: %[[POOL_ORIGINAL_VALUES:.*]] = tosa.reshape %[[POOL_WINDOWS]]
-// CHECK: tosa.gather %[[POOL_ORIGINAL_VALUES]], %[[POOL_WINNER_FLAT]] : (tensor<18x3x1xf32>, tensor<18x1xi32>) -> tensor<18x1x1xf32>
-// CHECK: tosa.gather %{{.*}}, %[[POOL_WINNER_FLAT]] : (tensor<18x3x1xi64>, tensor<18x1xi32>) -> tensor<18x1x1xi64>
+// CHECK: tosa.gather %[[POOL_ORIGINAL_VALUES]], %[[POOL_WINNER_FLAT]] : (tensor<18x3x1xf32>, tensor<18x1xi64>) -> tensor<18x1x1xf32>
+// CHECK: tosa.gather %{{.*}}, %[[POOL_WINNER_FLAT]] : (tensor<18x3x1xi64>, tensor<18x1xi64>) -> tensor<18x1x1xi64>
 // CHECK: %[[POOL_VERTICAL:.*]] = tosa.const values(dense<{{.*}}0, 3, 6, 1, 4, 7, 2, 5, 8{{.*}}> : tensor<1x9xi64>)
 // CHECK: tosa.gather %{{.*}}, %[[POOL_VERTICAL]] : (tensor<1x9x2xf32>, tensor<1x9xi64>) -> tensor<1x9x2xf32>
 // CHECK: tosa.gather %{{.*}}, %[[POOL_VERTICAL]] : (tensor<1x9x2xi64>, tensor<1x9xi64>) -> tensor<1x9x2xi64>
@@ -6274,9 +6274,9 @@ func.func @torch.aten.max_pool2d_with_indices$rank3_kernel1_f16(%arg0: !torch.vt
 // CHECK: tosa.gather {{.*}} : (tensor<1x18x4xbf16>, tensor<1x18xi64>) -> tensor<1x18x4xbf16>
 // CHECK: tosa.tile {{.*}} : (tensor<6x1x3xi64>, !tosa.shape<3>) -> tensor<6x4x3xi64>
 // CHECK: tosa.reduce_max {{.*}} : (tensor<6x4x3xbf16>) -> tensor<6x4x1xbf16>
-// CHECK: tosa.gather {{.*}} : (tensor<24x3x1xi64>, tensor<24x1xi32>) -> tensor<24x1x1xi64>
+// CHECK: tosa.gather {{.*}} : (tensor<24x3x1xi64>, tensor<24x1xi64>) -> tensor<24x1x1xi64>
 // CHECK: tosa.reduce_max {{.*}} : (tensor<2x4x3xbf16>) -> tensor<2x4x1xbf16>
-// CHECK: tosa.gather {{.*}} : (tensor<8x3x1xi64>, tensor<8x1xi32>) -> tensor<8x1x1xi64>
+// CHECK: tosa.gather {{.*}} : (tensor<8x3x1xi64>, tensor<8x1xi64>) -> tensor<8x1x1xi64>
 // CHECK: tosa.reshape {{.*}} -> tensor<2x2x1x2xbf16>
 // CHECK: tosa.reshape {{.*}} -> tensor<2x2x1x2xi64>
 func.func @torch.aten.max_pool2d_with_indices$batched_floor_bf16(%arg0: !torch.vtensor<[2,2,3,6],bf16>) -> (!torch.vtensor<[2,2,1,2],bf16>, !torch.vtensor<[2,2,1,2],si64>) {
