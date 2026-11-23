@@ -239,3 +239,55 @@ func.func @kthvalue_ui8(%arg0: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[],ui8
   %values, %indices = torch.aten.kthvalue %arg0, %int2, %int0, %false : !torch.vtensor<[?],ui8>, !torch.int, !torch.int, !torch.bool -> !torch.vtensor<[],ui8>, !torch.vtensor<[],si64>
   return %values : !torch.vtensor<[],ui8>
 }
+
+// -----
+
+// With include_self=false, the self positions are first filled with the
+// smallest ui8 value, which is 0.
+// CHECK-LABEL: @scatter_reduce_amax_ui8
+// CHECK:         tensor.insert_slice
+// CHECK:         %[[INIT:.*]] = arith.constant 0 : i8
+// CHECK:         %[[FILL:.*]] = linalg.fill ins(%[[INIT]] : i8)
+// CHECK:         %[[SELF:.*]] = tm_tensor.scatter {{.*}} ins(%[[FILL]], %{{.*}} : tensor<?xi8>, tensor<?x1xi64>)
+// CHECK:         tm_tensor.scatter {{.*}} outs(%[[SELF]] : tensor<10xi8>) {
+// CHECK:         ^bb0(%[[UPDATE:.*]]: i8, %[[CURRENT:.*]]: i8):
+// CHECK:           arith.maxui %[[UPDATE]], %[[CURRENT]] : i8
+func.func @scatter_reduce_amax_ui8(%arg0: !torch.vtensor<[10],ui8>, %arg1: !torch.vtensor<[4],si64>, %arg2: !torch.vtensor<[4],ui8>) -> !torch.vtensor<[10],ui8> {
+  %int0 = torch.constant.int 0
+  %str = torch.constant.str "amax"
+  %false = torch.constant.bool false
+  %0 = torch.aten.scatter_reduce.two %arg0, %int0, %arg1, %arg2, %str, %false : !torch.vtensor<[10],ui8>, !torch.int, !torch.vtensor<[4],si64>, !torch.vtensor<[4],ui8>, !torch.str, !torch.bool -> !torch.vtensor<[10],ui8>
+  return %0 : !torch.vtensor<[10],ui8>
+}
+
+// -----
+
+// With include_self=false, the self positions are first filled with the
+// largest ui8 value, 255, which prints as -1.
+// CHECK-LABEL: @scatter_reduce_amin_ui8
+// CHECK:         tensor.insert_slice
+// CHECK:         %[[INIT:.*]] = arith.constant -1 : i8
+// CHECK:         %[[FILL:.*]] = linalg.fill ins(%[[INIT]] : i8)
+// CHECK:         %[[SELF:.*]] = tm_tensor.scatter {{.*}} ins(%[[FILL]], %{{.*}} : tensor<?xi8>, tensor<?x1xi64>)
+// CHECK:         tm_tensor.scatter {{.*}} outs(%[[SELF]] : tensor<10xi8>) {
+// CHECK:         ^bb0(%[[UPDATE:.*]]: i8, %[[CURRENT:.*]]: i8):
+// CHECK:           arith.minui %[[UPDATE]], %[[CURRENT]] : i8
+func.func @scatter_reduce_amin_ui8(%arg0: !torch.vtensor<[10],ui8>, %arg1: !torch.vtensor<[4],si64>, %arg2: !torch.vtensor<[4],ui8>) -> !torch.vtensor<[10],ui8> {
+  %int0 = torch.constant.int 0
+  %str = torch.constant.str "amin"
+  %false = torch.constant.bool false
+  %0 = torch.aten.scatter_reduce.two %arg0, %int0, %arg1, %arg2, %str, %false : !torch.vtensor<[10],ui8>, !torch.int, !torch.vtensor<[4],si64>, !torch.vtensor<[4],ui8>, !torch.str, !torch.bool -> !torch.vtensor<[10],ui8>
+  return %0 : !torch.vtensor<[10],ui8>
+}
+
+// -----
+
+// CHECK-LABEL: @scatter_reduce_mean_ui8
+// CHECK:         linalg.map { arith.divui } ins(%{{.*}}, %{{.*}} : tensor<10xi8>, tensor<10xi8>)
+func.func @scatter_reduce_mean_ui8(%arg0: !torch.vtensor<[10],ui8>, %arg1: !torch.vtensor<[4],si64>, %arg2: !torch.vtensor<[4],ui8>) -> !torch.vtensor<[10],ui8> {
+  %int0 = torch.constant.int 0
+  %str = torch.constant.str "mean"
+  %true = torch.constant.bool true
+  %0 = torch.aten.scatter_reduce.two %arg0, %int0, %arg1, %arg2, %str, %true : !torch.vtensor<[10],ui8>, !torch.int, !torch.vtensor<[4],si64>, !torch.vtensor<[4],ui8>, !torch.str, !torch.bool -> !torch.vtensor<[10],ui8>
+  return %0 : !torch.vtensor<[10],ui8>
+}

@@ -541,8 +541,15 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
-    # The uint8 sort and kthvalue tests fail, as their int versions do.
+    # The uint8 sort, kthvalue and scatter_reduce tests fail, as their int
+    # versions do.
     "AtenKthvalueUInt8Module_basic",
+    "ScatterReduceUInt8MaxModule",
+    "ScatterReduceUInt8MaxModuleIncludeSelf",
+    "ScatterReduceUInt8MeanModule",
+    "ScatterReduceUInt8MeanModuleIncludeSelf",
+    "ScatterReduceUInt8MinModule",
+    "ScatterReduceUInt8MinModuleIncludeSelf",
     "SortTensorUInt8Descending_basic",
     "SortTensorUInt8_basic",
     # AvgPool3d lowering ignores divisor_override.
@@ -2816,9 +2823,17 @@ LTC_XFAIL_SET = {
 }
 
 ONNX_XFAIL_SET = {
-    # torch.onnx has no export for kthvalue. The int version of kthvalue is
-    # also xfailed here.
+    # The ONNX importer does not legalize a ui8 ScatterElements with a min/max
+    # reduction. torch.onnx exports scatter_reduce mean as a ScatterElements
+    # with no reduction and has no export for kthvalue. The int versions of
+    # scatter_reduce and kthvalue are xfailed here as well.
     "AtenKthvalueUInt8Module_basic",
+    "ScatterReduceUInt8MaxModule",
+    "ScatterReduceUInt8MaxModuleIncludeSelf",
+    "ScatterReduceUInt8MeanModule",
+    "ScatterReduceUInt8MeanModuleIncludeSelf",
+    "ScatterReduceUInt8MinModule",
+    "ScatterReduceUInt8MinModuleIncludeSelf",
     # ONNX export drops avg_pool3d divisor_override.
     "AvgPool3dSignedZero_basic",
     # The ONNX test configuration replaces annotated integer inputs with
@@ -3875,8 +3890,14 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ElementwiseClampMinModule_bfloat16",
     "ElementwiseClampModule_bfloat16",
     "ElementwiseReluModule_bfloat16",
-    # TOSA has no lowering for sort or kthvalue on uint8.
+    # TOSA has no lowering for sort, kthvalue or scatter_reduce on uint8.
     "AtenKthvalueUInt8Module_basic",
+    "ScatterReduceUInt8MaxModule",
+    "ScatterReduceUInt8MaxModuleIncludeSelf",
+    "ScatterReduceUInt8MeanModule",
+    "ScatterReduceUInt8MeanModuleIncludeSelf",
+    "ScatterReduceUInt8MinModule",
+    "ScatterReduceUInt8MinModuleIncludeSelf",
     "SortTensorUInt8Descending_basic",
     "SortTensorUInt8_basic",
 }

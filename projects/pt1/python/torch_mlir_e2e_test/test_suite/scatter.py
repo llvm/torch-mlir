@@ -1462,6 +1462,74 @@ def ScatterReduceIntMeanModuleIncludeSelf(module, tu: TestUtils):
     )
 
 
+# The uint8 inputs include values of 128 and above, which the signed
+# interpretation of the same bits gets wrong. Each slot's sum stays below 256,
+# so mean does not depend on uint8 wraparound. The RefBackend returns integer
+# results as signed, so the uint8 result is returned as int64.
+
+
+class ScatterReduceUInt8Module(torch.nn.Module):
+    include_self: bool
+    reduce_type: str
+
+    def __init__(self, reduce_type: str, include_self: bool):
+        super().__init__()
+        self.include_self = include_self
+        self.reduce_type = reduce_type
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3], torch.uint8, True),
+            ([6], torch.int64, True),
+            ([6], torch.uint8, True),
+        ]
+    )
+    def forward(self, input, index, src):
+        return torch.ops.aten.scatter_reduce(
+            input, 0, index, src, self.reduce_type, include_self=self.include_self
+        ).to(torch.int64)
+
+
+def _scatter_reduce_uint8_inputs():
+    return (
+        torch.tensor([100, 1, 50], dtype=torch.uint8),
+        torch.tensor([0, 0, 1, 1, 2, 2]),
+        torch.tensor([0, 5, 128, 10, 130, 60], dtype=torch.uint8),
+    )
+
+
+@register_test_case(module_factory=lambda: ScatterReduceUInt8Module("amax", False))
+def ScatterReduceUInt8MaxModule(module, tu: TestUtils):
+    module.forward(*_scatter_reduce_uint8_inputs())
+
+
+@register_test_case(module_factory=lambda: ScatterReduceUInt8Module("amax", True))
+def ScatterReduceUInt8MaxModuleIncludeSelf(module, tu: TestUtils):
+    module.forward(*_scatter_reduce_uint8_inputs())
+
+
+@register_test_case(module_factory=lambda: ScatterReduceUInt8Module("amin", False))
+def ScatterReduceUInt8MinModule(module, tu: TestUtils):
+    module.forward(*_scatter_reduce_uint8_inputs())
+
+
+@register_test_case(module_factory=lambda: ScatterReduceUInt8Module("amin", True))
+def ScatterReduceUInt8MinModuleIncludeSelf(module, tu: TestUtils):
+    module.forward(*_scatter_reduce_uint8_inputs())
+
+
+@register_test_case(module_factory=lambda: ScatterReduceUInt8Module("mean", False))
+def ScatterReduceUInt8MeanModule(module, tu: TestUtils):
+    module.forward(*_scatter_reduce_uint8_inputs())
+
+
+@register_test_case(module_factory=lambda: ScatterReduceUInt8Module("mean", True))
+def ScatterReduceUInt8MeanModuleIncludeSelf(module, tu: TestUtils):
+    module.forward(*_scatter_reduce_uint8_inputs())
+
+
 # ==============================================================================
 
 

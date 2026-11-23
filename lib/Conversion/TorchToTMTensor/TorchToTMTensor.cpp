@@ -60,10 +60,17 @@ namespace mlir::torch {
 // that these patterns become mostly mechanical associations of
 // "aten.foo -> linalg.foo".
 
+// `elementType` is signless, so `isUnsigned` comes from the torch dtype.
 static TypedAttr getNumericLimit(PatternRewriter &rewriter, Type elementType,
-                                 bool allowNonFinites, bool getMin = true) {
+                                 bool allowNonFinites, bool getMin = true,
+                                 bool isUnsigned = false) {
   auto bitWidth = elementType.getIntOrFloatBitWidth();
   if (llvm::isa<mlir::IntegerType>(elementType)) {
+    if (isUnsigned) {
+      return rewriter.getIntegerAttr(elementType,
+                                     getMin ? APInt::getMinValue(bitWidth)
+                                            : APInt::getMaxValue(bitWidth));
+    }
     if (getMin) {
       return rewriter.getIntegerAttr(elementType,
                                      APInt::getSignedMinValue(bitWidth));
@@ -1282,6 +1289,11 @@ public:
         cast<RankedTensorType>(adaptor.getSrc().getType());
 
     Value self = adaptor.getSelf();
+    // The builtin element types are signless, so the signedness comes from
+    // the torch dtype.
+    bool isUnsigned = cast<BaseTensorType>(op.getSelf().getType())
+                          .getDtype()
+                          .isUnsignedInteger();
 
     if (selfType.getRank() != indexType.getRank() ||
         indexType.getRank() != srcType.getRank())
@@ -1357,14 +1369,14 @@ public:
         // type
         TypedAttr minAttr = getNumericLimit(rewriter, srcType.getElementType(),
                                             this->allowNonFinites,
-                                            /*getMin=*/true);
+                                            /*getMin=*/true, isUnsigned);
         normalizationValue = arith::ConstantOp::create(rewriter, loc, minAttr);
       } else if (reduceEnum == torch_upstream::ReductionType::MIN) {
         // Set the values in the input tensor to the largest element of that
         // type
         TypedAttr maxAttr = getNumericLimit(rewriter, srcType.getElementType(),
                                             this->allowNonFinites,
-                                            /*getMin=*/false);
+                                            /*getMin=*/false, isUnsigned);
         normalizationValue = arith::ConstantOp::create(rewriter, loc, maxAttr);
       }
 
@@ -1417,7 +1429,10 @@ public:
             }
           } else if (reduceEnum == torch_upstream::ReductionType::MAX) {
             if (isa<mlir::IntegerType>(update.getType())) {
-              result = arith::MaxSIOp::create(b, loc, update, current);
+              if (isUnsigned)
+                result = arith::MaxUIOp::create(b, loc, update, current);
+              else
+                result = arith::MaxSIOp::create(b, loc, update, current);
             } else if (isa<mlir::FloatType>(update.getType())) {
               result = arith::MaximumFOp::create(b, loc, update, current);
             } else {
@@ -1425,7 +1440,10 @@ public:
             }
           } else if (reduceEnum == torch_upstream::ReductionType::MIN) {
             if (isa<mlir::IntegerType>(update.getType())) {
-              result = arith::MinSIOp::create(b, loc, update, current);
+              if (isUnsigned)
+                result = arith::MinUIOp::create(b, loc, update, current);
+              else
+                result = arith::MinSIOp::create(b, loc, update, current);
             } else if (isa<mlir::FloatType>(update.getType())) {
               result = arith::MinimumFOp::create(b, loc, update, current);
             } else {
@@ -1470,7 +1488,10 @@ public:
               [&](OpBuilder &b, Location loc, ValueRange args) {
                 Value result;
                 if (llvm::isa<mlir::IntegerType>(args[0].getType())) {
-                  result = arith::DivSIOp::create(b, loc, args[0], args[1]);
+                  if (isUnsigned)
+                    result = arith::DivUIOp::create(b, loc, args[0], args[1]);
+                  else
+                    result = arith::DivSIOp::create(b, loc, args[0], args[1]);
                 } else if (llvm::isa<mlir::FloatType>(args[0].getType())) {
                   result = arith::DivFOp::create(b, loc, args[0], args[1]);
                 } else {
