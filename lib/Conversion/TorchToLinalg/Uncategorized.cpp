@@ -174,29 +174,68 @@ static Value createCompareOp(OpBuilder &b, Location loc, OpTy op, Value lhs,
 
   Type lhsDtype = lhs.getType();
   Type rhsDtype = rhs.getType();
-  Type elementalType = cast<BaseTensorType>(op.getSelf().getType()).getDtype();
+  // `lhs` and `rhs` are signless, so integer conversions take their
+  // signedness from the torch dtypes. `other` has no torch dtype when it is a
+  // scalar.
+  Type selfDtype = cast<BaseTensorType>(op.getSelf().getType()).getDtype();
+  std::optional<Type> otherDtype;
+  if (auto otherTensorType = dyn_cast<BaseTensorType>(op.getOther().getType()))
+    otherDtype = otherTensorType.getDtype();
+  Type elementalType = selfDtype;
 
   if (lhsDtype.isIntOrFloat() && rhsDtype.isIntOrFloat()) {
     if (isa<mlir::FloatType>(lhsDtype) && isa<mlir::IntegerType>(rhsDtype)) {
-      rhs = convertScalarToDtype(b, loc, rhs, lhsDtype);
+      rhs = convertScalarToDtype(b, loc, rhs, lhsDtype,
+                                 /*srcOriginalDtype=*/otherDtype);
       elementalType = lhsDtype;
     } else if (isa<mlir::IntegerType>(lhsDtype) &&
                isa<mlir::FloatType>(rhsDtype)) {
-      lhs = convertScalarToDtype(b, loc, lhs, rhsDtype);
+      lhs = convertScalarToDtype(b, loc, lhs, rhsDtype,
+                                 /*srcOriginalDtype=*/selfDtype);
       elementalType = rhsDtype;
     } else {
       // Both are either Integer or Float types, but the bit width might be
       // different.
-      if (lhsDtype.getIntOrFloatBitWidth() > rhsDtype.getIntOrFloatBitWidth()) {
-        rhs = convertScalarToDtype(b, loc, rhs, lhsDtype);
+      auto isZeroRank = [](Value v) {
+        auto type = cast<BaseTensorType>(v.getType());
+        return type.hasSizes() && type.getSizes().empty();
+      };
+      bool selfIsZeroRank = isZeroRank(op.getSelf());
+      bool otherIsZeroRank = otherDtype && isZeroRank(op.getOther());
+      bool bothNonBoolIntegers = isa<mlir::IntegerType>(lhsDtype) &&
+                                 isa<mlir::IntegerType>(rhsDtype) &&
+                                 !lhsDtype.isInteger(1) &&
+                                 !rhsDtype.isInteger(1);
+      // PyTorch casts an integer scalar, or a 0-d integer tensor compared
+      // with a dimensioned one, to the dtype of the other integer operand, so
+      // an out-of-range value wraps. A bool operand is promoted instead.
+      bool otherTakesSelfDtype =
+          bothNonBoolIntegers &&
+          (!otherDtype || (otherIsZeroRank && !selfIsZeroRank));
+      bool selfTakesOtherDtype = bothNonBoolIntegers && otherDtype &&
+                                 selfIsZeroRank && !otherIsZeroRank;
+      if (otherTakesSelfDtype ||
+          (!selfTakesOtherDtype && lhsDtype.getIntOrFloatBitWidth() >
+                                       rhsDtype.getIntOrFloatBitWidth())) {
+        rhs = convertScalarToDtype(b, loc, rhs, lhsDtype,
+                                   /*srcOriginalDtype=*/otherDtype,
+                                   /*dstOriginalDtype=*/selfDtype);
       } else {
-        lhs = convertScalarToDtype(b, loc, lhs, rhsDtype);
+        lhs = convertScalarToDtype(b, loc, lhs, rhsDtype,
+                                   /*srcOriginalDtype=*/selfDtype,
+                                   /*dstOriginalDtype=*/otherDtype);
+        // Compare in `other`'s dtype. It is at least as wide as `self`'s
+        // unless `self` is a 0-d tensor that takes `other`'s dtype.
+        if (otherDtype)
+          elementalType = *otherDtype;
       }
     }
   } else {
     op.emitError("unimplemented: type promotion from tensor to scalar.");
     return nullptr;
   }
+  if (!lhs || !rhs)
+    return nullptr;
 
   if constexpr (is_any_same<OpTy, AtenLtScalarOp, AtenLtTensorOp>()) {
     return createLessThan(b, loc, elementalType, lhs, rhs);

@@ -541,6 +541,10 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
+    # The compare lowering promotes a 0-d integer tensor instead of casting it
+    # to the uint8 dtype of the other operand.
+    "ElementwiseGtUInt8ZeroRankTensorModule_basic",
+    "ElementwiseLtZeroRankTensorUInt8Module_basic",
     # AvgPool3d lowering ignores divisor_override.
     "AvgPool3dSignedZero_basic",
     # StableHLO scatter lowering fails bufferization for these tests.
@@ -3870,6 +3874,10 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ElementwiseReluModule_bfloat16",
     # TOSA integer arithmetic is signed, so uint8 values of 128 and above give
     # wrong results. The uint8 prod lowering emits invalid TOSA.
+    "ElementwiseGtUInt8ScalarModule_basic",
+    "ElementwiseGtUInt8WrappedScalarModule_basic",
+    "ElementwiseGtUInt8ZeroRankTensorModule_basic",
+    "ElementwiseLtZeroRankTensorUInt8Module_basic",
     "ReduceMaxUInt8Module_basic",
     "ReduceMinUInt8Module_basic",
     "ReduceProdUInt8Module_basic",
