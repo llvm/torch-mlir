@@ -468,6 +468,47 @@ func.func @elementwise_ge_tensor_float_by_unsigned(%arg0: !torch.vtensor<[?],f32
 
 // -----
 
+// CHECK-LABEL:   func.func @elementwise_remainder_scalar_unsigned(
+// CHECK:           %[[C:.*]] = arith.constant 7 : i64
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[IN:.*]]: i8, %{{.*}}: i8):
+// CHECK-NEXT:        %[[C_I8:.*]] = arith.trunci %[[C]] : i64 to i8
+// CHECK-NEXT:        %[[REM:.*]] = arith.remui %[[IN]], %[[C_I8]] : i8
+// CHECK-NEXT:        linalg.yield %[[REM]] : i8
+func.func @elementwise_remainder_scalar_unsigned(%arg0: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],ui8> {
+  %int7 = torch.constant.int 7
+  %0 = torch.aten.remainder.Scalar %arg0, %int7 : !torch.vtensor<[?],ui8>, !torch.int -> !torch.vtensor<[?],ui8>
+  return %0 : !torch.vtensor<[?],ui8>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_remainder_scalar_signed_i8(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[IN:.*]]: i8, %{{.*}}: i8):
+// CHECK-NEXT:        %[[C_I8:.*]] = arith.trunci %{{.*}} : i64 to i8
+// CHECK-NEXT:        %[[REM:.*]] = arith.remsi %[[IN]], %[[C_I8]] : i8
+// CHECK:             arith.select
+func.func @elementwise_remainder_scalar_signed_i8(%arg0: !torch.vtensor<[?],si8>) -> !torch.vtensor<[?],si8> {
+  %int7 = torch.constant.int 7
+  %0 = torch.aten.remainder.Scalar %arg0, %int7 : !torch.vtensor<[?],si8>, !torch.int -> !torch.vtensor<[?],si8>
+  return %0 : !torch.vtensor<[?],si8>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_remainder_tensor_unsigned(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: i8, %[[RHS:.*]]: i8, %{{.*}}: i8):
+// CHECK-NEXT:        %[[REM:.*]] = arith.remui %[[LHS]], %[[RHS]] : i8
+// CHECK-NEXT:        linalg.yield %[[REM]] : i8
+func.func @elementwise_remainder_tensor_unsigned(%arg0: !torch.vtensor<[?],ui8>, %arg1: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],ui8> {
+  %0 = torch.aten.remainder.Tensor %arg0, %arg1 : !torch.vtensor<[?],ui8>, !torch.vtensor<[?],ui8> -> !torch.vtensor<[?],ui8>
+  return %0 : !torch.vtensor<[?],ui8>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @elementwise_div_tensor_mode_floor_signed_i8(
 // CHECK:           linalg.generic
 // CHECK:           ^bb0(%[[LHS:[^:]*]]: i8, %[[RHS:[^:]*]]: i8, %{{.*}}: i8):

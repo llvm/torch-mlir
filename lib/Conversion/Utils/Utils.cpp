@@ -468,7 +468,8 @@ Value materializeScalarToDtype(OpBuilder &b, Location loc,
       srcOriginalDtype ? std::optional<Type>(srcOriginalDtype) : std::nullopt);
 }
 
-Value createRemainder(OpBuilder &b, Location loc, Value lhs, Value rhs) {
+Value createRemainder(OpBuilder &b, Location loc, Value lhs, Value rhs,
+                      bool isUnsigned) {
   // Adds `rhs` to the truncated remainder when it is non-zero and its sign
   // differs from the sign of `rhs`.
   Type dtype = lhs.getType();
@@ -492,6 +493,10 @@ Value createRemainder(OpBuilder &b, Location loc, Value lhs, Value rhs) {
   }
   assert(dtype.isInteger() &&
          "dtype should be a float or integer (signless or signed)");
+  // Unsigned operands are never negative, so the remainder needs no sign
+  // fix-up.
+  if (isUnsigned)
+    return arith::RemUIOp::create(b, loc, lhs, rhs);
   Value remainder = arith::RemSIOp::create(b, loc, lhs, rhs);
 
   Value zero = arith::ConstantOp::create(b, loc, b.getZeroAttr(dtype));

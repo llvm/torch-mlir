@@ -5192,6 +5192,79 @@ def ElementwiseRemainderTensorModule_Int_basic(module, tu: TestUtils):
     )
 
 
+# Remainder of uint8 tensors with values of 128 and above. The RefBackend
+# returns integer results as signed, so the results are returned as int64.
+
+
+class ElementwiseRemainderScalarUInt8Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.uint8, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.remainder(a, 7).to(torch.int64)
+
+
+@register_test_case(module_factory=lambda: ElementwiseRemainderScalarUInt8Module())
+def ElementwiseRemainderScalarUInt8Module_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([0, 5, 127, 128, 200, 255], dtype=torch.uint8))
+
+
+class ElementwiseRemainderScalarUInt8NegativeModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.uint8, True),
+        ]
+    )
+    def forward(self, a):
+        # PyTorch converts the divisor to uint8, so -3 divides as 253.
+        return torch.remainder(a, -3).to(torch.int64)
+
+
+@register_test_case(
+    module_factory=lambda: ElementwiseRemainderScalarUInt8NegativeModule()
+)
+def ElementwiseRemainderScalarUInt8NegativeModule_basic(module, tu: TestUtils):
+    module.forward(
+        torch.tensor([0, 5, 127, 128, 200, 252, 253, 255], dtype=torch.uint8)
+    )
+
+
+class ElementwiseRemainderTensorUInt8Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.uint8, True),
+            ([3, 4], torch.uint8, True),
+        ]
+    )
+    def forward(self, a, b):
+        return torch.remainder(a, b).to(torch.int64)
+
+
+@register_test_case(module_factory=lambda: ElementwiseRemainderTensorUInt8Module())
+def ElementwiseRemainderTensorUInt8Module_basic(module, tu: TestUtils):
+    module.forward(
+        tu.randint(3, 4, low=0, high=256).to(torch.uint8),
+        tu.randint(3, 4, low=1, high=256).to(torch.uint8),
+    )
+
+
 # ==============================================================================
 
 

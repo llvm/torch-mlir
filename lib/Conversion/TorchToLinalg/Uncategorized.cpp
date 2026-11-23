@@ -385,13 +385,28 @@ Value createRemainderPayload(OpBuilder &b, Location loc,
   typename OpT::Adaptor adaptor(operands);
   Type dtype = cast<RankedTensorType>(converter->convertType(op.getType()))
                    .getElementType();
-  Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
-  Value rhs = convertScalarToDtype(
-      b, loc,
-      std::is_same_v<OpT, AtenRemainderScalarOp> ? operands[1] : payloadArgs[1],
-      dtype);
+  Type resultDtype = cast<BaseTensorType>(op.getType()).getDtype();
+  Value lhs = convertScalarToDtype(
+      b, loc, payloadArgs[0], dtype,
+      /*srcOriginalDtype=*/
+      cast<BaseTensorType>(op.getSelf().getType()).getDtype(),
+      /*dstOriginalDtype=*/resultDtype);
+  Value rhs;
+  if constexpr (std::is_same_v<OpT, AtenRemainderScalarOp>)
+    rhs = convertScalarToDtype(b, loc, operands[1], dtype,
+                               /*srcOriginalDtype=*/std::nullopt,
+                               /*dstOriginalDtype=*/resultDtype);
+  else
+    rhs = convertScalarToDtype(
+        b, loc, payloadArgs[1], dtype,
+        /*srcOriginalDtype=*/
+        cast<BaseTensorType>(op.getOther().getType()).getDtype(),
+        /*dstOriginalDtype=*/resultDtype);
+  if (!lhs || !rhs)
+    return nullptr;
 
-  return createRemainder(b, loc, lhs, rhs);
+  return createRemainder(b, loc, lhs, rhs,
+                         torch_to_linalg::isUnsignedTorchType(resultDtype));
 }
 
 // Emit the arithmetic for affine quantization: (input / scale) [+zp] [round]
