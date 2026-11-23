@@ -1762,15 +1762,17 @@ class GraphNodeImporter:
     ):
         """Imports the torch._higher_order_ops.while_loop HOP.
 
-        Args format: (cond_fn, body_fn, carries)
+        Args format: (cond_fn, body_fn, carried_inputs, additional_inputs)
         The cond_fn and body_fn are get_attr nodes pointing to submodule graphs
-        that have already been imported by import_program().
+        that have already been imported by import_program(). Both functions
+        take (*carried_inputs, *additional_inputs); the body returns updated
+        carried values only.
 
-        Emits torch.prim.Loop with proper control flow structure.
+        Emits torch.prim.Loop with proper control flow structure. Only the
+        carried inputs are loop-carried; the additional inputs are loop
+        invariant and passed directly to the cond/body calls.
         """
-        # while_loop HOP args: (cond_fn, body_fn, car`ries...)
-        # Unpack the first two args and the rest as carries
-        cond_fn_node, body_fn_node, *carries = node.args
+        cond_fn_node, body_fn_node, carried_inputs, additional_inputs = node.args
 
         # Extract function names from get_attr nodes
         assert (
@@ -1788,14 +1790,10 @@ class GraphNodeImporter:
         cond_fn_name = self.fx_importer._graph_module_to_func_name[id(cond_fn_module)]
         body_fn_name = self.fx_importer._graph_module_to_func_name[id(body_fn_module)]
 
-        # Import the carries (loop state variables)
-        carry_values = []
-        for carry in carries:
-            if isinstance(carry, tuple):
-                # Handle tuple carries by importing each element
-                carry_values.extend(self._import_tuple_argument(loc, carry, None))
-            else:
-                carry_values.append(self._import_argument(loc, carry))
+        # Each group is a tuple, or a list after torch.export.save/load.
+        # Import elements individually: they are not a homogeneous torch list.
+        carry_values = [self._import_argument(loc, a) for a in carried_inputs]
+        additional_values = [self._import_argument(loc, a) for a in additional_inputs]
 
         # Determine result types from node metadata
         node_val = node.meta.get("val")
@@ -1812,7 +1810,7 @@ class GraphNodeImporter:
             "func.call",
             attributes={"callee": FlatSymbolRefAttr.get(cond_fn_name)},
             results=[cond_result_type],
-            operands=carry_values,
+            operands=carry_values + additional_values,
             loc=loc,
         )
 
@@ -1855,7 +1853,8 @@ class GraphNodeImporter:
                 name="func.call",
                 attributes={"callee": FlatSymbolRefAttr.get(body_fn_name)},
                 results=result_types,
-                operands=list(loop_block.arguments[1:]),  # Skip iteration counter
+                # Skip iteration counter
+                operands=list(loop_block.arguments[1:]) + additional_values,
                 loc=loc,
             )
             body_results = list(body_results_op.results)
@@ -1865,7 +1864,7 @@ class GraphNodeImporter:
                 name="func.call",
                 attributes={"callee": FlatSymbolRefAttr.get(cond_fn_name)},
                 results=[IrType.parse("!torch.vtensor<[],i1>", context=self._c)],
-                operands=body_results,
+                operands=body_results + additional_values,
                 loc=loc,
             ).result
 

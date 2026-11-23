@@ -346,6 +346,80 @@ def test_while_loop_two_returns():
 
 
 @run
+# CHECK-LABEL: test_while_loop_additional_inputs
+# CHECK: func.func private @while_loop_cond_graph_{{[0-9]+}}(%arg0: !torch.vtensor<[],si64>, %arg1: !torch.vtensor<[4],f32>, %arg2: !torch.vtensor<[4],f32>) -> !torch.vtensor<[],i1>
+# CHECK: func.func private @while_loop_body_graph_{{[0-9]+}}(%arg0: !torch.vtensor<[],si64>, %arg1: !torch.vtensor<[4],f32>, %arg2: !torch.vtensor<[4],f32>) -> (!torch.vtensor<[],si64>, !torch.vtensor<[4],f32>)
+# CHECK: func.func @test_while_loop_additional_inputs(%arg0: !torch.vtensor<[4],f32>) -> !torch.vtensor<[4],f32>
+# CHECK: %[[W:[0-9a-z_]+]] = torch.vtensor.literal
+# CHECK: %[[COND:.*]] = call @while_loop_cond_graph_{{[0-9]+}}(%[[T0:[0-9a-z_]+]], %arg0, %[[W]])
+# CHECK: %[[BOOL:.*]] = torch.aten.Bool.Tensor %[[COND]]
+# Only the carried inputs are loop operands; the additional input is captured.
+# CHECK: %[[RESULT:.*]]:2 = torch.prim.Loop %{{.*}}, %[[BOOL]], init(%[[T0]], %arg0) {
+# CHECK: ^bb0(%arg1: !torch.int, %arg2: !torch.vtensor<[],si64>, %arg3: !torch.vtensor<[4],f32>):
+# CHECK: %[[BODY:.*]]:2 = func.call @while_loop_body_graph_{{[0-9]+}}(%arg2, %arg3, %[[W]])
+# CHECK: func.call @while_loop_cond_graph_{{[0-9]+}}(%[[BODY]]#0, %[[BODY]]#1, %[[W]])
+# CHECK: torch.prim.Loop.condition %{{.*}}, iter(%[[BODY]]#0, %[[BODY]]#1 : !torch.vtensor<[],si64>, !torch.vtensor<[4],f32>)
+# CHECK: return %[[RESULT]]#1
+def test_while_loop_additional_inputs():
+    from torch._higher_order_ops.while_loop import while_loop
+
+    class M(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.w = nn.Parameter(torch.full((4,), 0.5))
+
+        def forward(self, h):
+            def body(t, h):
+                # Reading self.w lifts it into the HOP's additional_inputs.
+                return t + 1, h * self.w + 1
+
+            _, h = while_loop(
+                lambda t, h: t < 3, body, (torch.zeros((), dtype=torch.int64), h)
+            )
+            return h
+
+    m = fx.export_and_import(
+        M(), torch.zeros(4), func_name="test_while_loop_additional_inputs"
+    )
+    m.operation.verify()
+    print(m)
+
+
+@run
+# CHECK-LABEL: test_while_loop_additional_inputs_save_load
+# After torch.export.save/load, carried and additional inputs are lists.
+# CHECK: torch.prim.Loop %{{.*}}, %{{.*}}, init(%{{.*}}, %arg0) {
+# CHECK: func.call @while_loop_body_graph_{{[0-9]+}}(%arg2, %arg3, %{{.*}})
+def test_while_loop_additional_inputs_save_load():
+    import io
+    from torch._higher_order_ops.while_loop import while_loop
+
+    class M(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.w = nn.Parameter(torch.full((4,), 0.5))
+
+        def forward(self, h):
+            def body(t, h):
+                return t + 1, h * self.w + 1
+
+            _, h = while_loop(
+                lambda t, h: t < 3, body, (torch.zeros((), dtype=torch.int64), h)
+            )
+            return h
+
+    buffer = io.BytesIO()
+    torch.export.save(torch.export.export(M(), (torch.zeros(4),)), buffer)
+    buffer.seek(0)
+    program = torch.export.load(buffer)
+    m = fx.export_and_import(
+        program, func_name="test_while_loop_additional_inputs_save_load"
+    )
+    m.operation.verify()
+    print(m)
+
+
+@run
 # CHECK-LABEL: test_flex_attention
 # Check that helper functions are emitted first.
 # CHECK: func.func private @sdpa_score0(%arg0: !torch.vtensor<[],f32>, %arg1: !torch.vtensor<[],si32>, %arg2: !torch.vtensor<[],si32>, %arg3: !torch.vtensor<[],si32>, %arg4: !torch.vtensor<[],si32>) -> !torch.vtensor<[],f32>
