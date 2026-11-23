@@ -541,6 +541,10 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
+    # The uint8 sort and kthvalue tests fail, as their int versions do.
+    "AtenKthvalueUInt8Module_basic",
+    "SortTensorUInt8Descending_basic",
+    "SortTensorUInt8_basic",
     # AvgPool3d lowering ignores divisor_override.
     "AvgPool3dSignedZero_basic",
     # StableHLO scatter lowering fails bufferization for these tests.
@@ -2812,6 +2816,9 @@ LTC_XFAIL_SET = {
 }
 
 ONNX_XFAIL_SET = {
+    # torch.onnx has no export for kthvalue. The int version of kthvalue is
+    # also xfailed here.
+    "AtenKthvalueUInt8Module_basic",
     # ONNX export drops avg_pool3d divisor_override.
     "AvgPool3dSignedZero_basic",
     # The ONNX test configuration replaces annotated integer inputs with
@@ -3868,6 +3875,10 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ElementwiseClampMinModule_bfloat16",
     "ElementwiseClampModule_bfloat16",
     "ElementwiseReluModule_bfloat16",
+    # TOSA has no lowering for sort or kthvalue on uint8.
+    "AtenKthvalueUInt8Module_basic",
+    "SortTensorUInt8Descending_basic",
+    "SortTensorUInt8_basic",
 }
 
 ONNX_TOSA_CRASHING_SET = {

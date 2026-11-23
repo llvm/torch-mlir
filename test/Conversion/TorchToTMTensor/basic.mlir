@@ -212,3 +212,30 @@ func.func @index_put_negative_index(%arg0: !torch.vtensor<[5,4],f32>, %arg1: !to
   %1 = torch.aten.index_put.hacked_twin %arg0, %0, %arg2, %false : !torch.vtensor<[5,4],f32>, !torch.list<vtensor>, !torch.vtensor<[2,4],f32>, !torch.bool -> !torch.vtensor<[5,4],f32>
   return %1 : !torch.vtensor<[5,4],f32>
 }
+
+// -----
+
+// CHECK-LABEL: @sort_ui8
+// CHECK:         tm_tensor.sort dimension(0) outs(%{{.*}}, %{{.*}} : tensor<?xi8>, tensor<?xi64>) {
+// CHECK:         ^bb0(%[[LHS:.*]]: i8, %[[RHS:.*]]: i8, %{{.*}}: i64, %{{.*}}: i64):
+// CHECK:           arith.cmpi ule, %[[LHS]], %[[RHS]] : i8
+func.func @sort_ui8(%arg0: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],ui8> {
+  %int0 = torch.constant.int 0
+  %false = torch.constant.bool false
+  %values, %indices = torch.aten.sort %arg0, %int0, %false : !torch.vtensor<[?],ui8>, !torch.int, !torch.bool -> !torch.vtensor<[?],ui8>, !torch.vtensor<[?],si64>
+  return %values : !torch.vtensor<[?],ui8>
+}
+
+// -----
+
+// CHECK-LABEL: @kthvalue_ui8
+// CHECK:         tm_tensor.topk dimension(0) ins(%{{.*}} : tensor<?xi8>) outs(%{{.*}}, %{{.*}} : tensor<2xi8>, tensor<2xi32>) {
+// CHECK:         ^bb0(%[[LHS:.*]]: i8, %[[RHS:.*]]: i8):
+// CHECK:           arith.cmpi ult, %[[LHS]], %[[RHS]] : i8
+func.func @kthvalue_ui8(%arg0: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[],ui8> {
+  %int2 = torch.constant.int 2
+  %int0 = torch.constant.int 0
+  %false = torch.constant.bool false
+  %values, %indices = torch.aten.kthvalue %arg0, %int2, %int0, %false : !torch.vtensor<[?],ui8>, !torch.int, !torch.int, !torch.bool -> !torch.vtensor<[],ui8>, !torch.vtensor<[],si64>
+  return %values : !torch.vtensor<[],ui8>
+}

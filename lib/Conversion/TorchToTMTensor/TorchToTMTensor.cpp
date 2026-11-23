@@ -259,20 +259,20 @@ static Value createTMTensorScanOp(
   return scanOp->getResult(0);
 }
 
-static FailureOr<Value> createIntOrFloatCompareOp(PatternRewriter &rewriter,
-                                                  Location loc,
-                                                  Type elementType, Value lhs,
-                                                  Value rhs, bool isDescending,
-                                                  bool isEqual) {
+// `elementType` is signless, so `isUnsigned` comes from the torch dtype.
+static FailureOr<Value>
+createIntOrFloatCompareOp(PatternRewriter &rewriter, Location loc,
+                          Type elementType, Value lhs, Value rhs,
+                          bool isDescending, bool isEqual, bool isUnsigned) {
 
   Value compareOp;
-  if (auto intType = dyn_cast<mlir::IntegerType>(elementType)) {
+  if (isa<mlir::IntegerType>(elementType)) {
     // Case for using arith::CmpIOp.
     arith::CmpIPredicate g =
         isEqual ? arith::CmpIPredicate::sge : arith::CmpIPredicate::sgt;
     arith::CmpIPredicate l =
         isEqual ? arith::CmpIPredicate::sle : arith::CmpIPredicate::slt;
-    if (intType.isUnsignedInteger()) {
+    if (isUnsigned) {
       g = isEqual ? arith::CmpIPredicate::uge : arith::CmpIPredicate::ugt;
       l = isEqual ? arith::CmpIPredicate::ule : arith::CmpIPredicate::ult;
     }
@@ -302,7 +302,7 @@ static FailureOr<SmallVector<Value>>
 createTMTensorSortOp(PatternRewriter &rewriter, Location sortOpLoc,
                      llvm::ArrayRef<Value> operands,
                      llvm::ArrayRef<Type> elementTypes, int64_t dimension,
-                     bool isStable, bool isDescending) {
+                     bool isStable, bool isDescending, bool isUnsigned) {
   // Step 1. Create TMTensor::SortOp structure.
   SmallVector<Type> sortResultTypes;
   for (Value val : operands) {
@@ -325,7 +325,7 @@ createTMTensorSortOp(PatternRewriter &rewriter, Location sortOpLoc,
   // Step 3. Create comparison op which will be used as the sorting predicate.
   auto compareOpRetVal = createIntOrFloatCompareOp(
       rewriter, loc, elementTypes[0], block->getArgument(0),
-      block->getArgument(1), isDescending, true);
+      block->getArgument(1), isDescending, true, isUnsigned);
 
   if (failed(compareOpRetVal))
     return rewriter.notifyMatchFailure(
@@ -339,7 +339,7 @@ createTMTensorSortOp(PatternRewriter &rewriter, Location sortOpLoc,
 static FailureOr<SmallVector<Value>> createTMTensorTopkOp(
     PatternRewriter &rewriter, Location topkOpLoc, llvm::ArrayRef<Value> inputs,
     llvm::ArrayRef<Value> outputs, llvm::ArrayRef<Type> elementTypes,
-    int64_t dimension, bool isMinK) {
+    int64_t dimension, bool isMinK, bool isUnsigned) {
 
   // Generate output types.
   SmallVector<Type> topkResultTypes;
@@ -365,7 +365,8 @@ static FailureOr<SmallVector<Value>> createTMTensorTopkOp(
   // swap.
   auto compareOpRetVal = createIntOrFloatCompareOp(
       rewriter, loc, elementTypes[0], block->getArgument(0),
-      block->getArgument(1), /*isDescending=*/!isMinK, /*isEqual=*/false);
+      block->getArgument(1), /*isDescending=*/!isMinK, /*isEqual=*/false,
+      isUnsigned);
 
   // Check if correct element types are passed.
   if (failed(compareOpRetVal))
@@ -1562,7 +1563,11 @@ public:
     FailureOr<SmallVector<Value>> sortOpValues =
         createTMTensorSortOp(rewriter, loc, operands, elementTypes,
                              /*dimension=*/dim, /*isStable=*/false,
-                             /*isDescending=*/descending);
+                             /*isDescending=*/descending,
+                             /*isUnsigned=*/
+                             cast<BaseTensorType>(op.getSelf().getType())
+                                 .getDtype()
+                                 .isUnsignedInteger());
     if (failed(sortOpValues))
       return rewriter.notifyMatchFailure(
           loc, "Only Integer and Floating element type expected.");
@@ -2235,7 +2240,8 @@ public:
     {
       OpBuilder::InsertionGuard guard(rewriter);
       topkOp = createTMTensorTopkOp(rewriter, loc, topkInputs, topkOutputs,
-                                    topkElementTypes, dim, /*isMinK=*/true);
+                                    topkElementTypes, dim, /*isMinK=*/true,
+                                    isUnsigned);
     }
     // Topk op creation fails with invalid element types.
     if (failed(topkOp))
