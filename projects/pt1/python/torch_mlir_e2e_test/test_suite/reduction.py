@@ -855,6 +855,46 @@ def ReduceProdUInt8Module_basic(module, tu: TestUtils):
     module.forward(tu.randint(2, 3, low=120, high=256).to(torch.uint8))
 
 
+class ReduceMaxUInt8Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.uint8, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.max(a).to(torch.int64)
+
+
+@register_test_case(module_factory=lambda: ReduceMaxUInt8Module())
+def ReduceMaxUInt8Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=0, high=256).to(torch.uint8))
+
+
+class ReduceMinUInt8Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.uint8, True),
+        ]
+    )
+    def forward(self, a):
+        return torch.ops.aten.min(a).to(torch.int64)
+
+
+@register_test_case(module_factory=lambda: ReduceMinUInt8Module())
+def ReduceMinUInt8Module_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, low=0, high=256).to(torch.uint8))
+
+
 # ==============================================================================
 
 

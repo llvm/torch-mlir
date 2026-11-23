@@ -310,39 +310,43 @@ static Value createInitElementForReduceOp(OpBuilder &b, Location loc,
                                        b.getIntegerAttr(elementType, 1));
   }
 
-  if (isa<AtenMaxOp>(op)) {
+  if (auto max = dyn_cast<AtenMaxOp>(op)) {
     if (isa<mlir::FloatType>(elementType))
       return arith::ConstantOp::create(
           b, loc,
           b.getFloatAttr(elementType,
                          getFloatInf(cast<mlir::FloatType>(elementType),
                                      /*Negative=*/true, allowNonFinites)));
-    else if (isa<mlir::IntegerType>(elementType) &&
-             elementType.getIntOrFloatBitWidth() != 8) {
+    else if (isa<mlir::IntegerType>(elementType)) {
+      // `elementType` is signless, so the signedness comes from the torch
+      // dtype.
       unsigned width = elementType.getIntOrFloatBitWidth();
-      auto init =
-          useUnsignedIntegerSemantics(cast<mlir::IntegerType>(elementType))
-              ? APInt::getMinValue(width)
-              : APSInt::getSignedMinValue(width);
+      auto selfDtype = cast<mlir::IntegerType>(
+          cast<BaseTensorType>(max.getSelf().getType()).getDtype());
+      auto init = useUnsignedIntegerSemantics(selfDtype)
+                      ? APInt::getMinValue(width)
+                      : APSInt::getSignedMinValue(width);
       return arith::ConstantOp::create(b, loc,
                                        b.getIntegerAttr(elementType, init));
     }
   }
 
-  if (isa<AtenMinOp>(op)) {
+  if (auto min = dyn_cast<AtenMinOp>(op)) {
     if (isa<mlir::FloatType>(elementType))
       return arith::ConstantOp::create(
           b, loc,
           b.getFloatAttr(elementType,
                          getFloatInf(cast<mlir::FloatType>(elementType),
                                      /*Negative=*/false, allowNonFinites)));
-    else if (isa<mlir::IntegerType>(elementType) &&
-             elementType.getIntOrFloatBitWidth() != 8) {
+    else if (isa<mlir::IntegerType>(elementType)) {
+      // `elementType` is signless, so the signedness comes from the torch
+      // dtype.
       unsigned width = elementType.getIntOrFloatBitWidth();
-      auto init =
-          useUnsignedIntegerSemantics(cast<mlir::IntegerType>(elementType))
-              ? APInt::getMaxValue(width)
-              : APSInt::getSignedMaxValue(width);
+      auto selfDtype = cast<mlir::IntegerType>(
+          cast<BaseTensorType>(min.getSelf().getType()).getDtype());
+      auto init = useUnsignedIntegerSemantics(selfDtype)
+                      ? APInt::getMaxValue(width)
+                      : APSInt::getSignedMaxValue(width);
       return arith::ConstantOp::create(b, loc,
                                        b.getIntegerAttr(elementType, init));
     }
@@ -725,6 +729,8 @@ private:
 
     Value initElem = createInitElementForReduceOp(rewriter, loc, op, elemType,
                                                   this->allowNonFinites);
+    if (!initElem)
+      return Value{};
     Value reduceOp = torch_to_linalg::createReductionLinalgGeneric(
         rewriter, loc, opInfo, initElem, reductionBodyBuilder);
     return err ? Value{} : reduceOp;
