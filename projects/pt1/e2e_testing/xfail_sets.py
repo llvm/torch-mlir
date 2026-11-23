@@ -542,8 +542,10 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     # The uint8 sort, kthvalue and scatter_reduce tests fail, as their int
-    # versions do.
+    # versions do. The StableHLO clamp lowering does not convert mixed operand
+    # dtypes.
     "AtenKthvalueUInt8Module_basic",
+    "ElementwiseClampTensorUInt8Int16Module_basic",
     "ScatterReduceUInt8MaxModule",
     "ScatterReduceUInt8MaxModuleIncludeSelf",
     "ScatterReduceUInt8MeanModule",
@@ -2823,11 +2825,15 @@ LTC_XFAIL_SET = {
 }
 
 ONNX_XFAIL_SET = {
-    # The ONNX importer does not legalize a ui8 ScatterElements with a min/max
-    # reduction. torch.onnx exports scatter_reduce mean as a ScatterElements
-    # with no reduction and has no export for kthvalue. The int versions of
-    # scatter_reduce and kthvalue are xfailed here as well.
+    # The ONNX importer does not legalize Cast from ui8 to si16 or a ui8
+    # ScatterElements with a min/max reduction. torch.onnx exports
+    # scatter_reduce mean as a ScatterElements with no reduction and has no
+    # export for kthvalue. The int versions of scatter_reduce and kthvalue are
+    # xfailed here as well.
     "AtenKthvalueUInt8Module_basic",
+    "ElementwiseClampTensorUInt8Int16Module_basic",
+    "ElementwiseMaximumUInt8Int16Module_basic",
+    "ElementwiseMinimumUInt8Int16Module_basic",
     "ScatterReduceUInt8MaxModule",
     "ScatterReduceUInt8MaxModuleIncludeSelf",
     "ScatterReduceUInt8MeanModule",
@@ -3890,8 +3896,14 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ElementwiseClampMinModule_bfloat16",
     "ElementwiseClampModule_bfloat16",
     "ElementwiseReluModule_bfloat16",
-    # TOSA has no lowering for sort, kthvalue or scatter_reduce on uint8.
+    # TOSA integer arithmetic is signed, so uint8 values of 128 and above give
+    # wrong results, and TOSA has no lowering for sort, kthvalue or
+    # scatter_reduce on these types.
     "AtenKthvalueUInt8Module_basic",
+    "ElementwiseClampTensorUInt8Int16Module_basic",
+    "ElementwiseClampTensorUInt8Module_basic",
+    "ElementwiseMaximumUInt8Int16Module_basic",
+    "ElementwiseMinimumUInt8Int16Module_basic",
     "ScatterReduceUInt8MaxModule",
     "ScatterReduceUInt8MaxModuleIncludeSelf",
     "ScatterReduceUInt8MeanModule",

@@ -414,3 +414,60 @@ func.func @elementwise_to_dtype_f32_to_ui64(%arg0: !torch.vtensor<[?],f32>) -> !
   %0 = torch.aten.to.dtype %arg0, %int29, %false, %false, %none : !torch.vtensor<[?],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[?],ui64>
   return %0 : !torch.vtensor<[?],ui64>
 }
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_maximum_ui8_si16(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: i8, %[[RHS:.*]]: i16, %{{.*}}: i16):
+// CHECK-NEXT:        %[[EXT:.*]] = arith.extui %[[LHS]] : i8 to i16
+// CHECK-NEXT:        %[[PRED:.*]] = arith.cmpi sgt, %[[EXT]], %[[RHS]] : i16
+// CHECK-NEXT:        arith.select %[[PRED]], %[[EXT]], %[[RHS]] : i16
+func.func @elementwise_maximum_ui8_si16(%arg0: !torch.vtensor<[?],ui8>, %arg1: !torch.vtensor<[?],si16>) -> !torch.vtensor<[?],si16> {
+  %0 = torch.aten.maximum %arg0, %arg1 : !torch.vtensor<[?],ui8>, !torch.vtensor<[?],si16> -> !torch.vtensor<[?],si16>
+  return %0 : !torch.vtensor<[?],si16>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_minimum_ui8_si16(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: i8, %[[RHS:.*]]: i16, %{{.*}}: i16):
+// CHECK-NEXT:        %[[EXT:.*]] = arith.extui %[[LHS]] : i8 to i16
+// CHECK-NEXT:        %[[PRED:.*]] = arith.cmpi slt, %[[EXT]], %[[RHS]] : i16
+// CHECK-NEXT:        arith.select %[[PRED]], %[[EXT]], %[[RHS]] : i16
+func.func @elementwise_minimum_ui8_si16(%arg0: !torch.vtensor<[?],ui8>, %arg1: !torch.vtensor<[?],si16>) -> !torch.vtensor<[?],si16> {
+  %0 = torch.aten.minimum %arg0, %arg1 : !torch.vtensor<[?],ui8>, !torch.vtensor<[?],si16> -> !torch.vtensor<[?],si16>
+  return %0 : !torch.vtensor<[?],si16>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_clamp_tensor_ui8(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[SELF:.*]]: i8, %[[MIN:.*]]: i8, %[[MAX:.*]]: i8, %{{.*}}: i8):
+// CHECK-NEXT:        %[[LT:.*]] = arith.cmpi ult, %[[SELF]], %[[MIN]] : i8
+// CHECK-NEXT:        %[[LO:.*]] = arith.select %[[LT]], %[[MIN]], %[[SELF]] : i8
+// CHECK-NEXT:        %[[GT:.*]] = arith.cmpi ugt, %[[LO]], %[[MAX]] : i8
+// CHECK-NEXT:        arith.select %[[GT]], %[[MAX]], %[[LO]] : i8
+func.func @elementwise_clamp_tensor_ui8(%arg0: !torch.vtensor<[?],ui8>, %arg1: !torch.vtensor<[?],ui8>, %arg2: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],ui8> {
+  %0 = torch.aten.clamp.Tensor %arg0, %arg1, %arg2 : !torch.vtensor<[?],ui8>, !torch.vtensor<[?],ui8>, !torch.vtensor<[?],ui8> -> !torch.vtensor<[?],ui8>
+  return %0 : !torch.vtensor<[?],ui8>
+}
+
+// -----
+
+// The ui8 self is zero-extended to the si16 result type, and the compares are
+// signed.
+// CHECK-LABEL:   func.func @elementwise_clamp_tensor_ui8_si16(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[SELF:.*]]: i8, %[[MIN:.*]]: i16, %[[MAX:.*]]: i16, %{{.*}}: i16):
+// CHECK-NEXT:        %[[EXT:.*]] = arith.extui %[[SELF]] : i8 to i16
+// CHECK-NEXT:        %[[LT:.*]] = arith.cmpi slt, %[[EXT]], %[[MIN]] : i16
+// CHECK-NEXT:        %[[LO:.*]] = arith.select %[[LT]], %[[MIN]], %[[EXT]] : i16
+// CHECK-NEXT:        %[[GT:.*]] = arith.cmpi sgt, %[[LO]], %[[MAX]] : i16
+// CHECK-NEXT:        arith.select %[[GT]], %[[MAX]], %[[LO]] : i16
+func.func @elementwise_clamp_tensor_ui8_si16(%arg0: !torch.vtensor<[?],ui8>, %arg1: !torch.vtensor<[1],si16>, %arg2: !torch.vtensor<[1],si16>) -> !torch.vtensor<[?],si16> {
+  %0 = torch.aten.clamp.Tensor %arg0, %arg1, %arg2 : !torch.vtensor<[?],ui8>, !torch.vtensor<[1],si16>, !torch.vtensor<[1],si16> -> !torch.vtensor<[?],si16>
+  return %0 : !torch.vtensor<[?],si16>
+}
