@@ -3872,6 +3872,8 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ElementwiseClampMinModule_bfloat16",
     "ElementwiseClampModule_bfloat16",
     "ElementwiseReluModule_bfloat16",
+    # The TOSA aten.cat lowering casts the uint8 tensor as signed.
+    "TensorsConcatUInt8FloatModule_basic",
     # TOSA integer arithmetic is signed, so uint8 values of 128 and above give
     # wrong results. The uint8 prod lowering emits invalid TOSA.
     "ElementwiseGtUInt8ScalarModule_basic",

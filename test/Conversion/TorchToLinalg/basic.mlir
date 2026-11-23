@@ -546,6 +546,20 @@ func.func @torch.aten.cat$convert(%arg0: !torch.vtensor<[?,?],f32>, %arg1: !torc
 
 // -----
 
+// CHECK-LABEL:  func.func @torch.aten.cat$convert_unsigned(
+// CHECK:         linalg.generic {{.*}} ins(%{{.*}} : tensor<?xi8>) outs(%{{.*}} : tensor<?xf32>)
+// CHECK:         ^bb0(%[[IN:.*]]: i8, %{{.*}}: f32):
+// CHECK-NEXT:      %[[F:.*]] = arith.uitofp %[[IN]] : i8 to f32
+// CHECK:         tensor.concat dim(0)
+func.func @torch.aten.cat$convert_unsigned(%arg0: !torch.vtensor<[?],f32>, %arg1: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],f32> {
+  %int0 = torch.constant.int 0
+  %0 = torch.prim.ListConstruct %arg0, %arg1 : (!torch.vtensor<[?],f32>, !torch.vtensor<[?],ui8>) -> !torch.list<vtensor>
+  %1 = torch.aten.cat %0, %int0 : !torch.list<vtensor>, !torch.int -> !torch.vtensor<[?],f32>
+  return %1 : !torch.vtensor<[?],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.cat(
 // CHECK-SAME:                              %[[ARG_0:.*]]: !torch.vtensor<[?,?],f32>,
 // CHECK-SAME:                              %[[ARG_1:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {
