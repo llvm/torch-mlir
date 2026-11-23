@@ -24,6 +24,18 @@ func.func @i(%arg0: memref<?xi64>) -> memref<?xi64> {
 
 // -----
 
+// CHECK-LABEL:   func.func @bf16(
+// CHECK-SAME:            %[[ARG0:.*]]: memref<*xbf16>) attributes {llvm.emit_c_interface} {
+// CHECK:           %[[VAL:.*]] = memref.cast %[[ARG0]] : memref<*xbf16> to memref<?xbf16>
+// CHECK:           %[[RESULT:.*]] = memref.cast %[[VAL]] : memref<?xbf16> to memref<*xbf16>
+// CHECK:           call @refbackend_consume_func_return_mrbf16(%[[RESULT]]) : (memref<*xbf16>) -> ()
+// CHECK:           return
+func.func @bf16(%arg0: memref<?xbf16>) -> memref<?xbf16> {
+  return %arg0 : memref<?xbf16>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @elemental_type(
 // CHECK-SAME:             %[[ARG0:.*]]: memref<*xi64>) attributes {llvm.emit_c_interface} {
 // CHECK:           %[[VAL:.*]] = memref.cast %[[ARG0]] : memref<*xi64> to memref<i64>
