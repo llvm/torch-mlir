@@ -3875,7 +3875,7 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     # The TOSA aten.cat lowering casts the uint8 tensor as signed.
     "TensorsConcatUInt8FloatModule_basic",
     # TOSA integer arithmetic is signed, so uint8 values of 128 and above give
-    # wrong results. The uint8 prod lowering emits invalid TOSA.
+    # wrong results. The uint8 prod and threshold lowerings emit invalid TOSA.
     "ElementwiseGtUInt8ScalarModule_basic",
     "ElementwiseGtUInt8WrappedScalarModule_basic",
     "ElementwiseGtUInt8ZeroRankTensorModule_basic",
@@ -3888,6 +3888,8 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ReduceProdUInt8Module_basic",
     "ReduceSumDimIntListUInt8Module_basic",
     "ReduceSumUInt8Module_basic",
+    "ThresholdBackwardUInt8Module_basic",
+    "ThresholdUInt8Module_basic",
 }
 
 ONNX_TOSA_CRASHING_SET = {

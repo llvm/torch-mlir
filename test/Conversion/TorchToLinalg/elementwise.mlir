@@ -509,6 +509,51 @@ func.func @elementwise_remainder_tensor_unsigned(%arg0: !torch.vtensor<[?],ui8>,
 
 // -----
 
+// CHECK-LABEL:   func.func @elementwise_threshold_unsigned(
+// CHECK-DAG:       %[[C130:.*]] = arith.constant 130 : i64
+// CHECK-DAG:       %[[C7:.*]] = arith.constant 7 : i64
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[IN:.*]]: i8, %{{.*}}: i8):
+// CHECK-NEXT:        %[[THRESHOLD:.*]] = arith.trunci %[[C130]] : i64 to i8
+// CHECK-NEXT:        %[[VALUE:.*]] = arith.trunci %[[C7]] : i64 to i8
+// CHECK-NEXT:        %[[CMP:.*]] = arith.cmpi ule, %[[IN]], %[[THRESHOLD]] : i8
+// CHECK-NEXT:        %[[SEL:.*]] = arith.select %[[CMP]], %[[VALUE]], %[[IN]] : i8
+func.func @elementwise_threshold_unsigned(%arg0: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],ui8> {
+  %int130 = torch.constant.int 130
+  %int7 = torch.constant.int 7
+  %0 = torch.aten.threshold %arg0, %int130, %int7 : !torch.vtensor<[?],ui8>, !torch.int, !torch.int -> !torch.vtensor<[?],ui8>
+  return %0 : !torch.vtensor<[?],ui8>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_threshold_signed_i8(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[IN:.*]]: i8, %{{.*}}: i8):
+// CHECK:             %[[CMP:.*]] = arith.cmpi sle, %[[IN]], %{{.*}} : i8
+func.func @elementwise_threshold_signed_i8(%arg0: !torch.vtensor<[?],si8>) -> !torch.vtensor<[?],si8> {
+  %int5 = torch.constant.int 5
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.threshold %arg0, %int5, %int0 : !torch.vtensor<[?],si8>, !torch.int, !torch.int -> !torch.vtensor<[?],si8>
+  return %0 : !torch.vtensor<[?],si8>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_threshold_backward_unsigned(
+// CHECK:           %[[C130:.*]] = arith.constant 130 : i64
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[GRAD:.*]]: i8, %[[SELF:.*]]: i8, %{{.*}}: i8):
+// CHECK-NEXT:        %[[THRESHOLD:.*]] = arith.trunci %[[C130]] : i64 to i8
+// CHECK:             %[[CMP:.*]] = arith.cmpi ule, %[[SELF]], %[[THRESHOLD]] : i8
+func.func @elementwise_threshold_backward_unsigned(%arg0: !torch.vtensor<[?],ui8>, %arg1: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],ui8> {
+  %int130 = torch.constant.int 130
+  %0 = torch.aten.threshold_backward %arg0, %arg1, %int130 : !torch.vtensor<[?],ui8>, !torch.vtensor<[?],ui8>, !torch.int -> !torch.vtensor<[?],ui8>
+  return %0 : !torch.vtensor<[?],ui8>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @elementwise_div_tensor_mode_floor_signed_i8(
 // CHECK:           linalg.generic
 // CHECK:           ^bb0(%[[LHS:[^:]*]]: i8, %[[RHS:[^:]*]]: i8, %{{.*}}: i8):

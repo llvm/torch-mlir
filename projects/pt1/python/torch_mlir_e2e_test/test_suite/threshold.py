@@ -215,6 +215,54 @@ def ThresholdBackward3dIntModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(4, 5, 6, high=10), tu.randint(4, 5, 6, high=8))
 
 
+# Threshold of uint8 tensors with values of 128 and above. The RefBackend
+# returns integer results as signed, so the results are returned as int64.
+
+
+class ThresholdUInt8Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.uint8, True),
+        ]
+    )
+    def forward(self, input):
+        return torch.ops.aten.threshold(input, 130, 7).to(torch.int64)
+
+
+@register_test_case(module_factory=lambda: ThresholdUInt8Module())
+def ThresholdUInt8Module_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([0, 5, 127, 128, 200, 255], dtype=torch.uint8))
+
+
+class ThresholdBackwardUInt8Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.uint8, True),
+            ([-1], torch.uint8, True),
+        ]
+    )
+    def forward(self, grad, input):
+        return torch.ops.aten.threshold_backward(grad, input, 130).to(torch.int64)
+
+
+@register_test_case(module_factory=lambda: ThresholdBackwardUInt8Module())
+def ThresholdBackwardUInt8Module_basic(module, tu: TestUtils):
+    module.forward(
+        torch.tensor([0, 5, 127, 128, 200, 255], dtype=torch.uint8),
+        torch.tensor([0, 5, 127, 128, 200, 255], dtype=torch.uint8),
+    )
+
+
 class ThresholdBackward1dFloatModule(torch.nn.Module):
     def __init__(self):
         super().__init__()

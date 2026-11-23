@@ -1676,18 +1676,29 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
         cast<RankedTensorType>(converter->convertType(thresholdOp.getType()))
             .getElementType();
 
+    Type resultDtype = cast<BaseTensorType>(thresholdOp.getType()).getDtype();
     Value self = payloadArgs[0];
     Value threshold =
-        convertScalarToDtype(b, loc, adaptor.getThreshold(), dtype);
-    Value value = convertScalarToDtype(b, loc, adaptor.getValue(), dtype);
+        convertScalarToDtype(b, loc, adaptor.getThreshold(), dtype,
+                             /*srcOriginalDtype=*/std::nullopt,
+                             /*dstOriginalDtype=*/resultDtype);
+    Value value = convertScalarToDtype(b, loc, adaptor.getValue(), dtype,
+                                       /*srcOriginalDtype=*/std::nullopt,
+                                       /*dstOriginalDtype=*/resultDtype);
+    if (!threshold || !value)
+      return nullptr;
 
     Value predicate;
     if (isa<mlir::FloatType>(dtype))
       predicate = arith::CmpFOp::create(b, loc, arith::CmpFPredicate::ULE, self,
                                         threshold);
     else
-      predicate = arith::CmpIOp::create(b, loc, arith::CmpIPredicate::sle, self,
-                                        threshold);
+      predicate = arith::CmpIOp::create(
+          b, loc,
+          torch_to_linalg::isUnsignedTorchType(resultDtype)
+              ? arith::CmpIPredicate::ule
+              : arith::CmpIPredicate::sle,
+          self, threshold);
     return arith::SelectOp::create(b, loc, predicate, value, self);
   }
   if (auto thresholdBackward = dyn_cast<AtenThresholdBackwardOp>(op)) {
@@ -1698,10 +1709,25 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
                      converter->convertType(thresholdBackward.getType()))
                      .getElementType();
 
-    Value grad = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
-    Value self = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
+    Type resultDtype =
+        cast<BaseTensorType>(thresholdBackward.getType()).getDtype();
+    Value grad = convertScalarToDtype(
+        b, loc, payloadArgs[0], dtype,
+        /*srcOriginalDtype=*/
+        cast<BaseTensorType>(thresholdBackward.getGradOutput().getType())
+            .getDtype(),
+        /*dstOriginalDtype=*/resultDtype);
+    Value self = convertScalarToDtype(
+        b, loc, payloadArgs[1], dtype,
+        /*srcOriginalDtype=*/
+        cast<BaseTensorType>(thresholdBackward.getSelf().getType()).getDtype(),
+        /*dstOriginalDtype=*/resultDtype);
     Value threshold =
-        convertScalarToDtype(b, loc, adaptor.getThreshold(), dtype);
+        convertScalarToDtype(b, loc, adaptor.getThreshold(), dtype,
+                             /*srcOriginalDtype=*/std::nullopt,
+                             /*dstOriginalDtype=*/resultDtype);
+    if (!grad || !self || !threshold)
+      return nullptr;
     Value constantZero =
         arith::ConstantOp::create(b, loc, b.getZeroAttr(dtype));
 
@@ -1710,8 +1736,12 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
       predicate = arith::CmpFOp::create(b, loc, arith::CmpFPredicate::ULE, self,
                                         threshold);
     else
-      predicate = arith::CmpIOp::create(b, loc, arith::CmpIPredicate::sle, self,
-                                        threshold);
+      predicate = arith::CmpIOp::create(
+          b, loc,
+          torch_to_linalg::isUnsignedTorchType(resultDtype)
+              ? arith::CmpIPredicate::ule
+              : arith::CmpIPredicate::sle,
+          self, threshold);
     return arith::SelectOp::create(b, loc, predicate, constantZero, grad);
   }
   if (auto fillScalar = dyn_cast<AtenFillScalarOp>(op)) {
