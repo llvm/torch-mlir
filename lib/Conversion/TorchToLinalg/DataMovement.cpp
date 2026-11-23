@@ -18,6 +18,7 @@
 #include "mlir/Dialect/Linalg/IR/Linalg.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/SparseTensor/IR/SparseTensor.h"
+#include "mlir/Dialect/Utils/IndexingUtils.h"
 #include "mlir/IR/Matchers.h"
 #include "torch-mlir/Conversion/TorchToLinalg/Utils.h"
 #include "torch-mlir/Conversion/Utils/Utils.h"
@@ -1765,16 +1766,15 @@ public:
     if (!matchPattern(op.getDim1(), m_TorchConstantInt(&dim1)))
       return rewriter.notifyMatchFailure(op, "dim1 must be constant");
 
-    auto inVector = adaptor.getSelf();
-    auto inType = cast<RankedTensorType>(inVector.getType());
-    auto inputRank = inType.getRank();
+    Value input = adaptor.getSelf();
+    auto inputType = cast<RankedTensorType>(input.getType());
+    int64_t inputRank = inputType.getRank();
     auto outType = cast<RankedTensorType>(
         getTypeConverter()->convertType(op->getResult(0).getType()));
-    if (inputRank <= 1 && inType == outType) {
-      rewriter.replaceOp(op, {adaptor.getSelf()});
+    if (inputRank <= 1 && inputType == outType) {
+      rewriter.replaceOp(op, input);
       return success();
     }
-    auto elementType = inType.getElementType();
 
     dim0 = toPositiveDim(dim0, inputRank);
     if (!isValidDim(dim0, inputRank))
@@ -1783,31 +1783,20 @@ public:
     if (!isValidDim(dim1, inputRank))
       return rewriter.notifyMatchFailure(op, "dim1 out of range");
 
-    auto loc = op.getLoc();
-
-    SmallVector<Value> outputDims;
-    for (auto i = 0; i < inputRank; i++)
-      outputDims.push_back(getDimOp(rewriter, loc, adaptor.getSelf(), i));
-    std::swap(outputDims[dim0], outputDims[dim1]);
-
-    Value outVector = tensor::EmptyOp::create(
-        rewriter, loc, getAsOpFoldResult(outputDims), elementType);
-
-    // Note: The empty tensor type may not match `outType` due to folding
-    // performed by `getAsOpFoldResult` of `tensor::DimOp`.
-    // Cast to `outType` if needed to ensure type consistency.
-    if (outVector.getType() != outType)
-      outVector = tensor::CastOp::create(rewriter, loc, outType, outVector);
-
     SmallVector<int64_t> permutation(inputRank);
     std::iota(permutation.begin(), permutation.end(), 0);
-    permutation[dim0] = dim1;
-    permutation[dim1] = dim0;
+    std::swap(permutation[dim0], permutation[dim1]);
+    RankedTensorType transposedType =
+        inputType.clone(applyPermutation(inputType.getShape(), permutation));
+    if (!tensor::CastOp::areCastCompatible(transposedType, outType))
+      return rewriter.notifyMatchFailure(
+          op, "expected a result type compatible with the transposed input");
 
-    auto transpose = linalg::TransposeOp::create(rewriter, loc, inVector,
-                                                 outVector, permutation)
-                         .getResult();
-    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outType, transpose);
+    Value transposed;
+    if (failed(torch_to_linalg::permuteTensor(op, rewriter, op.getLoc(),
+                                              permutation, input, transposed)))
+      return failure();
+    rewriter.replaceOpWithNewOp<tensor::CastOp>(op, outType, transposed);
     return success();
   }
 };
