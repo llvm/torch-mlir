@@ -207,3 +207,20 @@ func.func @tranConv2dNegativeAndPositivePadding(%arg0: !torch.vtensor<[1,1,4,7],
   %4 = torch.aten.convolution %arg0, %arg1, %arg2, %0, %1, %2, %true, %3, %int1 : !torch.vtensor<[1,1,4,7],f32>, !torch.vtensor<[1,2,3,3],f32>, !torch.vtensor<[2],f32>, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,2,15,21],f32>
   return %4 : !torch.vtensor<[1,2,15,21],f32>
 }
+
+// -----
+
+// CHECK-LABEL: func.func @conv2d_dynamic_contracting_dim_check
+// CHECK:         %[[EQ:.*]] = arith.cmpi eq
+// CHECK:         cf.assert %[[EQ]], "mismatching contracting dimension"
+// CHECK:         linalg.conv_2d_nchw_fchw
+func.func @conv2d_dynamic_contracting_dim_check(%arg0: !torch.vtensor<[?,?,?,?],f32>, %arg1: !torch.vtensor<[?,?,?,?],f32>) -> !torch.vtensor<[?,?,?,?],f32> {
+  %none = torch.constant.none
+  %false = torch.constant.bool false
+  %int0 = torch.constant.int 0
+  %int1 = torch.constant.int 1
+  %0 = torch.prim.ListConstruct %int1, %int1 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.prim.ListConstruct %int0, %int0 : (!torch.int, !torch.int) -> !torch.list<int>
+  %2 = torch.aten.convolution %arg0, %arg1, %none, %0, %1, %0, %false, %1, %int1 : !torch.vtensor<[?,?,?,?],f32>, !torch.vtensor<[?,?,?,?],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[?,?,?,?],f32>
+  return %2 : !torch.vtensor<[?,?,?,?],f32>
+}
