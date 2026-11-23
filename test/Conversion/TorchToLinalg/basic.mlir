@@ -1216,8 +1216,9 @@ func.func @torch.aten.min.dim$bool(%arg0: !torch.vtensor<[3,4],i1>) -> !torch.vt
 // CHECK-DAG:       %[[D0:.+]] = linalg.index 0 : index
 // CHECK-DAG:       %[[D1:.+]] = linalg.index 1 : index
 // CHECK-DAG:       %[[IDX:.+]] = arith.index_cast %[[IN]] : i64 to index
+// CHECK-DAG:       %[[IDX_FOR_UPPER:.+]] = arith.index_cast %[[IN]] : i64 to index
 // CHECK-DAG:       %[[SIZE:.+]] = arith.constant 6 : index
-// CHECK:           %[[LT:.+]] = arith.cmpi slt, %{{.+}}, %[[SIZE]] : index
+// CHECK:           %[[LT:.+]] = arith.cmpi slt, %[[IDX_FOR_UPPER]], %[[SIZE]] : index
 // CHECK:           cf.assert %[[LT]], "index must be smaller than dim size"
 // CHECK:           %[[ZERO:.+]] = arith.constant 0 : i64
 // CHECK:           %[[GE:.+]] = arith.cmpi sge, %[[IN]], %[[ZERO]] : i64
@@ -1241,9 +1242,12 @@ func.func @torch.aten.index_select$bounds_check(%arg0: !torch.vtensor<[4,5,6],f3
 // CHECK-DAG:       %[[D1:.+]] = linalg.index 1 : index
 // CHECK-DAG:       %[[C0:.+]] = arith.constant 0 : index
 // CHECK-DAG:       %[[SIZE:.+]] = tensor.dim %[[INPUT]], %[[C0]] : tensor<?x3xf32>
-// CHECK:           %[[LT:.+]] = arith.cmpi slt, %{{.+}}, %[[SIZE]] : index
+// CHECK-DAG:       %[[IDX_FOR_UPPER:.+]] = arith.index_cast %[[IN]] : i64 to index
+// CHECK:           %[[LT:.+]] = arith.cmpi slt, %[[IDX_FOR_UPPER]], %[[SIZE]] : index
 // CHECK:           cf.assert %[[LT]], "index must be smaller than dim size"
-// CHECK:           cf.assert %{{.+}}, "index must be larger or equal to 0"
+// CHECK:           %[[ZERO:.+]] = arith.constant 0 : i64
+// CHECK:           %[[GE:.+]] = arith.cmpi sge, %[[IN]], %[[ZERO]] : i64
+// CHECK:           cf.assert %[[GE]], "index must be larger or equal to 0"
 // CHECK:           tensor.extract %[[INPUT]][%[[IDX]], %[[D1]]] : tensor<?x3xf32>
 func.func @torch.aten.index_select$dynamic_bounds_check(%arg0: !torch.vtensor<[?,3],f32>, %arg1: !torch.vtensor<[?],si64>) -> !torch.vtensor<[?,3],f32> {
   %int0 = torch.constant.int 0
