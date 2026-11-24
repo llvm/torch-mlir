@@ -488,15 +488,10 @@ public:
             /*indexingMaps=*/indexingMaps,
             /*iteratorTypes=*/iteratorTypes,
             [&](OpBuilder &b, Location loc, ValueRange args) {
-              Value index = arith::IndexCastOp::create(
-                  rewriter, loc, rewriter.getIndexType(), args[0]);
-              SmallVector<Value> indexTarget;
-              for (unsigned i = 0; i < inputRank; i++)
-                indexTarget.push_back(linalg::IndexOp::create(b, loc, i));
-              indexTarget[dimInt] = index;
-              Value extractedElement =
-                  tensor::ExtractOp::create(b, loc, input, indexTarget);
-              linalg::YieldOp::create(b, loc, extractedElement);
+              // Asserts 0 <= index < input.sizes[dim]. PyTorch raises
+              // IndexError for any other index.
+              createLinalgPayloadCalculationForGatherOps(
+                  b, loc, input, inputRank, args[0], dimInt, inputRank);
             })
             .getResult(0);
 
