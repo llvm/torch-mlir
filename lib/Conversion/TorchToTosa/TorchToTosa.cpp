@@ -9721,7 +9721,7 @@ public:
       auto reducedTy =
           RankedTensorType::get({windowCount, channels, 1}, elementTy);
       auto winnerTy =
-          RankedTensorType::get({windowCount, channels}, rewriter.getI32Type());
+          RankedTensorType::get({windowCount, channels}, rewriter.getI64Type());
       auto axis = rewriter.getI32IntegerAttr(2);
       auto nanMode = tosa::NanPropagationModeAttr::get(
           rewriter.getContext(), tosa::NanPropagationMode::PROPAGATE);
@@ -9783,7 +9783,7 @@ public:
           tosa::ReverseOp::create(rewriter, loc, scoreTy, nanScores, axis);
       Value fromEnd = tosa::ArgMaxOp::create(rewriter, loc, winnerTy, reversed,
                                              axis, nanMode);
-      auto lastOffset = tosa::getConstTensor<int32_t>(
+      auto lastOffset = tosa::getConstTensor<int64_t>(
           rewriter, op, {static_cast<int32_t>(windowSize - 1)}, {1, 1});
       if (!lastOffset)
         return failure();
@@ -9796,7 +9796,7 @@ public:
       Value winner =
           tosa::SelectOp::create(rewriter, loc, winnerTy, hasNan, last, first);
       winner = reshapeTensor(winner, {windowCount * channels, 1},
-                             rewriter.getI32Type(), rewriter, loc);
+                             rewriter.getI64Type(), rewriter, loc);
       auto selectWinner = [&](Value candidates) -> Value {
         Type type =
             cast<RankedTensorType>(candidates.getType()).getElementType();
