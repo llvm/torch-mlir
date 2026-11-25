@@ -2502,11 +2502,18 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
             rewriter, binder.getLoc(), c, cstBlockSizeSquare);
         cDivBlockSizeSquare = Torch::AtenIntFloatOp::create(
             rewriter, binder.getLoc(), cDivBlockSizeSquare);
+        // DCR splits the channels as (blockSize, blockSize, C), CRD as
+        // (C, blockSize, blockSize).
+        llvm::SmallVector<Value> reshapeSizes{
+            b, cstBlockSize, cstBlockSize, cDivBlockSizeSquare, h, w};
+        if (mode == "CRD") {
+          reshapeSizes = {b, cDivBlockSizeSquare, cstBlockSize, cstBlockSize, h,
+                          w};
+        }
         Value reshapeSizesList = Torch::PrimListConstructOp::create(
             rewriter, binder.getLoc(),
             Torch::ListType::get(Torch::IntType::get(input.getContext())),
-            llvm::SmallVector<Value>{b, cstBlockSize, cstBlockSize,
-                                     cDivBlockSizeSquare, h, w});
+            reshapeSizes);
         int64_t cDivBlockSizeSquareInt =
             inputSizes[1] == Torch::kUnknownSize
                 ? Torch::kUnknownSize
@@ -2514,6 +2521,11 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
         SmallVector<int64_t, 6> reshapeSizesInt{
             inputSizes[0],          blockSize,     blockSize,
             cDivBlockSizeSquareInt, inputSizes[2], inputSizes[3]};
+        if (mode == "CRD") {
+          reshapeSizesInt = {inputSizes[0], cDivBlockSizeSquareInt,
+                             blockSize,     blockSize,
+                             inputSizes[2], inputSizes[3]};
+        }
         Value reshapedInput = Torch::AtenReshapeOp::create(
             rewriter, binder.getLoc(),
             inputTy.getWithSizesAndDtype(reshapeSizesInt,
