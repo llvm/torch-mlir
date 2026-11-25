@@ -2186,6 +2186,22 @@ func.func @test_depthtospace_crd_mode_example(%arg0: !torch.vtensor<[1,8,2,3],f3
 
 // -----
 
+// CRD splits the channels as (C, blockSize, blockSize): with 3 output channels,
+// a 5x7 image and block size 2 every split size is distinct.
+// CHECK-LABEL: func.func @test_depthtospace_crd_distinct_sizes
+func.func @test_depthtospace_crd_distinct_sizes(%arg0: !torch.vtensor<[1,12,5,7],f32>) -> !torch.vtensor<[1,3,10,14],f32> attributes {torch.onnx_meta.ir_version = 7 : si64, torch.onnx_meta.opset_version = 13 : si64, torch.onnx_meta.producer_name = "backend-test", torch.onnx_meta.producer_version = ""} {
+  // CHECK: %[[RESHAPE:.*]] = torch.aten.reshape %arg0, %{{.*}} : !torch.vtensor<[1,12,5,7],f32>, !torch.list<int> -> !torch.vtensor<[1,3,2,2,5,7],f32>
+  // CHECK: %[[TRANSPOSE:.*]] = torch.aten.transpose.int %[[RESHAPE]], %{{.*}}, %{{.*}} : !torch.vtensor<[1,3,2,2,5,7],f32>, !torch.int, !torch.int -> !torch.vtensor<[1,3,5,2,2,7],f32>
+  // CHECK: %[[TRANSPOSE_1:.*]] = torch.aten.transpose.int %[[TRANSPOSE]], %{{.*}}, %{{.*}} : !torch.vtensor<[1,3,5,2,2,7],f32>, !torch.int, !torch.int -> !torch.vtensor<[1,3,5,2,2,7],f32>
+  // CHECK: %[[TRANSPOSE_2:.*]] = torch.aten.transpose.int %[[TRANSPOSE_1]], %{{.*}}, %{{.*}} : !torch.vtensor<[1,3,5,2,2,7],f32>, !torch.int, !torch.int -> !torch.vtensor<[1,3,5,2,7,2],f32>
+  // CHECK: %[[RESULT:.*]] = torch.aten.reshape %[[TRANSPOSE_2]], %{{.*}} : !torch.vtensor<[1,3,5,2,7,2],f32>, !torch.list<int> -> !torch.vtensor<[1,3,10,14],f32>
+  // CHECK: return %[[RESULT]] : !torch.vtensor<[1,3,10,14],f32>
+  %0 = torch.operator "onnx.DepthToSpace"(%arg0) {torch.onnx.blocksize = 2 : si64, torch.onnx.mode = "CRD"} : (!torch.vtensor<[1,12,5,7],f32>) -> !torch.vtensor<[1,3,10,14],f32>
+  return %0 : !torch.vtensor<[1,3,10,14],f32>
+}
+
+// -----
+
 // CHECK-LABEL: @float_constant
 func.func @float_constant() -> !torch.vtensor<[], f32> attributes {torch.onnx_meta.ir_version = 8 : si64, torch.onnx_meta.opset_version = 18 : si64} {
   // CHECK: %[[CST:.+]] = torch.vtensor.literal(dense<2.500000e-01> : tensor<f32>) : !torch.vtensor<[],f32>
