@@ -626,6 +626,146 @@ bool PrimLoopOp::isForLike() {
   return matchPattern(getInitialCondition(), m_TorchConstantBool(&b)) && b;
 }
 
+// Returns the (counter, bound) of `aten.Bool.Tensor(aten.lt(counter, bound))`,
+// where the bound is a `!torch.int` (`aten.lt.Scalar`) or a value tensor
+// (`aten.lt.Tensor`).
+static std::optional<std::pair<Value, Value>> matchLessThan(Value condition) {
+  auto toBool = condition.getDefiningOp<AtenBoolTensorOp>();
+  if (!toBool)
+    return std::nullopt;
+  if (auto lt = toBool.getA().getDefiningOp<AtenLtScalarOp>()) {
+    if (!isa<Torch::IntType>(lt.getOther().getType()))
+      return std::nullopt;
+    return std::make_pair(lt.getSelf(), lt.getOther());
+  }
+  if (auto lt = toBool.getA().getDefiningOp<AtenLtTensorOp>())
+    return std::make_pair(lt.getSelf(), lt.getOther());
+  return std::nullopt;
+}
+
+static bool isConstantInt(Value value, int64_t expected) {
+  int64_t actual;
+  return matchPattern(value, m_TorchConstantInt(&actual)) && actual == expected;
+}
+
+// Returns true if `value` is a rank-0 integer tensor.
+static bool isIntegerScalarTensor(Value value) {
+  auto type = dyn_cast<ValueTensorType>(value.getType());
+  return type && type.hasSizes() && type.getSizes().empty() &&
+         type.hasDtype() && isa<mlir::IntegerType>(type.getDtype());
+}
+
+// Returns true if `next` is `counter + 1` with alpha 1, as `aten.add.Scalar`
+// or as `aten.add.Tensor` with a literal 1.
+static bool isIncrement(Value next, Value counter) {
+  if (auto add = next.getDefiningOp<AtenAddScalarOp>())
+    return add.getSelf() == counter && isConstantInt(add.getOther(), 1) &&
+           isConstantInt(add.getAlpha(), 1);
+  if (auto add = next.getDefiningOp<AtenAddTensorOp>()) {
+    auto literal = add.getOther().getDefiningOp<ValueTensorLiteralOp>();
+    auto elements =
+        literal ? dyn_cast<DenseIntElementsAttr>(literal.getValue()) : nullptr;
+    return add.getSelf() == counter && elements &&
+           elements.getType().getRank() == 0 &&
+           elements.getSplatValue<APInt>().isOne() &&
+           isConstantInt(add.getAlpha(), 1);
+  }
+  return false;
+}
+
+// Returns true if the bound the body compares against is the bound of the
+// initial condition: the same value, or the same constant int.
+static bool isSameBound(Value inner, Value outer) {
+  if (inner == outer)
+    return true;
+  int64_t innerValue, outerValue;
+  return matchPattern(inner, m_TorchConstantInt(&innerValue)) &&
+         matchPattern(outer, m_TorchConstantInt(&outerValue)) &&
+         innerValue == outerValue;
+}
+
+// Erases `aten.Bool.Tensor(aten.lt(...))` once nothing uses it.
+static void eraseConditionIfDead(Value condition, PatternRewriter &rewriter) {
+  auto toBool = condition.getDefiningOp<AtenBoolTensorOp>();
+  if (!toBool || !toBool->use_empty())
+    return;
+  Operation *lt = toBool.getA().getDefiningOp();
+  rewriter.eraseOp(toBool);
+  if (lt && lt->use_empty())
+    rewriter.eraseOp(lt);
+}
+
+void PrimLoopOp::getCanonicalizationPatterns(RewritePatternSet &patterns,
+                                             MLIRContext *context) {
+  // Rewrite a while-like loop that counts, `while i < n: i = i + 1` with `n`
+  // invariant, as a for-like loop. This is the form `torch.while_loop` takes
+  // after import and inlining. The loop runs exactly max(n - i0, 0) times, so
+  // it becomes a for-like loop with that trip count and a constant true
+  // condition. The counter stays a carried value and the body is unchanged.
+  patterns.add(+[](PrimLoopOp op, PatternRewriter &rewriter) {
+    if (op.isForLike())
+      return rewriter.notifyMatchFailure(op, "already for-like");
+    if (!isConstantInt(op.getMaxTripCount(),
+                       std::numeric_limits<int64_t>::max()))
+      return rewriter.notifyMatchFailure(op, "bounded trip count");
+    auto initial = matchLessThan(op.getInitialCondition());
+    if (!initial)
+      return rewriter.notifyMatchFailure(op, "initial condition is not lt");
+    auto [counterInit, bound] = *initial;
+    Block &body = op.getRegion().front();
+    auto terminator = cast<PrimLoopConditionOp>(body.getTerminator());
+    auto next = matchLessThan(terminator.getShouldContinue());
+    if (!next || !isSameBound(next->second, bound))
+      return rewriter.notifyMatchFailure(op, "loop condition is not lt bound");
+
+    // Find the carried value that starts at `counterInit` and is passed on as
+    // the value the loop condition compares.
+    std::optional<unsigned> counterIndex;
+    for (auto [index, init] : llvm::enumerate(op.getIterArgsInit())) {
+      if (init == counterInit &&
+          terminator.getIterArgs()[index] == next->first) {
+        counterIndex = index;
+        break;
+      }
+    }
+    // Block argument 0 is the iteration number.
+    if (!counterIndex || !isIntegerScalarTensor(counterInit) ||
+        !isIncrement(next->first, body.getArgument(*counterIndex + 1)))
+      return rewriter.notifyMatchFailure(op, "no counter stepping by 1");
+    if (isa<ValueTensorType>(bound.getType()) &&
+        bound.getType() != counterInit.getType())
+      return rewriter.notifyMatchFailure(op, "bound type differs from counter");
+
+    Location loc = op.getLoc();
+    Type intType = Torch::IntType::get(op.getContext());
+    Value tripCount;
+    if (isa<ValueTensorType>(bound.getType())) {
+      Value one = ConstantIntOp::create(rewriter, loc, 1);
+      Value difference = AtenSubTensorOp::create(rewriter, loc, bound.getType(),
+                                                 bound, counterInit, one);
+      tripCount = AtenIntTensorOp::create(rewriter, loc, intType, difference);
+    } else {
+      Value start =
+          AtenIntTensorOp::create(rewriter, loc, intType, counterInit);
+      tripCount = AtenSubIntOp::create(rewriter, loc, intType, bound, start);
+    }
+    Value alwaysTrue = ConstantBoolOp::create(rewriter, loc, true);
+    auto loop = PrimLoopOp::create(rewriter, loc, op.getResultTypes(),
+                                   tripCount, alwaysTrue, op.getIterArgsInit());
+    rewriter.inlineRegionBefore(op.getRegion(), loop.getRegion(),
+                                loop.getRegion().end());
+    Value loopCondition = terminator.getShouldContinue();
+    Value initialCondition = op.getInitialCondition();
+    rewriter.modifyOpInPlace(terminator, [&] {
+      terminator.getShouldContinueMutable().assign(alwaysTrue);
+    });
+    rewriter.replaceOp(op, loop.getResults());
+    eraseConditionIfDead(loopCondition, rewriter);
+    eraseConditionIfDead(initialCondition, rewriter);
+    return success();
+  });
+}
+
 //===----------------------------------------------------------------------===//
 // PrimLoopConditionOp
 //===----------------------------------------------------------------------===//
