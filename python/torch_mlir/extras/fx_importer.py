@@ -1791,8 +1791,10 @@ class GraphNodeImporter:
         # Import the carries (loop state variables)
         carry_values = []
         for carry in carries:
-            if isinstance(carry, tuple):
-                # Handle tuple carries by importing each element
+            # The operand groups are tuples on an in-memory program and lists
+            # after torch.export.save/load. Import each element on its own:
+            # a group of Nodes is not a torch list value.
+            if isinstance(carry, (tuple, list)):
                 carry_values.extend(self._import_tuple_argument(loc, carry, None))
             else:
                 carry_values.append(self._import_argument(loc, carry))
