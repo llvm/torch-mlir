@@ -36,6 +36,7 @@ add_mlir_library(TorchMLIRTorchPasses
   MLIRParser
   MLIRPass
   MLIRTransforms
+  TorchMLIRConversionUtils
   TorchMLIRTorchDialect
   TorchMLIRTorchOnnxToTorch
 )

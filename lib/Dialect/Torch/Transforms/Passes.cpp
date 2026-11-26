@@ -9,8 +9,33 @@
 
 #include "torch-mlir/Dialect/Torch/Transforms/Passes.h"
 #include "mlir/Pass/PassManager.h"
+#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "mlir/Transforms/Passes.h"
 #include "torch-mlir/Conversion/TorchOnnxToTorch/Passes.h"
+#include "torch-mlir/Conversion/Utils/Utils.h"
+
+namespace {
+// Creates a canonicalizer pass configured with the Torch attribute-forwarding
+// listener so that `mlir.user` annotations survive canonicalization rewrites
+// and folds in Torch lowering pipelines.
+std::unique_ptr<mlir::Pass> createTorchCanonicalizerPass() {
+  static std::unique_ptr<mlir::RewriterBase::Listener> listener =
+      mlir::torch::Torch::createConversionForwardingListener();
+  mlir::GreedyRewriteConfig config;
+  config.setListener(listener.get());
+  return mlir::createCanonicalizerPass(config);
+}
+
+// Creates an inliner pass whose default per-SCC optimization pipeline uses the
+// Torch attribute-forwarding canonicalizer instead of the default MLIR
+// canonicalizer.
+std::unique_ptr<mlir::Pass> createTorchInlinerPass() {
+  return mlir::createInlinerPass(llvm::StringMap<mlir::OpPassManager>{},
+                                 [](mlir::OpPassManager &pm) {
+                                   pm.addPass(createTorchCanonicalizerPass());
+                                 });
+}
+} // namespace
 
 void mlir::torch::registerTorchPasses() {
   mlir::torch::registerPasses();
@@ -63,7 +88,7 @@ void mlir::torch::Torch::createTorchScriptModuleToTorchBackendPipeline(
   // Currently, our shape inference is not powerful enough to deal with
   // calls, so inline everything.
   // TODO: Improve shape inference.
-  pm.addPass(createInlinerPass());
+  pm.addPass(createTorchInlinerPass());
 
   createTorchFunctionToTorchBackendPipeline(pm, options);
 }
@@ -72,15 +97,15 @@ void mlir::torch::Torch::createTorchDynamoExportToTorchBackendPipeline(
     OpPassManager &pm, const TorchLoweringPipelineOptions &options) {
   // Inline func.call operations created by higher-order ops like while_loop
   // to conform to the linalg-on-tensors backend contract.
-  pm.addPass(createInlinerPass());
+  pm.addPass(createTorchInlinerPass());
   pm.addNestedPass<func::FuncOp>(
       createReduceOpVariantsPass(options.extraLibrary));
-  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  pm.addNestedPass<func::FuncOp>(createTorchCanonicalizerPass());
   if (options.decompose) {
     pm.addNestedPass<func::FuncOp>(
         Torch::createDecomposeComplexOpsPass(options.backendLegalOps));
     pm.addNestedPass<func::FuncOp>(Torch::createRecomposeComplexOpsPass());
-    pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+    pm.addNestedPass<func::FuncOp>(createTorchCanonicalizerPass());
   }
 }
 
@@ -105,7 +130,7 @@ void mlir::torch::Torch::createTorchOnnxToTorchBackendPipeline(
   if (options.decompose) {
     pm.addNestedPass<func::FuncOp>(
         Torch::createDecomposeComplexOpsPass(options.backendLegalOps));
-    pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+    pm.addNestedPass<func::FuncOp>(createTorchCanonicalizerPass());
   }
   // TODO: Move the combination of two passes i.e., ScalarizeShapes and
   // TorchShapeRefinementPipeline out of here and create an onnx shape
@@ -116,14 +141,14 @@ void mlir::torch::Torch::createTorchOnnxToTorchBackendPipeline(
       mlir::torch::Torch::createScalarizeShapesPass());
   createTorchShapeRefinementPipeline(pm, options);
   pm.addPass(Torch::createRefinePublicReturnPass());
-  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  pm.addNestedPass<func::FuncOp>(createTorchCanonicalizerPass());
   // The decompose pass is run again here since the scalarize shapes pass and
   // shape refinement pipeline might create some ops for which decomposition
   // exists.
   if (options.decompose) {
     pm.addNestedPass<func::FuncOp>(
         Torch::createDecomposeComplexOpsPass(options.backendLegalOps));
-    pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+    pm.addNestedPass<func::FuncOp>(createTorchCanonicalizerPass());
   }
 }
 
@@ -154,7 +179,7 @@ void mlir::torch::Torch::createTorchOnnxToTorchBackendPipeline(
 void mlir::torch::Torch::createTorchSimplificationPipeline(
     OpPassManager &pm, const TorchLoweringPipelineOptions &options) {
   // General cleanup.
-  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  pm.addNestedPass<func::FuncOp>(createTorchCanonicalizerPass());
   // Inline global slots to expose a bunch of simplification opportunities
   // from constant hyperparameters, weights, etc.
   pm.addPass(createInlineGlobalSlotsPass());
@@ -163,19 +188,19 @@ void mlir::torch::Torch::createTorchSimplificationPipeline(
   pm.addPass(createEraseModuleInitializerPass());
   // Clean up again to avoid needing to to back around the fixed-point
   // iteration.
-  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  pm.addNestedPass<func::FuncOp>(createTorchCanonicalizerPass());
   pm.addNestedPass<func::FuncOp>(createRecomposeComplexOpsPass());
   // Reduce variants of ops to a smaller set of primitives.
   pm.addNestedPass<func::FuncOp>(
       createReduceOpVariantsPass(options.extraLibrary));
-  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  pm.addNestedPass<func::FuncOp>(createTorchCanonicalizerPass());
   // Remove dead global slots.
   pm.addPass(createSymbolDCEPass());
   // Convert the bulk of non-ABI-visible !torch.tensor's to !torch.vtensor's.
   pm.addNestedPass<func::FuncOp>(Torch::createMaximizeValueSemanticsPass());
   // Update the return op to return value tensors.
   pm.addPass(Torch::createRefinePublicReturnPass());
-  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  pm.addNestedPass<func::FuncOp>(createTorchCanonicalizerPass());
   if (options.shapeDtypeRefine) {
     // Do shape and dtype refinement.
     // Shape refinement should be run before dtype refinement because Torch type
@@ -186,11 +211,11 @@ void mlir::torch::Torch::createTorchSimplificationPipeline(
   // Propagate to ABI return types the shape/dtype information discovered by
   // the previous pass. Doing this is ABI-compatible for our backends.
   pm.addPass(Torch::createRefinePublicReturnPass());
-  pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+  pm.addNestedPass<func::FuncOp>(createTorchCanonicalizerPass());
   if (options.decompose) {
     pm.addNestedPass<func::FuncOp>(
         Torch::createDecomposeComplexOpsPass(options.backendLegalOps));
-    pm.addNestedPass<func::FuncOp>(createCanonicalizerPass());
+    pm.addNestedPass<func::FuncOp>(createTorchCanonicalizerPass());
   }
 }
 
@@ -209,7 +234,7 @@ static void createRefinementPipeline(
   // Inline the library functions to enable analysis and transformation.
   // TODO: Only inline library functions (this will currently inline
   // everything).
-  pm.addPass(mlir::createInlinerPass());
+  pm.addPass(createTorchInlinerPass());
 
   // Now, try to simplify calculations. This is unfortunately a "optimize
   // as hard as possible" kind of thing, so it's inherently somewhat brittle.

@@ -15,6 +15,7 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "torch-mlir/Dialect/Torch/Utils/Utils.h"
 #include "torch-mlir/Dialect/TorchConversion/IR/TorchConversionOps.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/BackendTypeConversion.h"
 #include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h"
@@ -28,6 +29,7 @@ namespace mlir::torch::TorchConversion {
 #define GEN_PASS_DEF_FUNCBACKENDTYPECONVERSIONFORSTABLEHLO
 #define GEN_PASS_DEF_FINALIZINGBACKENDTYPECONVERSION
 #define GEN_PASS_DEF_FINALIZINGBACKENDTYPECONVERSIONFORSTABLEHLO
+#define GEN_PASS_DEF_LIFTUSERATTRS
 #include "torch-mlir/Dialect/TorchConversion/Transforms/Passes.h.inc"
 
 //===----------------------------------------------------------------------===//

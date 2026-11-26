@@ -467,3 +467,41 @@ func.func @torch.aten.convolution$transposed_groups(%arg0: !torch.vtensor<[1,2,7
   %3 = torch.aten.convolution %arg0, %arg1, %none, %2, %0, %1, %true, %0, %int2 : !torch.vtensor<[1,2,7,7],f32>, !torch.vtensor<[2,2,3,3],f32>, !torch.none, !torch.list<int>, !torch.list<int>, !torch.list<int>, !torch.bool, !torch.list<int>, !torch.int -> !torch.vtensor<[1,4,15,15],f32>
   return %3 : !torch.vtensor<[1,4,15,15],f32>
 }
+
+// -----
+
+// CHECK-LABEL:  func.func @test_stablehlo_dot_user_attrs(
+// CHECK:          stablehlo.dot {{.*}} {mlir.user = [{tag = "mlp_fc"}]}
+// CHECK:          tensor.cast
+// CHECK-NOT:      internal.flag
+func.func @test_stablehlo_dot_user_attrs(%arg0: !torch.vtensor<[2,3],f32>, %arg1: !torch.vtensor<[3,3],f32>) -> !torch.vtensor<[2,3],f32> {
+  %0 = torch.aten.mm %arg0, %arg1 {mlir.user = [{tag = "mlp_fc"}], internal.flag = 99 : i64} : !torch.vtensor<[2,3],f32>, !torch.vtensor<[3,3],f32> -> !torch.vtensor<[2,3],f32>
+  return %0 : !torch.vtensor<[2,3],f32>
+}
+
+// -----
+
+// CHECK-LABEL:  func.func @test_stablehlo_dot_general_user_attrs(
+// CHECK:          stablehlo.dot_general {{.*}} {mlir.user = [{tag = "mlp_fc"}]}
+// CHECK:          tensor.cast
+// CHECK-NOT:      internal.flag
+func.func @test_stablehlo_dot_general_user_attrs(%arg0: !torch.vtensor<[256,120],f32>, %arg1: !torch.vtensor<[4,120,256],f32>) -> !torch.vtensor<[4,256,256],f32> {
+  %0 = torch.aten.matmul %arg0, %arg1 {mlir.user = [{tag = "mlp_fc"}], internal.flag = 99 : i64} : !torch.vtensor<[256,120],f32>, !torch.vtensor<[4,120,256],f32> -> !torch.vtensor<[4,256,256],f32>
+  return %0 : !torch.vtensor<[4,256,256],f32>
+}
+
+// -----
+
+// An annotated op whose result only feeds another converted op (here
+// `add -> relu`) must keep its annotation; only the annotated value's
+// producer is tagged, not the downstream relu.
+// CHECK-LABEL:   func.func @intermediate_user_attrs(
+// CHECK:           chlo.broadcast_add {{.*}} {mlir.user = [{domain_lower = -1.000000e+00 : f64}]}
+// CHECK-NOT:       mlir.user
+// CHECK:           return
+func.func @intermediate_user_attrs(%arg0: !torch.vtensor<[1,4],f32>, %arg1: !torch.vtensor<[1,4],f32>) -> !torch.vtensor<[1,4],f32> {
+  %int1 = torch.constant.int 1
+  %0 = torch.aten.add.Tensor %arg0, %arg1, %int1 {mlir.user = [{domain_lower = -1.0 : f64}]} : !torch.vtensor<[1,4],f32>, !torch.vtensor<[1,4],f32>, !torch.int -> !torch.vtensor<[1,4],f32>
+  %1 = torch.aten.relu %0 : !torch.vtensor<[1,4],f32> -> !torch.vtensor<[1,4],f32>
+  return %1 : !torch.vtensor<[1,4],f32>
+}

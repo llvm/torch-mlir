@@ -86,4 +86,5 @@ def ConvertCustomQuantOp : InterfacePass<"torch-convert-custom-quant-op", "mlir:
   let summary = "Convert torch custom quant op to linalg";
   let constructor = "mlir::torch::TorchConversion::createConvertCustomQuantOpPass()";
 }
+
 #endif // TORCHMLIR_TORCHCONVERSION_PASSES
