@@ -48,6 +48,22 @@ func.func @torch.aten.assert_tensor_metadata$uint32() {
   %0 = tensor.empty() : tensor<1x1x128x128xui32>
   %1 = torch_c.from_builtin_tensor %0 : tensor<1x1x128x128xui32> -> !torch.vtensor<[1,1,128,128],ui32>
   torch.aten._assert_tensor_metadata %1, %none, %none, %int28, %none, %none : !torch.vtensor<[1,1,128,128],ui32>, !torch.none, !torch.none, !torch.int, !torch.none, !torch.none
+
+// CHECK-LABEL:   func.func @torch.aten.assert_tensor_metadata$complex64
+// CHECK-NEXT:      return
+func.func @torch.aten.assert_tensor_metadata$complex64(%arg0: !torch.vtensor<[4],complex<f32>>) {
+  %int9 = torch.constant.int 9
+  %none = torch.constant.none
+  torch.aten._assert_tensor_metadata %arg0, %none, %none, %int9, %none, %none : !torch.vtensor<[4],complex<f32>>, !torch.none, !torch.none, !torch.int, !torch.none, !torch.none
+  return
+}
+
+// CHECK-LABEL:   func.func @torch.aten.assert_tensor_metadata$complex128
+// CHECK-NEXT:      return
+func.func @torch.aten.assert_tensor_metadata$complex128(%arg0: !torch.vtensor<[4],complex<f64>>) {
+  %int10 = torch.constant.int 10
+  %none = torch.constant.none
+  torch.aten._assert_tensor_metadata %arg0, %none, %none, %int10, %none, %none : !torch.vtensor<[4],complex<f64>>, !torch.none, !torch.none, !torch.int, !torch.none, !torch.none
   return
 }
 
