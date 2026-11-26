@@ -17,7 +17,7 @@ from torch.fx.passes.shape_prop import _extract_tensor_metadata
 
 from torch_mlir import fx, ir
 from torch_mlir.dialects import torch as torch_dialect
-from torch_mlir.extras.fx_importer import FxImporter
+from torch_mlir.extras.fx_importer import Empty, FxImporter, RefTracker
 
 
 def import_literals(tensors, *, fake_mode=False):
@@ -187,6 +187,41 @@ class TensorLiteralTest(unittest.TestCase):
         module = import_literals([torch.tensor([True, False, True])])
         self.assertIn("!torch.vtensor<[3],i1>", str(module))
         self.assertTrue(module.operation.verify())
+
+    def test_boolean_literals_keep_their_own_data(self):
+        # Each bool literal is imported through a temporary uint8 tensor that
+        # dies right after: a later temporary may reuse the id of an earlier one
+        # and must not get its resource. With this many literals an id is reused
+        # in practically every run.
+        tensors = [(i >> torch.arange(8)) & 1 == 1 for i in range(64)]
+        module = import_literals(tensors)
+        self.assertEqual(
+            sorted(resource_bytes(module)),
+            sorted(tensor.numpy().tobytes() for tensor in tensors),
+        )
+        # A stale mapping of another shape does not even verify.
+        import_literals([t.reshape(s) for t in tensors for s in ((8,), (8, 1))])
+
+    def test_ref_tracker_replaces_mapping_of_dead_referrent(self):
+        class Referrent: ...
+
+        tracker = RefTracker()
+        live = Referrent()
+        mapping = tracker.track(live)
+        mapping.value = "live"
+        self.assertIs(tracker.track(live), mapping)
+        self.assertIs(tracker.track(Empty), tracker.track(Empty))
+
+        dead = Referrent()
+        tracker.track(dead).value = "stale"
+        dead_id = id(dead)
+        del dead
+        # A later object can get the id of a dead one. Whether it does is up to
+        # the allocator, so file the dead object's entry under a live object.
+        fresh = Referrent()
+        tracker._refs[id(fresh)] = tracker._refs.pop(dead_id)
+        self.assertTrue(tracker.track(fresh).is_empty)
+        self.assertEqual(tracker.track(live).value, "live")
 
     def test_fake_and_meta_keep_existing_conversion(self):
         fake = FakeTensorMode().from_tensor(torch.ones(2, 3))
