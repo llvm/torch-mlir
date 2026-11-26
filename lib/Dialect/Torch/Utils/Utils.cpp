@@ -237,15 +237,14 @@ ValueTensorType Torch::getTensorTypeFromShapeValues(ArrayRef<Value> shapes,
 }
 
 // Helper function to get the size of the tensor at the given dimension.
-Value Torch::getTensorDimSize(PatternRewriter &rewriter, Value tensor,
-                              int64_t dim) {
+Value Torch::getTensorDimSize(OpBuilder &builder, Value tensor, int64_t dim) {
   auto loc = tensor.getLoc();
   auto dimVal =
-      ConstantIntOp::create(rewriter, loc, rewriter.getI64IntegerAttr(dim));
+      ConstantIntOp::create(builder, loc, builder.getI64IntegerAttr(dim));
   // Use 'createOrFold' instead of 'create':
   // If the dimension is a constant, then the AtenSizeIntOp is folded to a
   // ContantIntOp.
-  return rewriter.createOrFold<AtenSizeIntOp>(loc, tensor, dimVal);
+  return builder.createOrFold<AtenSizeIntOp>(loc, tensor, dimVal);
 }
 
 std::optional<std::pair<double, double>>

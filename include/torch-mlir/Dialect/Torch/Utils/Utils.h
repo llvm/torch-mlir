@@ -242,7 +242,7 @@ SmallVector<int64_t> makeShapeTorchCompatible(ArrayRef<int64_t> shape);
 
 ValueTensorType getTensorTypeFromShapeValues(ArrayRef<Value> shapes,
                                              Type dtype);
-Value getTensorDimSize(PatternRewriter &rewriter, Value tensor, int64_t dim);
+Value getTensorDimSize(OpBuilder &builder, Value tensor, int64_t dim);
 
 // Returns the bounds of a uint8, int8, int16 or int32 `dtypeInt`, as in
 // torchao's `_DTYPE_TO_QVALUE_BOUNDS`.

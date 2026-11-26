@@ -42,12 +42,6 @@ static Value castToType(ImplicitLocOpBuilder &b, Value value, Type type) {
   return TensorStaticInfoCastOp::create(b, type, value);
 }
 
-// Returns the size of `dim` of `tensor`, folded to a constant when static.
-static Value getDimSize(ImplicitLocOpBuilder &b, Value tensor, int64_t dim) {
-  Value dimVal = ConstantIntOp::create(b, b.getI64IntegerAttr(dim));
-  return b.createOrFold<AtenSizeIntOp>(tensor, dimVal);
-}
-
 // Returns the input size of a recurrent X or W: dim 2 of X in both layouts
 // ([seq, batch, input] and [batch, seq, input]) and the last dim of W. It is
 // the only dim of X that W constrains.
@@ -77,7 +71,8 @@ static void assertInputSizesMatch(ImplicitLocOpBuilder &b, Value X, Value W) {
   if (getInputSize(X) != Torch::kUnknownSize &&
       getInputSize(W) != Torch::kUnknownSize)
     return;
-  Value eq = AtenEqIntOp::create(b, getDimSize(b, X, 2), getDimSize(b, W, 2));
+  Value eq = AtenEqIntOp::create(b, getTensorDimSize(b, X, 2),
+                                 getTensorDimSize(b, W, 2));
   RuntimeAssertOp::create(b, eq,
                           b.getStringAttr("The input_size of W must equal X."));
 }
@@ -122,9 +117,9 @@ runRecurrentLoop(ImplicitLocOpBuilder &b, Value X,
   Location loc = b.getLoc();
 
   auto hTy = cast<ValueTensorType>(initialStates.front().getType());
-  Value seqLen = getDimSize(b, X, 0);
-  Value batchSize = getDimSize(b, X, 1);
-  Value inputSize = getDimSize(b, X, 2);
+  Value seqLen = getTensorDimSize(b, X, 0);
+  Value batchSize = getTensorDimSize(b, X, 1);
+  Value inputSize = getTensorDimSize(b, X, 2);
   int64_t hiddenSize = hTy.getSizes()[1];
 
   auto intType = b.getType<IntType>();
