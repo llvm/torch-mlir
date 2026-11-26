@@ -2806,6 +2806,19 @@ func.func @torch.aten.slice.tensor$fold_dim_1() -> (!torch.vtensor<[1, 1],si64>,
   return %0, %1 : !torch.vtensor<[1,1],si64>, !torch.vtensor<[1,1],si64>
 }
 
+// -----
+// CHECK-LABEL: func.func @torch.aten.slice.tensor$fold_nondivisible_step
+// CHECK: %[[RESULT:.*]] = torch.vtensor.literal(dense<[0, 3]> : tensor<2xsi64>) : !torch.vtensor<[2],si64>
+// CHECK: return %[[RESULT]] : !torch.vtensor<[2],si64>
+func.func @torch.aten.slice.tensor$fold_nondivisible_step() -> !torch.vtensor<[2],si64> {
+  %input = torch.vtensor.literal(dense<[0, 1, 2, 3]> : tensor<4xsi64>) : !torch.vtensor<[4],si64>
+  %dim = torch.constant.int 0
+  %start = torch.constant.int 0
+  %end = torch.constant.int 4
+  %step = torch.constant.int 3
+  %result = torch.aten.slice.Tensor %input, %dim, %start, %end, %step : !torch.vtensor<[4],si64>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[2],si64>
+  return %result : !torch.vtensor<[2],si64>
+}
 
 // -----
 // CHECK-LABEL:   func.func @torch.aten.slice.tensor$fold_small() -> !torch.vtensor<[2],si32> {
