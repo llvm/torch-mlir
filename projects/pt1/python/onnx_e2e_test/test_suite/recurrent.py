@@ -239,3 +239,122 @@ class OnnxRNN_thresholdedrelu_at_alpha(_RecurrentActivationTest):
             [np.full(shape, 0.5, np.float32), np.zeros(shape, np.float32)], axis=1
         )
         return [w, r, b]
+
+
+# ==============================================================================
+# LSTM, GRU and RNN with dynamic dims — single-direction; hidden_size=4.
+# X is the only runtime input; W/R/B are baked in as initializers. A -1 dim is
+# symbolic in the model and fed as size 2 at run time, so each static dim uses
+# a size other than 2 to expose a seq/batch mix-up.
+# ==============================================================================
+
+
+class _OnnxRecurrentDynamicBase(OnnxTestCase):
+    _OP = None
+    _NUM_GATES = None
+    _INPUT, _HIDDEN = 5, 4
+
+    def __init__(self):
+        rng = np.random.default_rng(11)
+        gates = self._NUM_GATES * self._HIDDEN
+        self._W = rng.standard_normal((1, gates, self._INPUT)).astype(np.float32)
+        self._R = rng.standard_normal((1, gates, self._HIDDEN)).astype(np.float32)
+        self._B = rng.standard_normal((1, 2 * gates)).astype(np.float32)
+
+    def _graph(self):
+        node = onnx.helper.make_node(
+            self._OP,
+            ["X", "W", "R", "B"],
+            ["Y", "Y_h"],
+            hidden_size=self._HIDDEN,
+        )
+        initializers = [
+            onnx.numpy_helper.from_array(self._W, name="W"),
+            onnx.numpy_helper.from_array(self._R, name="R"),
+            onnx.numpy_helper.from_array(self._B, name="B"),
+        ]
+        return [node], ["Y", "Y_h"], initializers
+
+
+class _OnnxGruDynamicBase(_OnnxRecurrentDynamicBase):
+    _OP, _NUM_GATES = "GRU", 3
+
+
+class _OnnxRnnDynamicBase(_OnnxRecurrentDynamicBase):
+    _OP, _NUM_GATES = "RNN", 1
+
+
+class _OnnxLstmDynamicBase(_OnnxRecurrentDynamicBase):
+    _OP, _NUM_GATES = "LSTM", 4
+
+
+@register_onnx_test
+class OnnxGRU_dynamicSeq(_OnnxGruDynamicBase):
+    @annotate_inputs([("X", torch.float32, [-1, 3, 5])])
+    def graph(self):
+        return self._graph()
+
+
+@register_onnx_test
+class OnnxGRU_dynamicBatch(_OnnxGruDynamicBase):
+    @annotate_inputs([("X", torch.float32, [4, -1, 5])])
+    def graph(self):
+        return self._graph()
+
+
+@register_onnx_test
+class OnnxGRU_dynamicAllDims(_OnnxGruDynamicBase):
+    # Every X dim, input size included, is fed as 2, so W's input size is 2.
+    _INPUT = 2
+
+    @annotate_inputs([("X", torch.float32, [-1, -1, -1])])
+    def graph(self):
+        return self._graph()
+
+
+@register_onnx_test
+class OnnxRNN_dynamicSeq(_OnnxRnnDynamicBase):
+    @annotate_inputs([("X", torch.float32, [-1, 3, 5])])
+    def graph(self):
+        return self._graph()
+
+
+@register_onnx_test
+class OnnxRNN_dynamicBatch(_OnnxRnnDynamicBase):
+    @annotate_inputs([("X", torch.float32, [4, -1, 5])])
+    def graph(self):
+        return self._graph()
+
+
+@register_onnx_test
+class OnnxRNN_dynamicAllDims(_OnnxRnnDynamicBase):
+    # Every X dim, input size included, is fed as 2, so W's input size is 2.
+    _INPUT = 2
+
+    @annotate_inputs([("X", torch.float32, [-1, -1, -1])])
+    def graph(self):
+        return self._graph()
+
+
+@register_onnx_test
+class OnnxLSTM_dynamicSeq(_OnnxLstmDynamicBase):
+    @annotate_inputs([("X", torch.float32, [-1, 3, 5])])
+    def graph(self):
+        return self._graph()
+
+
+@register_onnx_test
+class OnnxLSTM_dynamicBatch(_OnnxLstmDynamicBase):
+    @annotate_inputs([("X", torch.float32, [4, -1, 5])])
+    def graph(self):
+        return self._graph()
+
+
+@register_onnx_test
+class OnnxLSTM_dynamicAllDims(_OnnxLstmDynamicBase):
+    # Every X dim, input size included, is fed as 2, so W's input size is 2.
+    _INPUT = 2
+
+    @annotate_inputs([("X", torch.float32, [-1, -1, -1])])
+    def graph(self):
+        return self._graph()

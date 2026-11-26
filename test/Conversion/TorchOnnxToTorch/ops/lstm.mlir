@@ -221,3 +221,73 @@ func.func @test_lstm_static_batch_dynamic_x(%arg0: !torch.vtensor<[?,?,4],f32>, 
   %0:3 = torch.operator "onnx.LSTM"(%arg0, %arg1, %arg2, %arg3, %none, %arg4, %arg5) { torch.onnx.hidden_size = 3 : si64 }: (!torch.vtensor<[?,?,4],f32>, !torch.vtensor<[1,12,4],f32>, !torch.vtensor<[1,12,3],f32>, !torch.vtensor<[1,24],f32>, !torch.none, !torch.vtensor<[1,1,3],f32>, !torch.vtensor<[1,1,3],f32>)-> (!torch.vtensor<[?,1,?,3],f32>, !torch.vtensor<[1,?,3],f32>, !torch.vtensor<[1,?,3],f32>)
   return %0#0, %0#1, %0#2 : !torch.vtensor<[?,1,?,3],f32>, !torch.vtensor<[1,?,3],f32>, !torch.vtensor<[1,?,3],f32>
 }
+
+// -----
+
+// A declared Y more static than the computed one (a static Y for a dynamic X):
+// Y is cast to the declared type; Y_h and Y_c already match and are not cast.
+
+// CHECK-LABEL:   func.func @test_lstm_static_result_dynamic_x(
+// CHECK:           %[[YH:.*]] = torch.aten.unsqueeze %{{.*}}#1, %{{.*}} : !torch.vtensor<[2,3],f32>, !torch.int -> !torch.vtensor<[1,2,3],f32>
+// CHECK:           %[[YC:.*]] = torch.aten.unsqueeze %{{.*}}#2, %{{.*}} : !torch.vtensor<[2,3],f32>, !torch.int -> !torch.vtensor<[1,2,3],f32>
+// CHECK:           %[[Y:.*]] = torch.tensor_static_info_cast %{{.*}} : !torch.vtensor<[?,1,2,3],f32> to !torch.vtensor<[5,1,2,3],f32>
+// CHECK:           return %[[Y]], %[[YH]], %[[YC]] : !torch.vtensor<[5,1,2,3],f32>, !torch.vtensor<[1,2,3],f32>, !torch.vtensor<[1,2,3],f32>
+
+func.func @test_lstm_static_result_dynamic_x(%arg0: !torch.vtensor<[?,2,4],f32>, %arg1: !torch.vtensor<[1,12,4],f32>, %arg2: !torch.vtensor<[1,12,3],f32>, %arg3: !torch.vtensor<[1,24],f32>) -> (!torch.vtensor<[5,1,2,3],f32>, !torch.vtensor<[1,2,3],f32>, !torch.vtensor<[1,2,3],f32>) attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64} {
+  %0:3 = torch.operator "onnx.LSTM"(%arg0, %arg1, %arg2, %arg3) {torch.onnx.hidden_size = 3 : si64} : (!torch.vtensor<[?,2,4],f32>, !torch.vtensor<[1,12,4],f32>, !torch.vtensor<[1,12,3],f32>, !torch.vtensor<[1,24],f32>) -> (!torch.vtensor<[5,1,2,3],f32>, !torch.vtensor<[1,2,3],f32>, !torch.vtensor<[1,2,3],f32>)
+  return %0#0, %0#1, %0#2 : !torch.vtensor<[5,1,2,3],f32>, !torch.vtensor<[1,2,3],f32>, !torch.vtensor<[1,2,3],f32>
+}
+
+// -----
+
+// Dynamic input size in both X and W: the two sizes are checked at run time.
+
+// CHECK-LABEL:   func.func @test_lstm_dynamic_input_size_dynamic_w(
+// CHECK-DAG:       %[[C2:.*]] = torch.constant.int 2
+// CHECK:           %[[IN:.*]] = torch.aten.size.int %arg0, %[[C2]] : !torch.vtensor<[?,?,?],f32>, !torch.int -> !torch.int
+// CHECK:           %[[W_IN:.*]] = torch.aten.size.int %arg1, %{{.*}} : {{.*}} -> !torch.int
+// CHECK:           %[[EQ:.*]] = torch.aten.eq.int %[[IN]], %[[W_IN]] : !torch.int, !torch.int -> !torch.bool
+// CHECK:           torch.runtime.assert %[[EQ]], "The input_size of W must equal X."
+// CHECK:           torch.prim.Loop
+
+func.func @test_lstm_dynamic_input_size_dynamic_w(%arg0: !torch.vtensor<[?,?,?],f32>, %arg1: !torch.vtensor<[1,12,?],f32>, %arg2: !torch.vtensor<[1,12,3],f32>, %arg3: !torch.vtensor<[1,24],f32>) -> (!torch.vtensor<[?,1,?,3],f32>, !torch.vtensor<[1,?,3],f32>, !torch.vtensor<[1,?,3],f32>) attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64} {
+  %0:3 = torch.operator "onnx.LSTM"(%arg0, %arg1, %arg2, %arg3) {torch.onnx.hidden_size = 3 : si64} : (!torch.vtensor<[?,?,?],f32>, !torch.vtensor<[1,12,?],f32>, !torch.vtensor<[1,12,3],f32>, !torch.vtensor<[1,24],f32>) -> (!torch.vtensor<[?,1,?,3],f32>, !torch.vtensor<[1,?,3],f32>, !torch.vtensor<[1,?,3],f32>)
+  return %0#0, %0#1, %0#2 : !torch.vtensor<[?,1,?,3],f32>, !torch.vtensor<[1,?,3],f32>, !torch.vtensor<[1,?,3],f32>
+}
+
+// -----
+
+// Static input size in X with a dynamic W: W's input size is checked at run
+// time against X's.
+
+// CHECK-LABEL:   func.func @test_lstm_static_input_size_dynamic_w(
+// CHECK-DAG:       %[[C5:.*]] = torch.constant.int 5
+// CHECK:           %[[W_IN:.*]] = torch.aten.size.int %arg1, %{{.*}} : {{.*}} -> !torch.int
+// CHECK:           %[[EQ:.*]] = torch.aten.eq.int %[[C5]], %[[W_IN]] : !torch.int, !torch.int -> !torch.bool
+// CHECK:           torch.runtime.assert %[[EQ]], "The input_size of W must equal X."
+// CHECK:           torch.prim.Loop
+
+func.func @test_lstm_static_input_size_dynamic_w(%arg0: !torch.vtensor<[3,2,5],f32>, %arg1: !torch.vtensor<[1,12,?],f32>, %arg2: !torch.vtensor<[1,12,3],f32>, %arg3: !torch.vtensor<[1,24],f32>) -> (!torch.vtensor<[3,1,2,3],f32>, !torch.vtensor<[1,2,3],f32>, !torch.vtensor<[1,2,3],f32>) attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 20 : si64} {
+  %0:3 = torch.operator "onnx.LSTM"(%arg0, %arg1, %arg2, %arg3) {torch.onnx.hidden_size = 3 : si64} : (!torch.vtensor<[3,2,5],f32>, !torch.vtensor<[1,12,?],f32>, !torch.vtensor<[1,12,3],f32>, !torch.vtensor<[1,24],f32>) -> (!torch.vtensor<[3,1,2,3],f32>, !torch.vtensor<[1,2,3],f32>, !torch.vtensor<[1,2,3],f32>)
+  return %0#0, %0#1, %0#2 : !torch.vtensor<[3,1,2,3],f32>, !torch.vtensor<[1,2,3],f32>, !torch.vtensor<[1,2,3],f32>
+}
+
+// -----
+
+// Declared results more static than the computed ones (static results for a
+// dynamic X batch): Y, Y_h and Y_c are each cast to their declared type.
+
+// CHECK-LABEL:   func.func @test_lstm_static_results_dynamic_batch(
+// CHECK:           %[[LOOP:.*]]:3 = torch.prim.Loop
+// CHECK:           %[[YH_U:.*]] = torch.aten.unsqueeze %[[LOOP]]#1, %{{.*}} : !torch.vtensor<[?,3],f32>, !torch.int -> !torch.vtensor<[1,?,3],f32>
+// CHECK:           %[[YC_U:.*]] = torch.aten.unsqueeze %[[LOOP]]#2, %{{.*}} : !torch.vtensor<[?,3],f32>, !torch.int -> !torch.vtensor<[1,?,3],f32>
+// CHECK:           %[[Y_U:.*]] = torch.aten.unsqueeze %[[LOOP]]#0, %{{.*}} : !torch.vtensor<[5,?,3],f32>, !torch.int -> !torch.vtensor<[5,1,?,3],f32>
+// CHECK:           %[[Y:.*]] = torch.tensor_static_info_cast %[[Y_U]] : !torch.vtensor<[5,1,?,3],f32> to !torch.vtensor<[5,1,2,3],f32>
+// CHECK:           %[[YH:.*]] = torch.tensor_static_info_cast %[[YH_U]] : !torch.vtensor<[1,?,3],f32> to !torch.vtensor<[1,2,3],f32>
+// CHECK:           %[[YC:.*]] = torch.tensor_static_info_cast %[[YC_U]] : !torch.vtensor<[1,?,3],f32> to !torch.vtensor<[1,2,3],f32>
+// CHECK:           return %[[Y]], %[[YH]], %[[YC]] :
+
+func.func @test_lstm_static_results_dynamic_batch(%arg0: !torch.vtensor<[5,?,4],f32>, %arg1: !torch.vtensor<[1,12,4],f32>, %arg2: !torch.vtensor<[1,12,3],f32>, %arg3: !torch.vtensor<[1,24],f32>) -> (!torch.vtensor<[5,1,2,3],f32>, !torch.vtensor<[1,2,3],f32>, !torch.vtensor<[1,2,3],f32>) attributes {torch.onnx_meta.ir_version = 9 : si64, torch.onnx_meta.opset_version = 22 : si64} {
+  %0:3 = torch.operator "onnx.LSTM"(%arg0, %arg1, %arg2, %arg3) {torch.onnx.hidden_size = 3 : si64} : (!torch.vtensor<[5,?,4],f32>, !torch.vtensor<[1,12,4],f32>, !torch.vtensor<[1,12,3],f32>, !torch.vtensor<[1,24],f32>) -> (!torch.vtensor<[5,1,2,3],f32>, !torch.vtensor<[1,2,3],f32>, !torch.vtensor<[1,2,3],f32>)
+  return %0#0, %0#1, %0#2 : !torch.vtensor<[5,1,2,3],f32>, !torch.vtensor<[1,2,3],f32>, !torch.vtensor<[1,2,3],f32>
+}

@@ -32,6 +32,159 @@ Value getDirection(ImplicitLocOpBuilder b, int64_t direction, Value input) {
   return AtenSelectIntOp::create(b, outputType, input, selectDim, cstDirection);
 }
 
+// Returns `value` cast to `type` when its type differs. The two types must be
+// compatible: equal in every dim where both are static. This holds for the
+// initial states and results because the ONNX spec fixes their shapes from X
+// and hidden_size.
+static Value castToType(ImplicitLocOpBuilder &b, Value value, Type type) {
+  if (value.getType() == type)
+    return value;
+  return TensorStaticInfoCastOp::create(b, type, value);
+}
+
+// Returns the input size of a recurrent X or W: dim 2 of X in both layouts
+// ([seq, batch, input] and [batch, seq, input]) and the last dim of W. It is
+// the only dim of X that W constrains.
+static int64_t getInputSize(Value tensor) {
+  return cast<ValueTensorType>(tensor.getType()).getSizes()[2];
+}
+
+// Fails the match when the input sizes of X and W are both static and differ.
+static LogicalResult
+verifyStaticInputSizesMatch(ConversionPatternRewriter &rewriter, Operation *op,
+                            Value X, Value W) {
+  int64_t xInputSize = getInputSize(X);
+  int64_t wInputSize = getInputSize(W);
+  if (xInputSize == Torch::kUnknownSize || wInputSize == Torch::kUnknownSize ||
+      xInputSize == wInputSize)
+    return success();
+  return rewriter.notifyMatchFailure(
+      op, "The input_size of W (" + std::to_string(wInputSize) +
+              ") does not match the input_size of X (" +
+              std::to_string(xInputSize) + ")");
+}
+
+// Checks at run time that the input sizes of X and W are equal when either is
+// dynamic; a static one is folded to a constant. Two static sizes are checked
+// by verifyStaticInputSizesMatch.
+static void assertInputSizesMatch(ImplicitLocOpBuilder &b, Value X, Value W) {
+  if (getInputSize(X) != Torch::kUnknownSize &&
+      getInputSize(W) != Torch::kUnknownSize)
+    return;
+  Value eq = AtenEqIntOp::create(b, getTensorDimSize(b, X, 2),
+                                 getTensorDimSize(b, W, 2));
+  RuntimeAssertOp::create(b, eq,
+                          b.getStringAttr("The input_size of W must equal X."));
+}
+
+// Casts a given initial state (initial_h or initial_c) whose last dim is
+// dynamic to one whose last dim is `hiddenSize`, the hidden_size attribute.
+// ONNX fixes that dim to hidden_size, and the layer functions read it from the
+// state type to size their results. A state with a static last dim is returned
+// unchanged.
+static Value refineStateHiddenDim(ImplicitLocOpBuilder &b, Value state,
+                                  int64_t hiddenSize) {
+  auto stateTy = cast<ValueTensorType>(state.getType());
+  if (!stateTy.hasSizes() || stateTy.getSizes().back() != Torch::kUnknownSize)
+    return state;
+  SmallVector<int64_t> refinedShape(stateTy.getSizes());
+  refinedShape.back() = hiddenSize;
+  auto refinedTy = b.getType<ValueTensorType>(refinedShape, stateTy.getDtype());
+  return TensorStaticInfoCastOp::create(b, refinedTy, state);
+}
+
+// The output of runRecurrentLoop: Y is [seq, batch, hidden] and each state is
+// [batch, hidden].
+struct RecurrentLoopOutput {
+  Value Y;
+  SmallVector<Value> states;
+};
+
+// Builds a prim.Loop over the seq dim of a [seq, batch, input] X. Each step
+// selects X_t and calls `cell(X_t, states)`, which returns the new states. The
+// first state is the hidden state H, which the loop writes to Y[t]. Returns Y
+// and the final states.
+//
+// The seq, batch and input sizes are read from X at run time. The states take
+// their batch from X, not from the initial states: the cells give every op,
+// including the projection of X_t, the state type, so that type must carry X's
+// batch. Exporters often give the initial states a static batch 1 while X's
+// batch is dynamic.
+static RecurrentLoopOutput
+runRecurrentLoop(ImplicitLocOpBuilder &b, Value X,
+                 ArrayRef<Value> initialStates,
+                 function_ref<SmallVector<Value>(Value, ValueRange)> cell) {
+  Location loc = b.getLoc();
+
+  auto hTy = cast<ValueTensorType>(initialStates.front().getType());
+  Value seqLen = getTensorDimSize(b, X, 0);
+  Value batchSize = getTensorDimSize(b, X, 1);
+  Value inputSize = getTensorDimSize(b, X, 2);
+  int64_t hiddenSize = hTy.getSizes()[1];
+
+  auto intType = b.getType<IntType>();
+  Value cstNone = ConstantNoneOp::create(b);
+  Value cstZero = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(0));
+  Value cstOne = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(1));
+  Value cstHiddenSize =
+      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(hiddenSize));
+
+  auto stateTy =
+      getTensorTypeFromShapeValues({batchSize, cstHiddenSize}, hTy.getDtype());
+  SmallVector<Value> loopInits = {Value()};
+  for (Value state : initialStates)
+    loopInits.push_back(castToType(b, state, stateTy));
+
+  auto yTy = getTensorTypeFromShapeValues({seqLen, batchSize, cstHiddenSize},
+                                          stateTy.getDtype());
+  Value yShape = PrimListConstructOp::create(
+      b, b.getType<ListType>(intType),
+      ValueRange({seqLen, batchSize, cstHiddenSize}));
+  Value cstDtype =
+      ConstantIntOp::create(b, b.getI64IntegerAttr(static_cast<int64_t>(
+                                   getScalarTypeForType(stateTy.getDtype()))));
+  loopInits[0] =
+      AtenZerosOp::create(b, yTy, yShape, cstDtype, cstNone, cstNone, cstNone);
+
+  SmallVector<Type> loopTypes(loopInits.size(), stateTy);
+  loopTypes[0] = yTy;
+  Value cstTrue = ConstantBoolOp::create(b, true);
+  auto loop = PrimLoopOp::create(b, loopTypes, seqLen, cstTrue, loopInits);
+  {
+    OpBuilder::InsertionGuard guard(b);
+    SmallVector<Type> argTypes = {intType};
+    argTypes.append(loopTypes);
+    SmallVector<Location> argLocs(argTypes.size(), loc);
+    Block *body = b.createBlock(&loop.getRegion(), loop.getRegion().begin(),
+                                argTypes, argLocs);
+    Value loopIndex = body->getArgument(0);
+    Value yPrev = body->getArgument(1);
+
+    auto xTy = cast<ValueTensorType>(X.getType());
+    auto xtTy =
+        getTensorTypeFromShapeValues({batchSize, inputSize}, xTy.getDtype());
+    Value Xt = AtenSelectIntOp::create(b, xtTy, X, cstZero, loopIndex);
+
+    SmallVector<Value> newStates = cell(Xt, body->getArguments().drop_front(2));
+
+    Type hUnsqueezedTy = getTensorTypeFromShapeValues(
+        {cstOne, batchSize, cstHiddenSize}, stateTy.getDtype());
+    Value hUnsqueezed =
+        AtenUnsqueezeOp::create(b, hUnsqueezedTy, newStates.front(), cstZero);
+    Value nextIndex = AtenAddIntOp::create(b, intType, loopIndex, cstOne);
+    Value yNew = AtenSliceScatterOp::create(b, yTy, yPrev, hUnsqueezed, cstZero,
+                                            loopIndex, nextIndex, cstOne);
+
+    SmallVector<Value> yielded = {yNew};
+    yielded.append(newStates);
+    PrimLoopConditionOp::create(b, cstTrue, yielded);
+  }
+  RecurrentLoopOutput output;
+  output.Y = loop.getResult(0);
+  llvm::append_range(output.states, loop.getResults().drop_front());
+  return output;
+}
+
 struct RnnWeights {
   Value Wi;
   Value Ri;
@@ -65,91 +218,12 @@ struct RnnLayerOutput {
 
 RnnLayerOutput rnn_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
                          RnnWeights weights, RnnActivations activations) {
-  Location loc = b.getLoc();
-
-  auto xTy = cast<ValueTensorType>(X.getType());
-  auto hTy = cast<ValueTensorType>(initial_h.getType());
-  int64_t seq_len = xTy.getSizes()[0];
-  int64_t batch_size = xTy.getSizes()[1];
-  int64_t input_size = xTy.getSizes()[2];
-  int64_t hidden_size = hTy.getSizes()[1];
-
-  auto intType = b.getType<IntType>();
-
-  Value cstNone = ConstantNoneOp::create(b);
-  Value cstZero = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(0));
-  Value cstOne = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(1));
-  Value cstSeqLen =
-      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(seq_len));
-  Value cstBatchSize =
-      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(batch_size));
-  Value cstHiddenSize =
-      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(hidden_size));
-
-  auto yTy = b.getType<ValueTensorType>(
-      SmallVector<int64_t>{seq_len, batch_size, hidden_size}, hTy.getDtype());
-
-  auto YShapeList = PrimListConstructOp::create(
-      b, b.getType<ListType>(intType),
-      ValueRange({cstSeqLen, cstBatchSize, cstHiddenSize}));
-
-  int64_t hDtypeInt =
-      static_cast<int64_t>(getScalarTypeForType(hTy.getDtype()));
-  Value hDtypeIntVal =
-      ConstantIntOp::create(b, loc, b.getI64IntegerAttr(hDtypeInt));
-
-  Value Y_initial = AtenZerosOp::create(b, yTy, YShapeList, hDtypeIntVal,
-                                        cstNone, cstNone, cstNone);
-
-  Value maxTripCount =
-      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(seq_len));
-  Value loopConditionTrue = ConstantBoolOp::create(b, true);
-
-  Type loopIndexType = intType;
-  auto loop =
-      PrimLoopOp::create(b, TypeRange({yTy, hTy}), maxTripCount,
-                         loopConditionTrue, ValueRange({Y_initial, initial_h}));
-  {
-    OpBuilder::InsertionGuard guard(b);
-    Block *loopBody =
-        b.createBlock(&loop.getRegion(), loop.getRegion().begin(),
-                      TypeRange({
-                          loopIndexType,
-                          yTy,
-                          hTy,
-                      }),
-                      {loc, loc, loc} // locs for the loop body arguments
-        );
-
-    Value loopIndex = loopBody->getArgument(0);
-    Value Y_prev = loopBody->getArgument(1);
-    Value H_prev = loopBody->getArgument(2);
-
-    auto xTy = cast<ValueTensorType>(X.getType());
-    auto XtType = b.getType<ValueTensorType>(
-        llvm::SmallVector<int64_t>{batch_size, input_size}, xTy.getDtype());
-
-    Value Xt = AtenSelectIntOp::create(b, XtType, X, cstZero, loopIndex);
-
-    Value H_new = rnn_cell(b, Xt, H_prev, weights, activations);
-
-    Type hTyUnsqueezed = b.getType<ValueTensorType>(
-        llvm::SmallVector<int64_t>{1, batch_size, hidden_size}, hTy.getDtype());
-    Value H_new_unsqueezed =
-        AtenUnsqueezeOp::create(b, hTyUnsqueezed, H_new, cstZero);
-
-    auto loopIndexPlusOne = AtenAddIntOp::create(b, intType, loopIndex, cstOne);
-    Value Y_new =
-        AtenSliceScatterOp::create(b, yTy, Y_prev, H_new_unsqueezed, cstZero,
-                                   loopIndex, loopIndexPlusOne, cstOne);
-
-    PrimLoopConditionOp::create(b, loopConditionTrue,
-                                ValueRange({Y_new, H_new}));
-  }
-  RnnLayerOutput output;
-  output.Y = loop.getResult(0);
-  output.Y_h = loop.getResult(1);
-  return output;
+  RecurrentLoopOutput loop = runRecurrentLoop(
+      b, X, {initial_h},
+      [&](Value Xt, ValueRange states) -> SmallVector<Value> {
+        return {rnn_cell(b, Xt, states[0], weights, activations)};
+      });
+  return {loop.Y, loop.states[0]};
 }
 
 static Value StaticTranspose(ImplicitLocOpBuilder b, Value value, int64_t dim0,
@@ -260,6 +334,8 @@ LogicalResult OnnxRnnExpander(OpBinder binder,
     // if no initial_h found, set to null and create one later
     initial_h = nullptr;
   }
+  if (failed(verifyStaticInputSizesMatch(rewriter, binder.op, X, W)))
+    return failure();
 
   if (layout == 1) {
     X = StaticTranspose(b, X, 0, 1);
@@ -278,11 +354,9 @@ LogicalResult OnnxRnnExpander(OpBinder binder,
 
   int64_t seq_len = xShape[0];
   int64_t batch_size = xShape[1];
-  int64_t x_input_size = xShape[2];
 
   int64_t w_num_directions = wShape[0];
   int64_t w_hidden_size = wShape[1];
-  int64_t w_input_size = wShape[2];
 
   int64_t r_num_directions = rShape[0];
   if (rShape[1] != rShape[2])
@@ -291,15 +365,6 @@ LogicalResult OnnxRnnExpander(OpBinder binder,
         "R tensor must be square, but got shape: " + std::to_string(rShape[1]) +
             "x" + std::to_string(rShape[2]));
   int64_t r_hidden_size = rShape[1];
-
-  // validate input size
-  if (x_input_size != w_input_size) {
-    return rewriter.notifyMatchFailure(
-        binder.op, "input_size inferred from shape of X (" +
-                       std::to_string(x_input_size) +
-                       ") does not match the input_size attribute value (" +
-                       std::to_string(w_input_size) + ")");
-  }
 
   // validate hidden size
   if (w_hidden_size != Torch::kUnknownSize && hidden_size != w_hidden_size) {
@@ -344,6 +409,8 @@ LogicalResult OnnxRnnExpander(OpBinder binder,
             std::to_string(num_directions) + " is provided.");
   }
 
+  assertInputSizesMatch(b, X, W);
+
   // Create B and initial_h if not provided,
   // using same dtype as X
   Value cstXDtype = getDtypeIntValueForType(rewriter, loc, xTy.getDtype());
@@ -360,19 +427,20 @@ LogicalResult OnnxRnnExpander(OpBinder binder,
                                    cstNone, cstNone);
   }
   if (initial_h == nullptr) {
-    SmallVector<int64_t> initial_h_shape = {num_directions, batch_size,
-                                            hidden_size};
+    Value batchSize = getTensorDimSize(rewriter, X, 1);
     SmallVector<Value> initial_h_shape_list_contents = {
         ConstantIntOp::create(b, intType, b.getI64IntegerAttr(num_directions)),
-        ConstantIntOp::create(b, intType, b.getI64IntegerAttr(batch_size)),
+        batchSize,
         ConstantIntOp::create(b, intType, b.getI64IntegerAttr(hidden_size))};
     Value initial_h_shape_list = PrimListConstructOp::create(
         b, b.getType<ListType>(intType), initial_h_shape_list_contents);
-    auto initial_h_type =
-        b.getType<ValueTensorType>(initial_h_shape, wTy.getDtype());
+    auto initial_h_type = getTensorTypeFromShapeValues(
+        initial_h_shape_list_contents, wTy.getDtype());
     initial_h =
         Torch::AtenZerosOp::create(b, initial_h_type, initial_h_shape_list,
                                    cstXDtype, cstNone, cstNone, cstNone);
+  } else {
+    initial_h = refineStateHiddenDim(b, initial_h, hidden_size);
   }
 
   Value W_forward = getDirection(b, 0, W);
@@ -423,10 +491,10 @@ LogicalResult OnnxRnnExpander(OpBinder binder,
     Y_unsqueezed = StaticTranspose(b, Y_unsqueezed, 0, 1);
   }
 
-  if (!yTy)
-    Y_unsqueezed = cstNone;
-  if (!Y_hType)
-    Y_h_unsqueezed = cstNone;
+  // A declared result type can be more static than the computed one (a static
+  // Y for a dynamic X); cast to it.
+  Y_unsqueezed = yTy ? castToType(b, Y_unsqueezed, yTy) : cstNone;
+  Y_h_unsqueezed = Y_hType ? castToType(b, Y_h_unsqueezed, Y_hType) : cstNone;
 
   rewriter.replaceOp(binder.op, {Y_unsqueezed, Y_h_unsqueezed});
   return success();
@@ -526,105 +594,15 @@ struct LstmLayerOutput {
 LstmLayerOutput lstm_layer(ConversionPatternRewriter &rewriter, Location &loc,
                            Value X, Value initial_h, Value initial_c,
                            LstmWeights weights, LstmActivations activations) {
-
   mlir::ImplicitLocOpBuilder b(loc, rewriter);
-
-  auto hTy = cast<ValueTensorType>(initial_h.getType());
-  // these names are snake_case for consistency with onnx.LSTM documentation
-  Value seq_len = getTensorDimSize(rewriter, X, 0);
-  Value batch_size = getTensorDimSize(rewriter, X, 1);
-  Value input_size = getTensorDimSize(rewriter, X, 2);
-  int64_t hidden_size = hTy.getSizes()[1];
-
-  auto intType = b.getType<IntType>();
-
-  Value cstNone = ConstantNoneOp::create(b);
-  Value cstZero = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(0));
-  Value cstOne = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(1));
-  Value cstHiddenSize =
-      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(hidden_size));
-
-  // Derive state type from X's batch, not initial_h: ONNX exporters often emit
-  // initial_h with a static batch-1, while X's batch is dynamic.
-  auto targetStateTy =
-      getTensorTypeFromShapeValues({batch_size, cstHiddenSize}, hTy.getDtype());
-  // If targetStateTy != hTy, at least one batch dim is dynamic (a valid ONNX
-  // model won't have differing static batches between X and
-  // initial_h/initial_c) and the cast is valid.
-  if (targetStateTy != hTy) {
-    initial_h = TensorStaticInfoCastOp::create(b, targetStateTy, initial_h);
-    initial_c = TensorStaticInfoCastOp::create(b, targetStateTy, initial_c);
-    hTy = targetStateTy;
-  }
-
-  auto yTy = getTensorTypeFromShapeValues({seq_len, batch_size, cstHiddenSize},
-                                          hTy.getDtype());
-  auto YShapeList = PrimListConstructOp::create(
-      b, b.getType<ListType>(intType),
-      ValueRange({seq_len, batch_size, cstHiddenSize}));
-
-  int64_t hDtypeInt =
-      static_cast<int64_t>(getScalarTypeForType(hTy.getDtype()));
-  Value hDtypeIntVal =
-      ConstantIntOp::create(b, loc, b.getI64IntegerAttr(hDtypeInt));
-
-  Value Y_initial = AtenZerosOp::create(b, yTy, YShapeList, hDtypeIntVal,
-                                        cstNone, cstNone, cstNone);
-
-  // Create a for-like PrimLoopOp.
-  auto cTy = hTy; // cell state has the same shape/dtype as hidden state
-  Value maxTripCount = seq_len;
-  Value loopConditionTrue = ConstantBoolOp::create(b, true);
-
-  Type loopIndexType = intType;
-  auto loop = PrimLoopOp::create(b, TypeRange({yTy, hTy, cTy}), maxTripCount,
-                                 loopConditionTrue,
-                                 ValueRange({Y_initial, initial_h, initial_c}));
-  {
-    OpBuilder::InsertionGuard guard(b);
-    Block *loopBody =
-        b.createBlock(&loop.getRegion(), loop.getRegion().begin(),
-                      TypeRange({
-                          loopIndexType,
-                          yTy,
-                          hTy,
-                          cTy,
-                      }),
-                      {loc, loc, loc, loc} // locs for the loop body arguments
-        );
-
-    Value loopIndex = loopBody->getArgument(0);
-    Value Y_prev = loopBody->getArgument(1);
-    Value H_prev = loopBody->getArgument(2);
-    Value C_prev = loopBody->getArgument(3);
-
-    auto xTy = cast<ValueTensorType>(X.getType());
-    auto XtType =
-        getTensorTypeFromShapeValues({batch_size, input_size}, xTy.getDtype());
-
-    Value Xt = AtenSelectIntOp::create(b, XtType, X, cstZero, loopIndex);
-
-    auto [H_new, C_new] =
-        lstm_cell(b, Xt, H_prev, C_prev, weights, activations);
-
-    auto hTyUnsqueezed = getTensorTypeFromShapeValues(
-        {cstOne, batch_size, cstHiddenSize}, hTy.getDtype());
-    Value H_new_unsqueezed =
-        AtenUnsqueezeOp::create(b, hTyUnsqueezed, H_new, cstZero);
-
-    auto loopIndexPlusOne = AtenAddIntOp::create(b, intType, loopIndex, cstOne);
-    Value Y_new =
-        AtenSliceScatterOp::create(b, yTy, Y_prev, H_new_unsqueezed, cstZero,
-                                   loopIndex, loopIndexPlusOne, cstOne);
-
-    PrimLoopConditionOp::create(b, loopConditionTrue,
-                                ValueRange({Y_new, H_new, C_new}));
-  }
-  LstmLayerOutput output;
-  output.Y = loop.getResult(0);
-  output.Y_h = loop.getResult(1);
-  output.Y_c = loop.getResult(2);
-  return output;
+  RecurrentLoopOutput loop =
+      runRecurrentLoop(b, X, {initial_h, initial_c},
+                       [&](Value Xt, ValueRange states) -> SmallVector<Value> {
+                         auto [H_new, C_new] = lstm_cell(
+                             b, Xt, states[0], states[1], weights, activations);
+                         return {H_new, C_new};
+                       });
+  return {loop.Y, loop.states[0], loop.states[1]};
 }
 // @brief Expands an ONNX LSTM operation into torch ops.
 //
@@ -687,6 +665,8 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   if (binder.tensorOperandAtIndex(W, 1))
     return rewriter.notifyMatchFailure(binder.op,
                                        "Missing required input tensor W");
+  if (failed(verifyStaticInputSizesMatch(rewriter, binder.op, X, W)))
+    return failure();
   Value R;
   if (binder.tensorOperandAtIndex(R, 2))
     return rewriter.notifyMatchFailure(binder.op,
@@ -781,10 +761,11 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
         binder.op, "invalid value of layout attribute, expecting 0 / 1 got " +
                        std::to_string(layout));
 
+  // X is not yet transposed: it is [seq, batch, input] for layout 0 and
+  // [batch, seq, input] for layout 1.
   Value seqLen = getTensorDimSize(rewriter, X, layout == 0 ? 0 : 1);
   Value batchSize = getTensorDimSize(rewriter, X, layout == 0 ? 1 : 0);
 
-  int64_t x_input_size = xTy.getSizes()[2];
   int64_t w_input_size = wTy.getSizes()[2];
   int64_t input_size = w_input_size;
   if (num_directions != wTy.getSizes()[0])
@@ -798,23 +779,7 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
         binder.op, "4 times hidden_size (" + std::to_string(4 * hidden_size) +
                        ") does not match the second dimension of wTy (" +
                        std::to_string(wTy.getSizes()[1]) + ")");
-  if (x_input_size != Torch::kUnknownSize) {
-    if (w_input_size != x_input_size)
-      return rewriter.notifyMatchFailure(
-          binder.op, "The input_size of wTy (" + std::to_string(w_input_size) +
-                         ") does not match input_size of xTY (" +
-                         std::to_string(x_input_size) + ")");
-
-  } else {
-    Value x_input_size = Torch::getTensorDimSize(rewriter, X, 2);
-    Value w_input_size =
-        ConstantIntOp::create(b, loc, b.getI64IntegerAttr(wTy.getSizes()[2]));
-
-    auto eq = AtenEqIntOp::create(b, loc, x_input_size, w_input_size);
-    RuntimeAssertOp::create(
-        rewriter, loc, eq,
-        rewriter.getStringAttr("The input_size of W must equal X."));
-  }
+  assertInputSizesMatch(b, X, W);
 
   Value W_forward = getDirection(b, 0, W);
   Value R_forward = getDirection(b, 0, R);
@@ -845,20 +810,6 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
 
   Value cstDtype = getDtypeIntValueForType(rewriter, loc, xTy.getDtype());
 
-  // Refine a dynamic hidden dim on initial_h/initial_c to the static
-  // hidden_size known from the attribute; only acts when the dim is dynamic.
-  auto refineInitialStateHiddenDim = [&](Value initialState) -> Value {
-    auto stateTy = dyn_cast<ValueTensorType>(initialState.getType());
-    if (!stateTy || !stateTy.hasSizes() ||
-        stateTy.getSizes().back() != Torch::kUnknownSize)
-      return initialState;
-    SmallVector<int64_t> refinedShape(stateTy.getSizes());
-    refinedShape.back() = hidden_size;
-    auto refinedTy =
-        b.getType<ValueTensorType>(refinedShape, stateTy.getDtype());
-    return TensorStaticInfoCastOp::create(b, refinedTy, initialState);
-  };
-
   Value initial_h;
   if (binder.tensorOperandAtIndex(initial_h, 5)) {
     // default created for layout 0
@@ -867,7 +818,7 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   } else {
     if (layout == 1)
       initial_h = StaticTranspose(b, initial_h, 0, 1);
-    initial_h = refineInitialStateHiddenDim(initial_h);
+    initial_h = refineStateHiddenDim(b, initial_h, hidden_size);
   }
 
   Value initial_c;
@@ -878,7 +829,7 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
   } else {
     if (layout == 1)
       initial_c = StaticTranspose(b, initial_c, 0, 1);
-    initial_c = refineInitialStateHiddenDim(initial_c);
+    initial_c = refineStateHiddenDim(b, initial_c, hidden_size);
   }
 
   // convert X from layout 1 to layout 0
@@ -1103,7 +1054,9 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
     Y_c_result = StaticTranspose(b, Y_c_result, 0, 1);
   }
 
-  // Only add outputs specified in onnx output node
+  // Only add outputs specified in onnx output node. A declared result type can
+  // be more static than the computed one (a static Y for a dynamic X); cast to
+  // it.
   SmallVector<Value> actualOutputs = {Y_result, Y_h_result, Y_c_result},
                      outputs;
   ValueTensorType resTy;
@@ -1111,7 +1064,7 @@ LogicalResult OnnxLstmExpander(OpBinder binder,
     if (failed(binder.tensorResultTypeAtIndex(resTy, i))) {
       outputs.push_back(cstNone);
     } else {
-      outputs.push_back(actualOutputs[i]);
+      outputs.push_back(castToType(b, actualOutputs[i], resTy));
     }
   }
 
@@ -1203,92 +1156,13 @@ Value gru_cell(ImplicitLocOpBuilder &b, Value Xt, Value H_prev,
 GruLayerOutput gru_layer(ImplicitLocOpBuilder &b, Value X, Value initial_h,
                          GruWeights weights, GruActivations activations,
                          bool linear_before_reset) {
-  Location loc = b.getLoc();
-
-  auto xTy = cast<ValueTensorType>(X.getType());
-  auto hTy = cast<ValueTensorType>(initial_h.getType());
-
-  // Get sizes and store them in intermediate variables
-  auto xTySizes = xTy.getSizes();
-  auto hTySizes = hTy.getSizes();
-
-  int64_t seq_len = xTySizes[0];
-  int64_t batch_size = xTySizes[1];
-  int64_t input_size = xTySizes[2];
-  int64_t hidden_size = hTySizes[1];
-
-  auto intType = b.getType<IntType>();
-
-  Value cstNone = ConstantNoneOp::create(b);
-  Value cstZero = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(0));
-  Value cstOne = ConstantIntOp::create(b, intType, b.getI64IntegerAttr(1));
-  Value cstSeqLen =
-      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(seq_len));
-  Value cstBatchSize =
-      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(batch_size));
-  Value cstHiddenSize =
-      ConstantIntOp::create(b, intType, b.getI64IntegerAttr(hidden_size));
-
-  auto yTy = b.getType<ValueTensorType>(
-      SmallVector<int64_t>{seq_len, batch_size, hidden_size}, hTy.getDtype());
-
-  auto YShapeList = PrimListConstructOp::create(
-      b, b.getType<ListType>(intType),
-      ValueRange({cstSeqLen, cstBatchSize, cstHiddenSize}));
-
-  int64_t hDtypeInt =
-      static_cast<int64_t>(getScalarTypeForType(hTy.getDtype()));
-  Value hDtypeIntVal = ConstantIntOp::create(b, b.getI64IntegerAttr(hDtypeInt));
-
-  Value Y_initial = AtenZerosOp::create(b, yTy, YShapeList, hDtypeIntVal,
-                                        cstNone, cstNone, cstNone);
-
-  Value maxTripCount = cstSeqLen;
-  Value loopConditionTrue = ConstantBoolOp::create(b, true);
-
-  Type loopIndexType = intType;
-
-  auto loop =
-      PrimLoopOp::create(b, TypeRange({yTy, hTy}), maxTripCount,
-                         loopConditionTrue, ValueRange({Y_initial, initial_h}));
-
-  {
-    OpBuilder::InsertionGuard guard(b);
-    Block *loopBody =
-        b.createBlock(&loop.getRegion(), loop.getRegion().begin(),
-                      TypeRange({loopIndexType, yTy, hTy}), {loc, loc, loc});
-
-    Value loopIndex = loopBody->getArgument(0);
-    Value Y_prev = loopBody->getArgument(1);
-    Value H_prev = loopBody->getArgument(2);
-
-    auto XtType = b.getType<ValueTensorType>(
-        llvm::SmallVector<int64_t>{batch_size, input_size}, xTy.getDtype());
-
-    Value Xt = AtenSelectIntOp::create(b, XtType, X, cstZero, loopIndex);
-
-    Value H_new =
-        gru_cell(b, Xt, H_prev, weights, activations, linear_before_reset);
-
-    Type hTyUnsqueezed = b.getType<ValueTensorType>(
-        llvm::SmallVector<int64_t>{1, batch_size, hidden_size}, hTy.getDtype());
-    Value H_new_unsqueezed =
-        AtenUnsqueezeOp::create(b, hTyUnsqueezed, H_new, cstZero);
-
-    auto loopIndexPlusOne = AtenAddIntOp::create(b, intType, loopIndex, cstOne);
-    Value Y_new =
-        AtenSliceScatterOp::create(b, yTy, Y_prev, H_new_unsqueezed, cstZero,
-                                   loopIndex, loopIndexPlusOne, cstOne);
-
-    PrimLoopConditionOp::create(b, loopConditionTrue,
-                                ValueRange({Y_new, H_new}));
-  }
-
-  GruLayerOutput output;
-  output.Y = loop.getResult(0);
-  output.Y_h = loop.getResult(1);
-
-  return output;
+  RecurrentLoopOutput loop =
+      runRecurrentLoop(b, X, {initial_h},
+                       [&](Value Xt, ValueRange states) -> SmallVector<Value> {
+                         return {gru_cell(b, Xt, states[0], weights,
+                                          activations, linear_before_reset)};
+                       });
+  return {loop.Y, loop.states[0]};
 }
 
 LogicalResult OnnxGruExpander(OpBinder binder,
@@ -1314,6 +1188,8 @@ LogicalResult OnnxGruExpander(OpBinder binder,
       binder.tensorOperandAtIndex(R, 2))
     return rewriter.notifyMatchFailure(binder.op,
                                        "Missing required input tensor");
+  if (failed(verifyStaticInputSizesMatch(rewriter, binder.op, X, W)))
+    return failure();
 
   if (binder.tensorOperandAtIndex(B, 3)) {
     // if no b found, set to null and create one later
@@ -1376,30 +1252,24 @@ LogicalResult OnnxGruExpander(OpBinder binder,
         << 3 * hidden_size << ", but got " << wTy.getSizes()[1] << ". ";
   }
 
-  if (wTy.getSizes()[2] != input_size) {
-    oss << "Expected wTy.getSizes()[2] to be " << input_size << ", but got "
-        << wTy.getSizes()[2] << ". ";
-  }
-
   if (!oss.str().empty()) {
     return rewriter.notifyMatchFailure(binder.op, oss.str());
   }
 
   // Setting up initial_h
-  auto hTy = b.getType<ValueTensorType>(
-      llvm::SmallVector<int64_t>{num_directions, batch_size, hidden_size},
-      xTy.getDtype());
-
   if (binder.tensorOperandAtIndex(initial_h, 5)) {
     Value cstNumDirections =
         ConstantIntOp::create(b, intType, b.getI64IntegerAttr(num_directions));
-    Value cstBatchSize =
-        ConstantIntOp::create(b, intType, b.getI64IntegerAttr(batch_size));
+    // X is not yet transposed: batch is dim 1 of [seq, batch, input] for
+    // layout 0 and dim 0 of [batch, seq, input] for layout 1.
+    Value batchSize = getTensorDimSize(rewriter, X, layout == 0 ? 1 : 0);
     Value cstHiddenSize =
         ConstantIntOp::create(b, intType, b.getI64IntegerAttr(hidden_size));
+    auto hTy = getTensorTypeFromShapeValues(
+        {cstNumDirections, batchSize, cstHiddenSize}, xTy.getDtype());
     Value hShape = PrimListConstructOp::create(
         b, b.getType<ListType>(intType),
-        ValueRange({cstNumDirections, cstBatchSize, cstHiddenSize}));
+        ValueRange({cstNumDirections, batchSize, cstHiddenSize}));
     Value cstDtype = getDtypeIntValueForType(rewriter, loc, xTy.getDtype());
     initial_h = AtenZerosOp::create(b, hTy, hShape, cstDtype, cstNone, cstNone,
                                     cstNone);
@@ -1407,6 +1277,7 @@ LogicalResult OnnxGruExpander(OpBinder binder,
     if (layout == 1) {
       initial_h = StaticTranspose(b, initial_h, 0, 1);
     }
+    initial_h = refineStateHiddenDim(b, initial_h, hidden_size);
   }
 
   if (binder.tensorOperandAtIndex(sequence_lens, 4))
@@ -1422,6 +1293,8 @@ LogicalResult OnnxGruExpander(OpBinder binder,
   if (binder.s64IntegerAttr(linear_before_reset_int, "linear_before_reset", 0))
     linear_before_reset_int = 0;
   bool linear_before_reset = linear_before_reset_int != 0;
+
+  assertInputSizesMatch(b, X, W);
 
   // fill in B
   Value cstXDtype = getDtypeIntValueForType(rewriter, loc, xTy.getDtype());
@@ -1467,9 +1340,13 @@ LogicalResult OnnxGruExpander(OpBinder binder,
     return slices;
   };
 
-  // Slice W
+  // Slice W ([3 * hidden_size, input_size]) into the z, r and h gates. Take the
+  // slices' input size from W itself; if it is dynamic, use X's, which ONNX
+  // requires to be equal (and may be dynamic too).
+  int64_t wInputSize =
+      wTy.getSizes()[2] != Torch::kUnknownSize ? wTy.getSizes()[2] : input_size;
   auto wSliceType = b.getType<ValueTensorType>(
-      llvm::SmallVector<int64_t>{hidden_size, input_size}, wTy.getDtype());
+      llvm::SmallVector<int64_t>{hidden_size, wInputSize}, wTy.getDtype());
   auto W_slices = sliceTensor(W_forward, hidden_size, 3, wSliceType);
   std::tie(weights.Wz, weights.Wr, weights.Wh) =
       std::make_tuple(W_slices[0], W_slices[1], W_slices[2]);
@@ -1499,39 +1376,36 @@ LogicalResult OnnxGruExpander(OpBinder binder,
   GruLayerOutput gruLayerOutput = gru_layer(b, X, initial_h_forward, weights,
                                             activations, linear_before_reset);
 
-  // Process outputs based on layout
+  // Process outputs based on layout. A declared result type can be more static
+  // than the computed one (a static Y for a dynamic X); cast to it.
   Value Y_final;
   if (binder.tensorResultTypeAtIndex(yTy, 0)) {
     Y_final = cstNone;
   } else {
-    if (layout == 0) {
-      Y_final = AtenUnsqueezeOp::create(b, yTy, gruLayerOutput.Y, cstOne);
-    } else {
-      Type yTy_original = b.getType<ValueTensorType>(
-          llvm::SmallVector<int64_t>{seq_len, 1, batch_size, hidden_size},
-          yTy.getDtype());
-      Y_final =
-          AtenUnsqueezeOp::create(b, yTy_original, gruLayerOutput.Y, cstOne);
+    Type yTy_original = b.getType<ValueTensorType>(
+        llvm::SmallVector<int64_t>{seq_len, 1, batch_size, hidden_size},
+        yTy.getDtype());
+    Y_final =
+        AtenUnsqueezeOp::create(b, yTy_original, gruLayerOutput.Y, cstOne);
+    if (layout == 1) {
       Y_final = StaticTranspose(b, Y_final, 1, 2);
       Y_final = StaticTranspose(b, Y_final, 0, 1);
     }
+    Y_final = castToType(b, Y_final, yTy);
   }
 
   Value Y_h_final;
   if (binder.tensorResultTypeAtIndex(Y_hType, 1)) {
     Y_h_final = cstNone;
   } else {
-    if (layout == 0) {
-      Y_h_final =
-          AtenUnsqueezeOp::create(b, Y_hType, gruLayerOutput.Y_h, cstZero);
-    } else {
-      Type y_hTy_original = b.getType<ValueTensorType>(
-          llvm::SmallVector<int64_t>{1, batch_size, hidden_size},
-          Y_hType.getDtype());
-      Y_h_final = AtenUnsqueezeOp::create(b, y_hTy_original, gruLayerOutput.Y_h,
-                                          cstZero);
+    Type y_hTy_original = b.getType<ValueTensorType>(
+        llvm::SmallVector<int64_t>{1, batch_size, hidden_size},
+        Y_hType.getDtype());
+    Y_h_final =
+        AtenUnsqueezeOp::create(b, y_hTy_original, gruLayerOutput.Y_h, cstZero);
+    if (layout == 1)
       Y_h_final = StaticTranspose(b, Y_h_final, 0, 1);
-    }
+    Y_h_final = castToType(b, Y_h_final, Y_hType);
   }
 
   rewriter.replaceOp(binder.op, mlir::ValueRange{Y_final, Y_h_final});
