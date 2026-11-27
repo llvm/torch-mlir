@@ -1403,8 +1403,16 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type elemTy =
         cast<RankedTensorType>(converter->convertType(minimum.getType()))
             .getElementType();
-    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], elemTy);
-    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], elemTy);
+    Value lhs = convertScalarToDtype(
+        b, loc, payloadArgs[0], elemTy,
+        /*srcOriginalDtype=*/
+        cast<BaseTensorType>(minimum.getSelf().getType()).getDtype(),
+        /*dstOriginalDtype=*/dtype);
+    Value rhs = convertScalarToDtype(
+        b, loc, payloadArgs[1], elemTy,
+        /*srcOriginalDtype=*/
+        cast<BaseTensorType>(minimum.getOther().getType()).getDtype(),
+        /*dstOriginalDtype=*/dtype);
     Value pred = createLessThan(b, loc, dtype, lhs, rhs);
     return arith::SelectOp::create(b, loc, pred, lhs, rhs);
   }
@@ -1413,8 +1421,16 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type elemTy =
         cast<RankedTensorType>(converter->convertType(maximum.getType()))
             .getElementType();
-    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], elemTy);
-    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], elemTy);
+    Value lhs = convertScalarToDtype(
+        b, loc, payloadArgs[0], elemTy,
+        /*srcOriginalDtype=*/
+        cast<BaseTensorType>(maximum.getSelf().getType()).getDtype(),
+        /*dstOriginalDtype=*/dtype);
+    Value rhs = convertScalarToDtype(
+        b, loc, payloadArgs[1], elemTy,
+        /*srcOriginalDtype=*/
+        cast<BaseTensorType>(maximum.getOther().getType()).getDtype(),
+        /*dstOriginalDtype=*/dtype);
     Value pred = createGreaterThan(b, loc, dtype, lhs, rhs);
     return arith::SelectOp::create(b, loc, pred, lhs, rhs);
   }
@@ -1479,18 +1495,33 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Type dtype =
         cast<RankedTensorType>(converter->convertType(clampTensor.getType()))
             .getElementType();
+    // The payload values are signless, so integer conversions and compares
+    // take their signedness from the torch dtypes.
+    auto torchDtype = [](Value v) {
+      return cast<BaseTensorType>(v.getType()).getDtype();
+    };
+    Type resultDtype = torchDtype(clampTensor.getResult());
+    bool isUnsigned = resultDtype.isUnsignedInteger();
     bool isMinNone = true;
-    auto result = payloadArgs[0];
+    auto result = convertScalarToDtype(
+        b, loc, payloadArgs[0], dtype,
+        /*srcOriginalDtype=*/torchDtype(clampTensor.getSelf()),
+        /*dstOriginalDtype=*/resultDtype);
     if (!isa<Torch::NoneType>(min.getType())) {
       isMinNone = false;
-      auto minPromoted = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
+      auto minPromoted = convertScalarToDtype(
+          b, loc, payloadArgs[1], dtype,
+          /*srcOriginalDtype=*/torchDtype(clampTensor.getMin()),
+          /*dstOriginalDtype=*/resultDtype);
       Value pred;
       if (isa<mlir::FloatType>(dtype)) {
         pred = arith::CmpFOp::create(b, loc, arith::CmpFPredicate::ULT, result,
                                      minPromoted);
       } else if (isa<mlir::IntegerType>(dtype)) {
-        pred = arith::CmpIOp::create(b, loc, arith::CmpIPredicate::slt, result,
-                                     minPromoted);
+        pred = arith::CmpIOp::create(b, loc,
+                                     isUnsigned ? arith::CmpIPredicate::ult
+                                                : arith::CmpIPredicate::slt,
+                                     result, minPromoted);
       } else {
         clampTensor.emitError(
             "unimplemented: dtype other than float and integer "
@@ -1501,14 +1532,19 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     }
     if (!isa<Torch::NoneType>(max.getType())) {
       max = isMinNone ? payloadArgs[1] : payloadArgs[2];
-      auto maxPromoted = convertScalarToDtype(b, loc, max, dtype);
+      auto maxPromoted = convertScalarToDtype(
+          b, loc, max, dtype,
+          /*srcOriginalDtype=*/torchDtype(clampTensor.getMax()),
+          /*dstOriginalDtype=*/resultDtype);
       Value pred;
       if (isa<mlir::FloatType>(dtype)) {
         pred = arith::CmpFOp::create(b, loc, arith::CmpFPredicate::UGT, result,
                                      maxPromoted);
       } else if (isa<mlir::IntegerType>(dtype)) {
-        pred = arith::CmpIOp::create(b, loc, arith::CmpIPredicate::sgt, result,
-                                     maxPromoted);
+        pred = arith::CmpIOp::create(b, loc,
+                                     isUnsigned ? arith::CmpIPredicate::ugt
+                                                : arith::CmpIPredicate::sgt,
+                                     result, maxPromoted);
       } else {
         clampTensor.emitError(
             "unimplemented: dtype other than float and integer "

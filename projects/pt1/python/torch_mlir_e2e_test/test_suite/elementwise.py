@@ -1807,6 +1807,58 @@ def ElementwiseMaximumIntModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 5, high=10), tu.randint(3, 5, high=10))
 
 
+# The uint8 inputs include values of 128 and above, which the signed
+# interpretation of the same bits gets wrong.
+
+
+class ElementwiseMaximumUInt8Int16Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.uint8, True),
+            ([-1], torch.int16, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.maximum(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseMaximumUInt8Int16Module())
+def ElementwiseMaximumUInt8Int16Module_basic(module, tu: TestUtils):
+    module.forward(
+        torch.tensor([0, 5, 127, 128, 200, 255], dtype=torch.uint8),
+        torch.tensor([-1, 7, -1, 130, -1, 300], dtype=torch.int16),
+    )
+
+
+class ElementwiseMinimumUInt8Int16Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.uint8, True),
+            ([-1], torch.int16, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.ops.aten.minimum(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseMinimumUInt8Int16Module())
+def ElementwiseMinimumUInt8Int16Module_basic(module, tu: TestUtils):
+    module.forward(
+        torch.tensor([0, 5, 127, 128, 200, 255], dtype=torch.uint8),
+        torch.tensor([-1, 7, -1, 130, 300, 100], dtype=torch.int16),
+    )
+
+
 # ==============================================================================
 
 
@@ -2302,6 +2354,70 @@ class ElementwiseClampTensorIntModule(torch.nn.Module):
 def ElementwiseClampTensorIntModule_basic(module, tu: TestUtils):
     module.forward(
         tu.randint(3, 5, low=-10, high=10), torch.tensor([-5]), torch.tensor([5])
+    )
+
+
+# The uint8 inputs include values of 128 and above, which the signed
+# interpretation of the same bits gets wrong. The RefBackend returns integer
+# results as signed, so uint8 results are returned as int64.
+
+
+class ElementwiseClampTensorUInt8Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.uint8, True),
+            ([1], torch.uint8, True),
+            ([1], torch.uint8, True),
+        ]
+    )
+    def forward(self, x, min, max):
+        min_clamp = torch.clamp(x, min)
+        max_clamp = torch.clamp(x, max=max)
+        both_clamp = torch.clamp(x, min=min, max=max)
+        return (
+            min_clamp.to(torch.int64),
+            max_clamp.to(torch.int64),
+            both_clamp.to(torch.int64),
+        )
+
+
+@register_test_case(module_factory=lambda: ElementwiseClampTensorUInt8Module())
+def ElementwiseClampTensorUInt8Module_basic(module, tu: TestUtils):
+    module.forward(
+        torch.tensor([0, 5, 127, 128, 200, 255], dtype=torch.uint8),
+        torch.tensor([10], dtype=torch.uint8),
+        torch.tensor([250], dtype=torch.uint8),
+    )
+
+
+class ElementwiseClampTensorUInt8Int16Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.uint8, True),
+            ([1], torch.int16, True),
+            ([1], torch.int16, True),
+        ]
+    )
+    def forward(self, x, min, max):
+        return torch.clamp(x, min=min, max=max)
+
+
+@register_test_case(module_factory=lambda: ElementwiseClampTensorUInt8Int16Module())
+def ElementwiseClampTensorUInt8Int16Module_basic(module, tu: TestUtils):
+    module.forward(
+        torch.tensor([0, 5, 127, 128, 200, 255], dtype=torch.uint8),
+        torch.tensor([-3], dtype=torch.int16),
+        torch.tensor([210], dtype=torch.int16),
     )
 
 

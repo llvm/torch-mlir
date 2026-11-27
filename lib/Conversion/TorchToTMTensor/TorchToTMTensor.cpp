@@ -60,10 +60,17 @@ namespace mlir::torch {
 // that these patterns become mostly mechanical associations of
 // "aten.foo -> linalg.foo".
 
+// `elementType` is signless, so `isUnsigned` comes from the torch dtype.
 static TypedAttr getNumericLimit(PatternRewriter &rewriter, Type elementType,
-                                 bool allowNonFinites, bool getMin = true) {
+                                 bool allowNonFinites, bool getMin = true,
+                                 bool isUnsigned = false) {
   auto bitWidth = elementType.getIntOrFloatBitWidth();
   if (llvm::isa<mlir::IntegerType>(elementType)) {
+    if (isUnsigned) {
+      return rewriter.getIntegerAttr(elementType,
+                                     getMin ? APInt::getMinValue(bitWidth)
+                                            : APInt::getMaxValue(bitWidth));
+    }
     if (getMin) {
       return rewriter.getIntegerAttr(elementType,
                                      APInt::getSignedMinValue(bitWidth));
@@ -259,20 +266,20 @@ static Value createTMTensorScanOp(
   return scanOp->getResult(0);
 }
 
-static FailureOr<Value> createIntOrFloatCompareOp(PatternRewriter &rewriter,
-                                                  Location loc,
-                                                  Type elementType, Value lhs,
-                                                  Value rhs, bool isDescending,
-                                                  bool isEqual) {
+// `elementType` is signless, so `isUnsigned` comes from the torch dtype.
+static FailureOr<Value>
+createIntOrFloatCompareOp(PatternRewriter &rewriter, Location loc,
+                          Type elementType, Value lhs, Value rhs,
+                          bool isDescending, bool isEqual, bool isUnsigned) {
 
   Value compareOp;
-  if (auto intType = dyn_cast<mlir::IntegerType>(elementType)) {
+  if (isa<mlir::IntegerType>(elementType)) {
     // Case for using arith::CmpIOp.
     arith::CmpIPredicate g =
         isEqual ? arith::CmpIPredicate::sge : arith::CmpIPredicate::sgt;
     arith::CmpIPredicate l =
         isEqual ? arith::CmpIPredicate::sle : arith::CmpIPredicate::slt;
-    if (intType.isUnsignedInteger()) {
+    if (isUnsigned) {
       g = isEqual ? arith::CmpIPredicate::uge : arith::CmpIPredicate::ugt;
       l = isEqual ? arith::CmpIPredicate::ule : arith::CmpIPredicate::ult;
     }
@@ -302,7 +309,7 @@ static FailureOr<SmallVector<Value>>
 createTMTensorSortOp(PatternRewriter &rewriter, Location sortOpLoc,
                      llvm::ArrayRef<Value> operands,
                      llvm::ArrayRef<Type> elementTypes, int64_t dimension,
-                     bool isStable, bool isDescending) {
+                     bool isStable, bool isDescending, bool isUnsigned) {
   // Step 1. Create TMTensor::SortOp structure.
   SmallVector<Type> sortResultTypes;
   for (Value val : operands) {
@@ -325,7 +332,7 @@ createTMTensorSortOp(PatternRewriter &rewriter, Location sortOpLoc,
   // Step 3. Create comparison op which will be used as the sorting predicate.
   auto compareOpRetVal = createIntOrFloatCompareOp(
       rewriter, loc, elementTypes[0], block->getArgument(0),
-      block->getArgument(1), isDescending, true);
+      block->getArgument(1), isDescending, true, isUnsigned);
 
   if (failed(compareOpRetVal))
     return rewriter.notifyMatchFailure(
@@ -339,7 +346,7 @@ createTMTensorSortOp(PatternRewriter &rewriter, Location sortOpLoc,
 static FailureOr<SmallVector<Value>> createTMTensorTopkOp(
     PatternRewriter &rewriter, Location topkOpLoc, llvm::ArrayRef<Value> inputs,
     llvm::ArrayRef<Value> outputs, llvm::ArrayRef<Type> elementTypes,
-    int64_t dimension, bool isMinK) {
+    int64_t dimension, bool isMinK, bool isUnsigned) {
 
   // Generate output types.
   SmallVector<Type> topkResultTypes;
@@ -365,7 +372,8 @@ static FailureOr<SmallVector<Value>> createTMTensorTopkOp(
   // swap.
   auto compareOpRetVal = createIntOrFloatCompareOp(
       rewriter, loc, elementTypes[0], block->getArgument(0),
-      block->getArgument(1), /*isDescending=*/!isMinK, /*isEqual=*/false);
+      block->getArgument(1), /*isDescending=*/!isMinK, /*isEqual=*/false,
+      isUnsigned);
 
   // Check if correct element types are passed.
   if (failed(compareOpRetVal))
@@ -1281,6 +1289,11 @@ public:
         cast<RankedTensorType>(adaptor.getSrc().getType());
 
     Value self = adaptor.getSelf();
+    // The builtin element types are signless, so the signedness comes from
+    // the torch dtype.
+    bool isUnsigned = cast<BaseTensorType>(op.getSelf().getType())
+                          .getDtype()
+                          .isUnsignedInteger();
 
     if (selfType.getRank() != indexType.getRank() ||
         indexType.getRank() != srcType.getRank())
@@ -1356,14 +1369,14 @@ public:
         // type
         TypedAttr minAttr = getNumericLimit(rewriter, srcType.getElementType(),
                                             this->allowNonFinites,
-                                            /*getMin=*/true);
+                                            /*getMin=*/true, isUnsigned);
         normalizationValue = arith::ConstantOp::create(rewriter, loc, minAttr);
       } else if (reduceEnum == torch_upstream::ReductionType::MIN) {
         // Set the values in the input tensor to the largest element of that
         // type
         TypedAttr maxAttr = getNumericLimit(rewriter, srcType.getElementType(),
                                             this->allowNonFinites,
-                                            /*getMin=*/false);
+                                            /*getMin=*/false, isUnsigned);
         normalizationValue = arith::ConstantOp::create(rewriter, loc, maxAttr);
       }
 
@@ -1416,7 +1429,10 @@ public:
             }
           } else if (reduceEnum == torch_upstream::ReductionType::MAX) {
             if (isa<mlir::IntegerType>(update.getType())) {
-              result = arith::MaxSIOp::create(b, loc, update, current);
+              if (isUnsigned)
+                result = arith::MaxUIOp::create(b, loc, update, current);
+              else
+                result = arith::MaxSIOp::create(b, loc, update, current);
             } else if (isa<mlir::FloatType>(update.getType())) {
               result = arith::MaximumFOp::create(b, loc, update, current);
             } else {
@@ -1424,7 +1440,10 @@ public:
             }
           } else if (reduceEnum == torch_upstream::ReductionType::MIN) {
             if (isa<mlir::IntegerType>(update.getType())) {
-              result = arith::MinSIOp::create(b, loc, update, current);
+              if (isUnsigned)
+                result = arith::MinUIOp::create(b, loc, update, current);
+              else
+                result = arith::MinSIOp::create(b, loc, update, current);
             } else if (isa<mlir::FloatType>(update.getType())) {
               result = arith::MinimumFOp::create(b, loc, update, current);
             } else {
@@ -1469,7 +1488,10 @@ public:
               [&](OpBuilder &b, Location loc, ValueRange args) {
                 Value result;
                 if (llvm::isa<mlir::IntegerType>(args[0].getType())) {
-                  result = arith::DivSIOp::create(b, loc, args[0], args[1]);
+                  if (isUnsigned)
+                    result = arith::DivUIOp::create(b, loc, args[0], args[1]);
+                  else
+                    result = arith::DivSIOp::create(b, loc, args[0], args[1]);
                 } else if (llvm::isa<mlir::FloatType>(args[0].getType())) {
                   result = arith::DivFOp::create(b, loc, args[0], args[1]);
                 } else {
@@ -1562,7 +1584,11 @@ public:
     FailureOr<SmallVector<Value>> sortOpValues =
         createTMTensorSortOp(rewriter, loc, operands, elementTypes,
                              /*dimension=*/dim, /*isStable=*/false,
-                             /*isDescending=*/descending);
+                             /*isDescending=*/descending,
+                             /*isUnsigned=*/
+                             cast<BaseTensorType>(op.getSelf().getType())
+                                 .getDtype()
+                                 .isUnsignedInteger());
     if (failed(sortOpValues))
       return rewriter.notifyMatchFailure(
           loc, "Only Integer and Floating element type expected.");
@@ -2235,7 +2261,8 @@ public:
     {
       OpBuilder::InsertionGuard guard(rewriter);
       topkOp = createTMTensorTopkOp(rewriter, loc, topkInputs, topkOutputs,
-                                    topkElementTypes, dim, /*isMinK=*/true);
+                                    topkElementTypes, dim, /*isMinK=*/true,
+                                    isUnsigned);
     }
     // Topk op creation fails with invalid element types.
     if (failed(topkOp))

@@ -6267,6 +6267,38 @@ def SortTensorEmptyDimStaticModule_basic(module, tu: TestUtils):
     module.forward(torch.empty(2, 0))
 
 
+class SortTensorUInt8(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1], torch.uint8, True)])
+    def forward(self, input):
+        values, indices = torch.sort(input)
+        return values.to(torch.int64), indices
+
+
+@register_test_case(module_factory=lambda: SortTensorUInt8())
+def SortTensorUInt8_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([255, 200, 128, 127, 5, 0], dtype=torch.uint8))
+
+
+class SortTensorUInt8Descending(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1], torch.uint8, True)])
+    def forward(self, input):
+        values, indices = torch.sort(input, descending=True)
+        return values.to(torch.int64), indices
+
+
+@register_test_case(module_factory=lambda: SortTensorUInt8Descending())
+def SortTensorUInt8Descending_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([0, 5, 127, 128, 200, 255], dtype=torch.uint8))
+
+
 class ArgsortTensor(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -7371,6 +7403,23 @@ class AtenKthvalueDynamicDimsModule(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenKthvalueDynamicDimsModule())
 def AtenKthvalueDynamicDimsModule_basic(module, tu: TestUtils):
     module.forward(torch.randperm(4 * 2 * 8 * 3, dtype=torch.int32).reshape(4, 2, 8, 3))
+
+
+class AtenKthvalueUInt8Module(torch.nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([6], torch.uint8, True)])
+    def forward(self, x):
+        values, indices = torch.ops.aten.kthvalue(x, k=5)
+        return values.to(torch.int64), indices
+
+
+@register_test_case(module_factory=lambda: AtenKthvalueUInt8Module())
+def AtenKthvalueUInt8Module_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([255, 0, 200, 5, 128, 127], dtype=torch.uint8))
 
 
 # ==============================================================================

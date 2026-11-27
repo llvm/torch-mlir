@@ -541,6 +541,19 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
+    # The uint8 sort, kthvalue and scatter_reduce tests fail, as their int
+    # versions do. The StableHLO clamp lowering does not convert mixed operand
+    # dtypes.
+    "AtenKthvalueUInt8Module_basic",
+    "ElementwiseClampTensorUInt8Int16Module_basic",
+    "ScatterReduceUInt8MaxModule",
+    "ScatterReduceUInt8MaxModuleIncludeSelf",
+    "ScatterReduceUInt8MeanModule",
+    "ScatterReduceUInt8MeanModuleIncludeSelf",
+    "ScatterReduceUInt8MinModule",
+    "ScatterReduceUInt8MinModuleIncludeSelf",
+    "SortTensorUInt8Descending_basic",
+    "SortTensorUInt8_basic",
     # AvgPool3d lowering ignores divisor_override.
     "AvgPool3dSignedZero_basic",
     # StableHLO scatter lowering fails bufferization for these tests.
@@ -2814,6 +2827,21 @@ LTC_XFAIL_SET = {
 }
 
 ONNX_XFAIL_SET = {
+    # The ONNX importer does not legalize Cast from ui8 to si16 or a ui8
+    # ScatterElements with a min/max reduction. torch.onnx exports
+    # scatter_reduce mean as a ScatterElements with no reduction and has no
+    # export for kthvalue. The int versions of scatter_reduce and kthvalue are
+    # xfailed here as well.
+    "AtenKthvalueUInt8Module_basic",
+    "ElementwiseClampTensorUInt8Int16Module_basic",
+    "ElementwiseMaximumUInt8Int16Module_basic",
+    "ElementwiseMinimumUInt8Int16Module_basic",
+    "ScatterReduceUInt8MaxModule",
+    "ScatterReduceUInt8MaxModuleIncludeSelf",
+    "ScatterReduceUInt8MeanModule",
+    "ScatterReduceUInt8MeanModuleIncludeSelf",
+    "ScatterReduceUInt8MinModule",
+    "ScatterReduceUInt8MinModuleIncludeSelf",
     # ONNX export drops avg_pool3d divisor_override.
     "AvgPool3dSignedZero_basic",
     # The ONNX test configuration replaces annotated integer inputs with
@@ -3142,7 +3170,6 @@ ONNX_XFAIL_SET = {
     "QuantizedDecomposedDequantizePerChannelGroupUnsignedSymmetric_basic",
     "QuantizedDecomposedQuantizePerChannelGroup_basic",
     "QuantizedDecomposedPerChannelGroupGptqSingleCol_basic",
-    "QuantizedDecomposedQuantizePerChannelUnsignedZeroPoint_basic",
     "QuantizedDecomposedChooseQparamsPerTokenAsymmetric_basic",
     "QuantizedDecomposedChooseQparamsPerTokenSymmetric_basic",
     "QuantizedDecomposedDequantizePerToken3D_basic",
@@ -3359,7 +3386,6 @@ if torch_version_for_comparison() >= version.parse("2.13.0"):
 if torch_version_for_comparison() >= version.parse("2.16.0.dev"):
     # PyTorch 2.16 and newer export these through the ONNX exporter.
     ONNX_XFAIL_SET = ONNX_XFAIL_SET - {
-        "QuantizedDecomposedQuantizePerChannelUnsignedZeroPoint_basic",
         "QuantizedDecomposedQuantizePerTensorTensor_basic",
         "QuantizedDecomposedQuantizePerTensorTensor2_basic",
     }
@@ -3868,6 +3894,22 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ElementwiseClampMinModule_bfloat16",
     "ElementwiseClampModule_bfloat16",
     "ElementwiseReluModule_bfloat16",
+    # TOSA integer arithmetic is signed, so uint8 values of 128 and above give
+    # wrong results, and TOSA has no lowering for sort, kthvalue or
+    # scatter_reduce on these types.
+    "AtenKthvalueUInt8Module_basic",
+    "ElementwiseClampTensorUInt8Int16Module_basic",
+    "ElementwiseClampTensorUInt8Module_basic",
+    "ElementwiseMaximumUInt8Int16Module_basic",
+    "ElementwiseMinimumUInt8Int16Module_basic",
+    "ScatterReduceUInt8MaxModule",
+    "ScatterReduceUInt8MaxModuleIncludeSelf",
+    "ScatterReduceUInt8MeanModule",
+    "ScatterReduceUInt8MeanModuleIncludeSelf",
+    "ScatterReduceUInt8MinModule",
+    "ScatterReduceUInt8MinModuleIncludeSelf",
+    "SortTensorUInt8Descending_basic",
+    "SortTensorUInt8_basic",
 }
 
 ONNX_TOSA_CRASHING_SET = {
