@@ -230,6 +230,50 @@ func.func @fold_aten_div_tensor_mode_int() -> !torch.vtensor<[4],si64> {
 
 // -----
 
+// CHECK-LABEL: @fold_aten_div_signed_rounding
+func.func @fold_aten_div_signed_rounding() -> (!torch.vtensor<[5],si64>, !torch.vtensor<[5],si64>) {
+  // CHECK-DAG: %[[FLOOR:.*]] = torch.vtensor.literal(dense<[-4, -4, -4, 3, 9007199254740993]> : tensor<5xsi64>)
+  // CHECK-DAG: %[[TRUNC:.*]] = torch.vtensor.literal(dense<[-3, -3, -4, 3, 9007199254740993]> : tensor<5xsi64>)
+  // CHECK: return %[[FLOOR]], %[[TRUNC]]
+  %lhs = torch.vtensor.literal(dense<[-7, 7, -8, -7, 18014398509481986]> : tensor<5xsi64>) : !torch.vtensor<[5],si64>
+  %rhs = torch.vtensor.literal(dense<[2, -2, 2, -2, 2]> : tensor<5xsi64>) : !torch.vtensor<[5],si64>
+  %floor = torch.constant.str "floor"
+  %trunc = torch.constant.str "trunc"
+  %0 = torch.aten.div.Tensor_mode %lhs, %rhs, %floor : !torch.vtensor<[5],si64>, !torch.vtensor<[5],si64>, !torch.str -> !torch.vtensor<[5],si64>
+  %1 = torch.aten.div.Tensor_mode %lhs, %rhs, %trunc : !torch.vtensor<[5],si64>, !torch.vtensor<[5],si64>, !torch.str -> !torch.vtensor<[5],si64>
+  return %0, %1 : !torch.vtensor<[5],si64>, !torch.vtensor<[5],si64>
+}
+
+// -----
+
+// CHECK-LABEL: @fold_aten_div_unsigned
+func.func @fold_aten_div_unsigned() -> !torch.vtensor<[2],ui8> {
+  // CHECK: torch.vtensor.literal(dense<[64, 127]> : tensor<2xui8>)
+  %lhs = torch.vtensor.literal(dense<[129, 255]> : tensor<2xui8>) : !torch.vtensor<[2],ui8>
+  %rhs = torch.vtensor.literal(dense<2> : tensor<si64>) : !torch.vtensor<[],si64>
+  %floor = torch.constant.str "floor"
+  %0 = torch.aten.div.Tensor_mode %lhs, %rhs, %floor : !torch.vtensor<[2],ui8>, !torch.vtensor<[],si64>, !torch.str -> !torch.vtensor<[2],ui8>
+  return %0 : !torch.vtensor<[2],ui8>
+}
+
+// -----
+
+// CHECK-LABEL: @no_fold_aten_div_undefined
+func.func @no_fold_aten_div_undefined() -> (!torch.vtensor<[2],si64>, !torch.vtensor<[2],si64>) {
+  // CHECK: %[[ZERO:.*]] = torch.aten.div.Tensor_mode
+  // CHECK: %[[OVERFLOW:.*]] = torch.aten.div.Tensor_mode
+  // CHECK: return %[[ZERO]], %[[OVERFLOW]]
+  %lhs = torch.vtensor.literal(dense<[-8, -9223372036854775808]> : tensor<2xsi64>) : !torch.vtensor<[2],si64>
+  %zero = torch.vtensor.literal(dense<[2, 0]> : tensor<2xsi64>) : !torch.vtensor<[2],si64>
+  %overflow = torch.vtensor.literal(dense<[2, -1]> : tensor<2xsi64>) : !torch.vtensor<[2],si64>
+  %floor = torch.constant.str "floor"
+  %0 = torch.aten.div.Tensor_mode %lhs, %zero, %floor : !torch.vtensor<[2],si64>, !torch.vtensor<[2],si64>, !torch.str -> !torch.vtensor<[2],si64>
+  %1 = torch.aten.div.Tensor_mode %lhs, %overflow, %floor : !torch.vtensor<[2],si64>, !torch.vtensor<[2],si64>, !torch.str -> !torch.vtensor<[2],si64>
+  return %0, %1 : !torch.vtensor<[2],si64>, !torch.vtensor<[2],si64>
+}
+
+// -----
+
 // CHECK-LABEL: @fold_aten_div_tensor_mode_float
 func.func @fold_aten_div_tensor_mode_float() -> !torch.vtensor<[4],f32> {
   // CHECK: torch.vtensor.literal(dense<3.000000e+00> : tensor<4xf32>) : !torch.vtensor<[4],f32>

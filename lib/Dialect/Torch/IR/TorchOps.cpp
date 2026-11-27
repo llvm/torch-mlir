@@ -1784,7 +1784,8 @@ llvm::SmallVector<APInt> getFoldValueAtIndexInt(llvm::ArrayRef<Attribute> attrs,
 }
 
 using NAryFoldFpOperator = std::function<double(ArrayRef<double>)>;
-using NAryFoldIntOperator = std::function<APInt(ArrayRef<APInt>)>;
+using NAryFoldIntOperator =
+    std::function<std::optional<APInt>(ArrayRef<APInt>)>;
 
 static OpFoldResult
 naryFolderHelper(ArrayRef<Attribute> operands, Type ty,
@@ -1862,7 +1863,10 @@ naryFolderHelper(ArrayRef<Attribute> operands, Type ty,
           getFoldValueAtIndexInt(operands, dty.getIntOrFloatBitWidth(), i);
       if (inputs.size() != operands.size())
         return nullptr;
-      folded.push_back(folder(inputs));
+      auto value = folder(inputs);
+      if (!value)
+        return nullptr;
+      folded.push_back(*value);
     }
     return DenseElementsAttr::get(resultBTy, folded);
   }
@@ -2466,16 +2470,8 @@ OpFoldResult AtenDivTensorModeOp::fold(FoldAdaptor adaptor) {
   if (!resultTy || !resultTy.hasDtype()) {
     return nullptr;
   }
-  std::function<double(ArrayRef<double>)> fpFold;
-  std::function<APInt(ArrayRef<APInt>)> intFold;
-
   auto roundMode = dyn_cast_or_null<StringAttr>(adaptor.getRoundingMode());
-  auto unsign = false;
-  if (isa<mlir::IntegerType>(resultTy.getDtype())) {
-    unsign = cast<IntegerType>(resultTy.getDtype()).isUnsigned();
-  }
-
-  fpFold = [roundMode](llvm::ArrayRef<double> inputs) {
+  auto fpFold = [roundMode](llvm::ArrayRef<double> inputs) {
     assert(inputs.size() == 2);
     if (!roundMode) {
       return (double)inputs[0] / inputs[1];
@@ -2486,25 +2482,28 @@ OpFoldResult AtenDivTensorModeOp::fold(FoldAdaptor adaptor) {
     }
   };
 
-  intFold = [unsign, roundMode](llvm::ArrayRef<APInt> inputs) {
-    assert(inputs.size() == 2);
-    auto lhs = unsign ? inputs[0].getZExtValue() : inputs[0].getSExtValue();
-    auto rhs = unsign ? inputs[1].getZExtValue() : inputs[1].getSExtValue();
-    int64_t bits = std::max(inputs[0].getBitWidth(), inputs[1].getBitWidth());
-    int64_t res;
-    if (roundMode.getValue().str() == "floor") {
-      res = std::floor(lhs / rhs);
-    } else {
-      res = std::trunc(lhs / rhs);
-    }
-    return APInt(bits, res);
-  };
-
-  if (!roundMode) {
+  auto intTy = dyn_cast<IntegerType>(resultTy.getDtype());
+  if (!roundMode || !intTy) {
     return naryFolderHelper({adaptor.getSelf(), adaptor.getOther()}, getType(),
                             fpFold, std::nullopt);
   }
 
+  auto mode = roundMode.getValue() == "floor" ? APInt::Rounding::DOWN
+                                              : APInt::Rounding::TOWARD_ZERO;
+  auto intFold = [intTy, mode](ArrayRef<APInt> inputs) -> std::optional<APInt> {
+    assert(inputs.size() == 2);
+    // The helper already extends narrow inputs. A wider scalar may still need
+    // to be narrowed to the promoted tensor dtype before dividing.
+    APInt lhs = inputs[0].zextOrTrunc(intTy.getWidth());
+    APInt rhs = inputs[1].zextOrTrunc(intTy.getWidth());
+    if (rhs.isZero())
+      return std::nullopt;
+    if (intTy.isUnsigned())
+      return lhs.udiv(rhs);
+    if (lhs.isMinSignedValue() && rhs.isAllOnes())
+      return std::nullopt;
+    return llvm::APIntOps::RoundingSDiv(lhs, rhs, mode);
+  };
   return naryFolderHelper({adaptor.getSelf(), adaptor.getOther()}, getType(),
                           fpFold, intFold);
 }
