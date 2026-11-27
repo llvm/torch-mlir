@@ -242,11 +242,11 @@ func.func @matmul_integer_to_float_result_dtype(
     %b: !torch.vtensor<[3,5],ui8>,
     %as: !torch.vtensor<[],f32>,
     %bs: !torch.vtensor<[],f32>
-    ) -> !torch.vtensor<[4,5],f16> attributes {torch.onnx_meta.opset_version = 17 : si64} {
+    ) -> !torch.vtensor<[4,5],bf16> attributes {torch.onnx_meta.opset_version = 17 : si64} {
   // expected-error @below {{failed to legalize operation 'torch.operator' that was explicitly marked illegal}}
   %0 = torch.operator "onnx.MatMulIntegerToFloat"(%a, %b, %as, %bs)
-      : (!torch.vtensor<[4,3],si8>, !torch.vtensor<[3,5],ui8>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>) -> !torch.vtensor<[4,5],f16>
-  return %0 : !torch.vtensor<[4,5],f16>
+      : (!torch.vtensor<[4,3],si8>, !torch.vtensor<[3,5],ui8>, !torch.vtensor<[],f32>, !torch.vtensor<[],f32>) -> !torch.vtensor<[4,5],bf16>
+  return %0 : !torch.vtensor<[4,5],bf16>
 }
 
 // -----

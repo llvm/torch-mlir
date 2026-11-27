@@ -50,6 +50,7 @@ ONNX_E2E_TOSA_XFAIL_SET = {
     "OnnxMatMulIntegerToFloat_perColumn",
     "OnnxMatMulIntegerToFloat_mixedQParams",
     "OnnxMatMulIntegerToFloat_batchedWeights",
+    "OnnxMatMulIntegerToFloat_f16",
     # TOSA cannot lower dynamic size.int / per-channel DQ here.
     "OnnxMatMulIntegerToFloat_dynamicColumns",
     # TOSA has no first-class PT2E per-channel-group DQ lowering.
