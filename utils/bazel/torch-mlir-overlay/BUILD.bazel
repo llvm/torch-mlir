@@ -526,6 +526,7 @@ cc_library(
         ":TorchMLIRConversionTorchOnnxToTorchPassIncGen",
         ":TorchMLIRConversionUtils",
         ":TorchMLIRTorchDialect",
+        "@llvm-project//mlir:Dialect",
         "@llvm-project//mlir:IR",
         "@llvm-project//mlir:Pass",
     ],
