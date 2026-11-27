@@ -9648,8 +9648,8 @@ class DecomposeAtenPadOp : public OpRewritePattern<AtenPadOp> {
       Value one = getConstantInt(1);
       Value result = op.getSelf();
       for (uint64_t i = 0; i < numPadDims; ++i) {
-        int64_t left = (*circularPads)[2 * i];
-        int64_t right = (*circularPads)[2 * i + 1];
+        const int64_t left = (*circularPads)[2 * i];
+        const int64_t right = (*circularPads)[2 * i + 1];
         if (left == 0 && right == 0)
           continue;
         int64_t dim = rank - 1 - i;
@@ -9664,11 +9664,11 @@ class DecomposeAtenPadOp : public OpRewritePattern<AtenPadOp> {
 
         int64_t cropStart = std::max<int64_t>(-left, 0);
         int64_t cropEnd = std::max<int64_t>(-right, 0);
-        left = std::max<int64_t>(left, 0);
-        right = std::max<int64_t>(right, 0);
+        int64_t wrapLeft = std::max<int64_t>(left, 0);
+        int64_t wrapRight = std::max<int64_t>(right, 0);
         if (cropStart > 0 || cropEnd > 0) {
           addToDimSize(-cropStart - cropEnd);
-          Type cropType = isLastDim && left == 0 && right == 0
+          Type cropType = isLastDim && wrapLeft == 0 && wrapRight == 0
                               ? op.getType()
                               : getTypeWithDimSize(dim, sizes[dim]);
           Value cropEndValue = cropEnd > 0 ? getConstantInt(-cropEnd) : none;
@@ -9676,23 +9676,23 @@ class DecomposeAtenPadOp : public OpRewritePattern<AtenPadOp> {
               rewriter, loc, cropType, result, dimValue,
               getConstantInt(cropStart), cropEndValue, one);
         }
-        if (left == 0 && right == 0)
+        if (wrapLeft == 0 && wrapRight == 0)
           continue;
 
         SmallVector<Value> parts;
-        if (left > 0)
+        if (wrapLeft > 0)
           parts.push_back(AtenSliceTensorOp::create(
-              rewriter, loc, getTypeWithDimSize(dim, left), result, dimValue,
-              getConstantInt(-left), none, one));
+              rewriter, loc, getTypeWithDimSize(dim, wrapLeft), result,
+              dimValue, getConstantInt(-wrapLeft), none, one));
         parts.push_back(result);
-        if (right > 0)
+        if (wrapRight > 0)
           parts.push_back(AtenSliceTensorOp::create(
-              rewriter, loc, getTypeWithDimSize(dim, right), result, dimValue,
-              getConstantInt(0), getConstantInt(right), one));
+              rewriter, loc, getTypeWithDimSize(dim, wrapRight), result,
+              dimValue, getConstantInt(0), getConstantInt(wrapRight), one));
         Value list = PrimListConstructOp::create(
             rewriter, loc,
             Torch::ListType::get(getTypeWithDimSize(dim, kUnknownSize)), parts);
-        addToDimSize(left + right);
+        addToDimSize(wrapLeft + wrapRight);
         Type catType =
             isLastDim ? op.getType() : getTypeWithDimSize(dim, sizes[dim]);
         result = AtenCatOp::create(rewriter, loc, catType, list, dimValue);

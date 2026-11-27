@@ -2707,6 +2707,28 @@ func.func @pad_circular_crop_larger_than_dim(%arg0: !torch.vtensor<[3,5],f32>) -
 
 // -----
 
+// The negative pads crop the whole dim of size 5.
+// CHECK-LABEL:  func.func @pad_circular_crop_equal_to_dim(
+// CHECK-SAME:      %[[SELF:[^:]+]]: !torch.vtensor<[3,5],f32>)
+// CHECK-DAG:      %[[ONE:.*]] = torch.constant.int 1
+// CHECK-DAG:      %[[TWO:.*]] = torch.constant.int 2
+// CHECK-DAG:      %[[NEG3:.*]] = torch.constant.int -3
+// CHECK:          %[[CROP:.*]] = torch.aten.slice.Tensor %[[SELF]], %[[ONE]], %[[TWO]], %[[NEG3]], %[[ONE]] : !torch.vtensor<[3,5],f32>, !torch.int, !torch.int, !torch.int, !torch.int -> !torch.vtensor<[3,0],f32>
+// CHECK-NOT:      torch.aten.cat
+// CHECK-NOT:      torch.aten.pad
+// CHECK:          return %[[CROP]]
+func.func @pad_circular_crop_equal_to_dim(%arg0: !torch.vtensor<[3,5],f32>) -> !torch.vtensor<[3,0],f32> {
+  %int-2 = torch.constant.int -2
+  %int-3 = torch.constant.int -3
+  %str = torch.constant.str "circular"
+  %none = torch.constant.none
+  %0 = torch.prim.ListConstruct %int-2, %int-3 : (!torch.int, !torch.int) -> !torch.list<int>
+  %1 = torch.aten.pad %arg0, %0, %str, %none : !torch.vtensor<[3,5],f32>, !torch.list<int>, !torch.str, !torch.none -> !torch.vtensor<[3,0],f32>
+  return %1 : !torch.vtensor<[3,0],f32>
+}
+
+// -----
+
 // The last dim is cropped at the start and wrapped at the end. Dim 1 is
 // then wrapped at the start and cropped at the end, and its slices take
 // the size of the cropped dim.

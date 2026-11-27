@@ -553,6 +553,7 @@ FX_IMPORTER_STABLEHLO_XFAIL_SET = {
     # resulting StableHLO fails bufferization.
     "CircularPad1dModule_basic",
     "CircularPad2dModule_basic",
+    "CircularPad3dModule_basic",
     "CircularPadDynamicModule_basic",
     "CircularPadNegativeModule_basic",
     "ArgsortTensor_basic",
