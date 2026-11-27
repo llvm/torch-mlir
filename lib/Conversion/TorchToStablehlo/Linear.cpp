@@ -624,8 +624,7 @@ public:
     for (int i = 0; i < nSpatialDims; ++i) {
       int64_t padInt = dilation[i] * (weightShape[i + 2] - 1) - padding[i];
       stablehloPaddingVec[i * 2] = padInt;
-      stablehloPaddingVec[i * 2 + 1] =
-          padInt + outputPadding[outputPadding.size() - i - 1];
+      stablehloPaddingVec[i * 2 + 1] = padInt + outputPadding[i];
     }
     DenseIntElementsAttr stablehloPadding = DenseIntElementsAttr::get(
         RankedTensorType::get({nSpatialDims, 2}, rewriter.getI64Type()),

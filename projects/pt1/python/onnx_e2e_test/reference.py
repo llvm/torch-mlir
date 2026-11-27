@@ -7,6 +7,9 @@
 import numpy as np
 from onnx.reference import ReferenceEvaluator
 from onnx.reference.ops.op_conv_integer import ConvInteger as _OnnxConvInteger
+from onnx.reference.ops.op_conv_transpose import (
+    ConvTranspose as _OnnxConvTranspose,
+)
 from onnx.reference.ops.op_qlinear_conv import QLinearConv as _OnnxQLinearConv
 
 from .utils import has_default_domain_contrib_op
@@ -34,6 +37,44 @@ class ConvInteger(_OnnxConvInteger):
         return super()._run(X, W, x_zero_point, w_zero_point, **kwargs)
 
 
+class ConvTranspose(_OnnxConvTranspose):
+    """ConvTranspose with ``output_shape`` support for every ``auto_pad``.
+
+    The onnx 1.17 reference derives ``pads`` from ``output_shape`` only for
+    SAME_UPPER and SAME_LOWER and keeps zero ``pads`` otherwise, which is
+    wrong for an ``output_shape`` smaller than the full output. This derives
+    them for NOTSET and VALID as the ONNX spec does. The reference calls
+    ``_run`` again for each group with the ``output_shape`` it computed, so
+    only the node's own attribute counts.
+    """
+
+    op_domain = ""
+
+    def _run(self, X, W, B=None, output_shape=None, pads=None, **kwargs):
+        has_output_shape = any(
+            attr.name == "output_shape" for attr in self.onnx_node.attribute
+        )
+        if has_output_shape and kwargs["auto_pad"] not in ("SAME_UPPER", "SAME_LOWER"):
+            rank = X.ndim - 2
+            strides = kwargs["strides"] or [1] * rank
+            dilations = kwargs["dilations"] or [1] * rank
+            output_padding = kwargs["output_padding"] or [0] * rank
+            # A negative total padding extends the end and needs no pads.
+            total = [
+                max(
+                    strides[i] * (X.shape[i + 2] - 1)
+                    + output_padding[i]
+                    + (W.shape[i + 2] - 1) * dilations[i]
+                    + 1
+                    - output_shape[i],
+                    0,
+                )
+                for i in range(rank)
+            ]
+            pads = [t - t // 2 for t in total] + [t // 2 for t in total]
+        return super()._run(X, W, B, output_shape=output_shape, pads=pads, **kwargs)
+
+
 class QLinearConv(_OnnxQLinearConv):
     """QLinearConv with per-channel ``w_scale`` support.
 
@@ -52,7 +93,7 @@ class QLinearConv(_OnnxQLinearConv):
         return super()._run(x, x_scale, x_zero_point, w, w_scale, *args, **kwargs)
 
 
-_NEW_OPS = [ConvInteger, QLinearConv]
+_NEW_OPS = [ConvInteger, ConvTranspose, QLinearConv]
 
 
 # Model metadata key a test sets (through

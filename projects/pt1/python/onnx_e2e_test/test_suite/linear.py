@@ -101,3 +101,61 @@ class OnnxGemm_alphaEmptyBias_basic(OnnxTestCase):
         )
         initializers = [onnx.numpy_helper.from_array(self._W, name="W")]
         return [node], ["y"], initializers
+
+
+# ==============================================================================
+# ConvTranspose with an output_shape one smaller than the full output
+#
+#   x [1, 8, 4, 13] --> ConvTranspose(W [8, 4, 3, 3]) --> y [1, 4, 8, 26]
+# ==============================================================================
+
+
+@register_onnx_test
+class OnnxConvTranspose2d_f32_tfSameOutputShape(OnnxTestCase):
+    # A TensorFlow Conv2DTranspose with SAME padding as exported by tf2onnx:
+    # output_shape is twice the input and the bias is a separate op.
+    def __init__(self):
+        self._W = (
+            np.random.default_rng(46).standard_normal((8, 4, 3, 3)).astype(np.float32)
+        )
+
+    @annotate_inputs([("x", torch.float32, [1, 8, 4, 13])])
+    def graph(self):
+        node = onnx.helper.make_node(
+            "ConvTranspose",
+            ["x", "W"],
+            ["y"],
+            dilations=[1, 1],
+            kernel_shape=[3, 3],
+            output_shape=[8, 26],
+            strides=[2, 2],
+        )
+        initializers = [onnx.numpy_helper.from_array(self._W, name="W")]
+        return [node], ["y"], initializers
+
+
+# ==============================================================================
+# ConvTranspose with a larger begin pad on H and a larger end pad on W
+#
+#   x [1, 2, 4, 4] --> ConvTranspose(W [2, 3, 3, 3]) --> y [1, 3, 8, 8]
+# ==============================================================================
+
+
+@register_onnx_test
+class OnnxConvTranspose2d_f32_asymmetricPads(OnnxTestCase):
+    def __init__(self):
+        self._W = (
+            np.random.default_rng(47).standard_normal((2, 3, 3, 3)).astype(np.float32)
+        )
+
+    @annotate_inputs([("x", torch.float32, [1, 2, 4, 4])])
+    def graph(self):
+        node = onnx.helper.make_node(
+            "ConvTranspose",
+            ["x", "W"],
+            ["y"],
+            pads=[1, 0, 0, 1],
+            strides=[2, 2],
+        )
+        initializers = [onnx.numpy_helper.from_array(self._W, name="W")]
+        return [node], ["y"], initializers

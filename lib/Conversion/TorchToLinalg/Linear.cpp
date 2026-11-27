@@ -1704,7 +1704,8 @@ Value ConvertAtenConvolutionOp::createTransposedInputPadding(
 
     // Some dimensions may need padding and some dimensions need cropping
 
-    // 1. Allocate a maxSizes buffer (max of inner and outer for each dim)
+    // 1. Allocate a maxSizes buffer (max of inner and the end of the extract
+    // for each dim; output_padding can move that end past the inner size)
     // 2. Insert the input into maxSizes buffer at appropriate offsets (if
     // insertSliceOffsets is positive, pad; 0 no padding) and stride
     // 3. Extract the final outerSizes from maxSizes buffer
@@ -1713,11 +1714,12 @@ Value ConvertAtenConvolutionOp::createTransposedInputPadding(
     SmallVector<Value> maxSizes{inBatch, inChannels};
     for (size_t i = 0; i < numSpatialDims; ++i) {
       Value innerDim = innerSizes[i + 2];
-      Value outerDim = outerSizes[i + 2];
+      Value extractEnd = rewriter.createOrFold<arith::AddIOp>(
+          loc, extractSliceOffsets[i + 2], outerSizes[i + 2]);
       Value isPadding = rewriter.createOrFold<arith::CmpIOp>(
-          loc, arith::CmpIPredicate::ugt, outerDim, innerDim);
-      Value maxDim = rewriter.createOrFold<arith::SelectOp>(loc, isPadding,
-                                                            outerDim, innerDim);
+          loc, arith::CmpIPredicate::ugt, extractEnd, innerDim);
+      Value maxDim = rewriter.createOrFold<arith::SelectOp>(
+          loc, isPadding, extractEnd, innerDim);
       maxSizes.push_back(maxDim);
     }
 

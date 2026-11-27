@@ -2086,285 +2086,130 @@ void mlir::torch::onnx_c::populateDefaultDomainAtoF(
   patterns.onOp(
       "ConvTranspose", 11,
       [](OpBinder binder, ConversionPatternRewriter &rewriter) {
-        std::string autoPad;
-        if (binder.customOpNameStringAttr(autoPad, "auto_pad", "NOTSET"))
-          return failure();
+        Location loc = binder.getLoc();
         Torch::ValueTensorType resultType;
-        Value input, weight;
+        Value input, weight, bias;
         int64_t group;
+        std::string autoPad;
         if (binder.tensorOperandAtIndex(input, 0) ||
             binder.tensorOperandAtIndex(weight, 1) ||
+            (binder.getNumOperands() == 3 &&
+             binder.tensorOperandAtIndex(bias, 2)) ||
             binder.s64IntegerAttr(group, "group", 1) ||
+            binder.customOpNameStringAttr(autoPad, "auto_pad", "NOTSET") ||
             binder.tensorResultType(resultType))
           return failure();
 
-        auto weightTensorType = cast<Torch::ValueTensorType>(weight.getType());
-        if (!weightTensorType || !weightTensorType.hasSizes()) {
+        ArrayRef<int64_t> inputShape =
+            cast<Torch::ValueTensorType>(input.getType()).getSizes();
+        ArrayRef<int64_t> weightShape =
+            cast<Torch::ValueTensorType>(weight.getType()).getSizes();
+        if (inputShape.size() < 3 || weightShape.size() != inputShape.size() ||
+            resultType.getSizes().size() != inputShape.size())
           return rewriter.notifyMatchFailure(
-              binder.op, "Expected weight type having sizes");
-        }
-        ArrayRef<int64_t> weightShape = weightTensorType.getSizes();
-        SmallVector<int64_t> kernelShape;
-        if (binder.s64IntegerArrayAttr(kernelShape, "kernel_shape", {}))
+              binder.op, "expected input, weight and result of the same rank "
+                         "with at least one spatial axis");
+        size_t numSpatialDims = inputShape.size() - 2;
+        SmallVector<int64_t> kernelShape(weightShape.drop_front(2));
+        SmallVector<int64_t> ones(numSpatialDims, 1), zeros(numSpatialDims, 0),
+            zeroPads(2 * numSpatialDims, 0);
+        SmallVector<int64_t> kernelShapeAttr, dilations, strides, outputPadding,
+            outputShape, pads;
+        if (binder.s64IntegerArrayAttr(kernelShapeAttr, "kernel_shape",
+                                       kernelShape) ||
+            binder.s64IntegerArrayAttr(dilations, "dilations", ones) ||
+            binder.s64IntegerArrayAttr(strides, "strides", ones) ||
+            binder.s64IntegerArrayAttr(outputPadding, "output_padding",
+                                       zeros) ||
+            binder.s64IntegerArrayAttr(outputShape, "output_shape", {}) ||
+            binder.s64IntegerArrayAttr(pads, "pads", zeroPads))
           return failure();
-        if (kernelShape.size()) {
-          if (kernelShape.size() != weightShape.size() - 2) {
-            return rewriter.notifyMatchFailure(
-                binder.op,
-                "unsupported conversion: kernel_shape list size should have "
-                "number of values equal to weight_rank - 2");
-          } else {
-            for (unsigned i = 0; i < kernelShape.size(); i++) {
-              if (weightShape[i + 2] != kernelShape[i]) {
-                return rewriter.notifyMatchFailure(
-                    binder.op, "unsupported conversion: kernel_shape value "
-                               "should be equal to the weight tensor shape");
-              }
-            }
-          }
-        } else {
-          for (unsigned i = 0; i < weightShape.size() - 2; i++) {
-            kernelShape.push_back(weightShape[i + 2]);
-          }
-        }
+        if (kernelShapeAttr != kernelShape ||
+            dilations.size() != numSpatialDims ||
+            strides.size() != numSpatialDims ||
+            outputPadding.size() != numSpatialDims ||
+            (!outputShape.empty() && outputShape.size() != numSpatialDims) ||
+            pads.size() != 2 * numSpatialDims)
+          return rewriter.notifyMatchFailure(
+              binder.op, "attributes do not match the input and weight shapes");
 
-        // Determine the rank of input tensor.
-        std::optional<unsigned> maybeRank = Torch::getTensorRank(input);
-        if (!maybeRank)
-          return rewriter.notifyMatchFailure(binder.op,
-                                             "Unimplemented: unranked tensor");
-        unsigned rank = *maybeRank;
-
-        SmallVector<int64_t> padding, strides, dilations, outputPadding,
-            outputShape;
-        SmallVector<int64_t> defaultPadding, defaultStrides, defaultDilations,
-            defaultOutputPadding;
-        for (unsigned i = 0; i < rank - 2; i++) {
-          defaultPadding.push_back(0);
-          defaultStrides.push_back(1);
-          defaultDilations.push_back(1);
-          defaultOutputPadding.push_back(0);
-        }
-        // Padding for the beginning and ending along each spatial axis, it can
-        // take any value greater than or equal to 0. The value represent the
-        // number of pixels added to the beginning and end part of the
-        // corresponding axis. pads format should be as follow [x1_begin,
-        // x2_begin…x1_end, x2_end,…], where xi_begin the number of pixels added
-        // at the beginning of axis i and xi_end, the number of pixels added at
-        // the end of axis i.
-        if (binder.s64IntegerArrayAttr(dilations, "dilations",
-                                       defaultDilations)) {
-          return failure();
-        }
-        if (dilations.size() != rank - 2) {
-          return rewriter.notifyMatchFailure(
-              binder.op,
-              "dilations list size does not match the number of axes");
-        }
-        if (binder.s64IntegerArrayAttr(strides, "strides", defaultStrides)) {
-          return failure();
-        }
-        if (strides.size() != rank - 2) {
-          return rewriter.notifyMatchFailure(
-              binder.op, "strides list size does not match the number of axes");
-        }
-        if (binder.s64IntegerArrayAttr(outputPadding, "output_padding",
-                                       defaultOutputPadding)) {
-          return failure();
-        }
-        if (outputPadding.size() != rank - 2) {
-          return rewriter.notifyMatchFailure(
-              binder.op,
-              "output_padding list size does not match the number of axes");
-        }
-        auto inputTensorType = cast<Torch::ValueTensorType>(input.getType());
-        if (!inputTensorType || !inputTensorType.hasSizes()) {
-          return rewriter.notifyMatchFailure(
-              binder.op, "Expected input type having sizes");
-        }
-        ArrayRef<int64_t> inputShape = inputTensorType.getSizes();
-        if (binder.s64IntegerArrayAttr(outputShape, "output_shape", {}))
-          return failure();
-        if (!outputShape.empty() && outputShape.size() != rank - 2) {
-          return rewriter.notifyMatchFailure(
-              binder.op,
-              "output_shape list size does not match the number of axes");
-        }
-
-        auto inferOutputPaddingFromOutputShape =
-            [&]() -> FailureOr<SmallVector<int64_t>> {
-          if (padding.size() != rank - 2 && padding.size() != 2 * (rank - 2)) {
-            return rewriter.notifyMatchFailure(
-                binder.op,
-                "padding list size does not match the number of axes");
-          }
-          bool isPerAxisPadded = padding.size() == rank - 2;
-          SmallVector<int64_t> inferredOutputPadding;
-          inferredOutputPadding.reserve(rank - 2);
-          for (unsigned i = 0; i < rank - 2; i++) {
-            // ONNX pads are laid out as [x1_begin, ..., xN_begin, x1_end,
-            // ..., xN_end] when fully specified, or as a per-axis symmetric
-            // value when half-sized.
-            int64_t totalPadding = isPerAxisPadded
-                                       ? 2 * padding[i]
-                                       : padding[i] + padding[i + rank - 2];
-            int64_t inferredDim = strides[i] * (inputShape[2 + i] - 1) -
-                                  totalPadding +
-                                  ((kernelShape[i] - 1) * dilations[i] + 1);
-            int64_t inferredOutputPaddingValue = outputShape[i] - inferredDim;
-            if (inferredOutputPaddingValue < 0) {
+        // ONNX crops `begin` and `end` elements off the full transposed
+        // convolution and extends the end by `output_padding`. Torch crops
+        // `padding` from both ends, so pass `begin` as `padding`, fold the
+        // difference of the ends into `output_padding`, and slice off the end
+        // when that difference is negative.
+        bool isSameAutoPad = autoPad == "SAME_UPPER" || autoPad == "SAME_LOWER";
+        SmallVector<int64_t> padding, torchOutputPadding, endCrop;
+        SmallVector<int64_t> uncroppedSizes(resultType.getSizes());
+        for (size_t i = 0; i < numSpatialDims; ++i) {
+          int64_t begin = 0, end = 0;
+          if (!outputShape.empty() || isSameAutoPad) {
+            if (kernelShape[i] == Torch::kUnknownSize ||
+                (!outputShape.empty() &&
+                 inputShape[i + 2] == Torch::kUnknownSize))
               return rewriter.notifyMatchFailure(
-                  binder.op,
-                  "output_shape would require a negative output_padding");
-            }
-            if (inferredOutputPaddingValue >= strides[i]) {
-              return rewriter.notifyMatchFailure(
-                  binder.op,
-                  "output_shape would require output_padding >= stride, "
-                  "which violates the ONNX ConvTranspose specification");
-            }
-            inferredOutputPadding.push_back(inferredOutputPaddingValue);
-          }
-          return inferredOutputPadding;
-        };
-
-        auto applyOutputPaddingFromOutputShape = [&]() -> LogicalResult {
-          FailureOr<SmallVector<int64_t>> inferredOutputPadding =
-              inferOutputPaddingFromOutputShape();
-          if (failed(inferredOutputPadding))
-            return failure();
-          if (outputPadding != defaultOutputPadding &&
-              outputPadding != *inferredOutputPadding) {
-            return rewriter.notifyMatchFailure(
-                binder.op, "output_shape and output_padding imply different "
-                           "output_padding values");
-          }
-          outputPadding = *inferredOutputPadding;
-          return success();
-        };
-
-        if (autoPad == "VALID") {
-          // Zero padding.
-          padding = defaultPadding;
-          if (!outputShape.empty()) {
-            if (failed(applyOutputPaddingFromOutputShape()))
-              return failure();
-          }
-        } else if (autoPad == "NOTSET") {
-          // Explicit padding; read pads with defaults.
-          if (binder.s64IntegerArrayAttr(padding, "pads", defaultPadding))
-            return failure();
-          if (!outputShape.empty()) {
-            if (failed(applyOutputPaddingFromOutputShape()))
-              return failure();
-          }
-        } else { // autopad == SAME_UPPER or SAME_LOWER
-          // Auto-padding. When output_shape is not specified, default it to
-          // input_shape * strides.
-          if (outputShape.empty()) {
-            for (unsigned i = 0; i < rank - 2; i++) {
-              outputShape.push_back(inputShape[2 + i] * strides[i]);
-            }
-          }
-          SmallVector<int64_t> paddingEnd;
-          for (unsigned i = 0; i < rank - 2; i++) {
+                  binder.op, "unimplemented: dynamic sizes in the padding "
+                             "computation for output_shape or SAME_*");
+            // The total padding follows from `output_shape`, where a negative
+            // total pads the end with zeros, or from an output of
+            // input * stride for SAME_*, clamped to the full output.
+            int64_t kernelExtent = (kernelShape[i] - 1) * dilations[i] + 1;
             int64_t totalPadding =
-                strides[i] * (inputShape[2 + i] - 1) + outputPadding[i] +
-                ((kernelShape[i] - 1) * dilations[i] + 1) - outputShape[i];
-            if (totalPadding % 2) {
-              // TODO: Add support for different padding values for the
-              // beginning and ending along each spatial axis.
-              return rewriter.notifyMatchFailure(
-                  binder.op,
-                  "unsupported conversion: the combination of stride, "
-                  "input_shape, kernel_shape, dilation, output_padding and "
-                  "output_shape caused auto-padding to produce asymmetric "
-                  "padding which isn't currently supported.");
-            }
-            int64_t half = totalPadding / 2;
-            int64_t remainder = totalPadding - half;
-            if (autoPad == "SAME_UPPER") {
-              padding.push_back(half);
-              paddingEnd.push_back(remainder);
-            } else {
-              padding.push_back(remainder);
-              paddingEnd.push_back(half);
-            }
+                outputShape.empty()
+                    ? std::max<int64_t>(
+                          kernelExtent + outputPadding[i] - strides[i], 0)
+                    : strides[i] * (inputShape[i + 2] - 1) + kernelExtent +
+                          outputPadding[i] - outputShape[i];
+            if (totalPadding > 0)
+              begin = autoPad == "SAME_UPPER" ? totalPadding / 2
+                                              : totalPadding - totalPadding / 2;
+            end = totalPadding - begin;
+          } else if (autoPad != "VALID") {
+            begin = pads[i];
+            end = pads[i + numSpatialDims];
           }
-          padding.insert(padding.end(), paddingEnd.begin(), paddingEnd.end());
-        }
-        if (padding.size() != rank - 2 && padding.size() != 2 * (rank - 2)) {
-          return rewriter.notifyMatchFailure(
-              binder.op, "padding list size does not match the number of axes");
-        }
-        SmallVector<Value> cstPadding, cstStrides, cstDilations,
-            cstOutputPadding;
-        if (padding.size() != 2 * (rank - 2)) {
-          for (int64_t i : padding) {
-            cstPadding.push_back(Torch::ConstantIntOp::create(
-                rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(i)));
-          }
-        } else {
-          for (unsigned i = 0; i < padding.size() / 2; i++) {
-            if (padding[i] != padding[i + (padding.size() / 2)]) {
-              // TODO: Add support for different padding values for the
-              // beginning and ending along each spatial axis
-              return rewriter.notifyMatchFailure(
-                  binder.op,
-                  "unsupported conversion: padding values for the beginning "
-                  "and ending along each spatial axis must be equal");
-            }
-            cstPadding.push_back(Torch::ConstantIntOp::create(
-                rewriter, binder.getLoc(),
-                rewriter.getI64IntegerAttr(padding[i])));
-          }
-        }
-        for (int64_t i : dilations) {
-          cstDilations.push_back(Torch::ConstantIntOp::create(
-              rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(i)));
-        }
-        for (int64_t i : strides) {
-          cstStrides.push_back(Torch::ConstantIntOp::create(
-              rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(i)));
-        }
-        for (int64_t i : outputPadding) {
-          cstOutputPadding.push_back(Torch::ConstantIntOp::create(
-              rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(i)));
+          int64_t extraEnd = outputPadding[i] + begin - end;
+          padding.push_back(begin);
+          torchOutputPadding.push_back(std::max<int64_t>(extraEnd, 0));
+          endCrop.push_back(std::max<int64_t>(-extraEnd, 0));
+          if (uncroppedSizes[i + 2] != Torch::kUnknownSize)
+            uncroppedSizes[i + 2] += endCrop.back();
         }
 
-        Value paddingList = Torch::PrimListConstructOp::create(
-            rewriter, binder.getLoc(),
-            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
-            cstPadding);
-        Value dilationsList = Torch::PrimListConstructOp::create(
-            rewriter, binder.getLoc(),
-            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
-            cstDilations);
-        Value stridesList = Torch::PrimListConstructOp::create(
-            rewriter, binder.getLoc(),
-            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
-            cstStrides);
-        Value outputPaddingList = Torch::PrimListConstructOp::create(
-            rewriter, binder.getLoc(),
-            Torch::ListType::get(Torch::IntType::get(binder.op->getContext())),
-            cstOutputPadding);
-        Value transposed =
-            Torch::ConstantBoolOp::create(rewriter, binder.getLoc(), true);
-        Value bias;
-        if (binder.op->getNumOperands() == 3) {
-          if (binder.tensorOperandAtIndex(bias, 2)) {
-            return failure();
-          }
-        } else {
-          bias = Torch::ConstantNoneOp::create(rewriter, binder.getLoc());
-        }
-        Value cstGroup = Torch::ConstantIntOp::create(
-            rewriter, binder.getLoc(), rewriter.getI64IntegerAttr(group));
+        Value paddingList = createConstantIntList(binder, rewriter, padding);
+        Value dilationsList =
+            createConstantIntList(binder, rewriter, dilations);
+        Value stridesList = createConstantIntList(binder, rewriter, strides);
+        Value outputPaddingList =
+            createConstantIntList(binder, rewriter, torchOutputPadding);
+        Value transposed = Torch::ConstantBoolOp::create(rewriter, loc, true);
+        if (!bias)
+          bias = Torch::ConstantNoneOp::create(rewriter, loc);
+        Value cstGroup = Torch::ConstantIntOp::create(rewriter, loc, group);
 
-        rewriter.replaceOpWithNewOp<Torch::AtenConvolutionOp>(
-            binder.op, resultType, input, weight, bias, stridesList,
-            paddingList, dilationsList, transposed, outputPaddingList,
-            cstGroup);
+        Value result = Torch::AtenConvolutionOp::create(
+            rewriter, loc,
+            resultType.getWithSizesAndDtype(uncroppedSizes,
+                                            resultType.getOptionalDtype()),
+            input, weight, bias, stridesList, paddingList, dilationsList,
+            transposed, outputPaddingList, cstGroup);
+        SmallVector<int64_t> slicedSizes(uncroppedSizes);
+        for (auto [i, crop] : llvm::enumerate(endCrop)) {
+          if (!crop)
+            continue;
+          int64_t dim = i + 2;
+          slicedSizes[dim] = resultType.getSizes()[dim];
+          Value cstDim = Torch::ConstantIntOp::create(rewriter, loc, dim);
+          Value cstStart = Torch::ConstantIntOp::create(rewriter, loc, 0);
+          Value cstEnd = Torch::ConstantIntOp::create(rewriter, loc, -crop);
+          Value cstStep = Torch::ConstantIntOp::create(rewriter, loc, 1);
+          result = Torch::AtenSliceTensorOp::create(
+              rewriter, loc,
+              resultType.getWithSizesAndDtype(slicedSizes,
+                                              resultType.getOptionalDtype()),
+              result, cstDim, cstStart, cstEnd, cstStep);
+        }
+        rewriter.replaceOp(binder.op, result);
         return success();
       });
   patterns.onOp("Cos", 7,
