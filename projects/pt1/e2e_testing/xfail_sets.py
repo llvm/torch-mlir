@@ -541,6 +541,15 @@ FX_IMPORTER_CRASHING_SET = LINALG_CRASHING_SET | {
 }
 
 FX_IMPORTER_STABLEHLO_XFAIL_SET = {
+    # The compare lowering promotes a 0-d integer tensor instead of casting it
+    # to the uint8 dtype of the other operand.
+    "ElementwiseGtUInt8ZeroRankTensorModule_basic",
+    "ElementwiseLtZeroRankTensorUInt8Module_basic",
+    # The compare lowering compares uint8 and int8 in i8 instead of int16.
+    "ElementwiseGtUInt8Int8Module_basic",
+    # The compare lowering compares a bool tensor with an int scalar as
+    # unsigned.
+    "ElementwiseGtBoolNegScalarModule_basic",
     # AvgPool3d lowering ignores divisor_override.
     "AvgPool3dSignedZero_basic",
     # StableHLO scatter lowering fails bufferization for these tests.
@@ -2814,6 +2823,8 @@ LTC_XFAIL_SET = {
 }
 
 ONNX_XFAIL_SET = {
+    # The onnx.Cast lowering does not support int16 targets.
+    "ElementwiseGtUInt8Int8Module_basic",
     # ONNX export drops avg_pool3d divisor_override.
     "AvgPool3dSignedZero_basic",
     # The ONNX test configuration replaces annotated integer inputs with
@@ -3868,6 +3879,29 @@ FX_IMPORTER_TOSA_XFAIL_SET = {
     "ElementwiseClampMinModule_bfloat16",
     "ElementwiseClampModule_bfloat16",
     "ElementwiseReluModule_bfloat16",
+    # The TOSA aten.cat lowering casts the uint8 tensor as signed.
+    "TensorsConcatUInt8FloatModule_basic",
+    # aten.outer is decomposed to aten.mul.Tensor, whose TOSA lowering casts
+    # the uint8 tensor as signed.
+    "AtenOuterFloatUInt8_basic",
+    "AtenOuterUInt8Int_basic",
+    # TOSA integer arithmetic is signed, so uint8 values of 128 and above give
+    # wrong results. The uint8 prod and threshold lowerings emit invalid TOSA.
+    "ElementwiseGtUInt8Int8Module_basic",
+    "ElementwiseGtUInt8ScalarModule_basic",
+    "ElementwiseGtUInt8WrappedScalarModule_basic",
+    "ElementwiseGtUInt8ZeroRankTensorModule_basic",
+    "ElementwiseLtZeroRankTensorUInt8Module_basic",
+    "ElementwiseRemainderScalarUInt8Module_basic",
+    "ElementwiseRemainderScalarUInt8NegativeModule_basic",
+    "ElementwiseRemainderTensorUInt8Module_basic",
+    "ReduceMaxUInt8Module_basic",
+    "ReduceMinUInt8Module_basic",
+    "ReduceProdUInt8Module_basic",
+    "ReduceSumDimIntListUInt8Module_basic",
+    "ReduceSumUInt8Module_basic",
+    "ThresholdBackwardUInt8Module_basic",
+    "ThresholdUInt8Module_basic",
 }
 
 ONNX_TOSA_CRASHING_SET = {

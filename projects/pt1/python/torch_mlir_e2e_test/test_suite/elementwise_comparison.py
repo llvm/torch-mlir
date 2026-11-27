@@ -55,6 +55,171 @@ def ElementwiseGtIntScalarModule_basic(module, tu: TestUtils):
     module.forward(tu.randint(3, 4, low=-10, high=15))
 
 
+# Compares of a uint8 tensor with an int scalar. PyTorch converts the scalar to
+# uint8, so -1 compares as 255 and 384 as 128.
+
+
+class ElementwiseGtUInt8ScalarModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.uint8, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.gt(x, 127)
+
+
+@register_test_case(module_factory=lambda: ElementwiseGtUInt8ScalarModule())
+def ElementwiseGtUInt8ScalarModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([0, 5, 127, 128, 200, 255], dtype=torch.uint8))
+
+
+class ElementwiseGtUInt8WrappedScalarModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.uint8, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.gt(x, 384)
+
+
+@register_test_case(module_factory=lambda: ElementwiseGtUInt8WrappedScalarModule())
+def ElementwiseGtUInt8WrappedScalarModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([0, 5, 127, 128, 200, 255], dtype=torch.uint8))
+
+
+class ElementwiseGtUInt8ZeroRankTensorModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.uint8, True),
+            ([], torch.int64, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.gt(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseGtUInt8ZeroRankTensorModule())
+def ElementwiseGtUInt8ZeroRankTensorModule_basic(module, tu: TestUtils):
+    # The 0-d tensor takes the uint8 dtype, so 300 wraps to 44.
+    module.forward(
+        torch.tensor([0, 5, 127, 128, 200, 255], dtype=torch.uint8),
+        torch.tensor(300),
+    )
+
+
+# ==============================================================================
+
+
+class ElementwiseGtUInt8Int8Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.uint8, True),
+            ([-1], torch.int8, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.gt(x, y), torch.gt(y, x)
+
+
+@register_test_case(module_factory=lambda: ElementwiseGtUInt8Int8Module())
+def ElementwiseGtUInt8Int8Module_basic(module, tu: TestUtils):
+    # Both operands are compared as int16.
+    module.forward(
+        torch.tensor([0, 5, 127, 128, 200, 255], dtype=torch.uint8),
+        torch.tensor([0, -5, 127, -128, 100, -1], dtype=torch.int8),
+    )
+
+
+# ==============================================================================
+
+
+class ElementwiseGtBoolNegScalarModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.bool, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.gt(x, -1)
+
+
+@register_test_case(module_factory=lambda: ElementwiseGtBoolNegScalarModule())
+def ElementwiseGtBoolNegScalarModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([False, True]))
+
+
+class ElementwiseLtZeroRankTensorUInt8Module(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([], torch.int64, True),
+            ([-1], torch.uint8, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.lt(x, y)
+
+
+@register_test_case(module_factory=lambda: ElementwiseLtZeroRankTensorUInt8Module())
+def ElementwiseLtZeroRankTensorUInt8Module_basic(module, tu: TestUtils):
+    # The 0-d tensor takes the uint8 dtype, so -1 wraps to 255.
+    module.forward(
+        torch.tensor(-1),
+        torch.tensor([0, 5, 127, 128, 200, 255], dtype=torch.uint8),
+    )
+
+
+class ElementwiseEqUInt8NegativeScalarModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([-1], torch.uint8, True),
+        ]
+    )
+    def forward(self, x):
+        return torch.eq(x, -1)
+
+
+@register_test_case(module_factory=lambda: ElementwiseEqUInt8NegativeScalarModule())
+def ElementwiseEqUInt8NegativeScalarModule_basic(module, tu: TestUtils):
+    module.forward(torch.tensor([0, 5, 127, 128, 200, 255], dtype=torch.uint8))
+
+
 # ==============================================================================
 
 

@@ -1934,11 +1934,15 @@ public:
       return rewriter.notifyMatchFailure(op, "dim is statically invalid");
 
     auto outElemType = newResultType.getElementType();
+    Type outDtype = cast<BaseTensorType>(op.getType()).getDtype();
     for (size_t i = 0; i < tensors.size(); ++i) {
       auto inputType = cast<RankedTensorType>(tensors[i].getType());
       if (inputType.getElementType() != outElemType) {
         tensors[i] = torch_to_linalg::convertTensorToElementType(
-            rewriter, loc, tensors[i], outElemType);
+            rewriter, loc, tensors[i], outElemType,
+            /*srcOriginalDtype=*/
+            cast<BaseTensorType>(tensorsTorchType[i].getType()).getDtype(),
+            /*dstOriginalDtype=*/outDtype);
       }
     }
 

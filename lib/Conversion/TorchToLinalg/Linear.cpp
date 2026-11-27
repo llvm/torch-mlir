@@ -2590,13 +2590,20 @@ public:
       return rewriter.notifyMatchFailure(
           op, "expected both operands to aten.outer to be rank 1");
 
+    Type resultDtype = cast<BaseTensorType>(op.getType()).getDtype();
     if (lhsElementType != resultElementType)
-      lhs = torch_to_linalg::convertTensorToElementType(rewriter, loc, lhs,
-                                                        resultElementType);
+      lhs = torch_to_linalg::convertTensorToElementType(
+          rewriter, loc, lhs, resultElementType,
+          /*srcOriginalDtype=*/
+          cast<BaseTensorType>(op.getSelf().getType()).getDtype(),
+          /*dstOriginalDtype=*/resultDtype);
 
     if (rhsElementType != resultElementType)
-      rhs = torch_to_linalg::convertTensorToElementType(rewriter, loc, rhs,
-                                                        resultElementType);
+      rhs = torch_to_linalg::convertTensorToElementType(
+          rewriter, loc, rhs, resultElementType,
+          /*srcOriginalDtype=*/
+          cast<BaseTensorType>(op.getVec2().getType()).getDtype(),
+          /*dstOriginalDtype=*/resultDtype);
 
     Value lhsDim = getDimOp(rewriter, loc, lhs, 0);
     Value rhsDim = getDimOp(rewriter, loc, rhs, 0);

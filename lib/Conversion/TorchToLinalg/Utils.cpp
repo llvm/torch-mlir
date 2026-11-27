@@ -629,13 +629,14 @@ Value torch_to_linalg::removeSizeInformation(OpBuilder &b, Location loc,
       b, loc, tensorType.clone(makeShapeLLVMCompatible(unknownSizes)), tensor);
 }
 
-Value torch_to_linalg::convertTensorToElementType(OpBuilder &b, Location loc,
-                                                  Value tensor,
-                                                  Type elementType) {
+Value torch_to_linalg::convertTensorToElementType(
+    OpBuilder &b, Location loc, Value tensor, Type elementType,
+    std::optional<Type> srcOriginalDtype,
+    std::optional<Type> dstOriginalDtype) {
   auto dtypePromoteBody = [&](OpBuilder &builder, Location loc,
                               ValueRange payloadArgs) {
-    Value elem =
-        convertScalarToDtype(builder, loc, payloadArgs[0], elementType);
+    Value elem = convertScalarToDtype(builder, loc, payloadArgs[0], elementType,
+                                      srcOriginalDtype, dstOriginalDtype);
     linalg::YieldOp::create(builder, loc, elem);
   };
   return torch_to_linalg::createElementwiseLinalgGeneric(

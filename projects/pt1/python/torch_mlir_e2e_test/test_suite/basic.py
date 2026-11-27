@@ -1459,6 +1459,27 @@ def TensorsConcatPromoteDTypeModule_basic(module, tu: TestUtils):
     )
 
 
+class TensorsConcatUInt8FloatModule(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args(
+        [
+            None,
+            ([3, 4], torch.uint8, True),
+            ([3, 4], torch.float32, True),
+        ]
+    )
+    def forward(self, x, y):
+        return torch.cat([x, y], dim=0)
+
+
+@register_test_case(module_factory=lambda: TensorsConcatUInt8FloatModule())
+def TensorsConcatUInt8FloatModule_basic(module, tu: TestUtils):
+    module.forward(tu.randint(3, 4, high=256).to(torch.uint8), tu.rand(3, 4))
+
+
 # ==============================================================================
 
 

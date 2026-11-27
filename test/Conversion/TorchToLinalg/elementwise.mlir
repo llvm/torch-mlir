@@ -162,6 +162,32 @@ func.func @elementwise_add_unsigned_extend(%arg0: !torch.vtensor<[?],si32>, %arg
 
 // -----
 
+// CHECK-LABEL:   func.func @elementwise_mul_unsigned_extend(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: i32, %[[RHS:.*]]: i8, %{{.*}}: i32):
+// CHECK-NOT:         arith.extsi %[[RHS]]
+// CHECK:             %[[EXT:.*]] = arith.extui %[[RHS]] : i8 to i32
+// CHECK:             arith.muli %[[LHS]], %[[EXT]] : i32
+func.func @elementwise_mul_unsigned_extend(%arg0: !torch.vtensor<[?],si32>, %arg1: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],si32> {
+  %0 = torch.aten.mul.Tensor %arg0, %arg1 : !torch.vtensor<[?],si32>, !torch.vtensor<[?],ui8> -> !torch.vtensor<[?],si32>
+  return %0 : !torch.vtensor<[?],si32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_mul_unsigned_to_float(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: f32, %[[RHS:.*]]: i8, %{{.*}}: f32):
+// CHECK-NOT:         arith.sitofp %[[RHS]]
+// CHECK:             %[[CVT:.*]] = arith.uitofp %[[RHS]] : i8 to f32
+// CHECK:             arith.mulf %[[LHS]], %[[CVT]] : f32
+func.func @elementwise_mul_unsigned_to_float(%arg0: !torch.vtensor<[?],f32>, %arg1: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],f32> {
+  %0 = torch.aten.mul.Tensor %arg0, %arg1 : !torch.vtensor<[?],f32>, !torch.vtensor<[?],ui8> -> !torch.vtensor<[?],f32>
+  return %0 : !torch.vtensor<[?],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @elementwise_rshift_scalar_signed(
 // CHECK:           linalg.generic
 // CHECK:           ^bb0(%[[LHS:.*]]: i8, %{{.*}}: i8):
@@ -348,6 +374,248 @@ func.func @elementwise_div_tensor_mode_floor_unsigned_by_0d_si64(%arg0: !torch.v
 // CHECK-NEXT:        linalg.yield %[[DIV]] : i8
 func.func @elementwise_div_tensor_unsigned_by_0d_si64(%arg0: !torch.vtensor<[?],ui8>, %arg1: !torch.vtensor<[],si64>) -> !torch.vtensor<[?],ui8> {
   %0 = torch.aten.div.Tensor %arg0, %arg1 : !torch.vtensor<[?],ui8>, !torch.vtensor<[],si64> -> !torch.vtensor<[?],ui8>
+  return %0 : !torch.vtensor<[?],ui8>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_gt_scalar_unsigned(
+// CHECK:           %[[C:.*]] = arith.constant 250 : i64
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[IN:.*]]: i8, %{{.*}}: i1):
+// CHECK-NEXT:        %[[C_I8:.*]] = arith.trunci %[[C]] : i64 to i8
+// CHECK-NEXT:        %[[CMP:.*]] = arith.cmpi ugt, %[[IN]], %[[C_I8]] : i8
+// CHECK-NEXT:        linalg.yield %[[CMP]] : i1
+func.func @elementwise_gt_scalar_unsigned(%arg0: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],i1> {
+  %int250 = torch.constant.int 250
+  %0 = torch.aten.gt.Scalar %arg0, %int250 : !torch.vtensor<[?],ui8>, !torch.int -> !torch.vtensor<[?],i1>
+  return %0 : !torch.vtensor<[?],i1>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_gt_scalar_bool_negative(
+// CHECK:           %[[C:.*]] = arith.constant -1 : i64
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[IN:.*]]: i1, %{{.*}}: i1):
+// CHECK-NEXT:        %[[IN_I64:.*]] = arith.extui %[[IN]] : i1 to i64
+// CHECK-NEXT:        %[[CMP:.*]] = arith.cmpi sgt, %[[IN_I64]], %[[C]] : i64
+// CHECK-NEXT:        linalg.yield %[[CMP]] : i1
+func.func @elementwise_gt_scalar_bool_negative(%arg0: !torch.vtensor<[?],i1>) -> !torch.vtensor<[?],i1> {
+  %int-1 = torch.constant.int -1
+  %0 = torch.aten.gt.Scalar %arg0, %int-1 : !torch.vtensor<[?],i1>, !torch.int -> !torch.vtensor<[?],i1>
+  return %0 : !torch.vtensor<[?],i1>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_eq_scalar_signed_i8(
+// CHECK:           %[[C:.*]] = arith.constant 300 : i64
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[IN:.*]]: i8, %{{.*}}: i1):
+// CHECK-NEXT:        %[[C_I8:.*]] = arith.trunci %[[C]] : i64 to i8
+// CHECK-NEXT:        %[[CMP:.*]] = arith.cmpi eq, %[[IN]], %[[C_I8]] : i8
+// CHECK-NEXT:        linalg.yield %[[CMP]] : i1
+func.func @elementwise_eq_scalar_signed_i8(%arg0: !torch.vtensor<[?],si8>) -> !torch.vtensor<[?],i1> {
+  %int300 = torch.constant.int 300
+  %0 = torch.aten.eq.Scalar %arg0, %int300 : !torch.vtensor<[?],si8>, !torch.int -> !torch.vtensor<[?],i1>
+  return %0 : !torch.vtensor<[?],i1>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_lt_float_scalar_unsigned(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[IN:.*]]: i8, %{{.*}}: i1):
+// CHECK-NEXT:        %[[IN_F:.*]] = arith.uitofp %[[IN]] : i8 to f64
+// CHECK-NEXT:        %[[CMP:.*]] = arith.cmpf olt, %[[IN_F]], %{{.*}} : f64
+func.func @elementwise_lt_float_scalar_unsigned(%arg0: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],i1> {
+  %float = torch.constant.float 2.505000e+02
+  %0 = torch.aten.lt.Scalar %arg0, %float : !torch.vtensor<[?],ui8>, !torch.float -> !torch.vtensor<[?],i1>
+  return %0 : !torch.vtensor<[?],i1>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_gt_tensor_unsigned_by_signed_i16(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: i8, %[[RHS:.*]]: i16, %{{.*}}: i1):
+// CHECK-NEXT:        %[[LHS_I16:.*]] = arith.extui %[[LHS]] : i8 to i16
+// CHECK-NEXT:        %[[CMP:.*]] = arith.cmpi sgt, %[[LHS_I16]], %[[RHS]] : i16
+func.func @elementwise_gt_tensor_unsigned_by_signed_i16(%arg0: !torch.vtensor<[?],ui8>, %arg1: !torch.vtensor<[?],si16>) -> !torch.vtensor<[?],i1> {
+  %0 = torch.aten.gt.Tensor %arg0, %arg1 : !torch.vtensor<[?],ui8>, !torch.vtensor<[?],si16> -> !torch.vtensor<[?],i1>
+  return %0 : !torch.vtensor<[?],i1>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_gt_tensor_unsigned_by_signed_i8(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: i8, %[[RHS:.*]]: i8, %{{.*}}: i1):
+// CHECK-NEXT:        %[[LHS_I16:.*]] = arith.extui %[[LHS]] : i8 to i16
+// CHECK-NEXT:        %[[RHS_I16:.*]] = arith.extsi %[[RHS]] : i8 to i16
+// CHECK-NEXT:        %[[CMP:.*]] = arith.cmpi sgt, %[[LHS_I16]], %[[RHS_I16]] : i16
+func.func @elementwise_gt_tensor_unsigned_by_signed_i8(%arg0: !torch.vtensor<[?],ui8>, %arg1: !torch.vtensor<[?],si8>) -> !torch.vtensor<[?],i1> {
+  %0 = torch.aten.gt.Tensor %arg0, %arg1 : !torch.vtensor<[?],ui8>, !torch.vtensor<[?],si8> -> !torch.vtensor<[?],i1>
+  return %0 : !torch.vtensor<[?],i1>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_gt_tensor_signed_by_unsigned_i8(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: i8, %[[RHS:.*]]: i8, %{{.*}}: i1):
+// CHECK-NEXT:        %[[LHS_I16:.*]] = arith.extsi %[[LHS]] : i8 to i16
+// CHECK-NEXT:        %[[RHS_I16:.*]] = arith.extui %[[RHS]] : i8 to i16
+// CHECK-NEXT:        %[[CMP:.*]] = arith.cmpi sgt, %[[LHS_I16]], %[[RHS_I16]] : i16
+func.func @elementwise_gt_tensor_signed_by_unsigned_i8(%arg0: !torch.vtensor<[?],si8>, %arg1: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],i1> {
+  %0 = torch.aten.gt.Tensor %arg0, %arg1 : !torch.vtensor<[?],si8>, !torch.vtensor<[?],ui8> -> !torch.vtensor<[?],i1>
+  return %0 : !torch.vtensor<[?],i1>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_gt_tensor_unsigned_by_0d_signed(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: i8, %[[RHS:.*]]: i64, %{{.*}}: i1):
+// CHECK-NEXT:        %[[RHS_I8:.*]] = arith.trunci %[[RHS]] : i64 to i8
+// CHECK-NEXT:        %[[CMP:.*]] = arith.cmpi ugt, %[[LHS]], %[[RHS_I8]] : i8
+func.func @elementwise_gt_tensor_unsigned_by_0d_signed(%arg0: !torch.vtensor<[?],ui8>, %arg1: !torch.vtensor<[],si64>) -> !torch.vtensor<[?],i1> {
+  %0 = torch.aten.gt.Tensor %arg0, %arg1 : !torch.vtensor<[?],ui8>, !torch.vtensor<[],si64> -> !torch.vtensor<[?],i1>
+  return %0 : !torch.vtensor<[?],i1>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_lt_tensor_0d_signed_by_unsigned(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: i64, %[[RHS:.*]]: i8, %{{.*}}: i1):
+// CHECK-NEXT:        %[[LHS_I8:.*]] = arith.trunci %[[LHS]] : i64 to i8
+// CHECK-NEXT:        %[[CMP:.*]] = arith.cmpi ult, %[[LHS_I8]], %[[RHS]] : i8
+func.func @elementwise_lt_tensor_0d_signed_by_unsigned(%arg0: !torch.vtensor<[],si64>, %arg1: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],i1> {
+  %0 = torch.aten.lt.Tensor %arg0, %arg1 : !torch.vtensor<[],si64>, !torch.vtensor<[?],ui8> -> !torch.vtensor<[?],i1>
+  return %0 : !torch.vtensor<[?],i1>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_lt_tensor_bool_by_unsigned(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: i1, %[[RHS:.*]]: i8, %{{.*}}: i1):
+// CHECK-NEXT:        %[[LHS_I8:.*]] = arith.extui %[[LHS]] : i1 to i8
+// CHECK-NEXT:        %[[CMP:.*]] = arith.cmpi ult, %[[LHS_I8]], %[[RHS]] : i8
+func.func @elementwise_lt_tensor_bool_by_unsigned(%arg0: !torch.vtensor<[?],i1>, %arg1: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],i1> {
+  %0 = torch.aten.lt.Tensor %arg0, %arg1 : !torch.vtensor<[?],i1>, !torch.vtensor<[?],ui8> -> !torch.vtensor<[?],i1>
+  return %0 : !torch.vtensor<[?],i1>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_lt_tensor_bool_by_signed_i32(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: i1, %[[RHS:.*]]: i32, %{{.*}}: i1):
+// CHECK-NEXT:        %[[LHS_I32:.*]] = arith.extui %[[LHS]] : i1 to i32
+// CHECK-NEXT:        %[[CMP:.*]] = arith.cmpi slt, %[[LHS_I32]], %[[RHS]] : i32
+func.func @elementwise_lt_tensor_bool_by_signed_i32(%arg0: !torch.vtensor<[?],i1>, %arg1: !torch.vtensor<[?],si32>) -> !torch.vtensor<[?],i1> {
+  %0 = torch.aten.lt.Tensor %arg0, %arg1 : !torch.vtensor<[?],i1>, !torch.vtensor<[?],si32> -> !torch.vtensor<[?],i1>
+  return %0 : !torch.vtensor<[?],i1>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_ge_tensor_float_by_unsigned(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: f32, %[[RHS:.*]]: i8, %{{.*}}: i1):
+// CHECK-NEXT:        %[[RHS_F:.*]] = arith.uitofp %[[RHS]] : i8 to f32
+// CHECK-NEXT:        %[[CMP:.*]] = arith.cmpf oge, %[[LHS]], %[[RHS_F]] : f32
+func.func @elementwise_ge_tensor_float_by_unsigned(%arg0: !torch.vtensor<[?],f32>, %arg1: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],i1> {
+  %0 = torch.aten.ge.Tensor %arg0, %arg1 : !torch.vtensor<[?],f32>, !torch.vtensor<[?],ui8> -> !torch.vtensor<[?],i1>
+  return %0 : !torch.vtensor<[?],i1>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_remainder_scalar_unsigned(
+// CHECK:           %[[C:.*]] = arith.constant 7 : i64
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[IN:.*]]: i8, %{{.*}}: i8):
+// CHECK-NEXT:        %[[C_I8:.*]] = arith.trunci %[[C]] : i64 to i8
+// CHECK-NEXT:        %[[REM:.*]] = arith.remui %[[IN]], %[[C_I8]] : i8
+// CHECK-NEXT:        linalg.yield %[[REM]] : i8
+func.func @elementwise_remainder_scalar_unsigned(%arg0: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],ui8> {
+  %int7 = torch.constant.int 7
+  %0 = torch.aten.remainder.Scalar %arg0, %int7 : !torch.vtensor<[?],ui8>, !torch.int -> !torch.vtensor<[?],ui8>
+  return %0 : !torch.vtensor<[?],ui8>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_remainder_scalar_signed_i8(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[IN:.*]]: i8, %{{.*}}: i8):
+// CHECK-NEXT:        %[[C_I8:.*]] = arith.trunci %{{.*}} : i64 to i8
+// CHECK-NEXT:        %[[REM:.*]] = arith.remsi %[[IN]], %[[C_I8]] : i8
+// CHECK:             arith.select
+func.func @elementwise_remainder_scalar_signed_i8(%arg0: !torch.vtensor<[?],si8>) -> !torch.vtensor<[?],si8> {
+  %int7 = torch.constant.int 7
+  %0 = torch.aten.remainder.Scalar %arg0, %int7 : !torch.vtensor<[?],si8>, !torch.int -> !torch.vtensor<[?],si8>
+  return %0 : !torch.vtensor<[?],si8>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_remainder_tensor_unsigned(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: i8, %[[RHS:.*]]: i8, %{{.*}}: i8):
+// CHECK-NEXT:        %[[REM:.*]] = arith.remui %[[LHS]], %[[RHS]] : i8
+// CHECK-NEXT:        linalg.yield %[[REM]] : i8
+func.func @elementwise_remainder_tensor_unsigned(%arg0: !torch.vtensor<[?],ui8>, %arg1: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],ui8> {
+  %0 = torch.aten.remainder.Tensor %arg0, %arg1 : !torch.vtensor<[?],ui8>, !torch.vtensor<[?],ui8> -> !torch.vtensor<[?],ui8>
+  return %0 : !torch.vtensor<[?],ui8>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_threshold_unsigned(
+// CHECK-DAG:       %[[C130:.*]] = arith.constant 130 : i64
+// CHECK-DAG:       %[[C7:.*]] = arith.constant 7 : i64
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[IN:.*]]: i8, %{{.*}}: i8):
+// CHECK-NEXT:        %[[THRESHOLD:.*]] = arith.trunci %[[C130]] : i64 to i8
+// CHECK-NEXT:        %[[VALUE:.*]] = arith.trunci %[[C7]] : i64 to i8
+// CHECK-NEXT:        %[[CMP:.*]] = arith.cmpi ule, %[[IN]], %[[THRESHOLD]] : i8
+// CHECK-NEXT:        %[[SEL:.*]] = arith.select %[[CMP]], %[[VALUE]], %[[IN]] : i8
+func.func @elementwise_threshold_unsigned(%arg0: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],ui8> {
+  %int130 = torch.constant.int 130
+  %int7 = torch.constant.int 7
+  %0 = torch.aten.threshold %arg0, %int130, %int7 : !torch.vtensor<[?],ui8>, !torch.int, !torch.int -> !torch.vtensor<[?],ui8>
+  return %0 : !torch.vtensor<[?],ui8>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_threshold_signed_i8(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[IN:.*]]: i8, %{{.*}}: i8):
+// CHECK:             %[[CMP:.*]] = arith.cmpi sle, %[[IN]], %{{.*}} : i8
+func.func @elementwise_threshold_signed_i8(%arg0: !torch.vtensor<[?],si8>) -> !torch.vtensor<[?],si8> {
+  %int5 = torch.constant.int 5
+  %int0 = torch.constant.int 0
+  %0 = torch.aten.threshold %arg0, %int5, %int0 : !torch.vtensor<[?],si8>, !torch.int, !torch.int -> !torch.vtensor<[?],si8>
+  return %0 : !torch.vtensor<[?],si8>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_threshold_backward_unsigned(
+// CHECK:           %[[C130:.*]] = arith.constant 130 : i64
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[GRAD:.*]]: i8, %[[SELF:.*]]: i8, %{{.*}}: i8):
+// CHECK-NEXT:        %[[THRESHOLD:.*]] = arith.trunci %[[C130]] : i64 to i8
+// CHECK:             %[[CMP:.*]] = arith.cmpi ule, %[[SELF]], %[[THRESHOLD]] : i8
+func.func @elementwise_threshold_backward_unsigned(%arg0: !torch.vtensor<[?],ui8>, %arg1: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],ui8> {
+  %int130 = torch.constant.int 130
+  %0 = torch.aten.threshold_backward %arg0, %arg1, %int130 : !torch.vtensor<[?],ui8>, !torch.vtensor<[?],ui8>, !torch.int -> !torch.vtensor<[?],ui8>
   return %0 : !torch.vtensor<[?],ui8>
 }
 
