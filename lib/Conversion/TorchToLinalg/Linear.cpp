@@ -1008,6 +1008,14 @@ public:
              "invalid: groups must divide input channel size evenly.");
     validate(weightBatch,
              "invalid: groups must divide weight batch size evenly.");
+    // Contracting dim: weight is F x C/G x ... normally, C x F/G x ... when
+    // transposed.
+    if (transposed)
+      checkDimEqualHelper(rewriter, loc, inChannels, weightBatch);
+    else
+      checkDimEqualHelper(
+          rewriter, loc, inChannels,
+          rewriter.createOrFold<arith::MulIOp>(loc, weightChannels, groups));
     SmallVector<Value> dilationIntValues =
         getAsConstantIntValues(rewriter, loc, dilationInts);
     SmallVector<Value> strideIntValues =
