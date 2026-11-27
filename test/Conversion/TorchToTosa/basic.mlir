@@ -8546,3 +8546,24 @@ func.func @torch.aten.to.dtype$float_to_uint8(%arg0: !torch.vtensor<[4],f32>) ->
   %0 = torch.aten.to.dtype %arg0, %int0, %false, %false, %none : !torch.vtensor<[4],f32>, !torch.int, !torch.bool, !torch.bool, !torch.none -> !torch.vtensor<[4],ui8>
   return %0 : !torch.vtensor<[4],ui8>
 }
+
+// -----
+
+// TOSA needs index tensors with a static shape.
+func.func @torch.aten.index.Tensor_hacked_twin$dynamic_index(%arg0: !torch.vtensor<[6,5],f32>, %arg1: !torch.vtensor<[?],si64>) -> !torch.vtensor<[?,5],f32> {
+  %0 = torch.prim.ListConstruct %arg1 : (!torch.vtensor<[?],si64>) -> !torch.list<vtensor>
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.index.Tensor_hacked_twin'}}
+  %1 = torch.aten.index.Tensor_hacked_twin %arg0, %0 : !torch.vtensor<[6,5],f32>, !torch.list<vtensor> -> !torch.vtensor<[?,5],f32>
+  return %1 : !torch.vtensor<[?,5],f32>
+}
+
+// -----
+
+// TOSA needs index tensors with a static shape.
+func.func @torch.aten.index_put.hacked_twin$dynamic_index(%arg0: !torch.vtensor<[6,5],f32>, %arg1: !torch.vtensor<[?],si64>, %arg2: !torch.vtensor<[?,5],f32>) -> !torch.vtensor<[6,5],f32> {
+  %false = torch.constant.bool false
+  %0 = torch.prim.ListConstruct %arg1 : (!torch.vtensor<[?],si64>) -> !torch.list<vtensor>
+  // expected-error @+1 {{failed to legalize operation 'torch.aten.index_put.hacked_twin'}}
+  %1 = torch.aten.index_put.hacked_twin %arg0, %0, %arg2, %false : !torch.vtensor<[6,5],f32>, !torch.list<vtensor>, !torch.vtensor<[?,5],f32>, !torch.bool -> !torch.vtensor<[6,5],f32>
+  return %1 : !torch.vtensor<[6,5],f32>
+}
