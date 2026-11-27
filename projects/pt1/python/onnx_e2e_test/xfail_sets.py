@@ -22,6 +22,12 @@ ONNX_E2E_LINALG_XFAIL_SET = {
     # rounds differently from the dequantize/avg_pool/quantize lowering).
     "QLinearAveragePool_ui8_basic",
     "QLinearAveragePool_i8_basic",
+    # QLinearMatMul_i8_batchedA_vectorB: [B,M,K] x [K] is emitted as an
+    # N-D x 1-D torch.aten.matmul, which TorchToLinalg cannot lower
+    # ("failed to legalize operation 'torch.aten.matmul'").
+    # TODO: fix the aten.matmul lowering in TorchToLinalg (Linear.cpp) to
+    # support rank >= 3 x rank 1, then remove this entry.
+    "QLinearMatMul_i8_batchedA_vectorB",
 }
 
 # Tests that crash the interpreter and cannot be XFAILed safely.
@@ -107,6 +113,21 @@ ONNX_E2E_TOSA_XFAIL_SET = {
     # QLinearAveragePool_i8_basic: off by one quantized step versus the
     # onnxruntime golden (same rounding difference as on linalg).
     "QLinearAveragePool_i8_basic",
+    # QLinearMatMul_ui8_basic, QLinearMatMul_ui8_i8_mixed: wrong numerics for
+    # uint8 inputs above 127 (same TOSA per-tensor DQ issue as
+    # OnnxMatMulIntegerToFloat_aZeroPoint); the TOSA output saturates.
+    "QLinearMatMul_ui8_basic",
+    "QLinearMatMul_ui8_i8_mixed",
+    # QLinearMatMul_i8_perColumnB, QLinearMatMul_i8_perRowA: per-axis qparams
+    # lower to quantized_decomposed.dequantize_per_channel, which TOSA cannot
+    # legalize.
+    "QLinearMatMul_i8_perColumnB",
+    "QLinearMatMul_i8_perRowA",
+    # QLinearMatMul_i8_batchedParams*: batched qparams lower to
+    # quantized_decomposed.dequantize_per_token, which TOSA cannot legalize.
+    "QLinearMatMul_i8_batchedParamsA",
+    "QLinearMatMul_i8_batchedParamsB",
+    "QLinearMatMul_i8_batchedParamsAB",
     # OnnxConvInteger_*: ConvInteger is lowered with an f64 convolution so the
     # int32 accumulator stays exact, but TOSA has no f64 support (tosa.conv2d
     # rejects acc_type = f64).
