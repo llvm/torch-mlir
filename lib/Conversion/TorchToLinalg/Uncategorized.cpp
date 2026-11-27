@@ -214,9 +214,24 @@ static Value createCompareOp(OpBuilder &b, Location loc, OpTy op, Value lhs,
           (!otherDtype || (otherIsZeroRank && !selfIsZeroRank));
       bool selfTakesOtherDtype = bothNonBoolIntegers && otherDtype &&
                                  selfIsZeroRank && !otherIsZeroRank;
-      if (otherTakesSelfDtype ||
-          (!selfTakesOtherDtype && lhsDtype.getIntOrFloatBitWidth() >
-                                       rhsDtype.getIntOrFloatBitWidth())) {
+      unsigned lhsWidth = lhsDtype.getIntOrFloatBitWidth();
+      // PyTorch promotes integers of equal width and different signedness to
+      // the signed type of twice the width.
+      bool promoteToWiderSigned =
+          bothNonBoolIntegers && !otherTakesSelfDtype && !selfTakesOtherDtype &&
+          lhsWidth == rhsDtype.getIntOrFloatBitWidth() &&
+          selfDtype.isUnsignedInteger() != otherDtype->isUnsignedInteger();
+      if (promoteToWiderSigned) {
+        Type wideType = b.getIntegerType(2 * lhsWidth);
+        lhs = convertScalarToDtype(b, loc, lhs, wideType,
+                                   /*srcOriginalDtype=*/selfDtype);
+        rhs = convertScalarToDtype(b, loc, rhs, wideType,
+                                   /*srcOriginalDtype=*/otherDtype);
+        elementalType = b.getIntegerType(2 * lhsWidth, /*isSigned=*/true);
+      } else if (otherTakesSelfDtype ||
+                 (!selfTakesOtherDtype &&
+                  lhsDtype.getIntOrFloatBitWidth() >
+                      rhsDtype.getIntOrFloatBitWidth())) {
         rhs = convertScalarToDtype(b, loc, rhs, lhsDtype,
                                    /*srcOriginalDtype=*/otherDtype,
                                    /*dstOriginalDtype=*/selfDtype);
@@ -226,8 +241,13 @@ static Value createCompareOp(OpBuilder &b, Location loc, OpTy op, Value lhs,
                                    /*dstOriginalDtype=*/otherDtype);
         // Compare in `other`'s dtype. It is at least as wide as `self`'s
         // unless `self` is a 0-d tensor that takes `other`'s dtype.
+        // A bool tensor compared with an int scalar is compared in the
+        // scalar's signed integer type.
         if (otherDtype)
           elementalType = *otherDtype;
+        else if (isa<mlir::IntegerType>(rhsDtype))
+          elementalType = b.getIntegerType(rhsDtype.getIntOrFloatBitWidth(),
+                                           /*isSigned=*/true);
       }
     }
   } else {
@@ -519,6 +539,20 @@ static Value createDequantizePayload(OpBuilder &b, Location loc,
 static Type getZeroPointDtype(Value zeroPoints) {
   auto tensorType = dyn_cast<BaseTensorType>(zeroPoints.getType());
   return tensorType ? tensorType.getDtype() : Type();
+}
+
+// Creates `self <= threshold` for the threshold ops, comparing integers as
+// unsigned when the torch result dtype is unsigned.
+static Value createThresholdLePredicate(OpBuilder &b, Location loc, Value self,
+                                        Value threshold, Type resultDtype) {
+  if (isa<mlir::FloatType>(self.getType()))
+    return arith::CmpFOp::create(b, loc, arith::CmpFPredicate::ULE, self,
+                                 threshold);
+  return arith::CmpIOp::create(b, loc,
+                               torch_to_linalg::isUnsignedTorchType(resultDtype)
+                                   ? arith::CmpIPredicate::ule
+                                   : arith::CmpIPredicate::sle,
+                               self, threshold);
 }
 
 static Value createLinalgPayloadCalculationForElementwiseOp(
@@ -1256,10 +1290,19 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
   }
   if (auto mul = dyn_cast<AtenMulTensorOp>(op)) {
     AtenMulTensorOp::Adaptor adaptor(operands);
+    Type resultElementType = cast<BaseTensorType>(mul.getType()).getDtype();
+    Type lhsOriginalDtype =
+        cast<BaseTensorType>(mul.getSelf().getType()).getDtype();
+    Type rhsOriginalDtype =
+        cast<BaseTensorType>(mul.getOther().getType()).getDtype();
     Type dtype = cast<RankedTensorType>(converter->convertType(mul.getType()))
                      .getElementType();
-    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype);
-    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype);
+    Value lhs = convertScalarToDtype(b, loc, payloadArgs[0], dtype,
+                                     /*srcOriginalDtype=*/lhsOriginalDtype,
+                                     /*dstOriginalDtype=*/resultElementType);
+    Value rhs = convertScalarToDtype(b, loc, payloadArgs[1], dtype,
+                                     /*srcOriginalDtype=*/rhsOriginalDtype,
+                                     /*dstOriginalDtype=*/resultElementType);
     if (isa<mlir::FloatType>(dtype)) {
       return arith::MulFOp::create(b, loc, lhs, rhs);
     } else if (isa<mlir::ComplexType>(dtype)) {
@@ -1688,17 +1731,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     if (!threshold || !value)
       return nullptr;
 
-    Value predicate;
-    if (isa<mlir::FloatType>(dtype))
-      predicate = arith::CmpFOp::create(b, loc, arith::CmpFPredicate::ULE, self,
-                                        threshold);
-    else
-      predicate = arith::CmpIOp::create(
-          b, loc,
-          torch_to_linalg::isUnsignedTorchType(resultDtype)
-              ? arith::CmpIPredicate::ule
-              : arith::CmpIPredicate::sle,
-          self, threshold);
+    Value predicate =
+        createThresholdLePredicate(b, loc, self, threshold, resultDtype);
     return arith::SelectOp::create(b, loc, predicate, value, self);
   }
   if (auto thresholdBackward = dyn_cast<AtenThresholdBackwardOp>(op)) {
@@ -1731,17 +1765,8 @@ static Value createLinalgPayloadCalculationForElementwiseOp(
     Value constantZero =
         arith::ConstantOp::create(b, loc, b.getZeroAttr(dtype));
 
-    Value predicate;
-    if (isa<mlir::FloatType>(dtype))
-      predicate = arith::CmpFOp::create(b, loc, arith::CmpFPredicate::ULE, self,
-                                        threshold);
-    else
-      predicate = arith::CmpIOp::create(
-          b, loc,
-          torch_to_linalg::isUnsignedTorchType(resultDtype)
-              ? arith::CmpIPredicate::ule
-              : arith::CmpIPredicate::sle,
-          self, threshold);
+    Value predicate =
+        createThresholdLePredicate(b, loc, self, threshold, resultDtype);
     return arith::SelectOp::create(b, loc, predicate, constantZero, grad);
   }
   if (auto fillScalar = dyn_cast<AtenFillScalarOp>(op)) {

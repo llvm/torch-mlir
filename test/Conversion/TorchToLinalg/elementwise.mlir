@@ -162,6 +162,32 @@ func.func @elementwise_add_unsigned_extend(%arg0: !torch.vtensor<[?],si32>, %arg
 
 // -----
 
+// CHECK-LABEL:   func.func @elementwise_mul_unsigned_extend(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: i32, %[[RHS:.*]]: i8, %{{.*}}: i32):
+// CHECK-NOT:         arith.extsi %[[RHS]]
+// CHECK:             %[[EXT:.*]] = arith.extui %[[RHS]] : i8 to i32
+// CHECK:             arith.muli %[[LHS]], %[[EXT]] : i32
+func.func @elementwise_mul_unsigned_extend(%arg0: !torch.vtensor<[?],si32>, %arg1: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],si32> {
+  %0 = torch.aten.mul.Tensor %arg0, %arg1 : !torch.vtensor<[?],si32>, !torch.vtensor<[?],ui8> -> !torch.vtensor<[?],si32>
+  return %0 : !torch.vtensor<[?],si32>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_mul_unsigned_to_float(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: f32, %[[RHS:.*]]: i8, %{{.*}}: f32):
+// CHECK-NOT:         arith.sitofp %[[RHS]]
+// CHECK:             %[[CVT:.*]] = arith.uitofp %[[RHS]] : i8 to f32
+// CHECK:             arith.mulf %[[LHS]], %[[CVT]] : f32
+func.func @elementwise_mul_unsigned_to_float(%arg0: !torch.vtensor<[?],f32>, %arg1: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],f32> {
+  %0 = torch.aten.mul.Tensor %arg0, %arg1 : !torch.vtensor<[?],f32>, !torch.vtensor<[?],ui8> -> !torch.vtensor<[?],f32>
+  return %0 : !torch.vtensor<[?],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @elementwise_rshift_scalar_signed(
 // CHECK:           linalg.generic
 // CHECK:           ^bb0(%[[LHS:.*]]: i8, %{{.*}}: i8):
@@ -368,6 +394,21 @@ func.func @elementwise_gt_scalar_unsigned(%arg0: !torch.vtensor<[?],ui8>) -> !to
 
 // -----
 
+// CHECK-LABEL:   func.func @elementwise_gt_scalar_bool_negative(
+// CHECK:           %[[C:.*]] = arith.constant -1 : i64
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[IN:.*]]: i1, %{{.*}}: i1):
+// CHECK-NEXT:        %[[IN_I64:.*]] = arith.extui %[[IN]] : i1 to i64
+// CHECK-NEXT:        %[[CMP:.*]] = arith.cmpi sgt, %[[IN_I64]], %[[C]] : i64
+// CHECK-NEXT:        linalg.yield %[[CMP]] : i1
+func.func @elementwise_gt_scalar_bool_negative(%arg0: !torch.vtensor<[?],i1>) -> !torch.vtensor<[?],i1> {
+  %int-1 = torch.constant.int -1
+  %0 = torch.aten.gt.Scalar %arg0, %int-1 : !torch.vtensor<[?],i1>, !torch.int -> !torch.vtensor<[?],i1>
+  return %0 : !torch.vtensor<[?],i1>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @elementwise_eq_scalar_signed_i8(
 // CHECK:           %[[C:.*]] = arith.constant 300 : i64
 // CHECK:           linalg.generic
@@ -403,6 +444,32 @@ func.func @elementwise_lt_float_scalar_unsigned(%arg0: !torch.vtensor<[?],ui8>) 
 // CHECK-NEXT:        %[[CMP:.*]] = arith.cmpi sgt, %[[LHS_I16]], %[[RHS]] : i16
 func.func @elementwise_gt_tensor_unsigned_by_signed_i16(%arg0: !torch.vtensor<[?],ui8>, %arg1: !torch.vtensor<[?],si16>) -> !torch.vtensor<[?],i1> {
   %0 = torch.aten.gt.Tensor %arg0, %arg1 : !torch.vtensor<[?],ui8>, !torch.vtensor<[?],si16> -> !torch.vtensor<[?],i1>
+  return %0 : !torch.vtensor<[?],i1>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_gt_tensor_unsigned_by_signed_i8(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: i8, %[[RHS:.*]]: i8, %{{.*}}: i1):
+// CHECK-NEXT:        %[[LHS_I16:.*]] = arith.extui %[[LHS]] : i8 to i16
+// CHECK-NEXT:        %[[RHS_I16:.*]] = arith.extsi %[[RHS]] : i8 to i16
+// CHECK-NEXT:        %[[CMP:.*]] = arith.cmpi sgt, %[[LHS_I16]], %[[RHS_I16]] : i16
+func.func @elementwise_gt_tensor_unsigned_by_signed_i8(%arg0: !torch.vtensor<[?],ui8>, %arg1: !torch.vtensor<[?],si8>) -> !torch.vtensor<[?],i1> {
+  %0 = torch.aten.gt.Tensor %arg0, %arg1 : !torch.vtensor<[?],ui8>, !torch.vtensor<[?],si8> -> !torch.vtensor<[?],i1>
+  return %0 : !torch.vtensor<[?],i1>
+}
+
+// -----
+
+// CHECK-LABEL:   func.func @elementwise_gt_tensor_signed_by_unsigned_i8(
+// CHECK:           linalg.generic
+// CHECK:           ^bb0(%[[LHS:.*]]: i8, %[[RHS:.*]]: i8, %{{.*}}: i1):
+// CHECK-NEXT:        %[[LHS_I16:.*]] = arith.extsi %[[LHS]] : i8 to i16
+// CHECK-NEXT:        %[[RHS_I16:.*]] = arith.extui %[[RHS]] : i8 to i16
+// CHECK-NEXT:        %[[CMP:.*]] = arith.cmpi sgt, %[[LHS_I16]], %[[RHS_I16]] : i16
+func.func @elementwise_gt_tensor_signed_by_unsigned_i8(%arg0: !torch.vtensor<[?],si8>, %arg1: !torch.vtensor<[?],ui8>) -> !torch.vtensor<[?],i1> {
+  %0 = torch.aten.gt.Tensor %arg0, %arg1 : !torch.vtensor<[?],si8>, !torch.vtensor<[?],ui8> -> !torch.vtensor<[?],i1>
   return %0 : !torch.vtensor<[?],i1>
 }
 

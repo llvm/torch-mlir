@@ -560,6 +560,28 @@ func.func @torch.aten.cat$convert_unsigned(%arg0: !torch.vtensor<[?],f32>, %arg1
 
 // -----
 
+// CHECK-LABEL:  func.func @torch.aten.outer$convert_unsigned_to_int(
+// CHECK:         linalg.generic {{.*}} ins(%{{.*}} : tensor<2xi8>) outs(%{{.*}} : tensor<2xi64>)
+// CHECK:         ^bb0(%[[IN:.*]]: i8, %{{.*}}: i64):
+// CHECK-NEXT:      %{{.*}} = arith.extui %[[IN]] : i8 to i64
+func.func @torch.aten.outer$convert_unsigned_to_int(%arg0: !torch.vtensor<[2],ui8>, %arg1: !torch.vtensor<[3],si64>) -> !torch.vtensor<[2,3],si64> {
+  %0 = torch.aten.outer %arg0, %arg1 : !torch.vtensor<[2],ui8>, !torch.vtensor<[3],si64> -> !torch.vtensor<[2,3],si64>
+  return %0 : !torch.vtensor<[2,3],si64>
+}
+
+// -----
+
+// CHECK-LABEL:  func.func @torch.aten.outer$convert_unsigned_to_float(
+// CHECK:         linalg.generic {{.*}} ins(%{{.*}} : tensor<3xi8>) outs(%{{.*}} : tensor<3xf32>)
+// CHECK:         ^bb0(%[[IN:.*]]: i8, %{{.*}}: f32):
+// CHECK-NEXT:      %{{.*}} = arith.uitofp %[[IN]] : i8 to f32
+func.func @torch.aten.outer$convert_unsigned_to_float(%arg0: !torch.vtensor<[2],f32>, %arg1: !torch.vtensor<[3],ui8>) -> !torch.vtensor<[2,3],f32> {
+  %0 = torch.aten.outer %arg0, %arg1 : !torch.vtensor<[2],f32>, !torch.vtensor<[3],ui8> -> !torch.vtensor<[2,3],f32>
+  return %0 : !torch.vtensor<[2,3],f32>
+}
+
+// -----
+
 // CHECK-LABEL:   func.func @torch.aten.cat(
 // CHECK-SAME:                              %[[ARG_0:.*]]: !torch.vtensor<[?,?],f32>,
 // CHECK-SAME:                              %[[ARG_1:.*]]: !torch.vtensor<[?,?],f32>) -> !torch.vtensor<[?,?],f32> {

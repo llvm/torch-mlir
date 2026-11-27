@@ -1372,3 +1372,39 @@ class AtenOuterF32F64(torch.nn.Module):
 @register_test_case(module_factory=lambda: AtenOuterF32F64())
 def AtenOuterF32F64_basic(module, tu: TestUtils):
     module.forward(tu.rand(4), tu.rand(3).to(torch.float64))
+
+
+# ==============================================================================
+
+
+class AtenOuterUInt8Int(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1], torch.uint8, True), ([-1], torch.int64, True)])
+    def forward(self, a, b):
+        return torch.ops.aten.outer(a, b)
+
+
+@register_test_case(module_factory=lambda: AtenOuterUInt8Int())
+def AtenOuterUInt8Int_basic(module, tu: TestUtils):
+    module.forward(tu.randint(4, low=128, high=256).to(torch.uint8), tu.randint(3))
+
+
+# ==============================================================================
+
+
+class AtenOuterFloatUInt8(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    @export
+    @annotate_args([None, ([-1], torch.float32, True), ([-1], torch.uint8, True)])
+    def forward(self, a, b):
+        return torch.ops.aten.outer(a, b)
+
+
+@register_test_case(module_factory=lambda: AtenOuterFloatUInt8())
+def AtenOuterFloatUInt8_basic(module, tu: TestUtils):
+    module.forward(tu.rand(4), tu.randint(3, low=128, high=256).to(torch.uint8))
