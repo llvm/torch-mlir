@@ -10,6 +10,11 @@ mkdir -p "$build_dir"
 build_dir="$(cd $build_dir && pwd)"
 cache_dir="${cache_dir:-}"
 
+# Build with shared libraries instead of the default static ones. This mirrors
+# CMake's BUILD_SHARED_LIBS and is used by the CI job that guards the shared
+# library build on main.
+build_shared_libs="${BUILD_SHARED_LIBS:-OFF}"
+
 # Setup cache dir.
 if [ -z "${cache_dir}" ]; then
   cache_dir="${repo_root}/.build-cache"
@@ -22,6 +27,7 @@ mkdir -p "${cache_dir}/pip"
 
 python="$(which python3)"
 echo "Using python: $python"
+echo "Using BUILD_SHARED_LIBS: $build_shared_libs"
 
 export CMAKE_TOOLCHAIN_FILE="$this_dir/linux_default_toolchain.cmake"
 export CC=clang
@@ -41,6 +47,7 @@ echo "::group::CMake configure"
 cmake -S "$repo_root/externals/llvm-project/llvm" -B "$build_dir" \
   -GNinja \
   -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_SHARED_LIBS="$build_shared_libs" \
   -DPython3_EXECUTABLE="$(which python3)" \
   -DPython_EXECUTABLE="$(which python3)" \
   -DLLVM_ENABLE_ASSERTIONS=ON \
