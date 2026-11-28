@@ -244,46 +244,6 @@ ValueTensorType getTensorTypeFromShapeValues(ArrayRef<Value> shapes,
                                              Type dtype);
 Value getTensorDimSize(PatternRewriter &rewriter, Value tensor, int64_t dim);
 
-// Returns the bounds of a uint8, int8, int16 or int32 `dtypeInt`, as in
-// torchao's `_DTYPE_TO_QVALUE_BOUNDS`.
-std::optional<std::pair<double, double>>
-getTorchaoDtypeBounds(int64_t dtypeInt);
-
-// The `MappingType`s that torchao's `choose_qparams_affine` supports.
-enum class TorchaoMappingType { Asymmetric, Symmetric, SymmetricNoClippingErr };
-
-// Returns the torchao `MappingType` named `name`, or std::nullopt if
-// `choose_qparams_affine` doesn't support it.
-std::optional<TorchaoMappingType> getTorchaoMappingType(StringRef name);
-
-// Returns the constant `quantMin` and `quantMax` of a torchao quantization op,
-// with None as the bound of `dtype`.
-FailureOr<std::pair<double, double>>
-getTorchaoQuantBounds(Value quantMin, Value quantMax, Value dtype);
-
-// Returns the `block_size` entries of a torchao quantization op, with a
-// non-constant entry, which spans its dimension, as its size in `inputSizes`.
-FailureOr<SmallVector<int64_t>>
-getTorchaoBlockSize(Value blockSize, ArrayRef<int64_t> inputSizes);
-
-// Computes, as in torchao's `_get_reduction_params`, which dimensions of an
-// input of sizes `inputSizes` the `block_size` entries `blocks` reduce, and
-// which of these a block spans, so that they are dropped without `keepdim`.
-// A constant block is assumed not to span a dimension of unknown size. Returns
-// false if `blocks` reduces no dimension, in which case all are reduced and
-// spanned.
-bool getTorchaoReducedDims(ArrayRef<int64_t> inputSizes,
-                           ArrayRef<int64_t> blocks,
-                           SmallVectorImpl<bool> &reduced,
-                           SmallVectorImpl<bool> &spans);
-
-// Returns the shape of the results of torchao's `choose_qparams_affine` for an
-// input of sizes `inputSizes`, the `block_size` entries `blocks` and the
-// `spans` of `getTorchaoReducedDims`. Dynamic input sizes give kUnknownSize.
-SmallVector<int64_t> getTorchaoQparamsShape(ArrayRef<int64_t> inputSizes,
-                                            ArrayRef<int64_t> blocks,
-                                            ArrayRef<bool> spans, bool keepdim);
-
 // In Dynamo import paths, we can assume that dynamic dimensions are strictly
 // quantities and are not ambiguous with '1' symbols that can be interpreted
 // to signal an expansion in various broadcasting scenarios. In the
