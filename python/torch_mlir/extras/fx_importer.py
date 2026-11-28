@@ -2761,7 +2761,10 @@ class RefTracker:
     def track(self, referrent: Any) -> RefMapping:
         ref_id = id(referrent)
         existing = self._refs.get(ref_id)
-        if existing:
+        # Entries outlive their referrents (see below), and a collected object's
+        # id can be reused: only an entry that still refers to this object is a
+        # match, any other is stale and is replaced.
+        if existing and (referrent is Empty or existing._referrent() is referrent):
             return existing
         info = RefMapping(referrent)
         # Finalizer is removed due to a memory leak
