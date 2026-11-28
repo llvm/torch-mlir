@@ -1,0 +1,73 @@
+# yamllint disable rule:line-length
+name: CI_SHARED_LIBS
+
+on:
+  workflow_dispatch:
+  workflow_call:
+  push:
+    branches: [main]
+
+concurrency:
+  # A PR number if a pull request and otherwise the commit hash. This cancels
+  # queued and in-progress runs for the same PR (presubmit) or commit
+  # (postsubmit).
+  group: ci-build-test-cpp-linux-shared-libs-${{ github.event.number || github.sha }}
+  cancel-in-progress: true
+
+# Postsubmit health check for the BUILD_SHARED_LIBS=ON build, which the regular
+# CI does not exercise. It runs only on main (like CI_WINDOWS) so that failures
+# do not block PRs, but regressions are still caught shortly after merging.
+jobs:
+  build-test-linux-shared-libs:
+    strategy:
+      fail-fast: true
+      matrix:
+        torch-version: [nightly]
+    name: Build and Test (Linux, torch-${{ matrix.torch-version }}, shared libs)
+    runs-on: torch-mlir-cpubuilder-linux-x86-64-scale
+    env:
+      CACHE_DIR: ${{ github.workspace }}/.container-cache
+    steps:
+      - name: "Checking out repository"
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          submodules: true
+
+      - name: Setup workspace and python
+        uses: ./.github/actions/setup-build
+
+      - name: Restore cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ${{ env.CACHE_DIR }}
+          key: build-test-cpp-shared-libs-manylinux-${{ matrix.torch-version }}-v1-${{ github.sha }}
+          restore-keys: |
+            build-test-cpp-shared-libs-manylinux-${{ matrix.torch-version }}-v1-
+
+      - name: Display Python version and path
+        run: |
+          python -c "import sys; print(sys.version)"
+          which python
+
+      - name: Install python deps (torch-${{ matrix.torch-version }})
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          ./build_tools/ci/install_python_deps.sh ${{ matrix.torch-version }}
+
+      - name: Build project
+        run: |
+          export cache_dir="${{ env.CACHE_DIR }}"
+          bash build_tools/ci/build_posix.sh
+        env:
+          BUILD_SHARED_LIBS: "ON"
+
+      - name: Save cache
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        if: ${{ !cancelled() }}
+        with:
+          path: ${{ env.CACHE_DIR }}
+          key: build-test-cpp-shared-libs-manylinux-${{ matrix.torch-version }}-v1-${{ github.sha }}
+
+      - name: Integration tests (torch-${{ matrix.torch-version }})
+        run: |
+          bash build_tools/ci/test_posix.sh ${{ matrix.torch-version }}

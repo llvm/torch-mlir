@@ -265,6 +265,103 @@ Torch::matchLegalConstantIndexIntoListOfSize(Value v, int64_t length) {
   return dim;
 }
 
+std::optional<std::pair<double, double>>
+Torch::getTorchaoDtypeBounds(int64_t dtypeInt) {
+  using torch_upstream::ScalarType;
+  switch (static_cast<ScalarType>(dtypeInt)) {
+  case ScalarType::Byte:
+    return std::make_pair(0, UINT8_MAX);
+  case ScalarType::Char:
+    return std::make_pair(INT8_MIN, INT8_MAX);
+  case ScalarType::Short:
+    return std::make_pair(INT16_MIN, INT16_MAX);
+  case ScalarType::Int:
+    return std::make_pair(INT32_MIN, INT32_MAX);
+  default:
+    return std::nullopt;
+  }
+}
+
+std::optional<TorchaoMappingType> Torch::getTorchaoMappingType(StringRef name) {
+  return llvm::StringSwitch<std::optional<TorchaoMappingType>>(name)
+      .Case("ASYMMETRIC", TorchaoMappingType::Asymmetric)
+      .Case("SYMMETRIC", TorchaoMappingType::Symmetric)
+      .Case("SYMMETRIC_NO_CLIPPING_ERR",
+            TorchaoMappingType::SymmetricNoClippingErr)
+      .Default(std::nullopt);
+}
+
+FailureOr<std::pair<double, double>>
+Torch::getTorchaoQuantBounds(Value quantMin, Value quantMax, Value dtype) {
+  int64_t dtypeInt;
+  if (!matchPattern(dtype, m_TorchConstantInt(&dtypeInt)))
+    return failure();
+  std::optional<std::pair<double, double>> bounds =
+      getTorchaoDtypeBounds(dtypeInt);
+  auto matchBound = [](Value bound, double &value) {
+    int64_t intValue;
+    if (matchPattern(bound, m_TorchConstantInt(&intValue))) {
+      value = intValue;
+      return true;
+    }
+    return isa<Torch::NoneType>(bound.getType()) ||
+           matchPattern(bound, m_TorchConstantFloat(&value));
+  };
+  if (!bounds || !matchBound(quantMin, bounds->first) ||
+      !matchBound(quantMax, bounds->second))
+    return failure();
+  return *bounds;
+}
+
+FailureOr<SmallVector<int64_t>>
+Torch::getTorchaoBlockSize(Value blockSize, ArrayRef<int64_t> inputSizes) {
+  SmallVector<Value> entries;
+  if (!getListConstructElements(blockSize, entries) ||
+      entries.size() != inputSizes.size())
+    return failure();
+  SmallVector<int64_t> blocks;
+  for (auto [entry, size] : llvm::zip_equal(entries, inputSizes)) {
+    int64_t block;
+    if (matchPattern(entry, m_TorchConstantInt(&block)))
+      blocks.push_back(block);
+    else
+      blocks.push_back(size);
+  }
+  return blocks;
+}
+
+bool Torch::getTorchaoReducedDims(ArrayRef<int64_t> inputSizes,
+                                  ArrayRef<int64_t> blocks,
+                                  SmallVectorImpl<bool> &reduced,
+                                  SmallVectorImpl<bool> &spans) {
+  for (auto [size, block] : llvm::zip_equal(inputSizes, blocks)) {
+    spans.push_back(block == size && size != 1);
+    reduced.push_back(block > 1 || spans.back());
+  }
+  if (llvm::is_contained(reduced, true))
+    return true;
+  spans.assign(inputSizes.size(), true);
+  reduced.assign(inputSizes.size(), true);
+  return false;
+}
+
+SmallVector<int64_t> Torch::getTorchaoQparamsShape(ArrayRef<int64_t> inputSizes,
+                                                   ArrayRef<int64_t> blocks,
+                                                   ArrayRef<bool> spans,
+                                                   bool keepdim) {
+  SmallVector<int64_t> shape;
+  for (auto [size, block, spanned] :
+       llvm::zip_equal(inputSizes, blocks, spans)) {
+    if (spanned) {
+      if (keepdim)
+        shape.push_back(1);
+      continue;
+    }
+    shape.push_back(size == kUnknownSize ? kUnknownSize : size / block);
+  }
+  return shape;
+}
+
 static IntegerAttr getI64IntegerAttr(MLIRContext *context, int64_t value) {
   return IntegerAttr::get(IntegerType::get(context, 64), value);
 }
